@@ -1,0 +1,17 @@
+{
+  "name": "coursemate-ai",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@11.6.2",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace @coursemate/web",
+    "dev:api": "npm run dev --workspace @coursemate/api",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "format:check": "npm run format:check --workspaces --if-present"
+  }
+}
