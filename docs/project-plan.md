@@ -185,13 +185,13 @@ Exit evidence: final release, presentation, backup demo, evaluation results, and
 
 ## Two-person responsibility model
 
-### Member A primary ownership
+### Tài primary ownership
 
 - Frontend architecture and user experience.
 - Form validation and frontend tests.
 - Demo flow and presentation visuals.
 
-### Member B primary ownership
+### Thắng primary ownership
 
 - Backend API, database, and deployment.
 - AI integration, retrieval, and evaluation harness.
@@ -210,7 +210,6 @@ Exit evidence: final release, presentation, backup demo, evaluation results, and
 2. Model provider: approved hosted API, Ollama, or a documented fallback.
 3. VM platform and deployment target.
 4. Exact final deadline and official LMS constraints.
-5. Names or identifiers for Member A and Member B.
 
 ## Initial risk register
 
