@@ -1,315 +1,384 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { api, HealthStatus, Task, TaskStatus } from "./api";
+import { useEffect, useRef, useState } from "react";
+import {
+  AcademicCapIcon,
+  Squares2X2Icon,
+  ListBulletIcon,
+  ClipboardDocumentListIcon,
+  MagnifyingGlassIcon,
+  WalletIcon,
+  BookOpenIcon,
+  SparklesIcon,
+  Bars3Icon,
+  XMarkIcon,
+  ArrowUpRightIcon,
+  QuestionMarkCircleIcon,
+} from "@heroicons/react/24/outline";
+import {
+  CalendarPanel,
+  CoursesPanel,
+  ExamsPanel,
+  NotesPanel,
+  Panel,
+  ResearchPanel,
+} from "./AcademicPanels";
+import { TasksPanel } from "./TasksPanel";
+import { useWorkspace } from "./use-workspace";
 
-const statusLabels: Record<TaskStatus, string> = {
-  todo: "To do",
-  in_progress: "In progress",
-  done: "Done",
-};
-
-function formatDate(date: string | null) {
-  if (!date) return "No due date";
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "numeric",
-  }).format(new Date(`${date.slice(0, 10)}T00:00:00`));
+const pages = [
+  {
+    id: "dashboard",
+    name: "Dashboard",
+    icon: Squares2X2Icon,
+    title: "Student academic dashboard",
+    description:
+      "A little structure. A lot of possibility. Make space for your best work.",
+  },
+  {
+    id: "courses",
+    name: "Courses",
+    icon: AcademicCapIcon,
+    title: "Your learning journey",
+    description:
+      "One place for the subjects, ideas and skills you’re exploring.",
+  },
+  {
+    id: "tasks",
+    name: "Tasks",
+    icon: ListBulletIcon,
+    title: "Small steps. Real progress.",
+    description:
+      "Plan the work, share the load, and keep moving forward together.",
+  },
+  {
+    id: "exams",
+    name: "Exams",
+    icon: ClipboardDocumentListIcon,
+    title: "A little more prepared",
+    description:
+      "Keep upcoming assessments in view and give yourself room to prepare.",
+  },
+  {
+    id: "research",
+    name: "Research",
+    icon: MagnifyingGlassIcon,
+    title: "Follow your curiosity",
+    description:
+      "Collect ideas, explore the evidence, and build something meaningful.",
+  },
+  {
+    id: "finances",
+    name: "Finances",
+    icon: WalletIcon,
+    title: "Room in your budget",
+    description: "A simple view of the resources behind your academic journey.",
+  },
+  {
+    id: "assistant",
+    name: "Assistant",
+    icon: SparklesIcon,
+    title: "Meet your study companion",
+    description:
+      "CourseMate will connect your questions to the evidence in your documents.",
+  },
+];
+function currentPage() {
+  return (
+    pages.find((page) => page.id === window.location.hash.slice(1)) || pages[0]
+  );
 }
 
 export default function App() {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [health, setHealth] = useState<HealthStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [title, setTitle] = useState("");
-  const [ownerName, setOwnerName] = useState("");
-  const [dueDate, setDueDate] = useState("");
-
-  const loadWorkspace = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [taskRows, healthResult] = await Promise.all([
-        api.listTasks(),
-        api.health(),
-      ]);
-      setTasks(taskRows);
-      setHealth(healthResult);
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not load workspace",
-      );
-      setHealth({ status: "degraded", database: "unavailable" });
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  const [page, setPage] = useState(currentPage);
+  const [menu, setMenu] = useState(false);
+  const [search, setSearch] = useState("");
+  const heading = useRef<HTMLHeadingElement>(null);
+  const menuToggle = useRef<HTMLButtonElement>(null);
+  const workspace = useWorkspace();
   useEffect(() => {
-    void loadWorkspace();
-  }, [loadWorkspace]);
-
-  const completed = useMemo(
-    () => tasks.filter((task) => task.status === "done").length,
-    [tasks],
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && menu) {
+        setMenu(false);
+        menuToggle.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [menu]);
+  useEffect(() => {
+    const onHash = () => {
+      if (window.location.hash === "#main-content") {
+        document.getElementById("main-content")?.focus();
+        return;
+      }
+      setPage(currentPage());
+      setMenu(false);
+      setSearch("");
+      requestAnimationFrame(() => heading.current?.focus());
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  useEffect(() => {
+    document.title = `${page.name} · CourseMate AI`;
+    document
+      .querySelector('meta[name="description"]')
+      ?.setAttribute("content", page.description);
+  }, [page]);
+  const navigation = pages.filter((item) =>
+    item.name.toLowerCase().includes(search.toLowerCase()),
   );
-  const progress =
-    tasks.length === 0 ? 0 : Math.round((completed / tasks.length) * 100);
-
-  async function submitTask(event: FormEvent) {
-    event.preventDefault();
-    if (title.trim().length < 3) {
-      setError("Task title must contain at least three characters.");
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-    try {
-      const task = await api.createTask({
-        title: title.trim(),
-        ownerName: ownerName.trim() || undefined,
-        dueDate: dueDate || undefined,
-        evidenceType: "milestone",
-      });
-      setTasks((current) => [task, ...current]);
-      setTitle("");
-      setOwnerName("");
-      setDueDate("");
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not create task",
-      );
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function changeStatus(task: Task, status: TaskStatus) {
-    const previous = tasks;
-    setTasks((current) =>
-      current.map((item) => (item.id === task.id ? { ...item, status } : item)),
-    );
-    try {
-      const updated = await api.updateTaskStatus(task.id, status);
-      setTasks((current) =>
-        current.map((item) => (item.id === task.id ? updated : item)),
-      );
-    } catch (caught) {
-      setTasks(previous);
-      setError(
-        caught instanceof Error ? caught.message : "Could not update task",
-      );
-    }
-  }
-
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-mark" aria-hidden="true">
-          CM
-        </div>
-        <div className="brand-copy">
-          <strong>CourseMate AI</strong>
-          <span>Final project workspace</span>
-        </div>
-        <nav aria-label="Primary navigation">
-          <a className="nav-link active" href="#workspace">
-            Workspace
-          </a>
-          <a className="nav-link" href="#tasks">
-            Tasks
-          </a>
-          <a className="nav-link" href="#assistant">
-            Assistant
-          </a>
-          <a className="nav-link" href="#evidence">
-            Evidence
-          </a>
-        </nav>
-        <div className="sidebar-note">
-          <span>Release gate</span>
-          <strong>Baseline build</strong>
-          <small>Conventional application before AI integration</small>
-        </div>
-      </aside>
-
-      <main id="workspace">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">Team workspace</p>
-            <h1>Final project control room</h1>
-          </div>
-          <div
-            className={`service-state ${health?.status === "ok" ? "online" : "offline"}`}
-          >
-            <span aria-hidden="true" />
-            {health?.status === "ok"
-              ? "API and database online"
-              : "Local services offline"}
-          </div>
-        </header>
-
-        {error && (
-          <div className="alert" role="alert">
-            <span>{error}</span>
-            <button type="button" onClick={() => void loadWorkspace()}>
-              Retry
-            </button>
-          </div>
-        )}
-
-        <section className="summary-grid" aria-label="Project summary">
-          <article className="summary-card emphasis">
-            <span>Milestone progress</span>
-            <strong>{progress}%</strong>
-            <div
-              className="progress-track"
-              aria-label={`${progress}% complete`}
-            >
-              <span style={{ width: `${progress}%` }} />
-            </div>
-            <small>
-              {completed} of {tasks.length} tracked tasks complete
-            </small>
-          </article>
-          <article className="summary-card">
-            <span>Evidence gaps</span>
-            <strong>
-              {tasks.filter((task) => task.status !== "done").length}
-            </strong>
-            <small>Open work still needs review or proof</small>
-          </article>
-          <article className="summary-card">
-            <span>AI boundary</span>
-            <strong>RAG</strong>
-            <small>
-              Provider disabled until the evaluation baseline is ready
-            </small>
-          </article>
-        </section>
-
-        <div className="workspace-grid">
-          <section className="panel task-panel" id="tasks">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">Current milestone</p>
-                <h2>Team tasks</h2>
-              </div>
-              <span>{tasks.length} items</span>
-            </div>
-
-            <form className="task-form" onSubmit={submitTask}>
-              <label>
-                Task title
-                <input
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  placeholder="Add acceptance test evidence"
-                  maxLength={160}
-                  required
-                />
-              </label>
-              <label>
-                Owner
-                <input
-                  value={ownerName}
-                  onChange={(event) => setOwnerName(event.target.value)}
-                  placeholder="Member A"
-                  maxLength={80}
-                />
-              </label>
-              <label>
-                Due date
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={(event) => setDueDate(event.target.value)}
-                />
-              </label>
-              <button className="primary-button" disabled={saving}>
-                {saving ? "Adding…" : "Add task"}
-              </button>
-            </form>
-
-            <div className="task-list" aria-live="polite">
-              {loading ? (
-                <div className="empty-state">Loading project tasks…</div>
-              ) : tasks.length === 0 ? (
-                <div className="empty-state">
-                  No tasks yet. Add the first project milestone above.
-                </div>
-              ) : (
-                tasks.map((task) => (
-                  <article className="task-row" key={task.id}>
-                    <div
-                      className={`status-glyph ${task.status}`}
-                      aria-hidden="true"
-                    />
-                    <div className="task-copy">
-                      <strong>{task.title}</strong>
-                      <span>
-                        {task.owner_name || "Unassigned"} ·{" "}
-                        {formatDate(task.due_date)}
-                      </span>
-                    </div>
-                    <select
-                      aria-label={`Status for ${task.title}`}
-                      value={task.status}
-                      onChange={(event) =>
-                        void changeStatus(
-                          task,
-                          event.target.value as TaskStatus,
-                        )
-                      }
-                    >
-                      {Object.entries(statusLabels).map(([value, label]) => (
-                        <option value={value} key={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </article>
-                ))
-              )}
-            </div>
-          </section>
-
-          <aside className="panel assistant-panel" id="assistant">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">Controlled AI</p>
-                <h2>Ask CourseMate</h2>
-              </div>
-              <span className="planned-state">Planned</span>
-            </div>
-            <div className="assistant-message">
-              <span className="assistant-avatar">AI</span>
-              <p>
-                The assistant will answer from approved project documents and
-                show the source passage for every grounded claim.
-              </p>
-            </div>
-            <label className="assistant-input">
-              Question
-              <textarea
-                placeholder="What evidence is required before the final release gate?"
-                disabled
-              />
-            </label>
-            <button className="secondary-button" disabled>
-              Ask after RAG setup
-            </button>
-            <div className="fallback-note">
-              <strong>Failure behavior is visible from day one.</strong>
-              <span>
-                Task management remains available while the AI provider is
-                disabled.
+    <>
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
+      <div className="desktop-shell">
+        <aside
+          id="workspace-navigation"
+          className={`sidebar ${menu ? "menu-open" : ""}`}
+          aria-label="Workspace navigation"
+        >
+          <header className="sidebar-header">
+            <span className="window-dots" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+            </span>
+            <a className="brand" href="#dashboard">
+              <span className="brand-logo">
+                C<span>m</span>
               </span>
-            </div>
-          </aside>
+              <span>
+                CourseMate
+                <span className="brand-subtitle">Your academic space</span>
+              </span>
+            </a>
+            <button
+              className="mobile-close"
+              aria-label="Close navigation"
+              onClick={() => {
+                setMenu(false);
+                menuToggle.current?.focus();
+              }}
+            >
+              <XMarkIcon />
+            </button>
+          </header>
+          <label className="sidebar-search">
+            <MagnifyingGlassIcon />
+            <span className="sr-only">Find a page</span>
+            <input
+              type="search"
+              placeholder="Find a page…"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            <kbd aria-hidden="true">⌕</kbd>
+          </label>
+          <p className="nav-heading">WORKSPACE</p>
+          <nav aria-label="Primary">
+            <ul>
+              {navigation.map((item) => (
+                <li key={item.id}>
+                  <a
+                    href={`#${item.id}`}
+                    aria-current={page.id === item.id ? "page" : undefined}
+                  >
+                    <item.icon aria-hidden="true" />
+                    {item.name}
+                    {item.id === "assistant" && <small>Soon</small>}
+                  </a>
+                </li>
+              ))}
+            </ul>
+            {!navigation.length && (
+              <p className="search-empty">No matching pages.</p>
+            )}
+          </nav>
+          <footer className="sidebar-footer">
+            <p className="semester-label">
+              <BookOpenIcon /> A fresh chapter<span>Semester 01 · 2026</span>
+            </p>
+            <span className="profile">
+              <span className="profile-avatar">T</span>
+              <span>
+                Tài & Thắng<small>Student workspace</small>
+              </span>
+            </span>
+          </footer>
+        </aside>
+        <div className="workspace-body">
+          <header className="breadcrumb">
+            <button
+              className="menu-toggle"
+              ref={menuToggle}
+              aria-controls="workspace-navigation"
+              aria-label="Open navigation"
+              aria-expanded={menu}
+              onClick={() => setMenu(!menu)}
+            >
+              <Bars3Icon />
+            </button>
+            <span>
+              <AcademicCapIcon /> Workspace{" "}
+              <span className="crumb-divider">/</span> {page.name}
+            </span>
+            <span className="private-label">Personal workspace</span>
+          </header>
+          <figure className="cover">
+            <img
+              src="https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=1600&q=85"
+              alt="Bright, quiet study space with a desk, books and natural daylight"
+              width="1600"
+              height="450"
+              fetchPriority="high"
+            />
+            <figcaption className="cover-caption">
+              A PLACE TO THINK. A SPACE TO GROW.
+            </figcaption>
+          </figure>
+          <main id="main-content" tabIndex={-1}>
+            <header className="page-heading">
+              <span className="page-emblem">
+                <AcademicCapIcon aria-hidden="true" />
+              </span>
+              <p className="eyebrow">YOUR SPACE TO MAKE THINGS HAPPEN</p>
+              <h1 ref={heading} tabIndex={-1}>
+                {page.title}
+              </h1>
+              <p>{page.description}</p>
+            </header>
+            {page.id === "dashboard" && (
+              <div className="dashboard-grid">
+                <CalendarPanel />
+                <TasksPanel workspace={workspace} />
+                <section className="full-width" aria-label="Courses">
+                  <CoursesPanel />
+                </section>
+                <section className="full-width" aria-label="Exams">
+                  <ExamsPanel />
+                </section>
+                <ResearchPanel />
+                <NotesPanel />
+              </div>
+            )}
+            {page.id === "courses" && <CoursesPanel expanded />}
+            {page.id === "tasks" && (
+              <TasksPanel workspace={workspace} expanded />
+            )}
+            {page.id === "exams" && (
+              <>
+                <ExamsPanel />
+                <p className="page-note">
+                  These dates demonstrate the layout. Course and exam management
+                  are planned features.
+                </p>
+              </>
+            )}
+            {page.id === "research" && (
+              <>
+                <ResearchPanel />
+                <section
+                  className="secondary-panel"
+                  aria-label="Research notes"
+                >
+                  <NotesPanel />
+                </section>
+              </>
+            )}
+            {page.id === "finances" && (
+              <Panel title="Student budget" icon={<WalletIcon />}>
+                <p className="view-label">
+                  Monthly overview{" "}
+                  <span className="example-label">
+                    Illustrative budget · VND
+                  </span>
+                </p>
+                <dl className="budget-grid grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <dt>Monthly budget</dt>
+                    <dd>3,000,000 ₫</dd>
+                  </div>
+                  <div>
+                    <dt>Planned expenses</dt>
+                    <dd>1,500,000 ₫</dd>
+                  </div>
+                  <div>
+                    <dt>Remaining</dt>
+                    <dd>1,500,000 ₫</dd>
+                  </div>
+                </dl>
+                <table className="exam-table">
+                  <caption>Example study expenses</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Category</th>
+                      <th scope="col">Budget</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row">Books & materials</th>
+                      <td>500,000 ₫</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Transport</th>
+                      <td>600,000 ₫</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Project resources</th>
+                      <td>400,000 ₫</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p className="page-note">
+                  Budget data is illustrative. No financial records are stored
+                  or connected.
+                </p>
+              </Panel>
+            )}
+            {page.id === "assistant" && (
+              <Panel title="Ask CourseMate" icon={<SparklesIcon />}>
+                <p className="page-note">
+                  Planned feature: answers grounded in your approved project
+                  documents, with citations you can check. The AI provider is
+                  not configured yet.
+                </p>
+                <label className="assistant-label">
+                  Your question
+                  <textarea
+                    disabled
+                    placeholder="What evidence is required for our final project?"
+                  />
+                </label>
+                <button className="primary-button" disabled>
+                  Ask after RAG setup
+                </button>
+                <p className="page-note">
+                  You can continue managing tasks while the assistant is
+                  unavailable.
+                </p>
+              </Panel>
+            )}
+            <footer className="page-footer">
+              <span>Make a little progress, every day.</span>
+              <a href="#tasks">
+                Your next step <ArrowUpRightIcon />
+              </a>
+            </footer>
+          </main>
         </div>
-      </main>
-    </div>
+      </div>
+      <details className="help">
+        <summary aria-label="About this workspace">
+          <QuestionMarkCircleIcon />
+        </summary>
+        <p>
+          CourseMate AI · A student project by Tài & Thắng. Tasks connect to the
+          project API. Academic examples are labelled; notes stay in this
+          browser.
+        </p>
+      </details>
+    </>
   );
 }
