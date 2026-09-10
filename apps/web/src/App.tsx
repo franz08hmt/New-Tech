@@ -12,6 +12,7 @@ import {
   XMarkIcon,
   ArrowUpRightIcon,
   QuestionMarkCircleIcon,
+  DocumentArrowUpIcon,
 } from "@heroicons/react/24/outline";
 import {
   CalendarPanel,
@@ -22,6 +23,7 @@ import {
   ResearchPanel,
 } from "./AcademicPanels";
 import { TasksPanel } from "./TasksPanel";
+import { DocumentsPanel } from "./DocumentsPanel";
 import { useWorkspace } from "./use-workspace";
 
 const pages = [
@@ -64,6 +66,14 @@ const pages = [
     title: "Follow your curiosity",
     description:
       "Collect ideas, explore the evidence, and build something meaningful.",
+  },
+  {
+    id: "documents",
+    name: "Documents",
+    icon: DocumentArrowUpIcon,
+    title: "Your trusted study sources",
+    description:
+      "Collect the materials CourseMate will use for review and grounded answers.",
   },
   {
     id: "finances",
@@ -286,6 +296,7 @@ export default function App() {
                 </section>
               </>
             )}
+            {page.id === "documents" && <DocumentsPanel />}
             {page.id === "finances" && (
               <Panel title="Student budget" icon={<WalletIcon />}>
                 <p className="view-label">

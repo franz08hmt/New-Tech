@@ -9,6 +9,8 @@ import { Panel } from "./AcademicPanels";
 import type { Workspace } from "./use-workspace";
 import type { TaskStatus } from "./api";
 
+type OwnerFilter = "all" | "Tài" | "Thắng";
+
 export function TasksPanel({
   workspace,
   expanded = false,
@@ -17,12 +19,17 @@ export function TasksPanel({
   expanded?: boolean;
 }) {
   const [filter, setFilter] = useState("all");
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all");
   const [notice, setNotice] = useState("");
-  const tasks = workspace.tasks.filter((task) =>
-    expanded
+  const tasks = workspace.tasks.filter((task) => {
+    const matchesStatus = expanded
       ? filter === "all" || task.status === filter
-      : task.status !== "done",
-  );
+      : task.status !== "done";
+    const matchesOwner =
+      ownerFilter === "all" || task.owner_name === ownerFilter;
+
+    return matchesStatus && matchesOwner;
+  });
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -69,18 +76,35 @@ export function TasksPanel({
         </p>
       )}
       {expanded && (
-        <label className="filter-label">
-          Status{" "}
-          <select
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-          >
-            <option value="all">All tasks</option>
-            <option value="todo">To do</option>
-            <option value="in_progress">In progress</option>
-            <option value="done">Done</option>
-          </select>
-        </label>
+        <fieldset className="task-filters">
+          <legend className="sr-only">Filter tasks</legend>
+          <label className="filter-label">
+            Status{" "}
+            <select
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+            >
+              <option value="all">All tasks</option>
+              <option value="todo">To do</option>
+              <option value="in_progress">In progress</option>
+              <option value="done">Done</option>
+            </select>
+          </label>
+          <label className="filter-label">
+            Filter by owner{" "}
+            <select
+              aria-label="Owner filter"
+              value={ownerFilter}
+              onChange={(event) =>
+                setOwnerFilter(event.target.value as OwnerFilter)
+              }
+            >
+              <option value="all">All owners</option>
+              <option value="Tài">Tài</option>
+              <option value="Thắng">Thắng</option>
+            </select>
+          </label>
+        </fieldset>
       )}
       {workspace.loading ? (
         <p role="status" className="empty-message">
@@ -140,9 +164,11 @@ export function TasksPanel({
       ) : (
         !workspace.error && (
           <p className="empty-message">
-            {expanded
-              ? "No tasks in this view. Add a project milestone below."
-              : "Nothing urgent. A little room to breathe."}
+            {expanded && (filter !== "all" || ownerFilter !== "all")
+              ? "No tasks match these filters."
+              : expanded
+                ? "No tasks in this view. Add a project milestone below."
+                : "Nothing urgent. A little room to breathe."}
           </p>
         )
       )}

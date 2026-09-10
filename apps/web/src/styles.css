@@ -728,8 +728,15 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    margin: 12px 0;
     font-size: 11px;
+  }
+  .task-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+    margin: 12px 0;
+    padding: 0;
+    border: 0;
   }
   .assistant-label {
     margin: 20px 0;
@@ -761,6 +768,169 @@
   .secondary-panel {
     margin-top: 28px;
     max-width: 500px;
+  }
+  .document-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.65fr) minmax(230px, 0.75fr);
+    gap: 28px;
+  }
+  .document-section-heading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--color-line);
+  }
+  .document-section-heading h2,
+  .document-roadmap h2 {
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .document-section-heading p,
+  .document-roadmap p {
+    color: var(--color-muted);
+    font-size: 10px;
+  }
+  .document-heading-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 6px;
+    background: var(--color-band);
+  }
+  .upload-panel {
+    margin: 18px 0 24px;
+    padding: 28px;
+    border: 1px dashed #b9c3ba;
+    border-radius: 7px;
+    background: #f9faf7;
+    text-align: center;
+  }
+  .upload-panel > svg {
+    width: 34px;
+    height: 34px;
+    margin: 0 auto 8px;
+  }
+  .upload-panel h3,
+  .selected-documents h3 {
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .upload-panel > p {
+    max-width: 460px;
+    margin: 5px auto;
+    color: var(--color-muted);
+    font-size: 10px;
+  }
+  .file-picker {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: fit-content;
+    margin: 16px auto 8px;
+    color: #fff;
+    background: #526750;
+    padding: 10px 18px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .file-picker:hover {
+    background: #45573f;
+  }
+  /* The label is the visible control; the input stays reachable for keyboard
+     and assistive technology but is removed from the visual layout. */
+  .file-picker:focus-within {
+    outline: 2px solid #527a75;
+    outline-offset: 4px;
+  }
+  .file-picker input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    border: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    clip-path: inset(50%);
+  }
+  .upload-panel .upload-boundary {
+    color: #8c5d3d;
+  }
+  .selected-documents > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--color-line);
+  }
+  .selected-documents > header span {
+    color: var(--color-muted);
+    font-size: 9px;
+  }
+  .document-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 4px;
+    border-bottom: 1px solid var(--color-line);
+  }
+  .document-card > svg {
+    width: 26px;
+    height: 26px;
+  }
+  .document-card strong,
+  .document-card small {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+  .document-card strong {
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .document-card small {
+    color: var(--color-muted);
+    font-size: 8px;
+  }
+  .document-card .local-status {
+    color: #8c5d3d;
+  }
+  .document-card button {
+    padding: 10px;
+  }
+  .document-roadmap {
+    align-self: start;
+    padding: 20px;
+    border-radius: 6px;
+    background: #f4ead9;
+  }
+  .document-roadmap ol {
+    margin: 18px 0;
+  }
+  .document-roadmap li {
+    display: flex;
+    gap: 10px;
+    padding: 11px 0;
+    border-bottom: 1px solid #dfd3bf;
+  }
+  .document-roadmap strong,
+  .document-roadmap small {
+    display: block;
+  }
+  .document-roadmap strong {
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .document-roadmap small {
+    color: var(--color-muted);
+    font-size: 8px;
   }
   .page-footer {
     display: flex;
@@ -865,6 +1035,9 @@
   .cover {
     height: 170px;
   }
+  .document-layout {
+    grid-template-columns: 1fr;
+  }
 }
 @media (max-width: 600px) {
   main {
@@ -915,6 +1088,12 @@
   }
   .page-footer > span {
     max-width: 170px;
+  }
+  .upload-panel {
+    padding: 22px 14px;
+  }
+  .file-picker {
+    width: 100%;
   }
 }
 @media (max-width: 899px) {

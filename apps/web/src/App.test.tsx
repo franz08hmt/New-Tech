@@ -84,6 +84,96 @@ describe("Academic workspace", () => {
       }),
     );
   });
+  it("filters tasks by owner and shows an empty state when none match", async () => {
+    window.history.replaceState(null, "", "/#tasks");
+    render(<App />);
+    await screen.findByText("Review API contract");
+
+    const ownerFilter = screen.getByLabelText("Owner filter");
+    expect(ownerFilter).toHaveValue("all");
+
+    fireEvent.change(ownerFilter, { target: { value: "Tài" } });
+    expect(screen.getByText("Review API contract")).toBeInTheDocument();
+
+    fireEvent.change(ownerFilter, { target: { value: "Thắng" } });
+    expect(screen.queryByText("Review API contract")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("No tasks match these filters."),
+    ).toBeInTheDocument();
+  });
+  it("selects valid PDFs locally without calling a document API", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+
+    const pdf = new File(["week three notes"], "week-3-notes.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+      target: { files: [pdf] },
+    });
+
+    expect(await screen.findByText("week-3-notes.pdf")).toBeInTheDocument();
+    expect(
+      screen.getByText("Selected locally · Not uploaded"),
+    ).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalledWith("/api/documents", expect.anything());
+  });
+  it("keeps one card when the same PDF is picked twice in one selection", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+
+    // Two picks of the same file on disk share name, size and lastModified.
+    const pick = () =>
+      new File(["shared syllabus"], "syllabus.pdf", {
+        type: "application/pdf",
+        lastModified: 1757000000000,
+      });
+    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+      target: { files: [pick(), pick()] },
+    });
+
+    expect(await screen.findAllByText("syllabus.pdf")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "1 already in the list was skipped",
+    );
+  });
+  it("reports nothing added when a selected PDF is already listed", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+
+    const picker = screen.getByLabelText("Choose PDF files");
+    const pick = () =>
+      new File(["shared syllabus"], "syllabus.pdf", {
+        type: "application/pdf",
+        lastModified: 1757000000000,
+      });
+
+    fireEvent.change(picker, { target: { files: [pick()] } });
+    await screen.findByText("syllabus.pdf");
+
+    fireEvent.change(picker, { target: { files: [pick()] } });
+
+    expect(screen.getAllByText("syllabus.pdf")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "That PDF is already in the list.",
+    );
+  });
+  it("rejects non-PDF files before any upload", () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+
+    const textFile = new File(["not a pdf"], "notes.txt", {
+      type: "text/plain",
+    });
+    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+      target: { files: [textFile] },
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Only PDF files are accepted",
+    );
+    expect(screen.queryByText("notes.txt")).not.toBeInTheDocument();
+  });
   it("keeps tasks intact on a failed status update", async () => {
     window.history.replaceState(null, "", "/#tasks");
     vi.stubGlobal(
