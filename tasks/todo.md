@@ -41,10 +41,10 @@
 
 ## Responsive AI Copilot layout
 
-- [ ] Viết test đỏ cho open/close, focus và page context.
-- [ ] Tạo `AssistantPanel.tsx` và giữ state mở/đóng tại `App.tsx`.
-- [ ] Thêm sample answer/citation với nhãn “Interface preview”.
-- [ ] Thêm responsive dock ≥1440, overlay laptop và bottom sheet mobile.
-- [ ] Xác minh không có AI/document request mới.
-- [ ] Chạy test, typecheck, format và production build.
+- [x] Viết test đỏ cho open/close, focus và page context.
+- [x] Tạo `AssistantPanel.tsx` và giữ state mở/đóng tại `App.tsx`.
+- [x] Thêm sample answer/citation với nhãn “Interface preview”.
+- [x] Thêm responsive dock ≥1440, overlay laptop và bottom sheet mobile.
+- [x] Xác minh không có AI/document request mới.
+- [x] Chạy 14 tests, typecheck, format và production build.
 - [ ] Tài tự kiểm tra Dashboard, Tasks và Documents khi panel mở/đóng.

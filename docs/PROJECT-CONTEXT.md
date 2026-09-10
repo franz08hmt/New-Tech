@@ -220,7 +220,8 @@ File quan trọng:
 
 | File | Vai trò |
 | --- | --- |
-| `apps/web/src/App.tsx` | UI task workspace và AI placeholder |
+| `apps/web/src/App.tsx` | Shell, hash navigation và state mở/đóng AI panel |
+| `apps/web/src/AssistantPanel.tsx` | UI preview AI theo page context; chưa gọi RAG/LLM |
 | `apps/web/src/api.ts` | REST client của frontend |
 | `apps/web/vite.config.ts` | Dev proxy `/api` sang port 3000 |
 | `apps/api/src/main.ts` | NestJS bootstrap, prefix `/api`, validation và CORS |
@@ -453,7 +454,7 @@ Phân công có thể đổi nếu kỹ năng thực tế yêu cầu, nhưng ph�
 | CM-203 | 5 | Upload loading/error/failed UI | Tài | Thắng | FE mock states implemented; integration pending |
 | CM-301 | 5–6 | Embedding adapter và pgvector retrieval | Thắng | Tài | Not started |
 | CM-302 | 6 | Ask endpoint và structured output | Thắng | Tài | Not started |
-| CM-303 | 6 | Assistant UI và citation viewer | Tài | Thắng | Not started |
+| CM-303 | 6 | Assistant UI và citation viewer | Tài | Thắng | Responsive UI shell/sample citation implemented; RAG integration pending |
 | CM-304 | 6 | Unanswerable, timeout và unavailable fallback | Cả hai | Cả hai | Not started |
 | CM-401 | 6–7 | Chạy và ghi 10 evaluation cases | Tài | Thắng | Not started |
 | CM-402 | 7 | Integration test và failure test | Thắng | Tài | Not started |
@@ -597,13 +598,12 @@ Khi một task phụ thuộc vào các mục này, cần nêu lựa chọn và h
 
 Box/model tiếp theo nên bắt đầu như sau:
 
-1. Kiểm tra Git status và không đè các docs chưa commit.
-2. Hỏi/xác nhận Docker Desktop đã chạy hay chưa.
-3. Hoàn tất CM-001 bằng runtime verification.
-4. Đóng CM-002 sau khi Tài và Thắng giải thích được request path.
-5. Chốt phạm vi CM-003 trước khi sửa code.
-6. Chỉ sau đó mới bắt đầu CM-101/CM-102.
+1. Kiểm tra Git status và không commit `apps/api/tsconfig.tsbuildinfo`.
+2. Tài chạy frontend, mở Dashboard/Tasks/Documents và kiểm tra panel ở kích thước desktop/mobile.
+3. Tài giải thích state mở/đóng, page context, focus return và giới hạn “Interface preview”.
+4. Nhờ Thắng review trước khi merge `feature/tai`.
+5. Chỉ nối panel với `/api/assistant` sau khi Thắng chốt contract RAG.
 
 ---
 
-**Current resume point:** đang ở `CM-001` và `CM-002`; format check pass, Docker runtime chưa được xác minh ngày 2026-09-08. Task code kế tiếp của Tài là `CM-003`, nhưng chỉ bắt đầu sau khi baseline container chạy xanh.
+**Current resume point:** frontend-only responsive AI Copilot shell đã hoàn thành trên `feature/tai`: dock ở màn hình rộng, overlay ở laptop và bottom sheet ở mobile; 14 tests, typecheck, format và production build pass ngày 2026-09-10. Panel chỉ là interface preview, chưa gửi request AI/RAG. Việc tiếp theo của Tài là chạy walkthrough và nhờ Thắng review; `apps/api/tsconfig.tsbuildinfo` vẫn là generated file không được commit.
