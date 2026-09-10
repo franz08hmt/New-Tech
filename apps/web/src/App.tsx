@@ -24,6 +24,7 @@ import {
 } from "./AcademicPanels";
 import { TasksPanel } from "./TasksPanel";
 import { DocumentsPanel } from "./DocumentsPanel";
+import { AssistantPanel } from "./AssistantPanel";
 import { useWorkspace } from "./use-workspace";
 
 const pages = [
@@ -100,12 +101,24 @@ function currentPage() {
 export default function App() {
   const [page, setPage] = useState(currentPage);
   const [menu, setMenu] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const [search, setSearch] = useState("");
   const heading = useRef<HTMLHeadingElement>(null);
   const menuToggle = useRef<HTMLButtonElement>(null);
+  const assistantToggle = useRef<HTMLButtonElement>(null);
   const workspace = useWorkspace();
+
+  function closeAssistant() {
+    setAssistantOpen(false);
+    assistantToggle.current?.focus();
+  }
+
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && assistantOpen) {
+        closeAssistant();
+        return;
+      }
       if (event.key === "Escape" && menu) {
         setMenu(false);
         menuToggle.current?.focus();
@@ -113,7 +126,7 @@ export default function App() {
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [menu]);
+  }, [assistantOpen, menu]);
   useEffect(() => {
     const onHash = () => {
       if (window.location.hash === "#main-content") {
@@ -142,7 +155,7 @@ export default function App() {
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
-      <div className="desktop-shell">
+      <div className={`desktop-shell ${assistantOpen ? "assistant-open" : ""}`}>
         <aside
           id="workspace-navigation"
           className={`sidebar ${menu ? "menu-open" : ""}`}
@@ -233,7 +246,21 @@ export default function App() {
               <AcademicCapIcon /> Workspace{" "}
               <span className="crumb-divider">/</span> {page.name}
             </span>
-            <span className="private-label">Personal workspace</span>
+            <span className="workspace-actions">
+              <span className="private-label">Personal workspace</span>
+              <button
+                ref={assistantToggle}
+                type="button"
+                className="assistant-toggle"
+                aria-label="Open CourseMate AI"
+                aria-controls="coursemate-ai-panel"
+                aria-expanded={assistantOpen}
+                onClick={() => setAssistantOpen(true)}
+              >
+                <SparklesIcon aria-hidden="true" />
+                <span>Ask AI</span>
+              </button>
+            </span>
           </header>
           <figure className="cover">
             <img
@@ -379,6 +406,13 @@ export default function App() {
             </footer>
           </main>
         </div>
+        {assistantOpen && (
+          <AssistantPanel
+            pageId={page.id}
+            pageName={page.name}
+            onClose={closeAssistant}
+          />
+        )}
       </div>
       <details className="help">
         <summary aria-label="About this workspace">

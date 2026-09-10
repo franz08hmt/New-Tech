@@ -58,6 +58,60 @@ describe("Academic workspace", () => {
       screen.getByRole("navigation", { name: "Primary" }),
     ).toBeInTheDocument();
   });
+  it("opens and closes the CourseMate AI panel without replacing the page", async () => {
+    render(<App />);
+
+    const trigger = screen.getByRole("button", {
+      name: "Open CourseMate AI",
+    });
+    fireEvent.click(trigger);
+
+    expect(
+      screen.getByRole("complementary", { name: "CourseMate AI" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "Student academic dashboard",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Dashboard context")).toBeVisible();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Close CourseMate AI" }),
+      ).toHaveFocus(),
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(
+      screen.queryByRole("complementary", { name: "CourseMate AI" }),
+    ).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+  it("shows document-aware AI prompts without calling an Assistant API", () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open CourseMate AI" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "What evidence is required for the final project?",
+      }),
+    );
+
+    expect(screen.getByText("Documents context")).toBeVisible();
+    expect(screen.getByLabelText("Question for CourseMate")).toHaveValue(
+      "What evidence is required for the final project?",
+    );
+    expect(screen.getByText("Interface preview")).toBeVisible();
+    expect(screen.getByText("Week 3 course guide · p. 5")).toBeVisible();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([url]) => String(url).startsWith("/api/assistant")),
+    ).toBe(false);
+  });
   it("supports page routing, task creation and the existing API contract", async () => {
     window.history.replaceState(null, "", "/#tasks");
     render(<App />);
