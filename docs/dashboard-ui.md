@@ -2,6 +2,8 @@
 
 ## Phạm vi
 
+Cập nhật 11/09/2026: hero chia đôi giữ tỷ lệ ảnh gốc, lời chào và shortcut Documents/AI; nền sage nhẹ, section card 16px, course icon gọn và danh sách kỳ thi trên Dashboard (trang Exams giữ bảng). Tasks đứng trước lịch, có lối vào thư viện tài liệu. Animation CSS ngắn cho hero/panel và tương tác nút; tắt animation khi `prefers-reduced-motion`. Không thêm thư viện animation hoặc đổi backend.
+
 Frontend React hiện có được thiết kế lại theo ảnh dashboard học tập: sidebar sáng, ảnh cover, thanh tiêu đề xanh xám, lịch, course cards, bảng exams, research board và sticky notes. Dùng Heroicons, Poppins đóng gói local và Tailwind qua Vite. Không sửa backend, database hoặc hợp đồng API.
 
 ## Các trang và trạng thái nghiệp vụ

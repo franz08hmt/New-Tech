@@ -166,53 +166,76 @@ export function CoursesPanel({ expanded = false }: { expanded?: boolean }) {
     </Panel>
   );
 }
-export function ExamsPanel() {
+export function ExamsPanel({ compact = false }: { compact?: boolean }) {
   return (
     <Panel title="Upcoming exams" icon={<CalendarDaysIcon />}>
       <p className="view-label">
         <ClockIcon /> Countdown{" "}
         <span className="example-label">Example dates</span>
       </p>
-      <div
-        className="table-scroll"
-        role="region"
-        aria-label="Exam schedule"
-        tabIndex={0}
-      >
-        <table className="exam-table">
-          <caption className="sr-only">
-            Upcoming example examinations, dates and locations
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col">Aa Name</th>
-              <th scope="col">Date</th>
-              <th scope="col">Time</th>
-              <th scope="col">Location</th>
-            </tr>
-          </thead>
-          <tbody>
-            {exams.map((exam) => (
-              <tr key={exam.name}>
-                <th scope="row">
-                  {exam.name}
-                  <small>{exam.topic}</small>
-                </th>
-                <td>
-                  <time dateTime={exam.date} className="date-tag">
-                    {new Date(`${exam.date}T12:00:00`).toLocaleDateString(
-                      "en",
-                      { month: "short", day: "numeric" },
-                    )}
-                  </time>
-                </td>
-                <td>{exam.time}</td>
-                <td>{exam.room}</td>
+      {compact ? (
+        <ul className="exam-agenda">
+          {exams.map((exam) => (
+            <li key={exam.name}>
+              <time dateTime={exam.date} className="date-tag">
+                {new Date(`${exam.date}T12:00:00`).toLocaleDateString("en", {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </time>
+              <span>
+                <strong>{exam.name}</strong>
+                <small>{exam.topic}</small>
+              </span>
+              <span>
+                {exam.time}
+                <small>{exam.room}</small>
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div
+          className="table-scroll"
+          role="region"
+          aria-label="Exam schedule"
+          tabIndex={0}
+        >
+          <table className="exam-table">
+            <caption className="sr-only">
+              Upcoming example examinations, dates and locations
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Aa Name</th>
+                <th scope="col">Date</th>
+                <th scope="col">Time</th>
+                <th scope="col">Location</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {exams.map((exam) => (
+                <tr key={exam.name}>
+                  <th scope="row">
+                    {exam.name}
+                    <small>{exam.topic}</small>
+                  </th>
+                  <td>
+                    <time dateTime={exam.date} className="date-tag">
+                      {new Date(`${exam.date}T12:00:00`).toLocaleDateString(
+                        "en",
+                        { month: "short", day: "numeric" },
+                      )}
+                    </time>
+                  </td>
+                  <td>{exam.time}</td>
+                  <td>{exam.room}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </Panel>
   );
 }

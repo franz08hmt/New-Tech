@@ -21,7 +21,8 @@
     margin: 0;
     font-family: var(--font-sans);
     color: var(--color-ink);
-    background: #e7e9e7;
+    background:
+      radial-gradient(ellipse at 15% 0%, #dce9d9, transparent 55%), #f3f4ee;
     font-size: 13px;
     line-height: 1.6;
   }
@@ -84,7 +85,7 @@
     border: 1px solid #dce0da;
     border-radius: 14px;
     overflow: clip;
-    box-shadow: 0 18px 48px #36443820;
+    box-shadow: 0 12px 40px #3644380d;
   }
   .sidebar {
     background: var(--color-surface);
@@ -242,6 +243,8 @@
   }
   .workspace-body {
     min-width: 0;
+    background:
+      radial-gradient(ellipse at 100% 0%, #e9efdf, transparent 45%), #f8f9f5;
   }
   .workspace-actions,
   .assistant-toggle {
@@ -288,49 +291,12 @@
   .private-label {
     font-size: 9px;
   }
-  .cover {
-    height: 160px;
-    position: relative;
-    background: #d6dcd2;
-    overflow: hidden;
-  }
-  .cover img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: center 54%;
-    filter: saturate(0.5);
-  }
-  .cover-caption {
-    position: absolute;
-    bottom: 20px;
-    right: 28px;
-    font-size: 9px;
-    letter-spacing: 0.2em;
-    background: #ffffffe6;
-    padding: 6px 10px;
-  }
   main {
     padding: 0 36px 24px;
   }
   .page-heading {
-    position: relative;
-    padding: 40px 0 24px;
-    margin-bottom: 20px;
-    border-bottom: 1px solid var(--color-line);
-  }
-  .page-emblem {
-    position: absolute;
-    top: -27px;
-    left: 0;
-    padding: 8px;
-    background: #fff;
-    border-radius: 6px;
-  }
-  .page-emblem svg {
-    width: 45px;
-    height: 45px;
-    color: #38453a;
+    min-width: 0;
+    padding: 16px 0;
   }
   .eyebrow {
     letter-spacing: 0.17em;
@@ -343,16 +309,117 @@
     letter-spacing: -0.055em;
     line-height: 1.3;
     font-weight: 600;
-    text-transform: uppercase;
+    text-transform: none;
   }
-  .page-heading > p:last-child {
+  .hero-description {
     margin-top: 9px;
     color: var(--color-muted);
     font-size: 11px;
   }
+  .study-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 32px;
+    padding: 24px 0 32px;
+  }
+  .hero-greeting {
+    margin-bottom: 12px;
+    color: var(--color-ai-accent);
+    font-size: 14px;
+  }
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 24px;
+  }
+  .hero-ai-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid #cdd7ca;
+    border-radius: 10px;
+    background: var(--color-paper);
+    font-size: 11px;
+  }
+  .study-photo {
+    overflow: hidden;
+    border-radius: 20px;
+    background: var(--color-ai-accent-soft);
+  }
+  .study-photo img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .study-photo figcaption {
+    padding: 12px 16px;
+    color: var(--color-ai-accent);
+    font-size: 10px;
+  }
+  .study-library {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    border: 1px solid #d6dfce;
+    border-radius: 16px;
+    background: #edf2e6;
+  }
+  .study-library > svg {
+    width: 32px;
+    height: 32px;
+    color: var(--color-ai-accent);
+  }
+  .study-library header {
+    flex: 1 1 200px;
+  }
+  .study-library h2 {
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .study-library p {
+    margin-top: 4px;
+    color: var(--color-muted);
+    font-size: 11px;
+  }
+  .study-library a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    font-size: 11px;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .primary-button,
+  .hero-ai-button,
+  .assistant-toggle,
+  .sidebar nav a {
+    transition:
+      background-color 180ms ease,
+      transform 180ms ease;
+  }
+  .primary-button:hover,
+  .hero-ai-button:hover {
+    transform: translateY(-2px);
+  }
+  button:not(:disabled):active {
+    transform: translateY(1px);
+  }
+  .study-hero {
+    animation: workspace-arrive 220ms ease-out;
+  }
+  .assistant-panel {
+    animation: assistant-arrive 220ms ease-out;
+  }
   .dashboard-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    align-items: start;
     gap: 26px 24px;
   }
   .full-width {
@@ -360,14 +427,18 @@
   }
   .panel {
     min-width: 0;
+    padding: 20px;
+    background: var(--color-paper);
+    border: 1px solid var(--color-line);
+    border-radius: 16px;
   }
   .section-title {
-    background: var(--color-band);
+    background: transparent;
     border-radius: 4px;
-    padding: 5px 8px;
-    font-weight: 500;
-    font-size: 11px;
-    text-transform: uppercase;
+    padding: 0 0 8px;
+    font-weight: 600;
+    font-size: 15px;
+    text-transform: none;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -377,7 +448,7 @@
     height: 15px;
   }
   .section-title.warm {
-    background: #f4e8d4;
+    background: transparent;
   }
   .view-label {
     display: flex;
@@ -480,7 +551,7 @@
   }
   .course-card {
     border: 1px solid #dde1db;
-    border-radius: 5px;
+    border-radius: 12px;
     overflow: hidden;
     height: 100%;
   }
@@ -488,7 +559,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 83px;
+    height: 52px;
+    width: 52px;
+    margin: 16px 16px 8px;
+    border-radius: 12px;
   }
   .course-art svg {
     width: 34px;
@@ -496,10 +570,10 @@
     stroke-width: 1.1;
   }
   .course-card header {
-    padding: 9px 9px 4px;
+    padding: 8px 16px;
   }
   .course-card h3 {
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 500;
   }
   .course-card header p {
@@ -515,7 +589,7 @@
     height: 10px;
   }
   .course-card footer {
-    padding: 3px 9px 10px;
+    padding: 8px 16px 16px;
   }
   .course-card label {
     display: flex;
@@ -525,7 +599,7 @@
   }
   .course-card progress {
     width: 100%;
-    height: 3px;
+    height: 6px;
     display: block;
     margin-top: 5px;
     appearance: none;
@@ -546,6 +620,23 @@
   }
   .table-scroll {
     overflow-x: auto;
+  }
+  .exam-agenda li {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--color-line);
+    font-size: 12px;
+  }
+  .exam-agenda li > span:first-of-type {
+    flex: 1 1 140px;
+  }
+  .exam-agenda small {
+    display: block;
+    font-size: 10px;
+    color: var(--color-muted);
   }
   .exam-table {
     width: 100%;
@@ -749,7 +840,7 @@
     gap: 8px;
     background: #526750;
     color: white;
-    border-radius: 4px;
+    border-radius: 10px;
     padding: 10px 18px;
     width: fit-content;
     font-size: 11px;
@@ -994,7 +1085,7 @@
   .document-roadmap {
     align-self: start;
     padding: 20px;
-    border-radius: 6px;
+    border-radius: 16px;
     background: #f4ead9;
   }
   .document-roadmap ol {
@@ -1315,9 +1406,6 @@
     padding-right: 48px;
     padding-left: 48px;
   }
-  .cover {
-    height: 176px;
-  }
 }
 @media (max-width: 899px) {
   .desktop-shell.assistant-open {
@@ -1334,9 +1422,6 @@
   .breadcrumb > span:first-of-type {
     margin-right: auto;
   }
-  .cover {
-    height: 136px;
-  }
   .document-layout {
     grid-template-columns: 1fr;
   }
@@ -1349,19 +1434,18 @@
     grid-template-columns: 1fr;
     gap: 24px;
   }
+  .study-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .panel {
+    padding: 12px;
+  }
+  .view-label {
+    flex-wrap: wrap;
+  }
   .page-heading h1 {
     font-size: 23px;
-  }
-  .page-heading {
-    padding-top: 38px;
-  }
-  .cover {
-    height: 112px;
-  }
-  .cover-caption {
-    font-size: 7px;
-    right: 12px;
-    bottom: 14px;
   }
   .private-label {
     display: none;
@@ -1379,9 +1463,6 @@
   }
   .exam-table {
     min-width: 430px;
-  }
-  .course-art {
-    height: 90px;
   }
   .sticky textarea {
     font-size: 11px;
@@ -1439,11 +1520,32 @@
     height: 32px;
   }
 }
+@keyframes workspace-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes assistant-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     scroll-behavior: auto !important;
     transition: none !important;
+    animation: none !important;
   }
 }

@@ -15,6 +15,10 @@ This log records substantial AI-assisted work. The team remains responsible for 
 
 ## Review rule for the team
 
+### 2026-09-11 — Study Workspace visual refresh (Codex)
+
+Tài approved the split hero, sage background, modern cards and lightweight motion. Updated `App.tsx`, `AcademicPanels.tsx` and `styles.css`; preserved existing task/document logic and the full Exams table. Added a document-library shortcut, compact dashboard exams and reduced-motion support. All 14 frontend tests and the production build (including TypeScript) passed after the final code changes; modified source was formatted with Prettier. Browser screenshot verified the new hero keeps the original image framing. Tài/Thắng human review and multi-viewport verification remain pending.
+
 Before merging any AI-assisted change, a team member should be able to:
 
 - describe why the change is needed;

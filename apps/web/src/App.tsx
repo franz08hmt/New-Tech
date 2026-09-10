@@ -262,38 +262,67 @@ export default function App() {
               </button>
             </span>
           </header>
-          <figure className="cover">
-            <img
-              src="https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=1600&q=85"
-              alt="Bright, quiet study space with a desk, books and natural daylight"
-              width="1600"
-              height="450"
-              fetchPriority="high"
-            />
-            <figcaption className="cover-caption">
-              A PLACE TO THINK. A SPACE TO GROW.
-            </figcaption>
-          </figure>
           <main id="main-content" tabIndex={-1}>
-            <header className="page-heading">
-              <span className="page-emblem">
-                <AcademicCapIcon aria-hidden="true" />
-              </span>
-              <p className="eyebrow">YOUR SPACE TO MAKE THINGS HAPPEN</p>
-              <h1 ref={heading} tabIndex={-1}>
-                {page.title}
-              </h1>
-              <p>{page.description}</p>
+            <header className="study-hero">
+              <section className="page-heading" aria-label="Page introduction">
+                <p className="eyebrow">YOUR SPACE TO LEARN & GROW</p>
+                {page.id === "dashboard" && (
+                  <p className="hero-greeting">Welcome back, Tài.</p>
+                )}
+                <h1 ref={heading} tabIndex={-1}>
+                  {page.title}
+                </h1>
+                <p className="hero-description">{page.description}</p>
+                <nav className="hero-actions" aria-label="Study shortcuts">
+                  <a className="primary-button" href="#documents">
+                    <DocumentArrowUpIcon aria-hidden="true" />
+                    Open documents
+                  </a>
+                  <button
+                    className="hero-ai-button"
+                    onClick={() => setAssistantOpen(true)}
+                  >
+                    <SparklesIcon aria-hidden="true" />
+                    Ask CourseMate
+                  </button>
+                </nav>
+              </section>
+              <figure className="study-photo">
+                <img
+                  src="https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&w=1000&q=85"
+                  alt="Bright, quiet study space with a desk, books and natural daylight"
+                  width="1000"
+                  height="667"
+                  fetchPriority="high"
+                />
+                <figcaption>A place to think. A space to grow.</figcaption>
+              </figure>
             </header>
             {page.id === "dashboard" && (
               <div className="dashboard-grid">
-                <CalendarPanel />
                 <TasksPanel workspace={workspace} />
+                <CalendarPanel />
+                <section
+                  className="study-library full-width"
+                  aria-labelledby="study-library-title"
+                >
+                  <DocumentArrowUpIcon aria-hidden="true" />
+                  <header>
+                    <h2 id="study-library-title">Your study library</h2>
+                    <p>
+                      Keep course materials together for your next review
+                      session.
+                    </p>
+                  </header>
+                  <a href="#documents">
+                    Browse documents <ArrowUpRightIcon aria-hidden="true" />
+                  </a>
+                </section>
                 <section className="full-width" aria-label="Courses">
                   <CoursesPanel />
                 </section>
                 <section className="full-width" aria-label="Exams">
-                  <ExamsPanel />
+                  <ExamsPanel compact />
                 </section>
                 <ResearchPanel />
                 <NotesPanel />
