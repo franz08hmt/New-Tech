@@ -447,10 +447,10 @@ Phân công có thể đổi nếu kỹ năng thực tế yêu cầu, nhưng ph�
 | CM-002 | 4 | Vẽ lại và trình bày luồng tạo task | Thắng/Tài | Chéo | In progress |
 | CM-003 | 4 | Một thay đổi nhỏ xuyên frontend–API–DB | Tài | Thắng | Not started |
 | CM-101 | 4 | Document module và API metadata/upload | Thắng | Tài | Not started |
-| CM-102 | 4–5 | Documents page và upload UI | Tài | Thắng | Not started |
+| CM-102 | 4–5 | Documents page và upload UI | Tài | Thắng | FE local preview implemented; API pending |
 | CM-201 | 5 | PDF extraction và processing status | Thắng | Tài | Not started |
 | CM-202 | 5 | Chunking có source page | Thắng | Tài | Not started |
-| CM-203 | 5 | Upload loading/error/failed UI | Tài | Thắng | Not started |
+| CM-203 | 5 | Upload loading/error/failed UI | Tài | Thắng | FE mock states implemented; integration pending |
 | CM-301 | 5–6 | Embedding adapter và pgvector retrieval | Thắng | Tài | Not started |
 | CM-302 | 6 | Ask endpoint và structured output | Thắng | Tài | Not started |
 | CM-303 | 6 | Assistant UI và citation viewer | Tài | Thắng | Not started |

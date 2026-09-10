@@ -28,3 +28,13 @@
 - [ ] Tự giải thích test và viết lại phép lọc bằng lời của Tài.
 - [ ] Tự đổi một chi tiết nhỏ, ví dụ nhãn hoặc thứ tự option, rồi chạy test lại.
 - [ ] Nhờ Thắng review trước khi merge.
+
+## CM-203-FE — việc Tài cần tiếp quản
+
+- [x] Có UI preview cho Selected, Uploading, Processing, Ready và Failed.
+- [x] Có progress mẫu, thông báo lỗi và nút Retry.
+- [x] Không gọi API document và không thay đổi backend.
+- [ ] Mở Documents, chọn một PDF rồi chuyển qua đủ năm trạng thái.
+- [ ] Giải thích `DocumentLifecycle`, callback `onStateChange` và immutable `map` update.
+- [ ] Chạy lại 12 frontend tests, typecheck và production build trên máy Tài.
+- [ ] Nhờ Thắng review trước khi tích hợp contract upload thật.

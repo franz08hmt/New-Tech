@@ -158,6 +158,47 @@ describe("Academic workspace", () => {
       "That PDF is already in the list.",
     );
   });
+  it("previews the document lifecycle without calling the backend", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+
+    const pdf = new File(["lifecycle demo"], "lifecycle.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+      target: { files: [pdf] },
+    });
+
+    const statePreview = await screen.findByLabelText(
+      "Preview state for lifecycle.pdf",
+    );
+    fireEvent.change(statePreview, { target: { value: "uploading" } });
+    expect(
+      screen.getByRole("progressbar", {
+        name: "Upload progress for lifecycle.pdf",
+      }),
+    ).toHaveAttribute("value", "64");
+
+    fireEvent.change(statePreview, { target: { value: "processing" } });
+    expect(screen.getByText("Processing document · Mock state")).toBeVisible();
+
+    fireEvent.change(statePreview, { target: { value: "ready" } });
+    expect(screen.getByText("Ready · Available to Assistant")).toBeVisible();
+
+    fireEvent.change(statePreview, { target: { value: "failed" } });
+    expect(screen.getByText("Failed · Example extraction error")).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retry lifecycle.pdf" }),
+    );
+    expect(statePreview).toHaveValue("selected");
+    expect(screen.getByText("Selected locally · Not uploaded")).toBeVisible();
+
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([url]) => String(url).startsWith("/api/documents")),
+    ).toBe(false);
+  });
   it("rejects non-PDF files before any upload", () => {
     window.history.replaceState(null, "", "/#documents");
     render(<App />);

@@ -47,6 +47,19 @@ Mục tiêu trước mắt là để Tài tự chạy, kiểm tra và giải th�
 - [x] Test, typecheck và build pass trong phiên AI verification.
 - [ ] Tài giải thích được state, event và phép lọc dữ liệu vừa thêm.
 
+### Phase 4: CM-203-FE — document lifecycle preview
+
+- [x] Task 9: Mô hình hóa các trạng thái `selected`, `uploading`, `processing`, `ready` và `failed` chỉ trên frontend.
+- [x] Task 10: Hiển thị progress, lỗi mẫu, Retry và trạng thái sẵn sàng cho Assistant.
+- [x] Task 11: Khóa luồng chuyển trạng thái bằng automated test và xác nhận không gọi `/api/documents`.
+- [ ] Task 12: Tài walkthrough state union, immutable update và tự chạy demo trước khi nhờ Thắng review.
+
+### Checkpoint: CM-203-FE
+
+- [x] Mock lifecycle hoạt động độc lập với backend.
+- [x] Test mới đã được chứng minh đỏ trước khi code và xanh sau implementation.
+- [ ] Chưa tích hợp upload thật; bước này chờ contract của CM-101/CM-201 từ Thắng.
+
 ## Risks and Mitigations
 
 | Risk                                | Impact                        | Mitigation                                             |

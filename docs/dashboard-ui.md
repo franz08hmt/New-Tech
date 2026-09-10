@@ -14,6 +14,7 @@ Frontend React hiện có được thiết kế lại theo ảnh dashboard học
 | Exams | Bảng kỳ thi | Dữ liệu mẫu, chưa CRUD |
 | Research | Kanban minh họa và ghi chú | Chưa kéo thả; ghi chú chỉ lưu localStorage trên trình duyệt này |
 | Finances | Bố cục ngân sách | Số liệu minh họa, không có giao dịch thật |
+| Documents | Chọn PDF cục bộ và preview Selected, Uploading, Processing, Ready, Failed | Chỉ là CM-203-FE demo; chưa upload, lưu hoặc index thật |
 | Assistant | Trang giải thích phạm vi AI | Form vô hiệu hóa; chưa cấu hình RAG/LLM |
 
 ## File để tiếp tục phát triển
@@ -21,6 +22,8 @@ Frontend React hiện có được thiết kế lại theo ảnh dashboard học
 - `apps/web/src/App.tsx`: shell, sidebar, điều hướng hash, metadata và nội dung từng trang.
 - `apps/web/src/AcademicPanels.tsx`: lịch, môn học, kỳ thi, nghiên cứu, ghi chú.
 - `apps/web/src/TasksPanel.tsx`: giao diện quản lý task và form.
+- `apps/web/src/DocumentsPanel.tsx`: chọn file, validation trình duyệt và quản lý danh sách cục bộ.
+- `apps/web/src/DocumentCard.tsx`: state union và UI preview vòng đời tài liệu của CM-203-FE.
 - `apps/web/src/use-workspace.ts`: state dữ liệu và xử lý API, loading/error.
 - `apps/web/src/academic-data.ts`: dữ liệu minh họa, tách khỏi API thật.
 - `apps/web/src/styles.css`: token màu, bố cục và responsive.

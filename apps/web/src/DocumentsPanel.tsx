@@ -5,8 +5,8 @@ import {
   DocumentTextIcon,
   MagnifyingGlassIcon,
   ShieldCheckIcon,
-  TrashIcon,
 } from "@heroicons/react/24/outline";
+import { DocumentCard, type DocumentLifecycle } from "./DocumentCard";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
@@ -14,12 +14,7 @@ interface LocalDocument {
   id: string;
   name: string;
   size: number;
-}
-
-function formatFileSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  state: DocumentLifecycle;
 }
 
 function validatePdf(file: File) {
@@ -81,7 +76,12 @@ export function DocumentsPanel() {
         continue;
       }
       seen.add(id);
-      selected.push({ id, name: file.name, size: file.size });
+      selected.push({
+        id,
+        name: file.name,
+        size: file.size,
+        state: "selected",
+      });
     }
 
     setDocuments((current) => [...current, ...selected]);
@@ -145,27 +145,23 @@ export function DocumentsPanel() {
             <ul>
               {documents.map((document) => (
                 <li key={document.id}>
-                  <article className="document-card">
-                    <DocumentTextIcon aria-hidden="true" />
-                    <span>
-                      <strong>{document.name}</strong>
-                      <small>{formatFileSize(document.size)} · PDF</small>
-                      <small className="local-status">
-                        Selected locally · Not uploaded
-                      </small>
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={`Remove ${document.name}`}
-                      onClick={() =>
-                        setDocuments((current) =>
-                          current.filter((item) => item.id !== document.id),
-                        )
-                      }
-                    >
-                      <TrashIcon aria-hidden="true" />
-                    </button>
-                  </article>
+                  <DocumentCard
+                    name={document.name}
+                    size={document.size}
+                    state={document.state}
+                    onStateChange={(state) =>
+                      setDocuments((current) =>
+                        current.map((item) =>
+                          item.id === document.id ? { ...item, state } : item,
+                        ),
+                      )
+                    }
+                    onRemove={() =>
+                      setDocuments((current) =>
+                        current.filter((item) => item.id !== document.id),
+                      )
+                    }
+                  />
                 </li>
               ))}
             </ul>
