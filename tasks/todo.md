@@ -38,3 +38,13 @@
 - [ ] Giải thích `DocumentLifecycle`, callback `onStateChange` và immutable `map` update.
 - [ ] Chạy lại 12 frontend tests, typecheck và production build trên máy Tài.
 - [ ] Nhờ Thắng review trước khi tích hợp contract upload thật.
+
+## Responsive AI Copilot layout
+
+- [ ] Viết test đỏ cho open/close, focus và page context.
+- [ ] Tạo `AssistantPanel.tsx` và giữ state mở/đóng tại `App.tsx`.
+- [ ] Thêm sample answer/citation với nhãn “Interface preview”.
+- [ ] Thêm responsive dock ≥1440, overlay laptop và bottom sheet mobile.
+- [ ] Xác minh không có AI/document request mới.
+- [ ] Chạy test, typecheck, format và production build.
+- [ ] Tài tự kiểm tra Dashboard, Tasks và Documents khi panel mở/đóng.

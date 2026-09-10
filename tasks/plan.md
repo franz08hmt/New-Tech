@@ -60,6 +60,24 @@ Mục tiêu trước mắt là để Tài tự chạy, kiểm tra và giải th�
 - [x] Test mới đã được chứng minh đỏ trước khi code và xanh sau implementation.
 - [ ] Chưa tích hợp upload thật; bước này chờ contract của CM-101/CM-201 từ Thắng.
 
+### Phase 5: Responsive AI Copilot layout
+
+- [ ] Task 13: Thêm global Assistant trigger và panel có context theo page.
+  - Acceptance: page hiện tại không bị thay thế; panel đóng bằng nút và `Escape`; focus quay lại trigger.
+  - Verify: focused panel test và full frontend test.
+- [ ] Task 14: Thêm sample grounded-answer anatomy và suggested questions có nhãn preview rõ ràng.
+  - Acceptance: không gửi request AI/document; Documents có prompt liên quan nguồn học tập.
+  - Verify: test nội dung/context và kiểm tra network assertion hiện có.
+- [ ] Task 15: Hoàn thiện responsive dock, overlay và bottom sheet.
+  - Acceptance: không mất chức năng cũ; không overflow tại 320 px; panel đọc được tại 768/1024/1440 px.
+  - Verify: typecheck, format, production build và browser viewport check nếu công cụ cho phép.
+
+### Checkpoint: Responsive AI Copilot
+
+- [ ] 13 frontend tests pass.
+- [ ] Không có file backend/infrastructure thay đổi.
+- [ ] Tài phân biệt được UI preview với AI/RAG thật khi present.
+
 ## Risks and Mitigations
 
 | Risk                                | Impact                        | Mitigation                                             |
