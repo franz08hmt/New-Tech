@@ -11,7 +11,7 @@ export class HealthController {
       const databaseLatencyMs = await this.database.ping();
       return {
         status: "ok",
-        service: "coursemate-api",
+        service: "examate-api",
         database: "connected",
         databaseLatencyMs,
         timestamp: new Date().toISOString(),
@@ -19,7 +19,7 @@ export class HealthController {
     } catch {
       throw new ServiceUnavailableException({
         status: "degraded",
-        service: "coursemate-api",
+        service: "examate-api",
         database: "unavailable",
         code: "DATABASE_UNAVAILABLE",
       });

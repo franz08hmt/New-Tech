@@ -12,6 +12,7 @@ import {
   BookOpenIcon,
 } from "@heroicons/react/24/outline";
 import { courses, exams, research } from "./academic-data";
+import { revealClass, useReveal } from "./use-reveal";
 
 export function Panel({
   title,
@@ -131,13 +132,17 @@ export function CalendarPanel() {
   );
 }
 export function CoursesPanel({ expanded = false }: { expanded?: boolean }) {
+  const { ref, revealed } = useReveal<HTMLUListElement>();
   return (
     <Panel title="Course overview" icon={<AcademicCapIcon />}>
       <p className="view-label">
         <TableCellsIcon /> Gallery{" "}
         <span className="example-label">Example courses</span>
       </p>
-      <ul className="course-grid grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <ul
+        ref={ref}
+        className={`course-grid grid grid-cols-2 lg:grid-cols-4 gap-3 ${revealClass(revealed)}`}
+      >
         {courses.map((course) => (
           <li key={course.code}>
             <article className="course-card">
@@ -167,6 +172,7 @@ export function CoursesPanel({ expanded = false }: { expanded?: boolean }) {
   );
 }
 export function ExamsPanel({ compact = false }: { compact?: boolean }) {
+  const { ref, revealed } = useReveal<HTMLUListElement>();
   return (
     <Panel title="Upcoming exams" icon={<CalendarDaysIcon />}>
       <p className="view-label">
@@ -174,7 +180,7 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
         <span className="example-label">Example dates</span>
       </p>
       {compact ? (
-        <ul className="exam-agenda">
+        <ul ref={ref} className={`exam-agenda ${revealClass(revealed)}`}>
           {exams.map((exam) => (
             <li key={exam.name}>
               <time dateTime={exam.date} className="date-tag">
@@ -240,13 +246,17 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
   );
 }
 export function ResearchPanel() {
+  const { ref, revealed } = useReveal<HTMLUListElement>();
   return (
     <Panel title="Research projects" icon={<BookOpenIcon />}>
       <p className="view-label">
         <ViewColumnsIcon /> Board{" "}
         <span className="example-label">Planning examples</span>
       </p>
-      <ul className="research-grid grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <ul
+        ref={ref}
+        className={`research-grid grid grid-cols-1 sm:grid-cols-3 gap-3 ${revealClass(revealed)}`}
+      >
         {research.map((item) => (
           <li key={item.title} className="board-column">
             <h3>
@@ -271,7 +281,7 @@ export function NotesPanel() {
   const [notes, setNotes] = useState<string[]>(() => {
     try {
       const saved: unknown = JSON.parse(
-        localStorage.getItem("coursemate-notes") || "null",
+        localStorage.getItem("examate-notes") || "null",
       );
       if (
         Array.isArray(saved) &&
@@ -293,7 +303,7 @@ export function NotesPanel() {
   function save(next: string[]) {
     setNotes(next);
     try {
-      localStorage.setItem("coursemate-notes", JSON.stringify(next));
+      localStorage.setItem("examate-notes", JSON.stringify(next));
     } catch {
       setWarning("Notes are kept only until this page is closed.");
     }

@@ -1,4 +1,4 @@
-# CourseMate AI — Project Context & Handoff
+# ExaMate AI — Project Context & Handoff
 
 > **Mục đích:** đây là file tổng hợp bối cảnh để tiếp tục project khi chuyển sang box chat, model hoặc phiên làm việc khác. Hãy đọc file này trước, sau đó kiểm tra lại `git status` và chỉ nạp các source liên quan trực tiếp đến task đang làm.
 
@@ -27,7 +27,7 @@ Prompt ngắn có thể dùng khi mở box mới:
 
 ```text
 Hãy đọc D:\New-Tech\Final-Project\docs\PROJECT-CONTEXT.md trước.
-Tôi là Tài. Tiếp tục CourseMate AI từ mục "Trạng thái công việc hiện tại".
+Tôi là Tài. Tiếp tục ExaMate AI từ mục "Trạng thái công việc hiện tại".
 Trước khi sửa code hãy kiểm tra git status, đọc source liên quan và nêu task ID,
 phạm vi cùng acceptance criteria. Làm từng bước để tôi có thể hiểu và giải thích lại.
 ```
@@ -74,7 +74,7 @@ Các yêu cầu đã tổng hợp:
 
 ### Tên sản phẩm
 
-**CourseMate AI**
+**ExaMate AI**
 
 ### Vấn đề cần giải quyết
 
@@ -82,7 +82,7 @@ Nhóm sinh viên thường quản lý task và yêu cầu môn học ở nhiều
 
 ### Giải pháp
 
-CourseMate AI là web workspace giúp:
+ExaMate AI là web workspace giúp:
 
 1. Quản lý task của nhóm.
 2. Lưu tài liệu môn học/project trong một corpus được kiểm soát.

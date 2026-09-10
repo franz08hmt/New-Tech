@@ -2,7 +2,7 @@
 
 ## Current status
 
-**Checkpoint: end of Week 3 / 8.** CourseMate AI has a runnable React–NestJS–PostgreSQL vertical slice and a reproducible local container setup. The team has not yet implemented the AI/RAG workflow or deployed to the target virtual machine. The model provider, VM, team member names, and official LMS dates remain open decisions.
+**Checkpoint: end of Week 3 / 8.** ExaMate AI has a runnable React–NestJS–PostgreSQL vertical slice and a reproducible local container setup. The team has not yet implemented the AI/RAG workflow or deployed to the target virtual machine. The model provider, VM, team member names, and official LMS dates remain open decisions.
 
 This plan is intentionally scoped for two students who are also completing other course projects. The goal is a small, complete and explainable product, not a broad platform.
 
@@ -25,7 +25,7 @@ Exact deadlines, approved technology lists, API access rules, and grade percenta
 
 ## Product definition
 
-### CourseMate AI
+### ExaMate AI
 
 A web workspace for a two-person student team to manage project tasks and ask questions about a controlled collection of course and project documents. The assistant will return answers grounded in retrieved passages and display citations. The non-AI workflow remains useful when the model is unavailable.
 

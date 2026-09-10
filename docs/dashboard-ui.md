@@ -17,7 +17,7 @@ Frontend React hiện có được thiết kế lại theo ảnh dashboard học
 | Research | Kanban minh họa và ghi chú | Chưa kéo thả; ghi chú chỉ lưu localStorage trên trình duyệt này |
 | Finances | Bố cục ngân sách | Số liệu minh họa, không có giao dịch thật |
 | Documents | Chọn PDF cục bộ và preview Selected, Uploading, Processing, Ready, Failed | Chỉ là CM-203-FE demo; chưa upload, lưu hoặc index thật |
-| Assistant | Trang giải thích phạm vi AI; panel CourseMate AI mở từ mọi trang, đổi gợi ý theo context và hiển thị mẫu câu trả lời/citation | Panel được ghi rõ là interface preview; form gửi bị vô hiệu hóa, chưa cấu hình RAG/LLM |
+| Assistant | Trang giải thích phạm vi AI; panel ExaMate AI mở từ mọi trang, đổi gợi ý theo context và hiển thị mẫu câu trả lời/citation | Panel được ghi rõ là interface preview; form gửi bị vô hiệu hóa, chưa cấu hình RAG/LLM |
 
 ## File để tiếp tục phát triển
 
@@ -44,9 +44,9 @@ Chạy từ thư mục `Final-Project`:
 
 ```sh
 npm run dev:web
-npm run build --workspace @coursemate/web
-npm run test --workspace @coursemate/web
-npm run format:check --workspace @coursemate/web
+npm run build --workspace @examate/web
+npm run test --workspace @examate/web
+npm run format:check --workspace @examate/web
 ```
 
 Tài tiếp tục từng tính năng frontend; Thắng bổ sung API theo kế hoạch nhóm. Chỉ thay một nguồn dữ liệu mẫu bằng API thật mỗi bước và bổ sung test tương ứng. Không coi các trang UI mới là nghiệp vụ backend đã hoàn thành.

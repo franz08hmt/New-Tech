@@ -58,16 +58,16 @@ describe("Academic workspace", () => {
       screen.getByRole("navigation", { name: "Primary" }),
     ).toBeInTheDocument();
   });
-  it("opens and closes the CourseMate AI panel without replacing the page", async () => {
+  it("opens and closes the ExaMate AI panel without replacing the page", async () => {
     render(<App />);
 
     const trigger = screen.getByRole("button", {
-      name: "Open CourseMate AI",
+      name: "Open ExaMate AI",
     });
     fireEvent.click(trigger);
 
     expect(
-      screen.getByRole("complementary", { name: "CourseMate AI" }),
+      screen.getByRole("complementary", { name: "ExaMate AI" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
@@ -78,14 +78,14 @@ describe("Academic workspace", () => {
     expect(screen.getByText("Dashboard context")).toBeVisible();
     await waitFor(() =>
       expect(
-        screen.getByRole("button", { name: "Close CourseMate AI" }),
+        screen.getByRole("button", { name: "Close ExaMate AI" }),
       ).toHaveFocus(),
     );
 
     fireEvent.keyDown(window, { key: "Escape" });
 
     expect(
-      screen.queryByRole("complementary", { name: "CourseMate AI" }),
+      screen.queryByRole("complementary", { name: "ExaMate AI" }),
     ).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
@@ -93,7 +93,7 @@ describe("Academic workspace", () => {
     window.history.replaceState(null, "", "/#documents");
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Open CourseMate AI" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
     fireEvent.click(
       screen.getByRole("button", {
         name: "What evidence is required for the final project?",
@@ -101,7 +101,7 @@ describe("Academic workspace", () => {
     );
 
     expect(screen.getByText("Documents context")).toBeVisible();
-    expect(screen.getByLabelText("Question for CourseMate")).toHaveValue(
+    expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
       "What evidence is required for the final project?",
     );
     expect(screen.getByText("Interface preview")).toBeVisible();
@@ -154,6 +154,29 @@ describe("Academic workspace", () => {
     expect(
       screen.getByText("No tasks match these filters."),
     ).toBeInTheDocument();
+  });
+  it("moves the course gallery between subjects and announces the change", () => {
+    window.history.replaceState(null, "", "/#courses");
+    render(<App />);
+
+    const gallery = screen.getByRole("region", { name: "Course gallery" });
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Computer Science" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Next course" }));
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Mathematics" }),
+    ).toBeInTheDocument();
+    expect(gallery).toHaveTextContent("Course 2 of 6: Mathematics");
+
+    // Wrapping backwards from the first subject lands on the last one.
+    fireEvent.click(screen.getByRole("button", { name: "Previous course" }));
+    fireEvent.click(screen.getByRole("button", { name: "Previous course" }));
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Literature" }),
+    ).toBeInTheDocument();
+    expect(gallery).toHaveTextContent("Course 6 of 6: Literature");
   });
   it("selects valid PDFs locally without calling a document API", async () => {
     window.history.replaceState(null, "", "/#documents");
@@ -316,7 +339,7 @@ describe("Academic workspace", () => {
       target: { value: "Discuss citations" },
     });
     await waitFor(() =>
-      expect(JSON.parse(localStorage.getItem("coursemate-notes")!)[0]).toBe(
+      expect(JSON.parse(localStorage.getItem("examate-notes")!)[0]).toBe(
         "Discuss citations",
       ),
     );

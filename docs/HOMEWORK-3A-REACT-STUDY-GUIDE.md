@@ -1,12 +1,12 @@
 # Homework 3A — React UI Skeleton
 
 > Tài liệu ôn tập và chuẩn bị
-> Project: CourseMate AI
+> Project: ExaMate AI
 > Framework được chọn: React + TypeScript + Vite
 
 ## 1. Kết luận ngắn
 
-CourseMate AI hiện đã có đủ nền tảng để dùng làm bài Homework 3A. Khi trình bày, chỉ nên chọn ba màn hình chính:
+ExaMate AI hiện đã có đủ nền tảng để dùng làm bài Homework 3A. Khi trình bày, chỉ nên chọn ba màn hình chính:
 
 1. **Dashboard** — tổng quan lịch học, task, môn học và các trạng thái.
 2. **Tasks** — danh sách task, bộ lọc và form tạo task có validation.
@@ -16,7 +16,7 @@ Các trang Exams, Research, Finances và Assistant là phần mở rộng của 
 
 ## 2. Đối chiếu trực tiếp với yêu cầu 3A
 
-| Yêu cầu của giảng viên                    | CourseMate AI đáp ứng ở đâu                                                 | Bằng chứng nên trình bày                           |
+| Yêu cầu của giảng viên                    | ExaMate AI đáp ứng ở đâu                                                 | Bằng chứng nên trình bày                           |
 | ----------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------- |
 | Main navigation và 2–3 màn hình thiết yếu | Sidebar và hash routing trong `apps/web/src/App.tsx`                        | Chuyển lần lượt Dashboard, Tasks, Courses          |
 | Một form hoạt động và có validation       | Form tạo task trong `apps/web/src/TasksPanel.tsx`                           | Thử title 1–2 ký tự, sau đó tạo task hợp lệ        |
@@ -201,7 +201,7 @@ Test không thay thế việc xem giao diện thật. Nó bảo vệ các hành 
 
 ### Phần 1 — giới thiệu, 30 giây
 
-> CourseMate AI là workspace học tập của nhóm hai người. Trong Homework 3A, em tập trung vào frontend skeleton bằng React: navigation, ba màn hình, form task, mock data, các UI state và responsive.
+> ExaMate AI là workspace học tập của nhóm hai người. Trong Homework 3A, em tập trung vào frontend skeleton bằng React: navigation, ba màn hình, form task, mock data, các UI state và responsive.
 
 ### Phần 2 — ba màn hình, 1 phút
 
@@ -319,10 +319,10 @@ npm run dev:web
 Kiểm tra trước khi nộp:
 
 ```powershell
-npm run format:check --workspace @coursemate/web
-npm run typecheck --workspace @coursemate/web
-npm run test --workspace @coursemate/web
-npm run build --workspace @coursemate/web
+npm run format:check --workspace @examate/web
+npm run typecheck --workspace @examate/web
+npm run test --workspace @examate/web
+npm run build --workspace @examate/web
 ```
 
 Submission evidence cần chuẩn bị:

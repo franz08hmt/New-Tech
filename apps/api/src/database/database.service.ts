@@ -6,7 +6,7 @@ export class DatabaseService implements OnModuleDestroy {
   private readonly pool = new Pool({
     connectionString:
       process.env.DATABASE_URL ??
-      "postgresql://coursemate:coursemate@localhost:55432/coursemate",
+      "postgresql://examate:examate@localhost:55432/examate",
     max: 10,
     connectionTimeoutMillis: 5_000,
   });

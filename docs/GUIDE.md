@@ -1,4 +1,4 @@
-# CourseMate AI — Hướng dẫn teammate và backlog phát triển
+# ExaMate AI — Hướng dẫn teammate và backlog phát triển
 
 ## Thành viên và vai trò
 
@@ -7,9 +7,9 @@
 - Hai người có thể đổi vai trò nếu kỹ năng thực tế phù hợp hơn.
 - Người không code task vẫn phải review và giải thích được luồng chính.
 
-## 1. CourseMate AI là gì?
+## 1. ExaMate AI là gì?
 
-CourseMate AI là một web workspace dành cho nhóm sinh viên làm đồ án. Sản phẩm giải quyết hai vấn đề:
+ExaMate AI là một web workspace dành cho nhóm sinh viên làm đồ án. Sản phẩm giải quyết hai vấn đề:
 
 1. Quản lý các task và bằng chứng phát triển của nhóm.
 2. Hỏi đáp trên một tập tài liệu môn học hoặc tài liệu project đã được kiểm soát.

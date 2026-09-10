@@ -1,4 +1,4 @@
-# CourseMate AI Architecture
+# ExaMate AI Architecture
 
 ## Architecture status at the end of Week 3
 

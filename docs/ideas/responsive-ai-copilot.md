@@ -2,11 +2,11 @@
 
 ## Problem Statement
 
-How might we make the document-grounded Assistant the most memorable part of CourseMate without removing or obscuring the dashboard, tasks, courses and document workflow that already work?
+How might we make the document-grounded Assistant the most memorable part of ExaMate without removing or obscuring the dashboard, tasks, courses and document workflow that already work?
 
 ## Recommended Direction
 
-Add a contextual CourseMate AI panel that can be opened from every page. The current page remains mounted and visible, so the Assistant feels like a layer across the workspace rather than a separate chatbot product.
+Add a contextual ExaMate AI panel that can be opened from every page. The current page remains mounted and visible, so the Assistant feels like a layer across the workspace rather than a separate chatbot product.
 
 The panel docks beside the workspace on wide desktop screens, overlays from the right on laptop screens and opens as a bottom sheet on mobile. A compact header trigger restores the panel after it is closed. The Documents page receives document-oriented suggested questions and an illustrative citation preview, making it the strongest presentation screen.
 
@@ -21,7 +21,7 @@ This milestone is a frontend layout preview. It must label sample answers clearl
 
 ## Objective and Success Criteria
 
-The user can open CourseMate AI from Dashboard, Tasks, Courses, Documents and the remaining existing pages without losing page state or navigation. The panel explains the current context, shows relevant starter questions, displays a clearly labelled sample grounded answer and can be dismissed with its close button or `Escape`.
+The user can open ExaMate AI from Dashboard, Tasks, Courses, Documents and the remaining existing pages without losing page state or navigation. The panel explains the current context, shows relevant starter questions, displays a clearly labelled sample grounded answer and can be dismissed with its close button or `Escape`.
 
 The implementation is successful when:
 
@@ -37,11 +37,11 @@ The implementation is successful when:
 
 - React 19, TypeScript, Vite, Heroicons, Tailwind 4 and the existing CSS design tokens.
 - Development: `npm run dev:web`
-- Focused test: `npm run test --workspace @coursemate/web -- --run -t "CourseMate AI panel"`
-- Full test: `npm run test --workspace @coursemate/web`
-- Typecheck: `npm run typecheck --workspace @coursemate/web`
-- Format: `npm run format:check --workspace @coursemate/web`
-- Build: `npm run build --workspace @coursemate/web`
+- Focused test: `npm run test --workspace @examate/web -- --run -t "ExaMate AI panel"`
+- Full test: `npm run test --workspace @examate/web`
+- Typecheck: `npm run typecheck --workspace @examate/web`
+- Format: `npm run format:check --workspace @examate/web`
+- Build: `npm run build --workspace @examate/web`
 
 ## Project Structure
 

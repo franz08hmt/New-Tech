@@ -1,17 +1,17 @@
-name: coursemate-ai
+name: examate-ai
 
 services:
   db:
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_DB: coursemate
-      POSTGRES_USER: coursemate
-      POSTGRES_PASSWORD: coursemate
+      POSTGRES_DB: examate
+      POSTGRES_USER: examate
+      POSTGRES_PASSWORD: examate
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U coursemate -d coursemate"]
+      test: ["CMD-SHELL", "pg_isready -U examate -d examate"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -25,7 +25,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://coursemate:coursemate@db:5432/coursemate
+      DATABASE_URL: postgresql://examate:examate@db:5432/examate
       AI_PROVIDER: disabled
       AI_TIMEOUT_MS: 20000
     depends_on:

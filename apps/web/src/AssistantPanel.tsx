@@ -52,22 +52,22 @@ export function AssistantPanel({
 
   return (
     <aside
-      id="coursemate-ai-panel"
+      id="examate-ai-panel"
       className="assistant-panel"
-      aria-label="CourseMate AI"
+      aria-label="ExaMate AI"
     >
       <header className="assistant-panel-header">
         <span className="assistant-mark" aria-hidden="true">
           <SparklesIcon />
         </span>
         <span>
-          <strong>CourseMate AI</strong>
+          <strong>ExaMate AI</strong>
           <small>{pageName} context</small>
         </span>
         <button
           ref={closeButton}
           type="button"
-          aria-label="Close CourseMate AI"
+          aria-label="Close ExaMate AI"
           onClick={onClose}
         >
           <XMarkIcon aria-hidden="true" />
@@ -103,7 +103,7 @@ export function AssistantPanel({
         className="assistant-composer"
         onSubmit={(event) => event.preventDefault()}
       >
-        <label htmlFor="assistant-question">Question for CourseMate</label>
+        <label htmlFor="assistant-question">Question for ExaMate</label>
         <textarea
           id="assistant-question"
           value={draft}

@@ -2,9 +2,9 @@ FROM node:24-alpine AS build
 WORKDIR /workspace
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
-RUN npm ci --workspace @coursemate/api --include-workspace-root
+RUN npm ci --workspace @examate/api --include-workspace-root
 COPY apps/api apps/api
-RUN npm run build --workspace @coursemate/api
+RUN npm run build --workspace @examate/api
 RUN npm prune --omit=dev
 
 FROM node:24-alpine AS runtime

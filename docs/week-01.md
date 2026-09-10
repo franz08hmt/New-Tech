@@ -8,7 +8,7 @@ The planning baseline and first runnable technical slice are complete locally. T
 
 ## Weeks 1–2: planning completed
 
-- Project direction approved as CourseMate AI.
+- Project direction approved as ExaMate AI.
 - The target users and controlled-document assistant concept were defined.
 - React and NestJS were selected for the initial web stack.
 - PostgreSQL and pgvector were selected for persistent data and the future retrieval index.

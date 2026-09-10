@@ -23,6 +23,7 @@ import {
   ResearchPanel,
 } from "./AcademicPanels";
 import { TasksPanel } from "./TasksPanel";
+import { CourseCarousel } from "./CourseCarousel";
 import { DocumentsPanel } from "./DocumentsPanel";
 import { AssistantPanel } from "./AssistantPanel";
 import { useWorkspace } from "./use-workspace";
@@ -74,7 +75,7 @@ const pages = [
     icon: DocumentArrowUpIcon,
     title: "Your trusted study sources",
     description:
-      "Collect the materials CourseMate will use for review and grounded answers.",
+      "Collect the materials ExaMate will use for review and grounded answers.",
   },
   {
     id: "finances",
@@ -89,7 +90,7 @@ const pages = [
     icon: SparklesIcon,
     title: "Meet your study companion",
     description:
-      "CourseMate will connect your questions to the evidence in your documents.",
+      "ExaMate will connect your questions to the evidence in your documents.",
   },
 ];
 function currentPage() {
@@ -142,7 +143,7 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   useEffect(() => {
-    document.title = `${page.name} · CourseMate AI`;
+    document.title = `${page.name} · ExaMate AI`;
     document
       .querySelector('meta[name="description"]')
       ?.setAttribute("content", page.description);
@@ -169,10 +170,33 @@ export default function App() {
             </span>
             <a className="brand" href="#dashboard">
               <span className="brand-logo">
-                C<span>m</span>
+                {/* A ticked answer box: the mark reads as "checked", which is
+                    what ExaMate is for. Decorative — the name follows it. */}
+                <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+                  <rect width="32" height="32" rx="9" fill="#526750" />
+                  <rect
+                    x="7.5"
+                    y="7.5"
+                    width="17"
+                    height="17"
+                    rx="5"
+                    fill="none"
+                    stroke="#eef3ea"
+                    strokeWidth="1.6"
+                    opacity="0.45"
+                  />
+                  <path
+                    d="M11 16.3 14.5 19.8 21.4 12.4"
+                    fill="none"
+                    stroke="#f4f7f0"
+                    strokeWidth="2.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
               </span>
               <span>
-                CourseMate
+                ExaMate
                 <span className="brand-subtitle">Your academic space</span>
               </span>
             </a>
@@ -252,8 +276,8 @@ export default function App() {
                 ref={assistantToggle}
                 type="button"
                 className="assistant-toggle"
-                aria-label="Open CourseMate AI"
-                aria-controls="coursemate-ai-panel"
+                aria-label="Open ExaMate AI"
+                aria-controls="examate-ai-panel"
                 aria-expanded={assistantOpen}
                 onClick={() => setAssistantOpen(true)}
               >
@@ -283,17 +307,18 @@ export default function App() {
                     onClick={() => setAssistantOpen(true)}
                   >
                     <SparklesIcon aria-hidden="true" />
-                    Ask CourseMate
+                    Ask ExaMate
                   </button>
                 </nav>
               </section>
               <figure className="study-photo">
                 <img
-                  src="https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&w=1000&q=85"
+                  src="/img/hero-study.webp"
                   alt="Bright, quiet study space with a desk, books and natural daylight"
-                  width="1000"
-                  height="667"
+                  width="1200"
+                  height="800"
                   fetchPriority="high"
+                  decoding="async"
                 />
                 <figcaption>A place to think. A space to grow.</figcaption>
               </figure>
@@ -328,7 +353,12 @@ export default function App() {
                 <NotesPanel />
               </div>
             )}
-            {page.id === "courses" && <CoursesPanel expanded />}
+            {page.id === "courses" && (
+              <>
+                <CourseCarousel />
+                <CoursesPanel expanded />
+              </>
+            )}
             {page.id === "tasks" && (
               <TasksPanel workspace={workspace} expanded />
             )}
@@ -405,7 +435,7 @@ export default function App() {
               </Panel>
             )}
             {page.id === "assistant" && (
-              <Panel title="Ask CourseMate" icon={<SparklesIcon />}>
+              <Panel title="Ask ExaMate" icon={<SparklesIcon />}>
                 <p className="page-note">
                   Planned feature: answers grounded in your approved project
                   documents, with citations you can check. The AI provider is
@@ -448,7 +478,7 @@ export default function App() {
           <QuestionMarkCircleIcon />
         </summary>
         <p>
-          CourseMate AI · A student project by Tài & Thắng. Tasks connect to the
+          ExaMate AI · A student project by Tài & Thắng. Tasks connect to the
           project API. Academic examples are labelled; notes stay in this
           browser.
         </p>

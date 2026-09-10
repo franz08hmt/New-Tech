@@ -1,6 +1,6 @@
-# CourseMate AI
+# ExaMate AI
 
-CourseMate AI is the final-project prototype for a two-person team in **New Technologies in Software Engineering**. It is a web workspace for managing project work and, in the next milestones, asking questions about a controlled collection of course and project documents.
+ExaMate AI is the final-project prototype for a two-person team in **New Technologies in Software Engineering**. It is a web workspace for managing project work and, in the next milestones, asking questions about a controlled collection of course and project documents.
 
 The product goal is not to build a generic chatbot. The planned assistant must answer from retrieved evidence, show citations, and clearly refuse or fall back when the available evidence or an AI dependency is insufficient.
 
