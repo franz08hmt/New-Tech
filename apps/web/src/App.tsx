@@ -6,31 +6,21 @@ import {
   ClipboardDocumentListIcon,
   MagnifyingGlassIcon,
   WalletIcon,
-  BookOpenIcon,
   SparklesIcon,
   Bars3Icon,
-  XMarkIcon,
   ArrowUpRightIcon,
   QuestionMarkCircleIcon,
   DocumentArrowUpIcon,
 } from "@heroicons/react/24/outline";
-import {
-  CalendarPanel,
-  CoursesPanel,
-  ExamsPanel,
-  NotesPanel,
-  Panel,
-  ResearchPanel,
-} from "./AcademicPanels";
-import { TasksPanel } from "./TasksPanel";
-import { CourseCarousel } from "./CourseCarousel";
-import { DocumentsPanel } from "./DocumentsPanel";
 import { AssistantPanel } from "./AssistantPanel";
+import { PageSections } from "./PageSections";
+import { Sidebar } from "./Sidebar";
 import { useWorkspace } from "./use-workspace";
 
 const pages = [
   {
     id: "dashboard",
+    eyebrow: "YOUR SPACE TO LEARN & GROW",
     name: "Dashboard",
     icon: Squares2X2Icon,
     title: "Student academic dashboard",
@@ -39,6 +29,7 @@ const pages = [
   },
   {
     id: "courses",
+    eyebrow: "COURSE GALLERY",
     name: "Courses",
     icon: AcademicCapIcon,
     title: "Your learning journey",
@@ -47,6 +38,7 @@ const pages = [
   },
   {
     id: "tasks",
+    eyebrow: "TEAM WORKLOAD",
     name: "Tasks",
     icon: ListBulletIcon,
     title: "Small steps. Real progress.",
@@ -55,6 +47,7 @@ const pages = [
   },
   {
     id: "exams",
+    eyebrow: "ASSESSMENT SCHEDULE",
     name: "Exams",
     icon: ClipboardDocumentListIcon,
     title: "A little more prepared",
@@ -63,6 +56,7 @@ const pages = [
   },
   {
     id: "research",
+    eyebrow: "PROJECT BOARD",
     name: "Research",
     icon: MagnifyingGlassIcon,
     title: "Follow your curiosity",
@@ -71,6 +65,7 @@ const pages = [
   },
   {
     id: "documents",
+    eyebrow: "SOURCE LIBRARY",
     name: "Documents",
     icon: DocumentArrowUpIcon,
     title: "Your trusted study sources",
@@ -79,6 +74,7 @@ const pages = [
   },
   {
     id: "finances",
+    eyebrow: "SEMESTER BUDGET",
     name: "Finances",
     icon: WalletIcon,
     title: "Room in your budget",
@@ -86,6 +82,7 @@ const pages = [
   },
   {
     id: "assistant",
+    eyebrow: "GROUNDED ANSWERS · PLANNED",
     name: "Assistant",
     icon: SparklesIcon,
     title: "Meet your study companion",
@@ -148,112 +145,24 @@ export default function App() {
       .querySelector('meta[name="description"]')
       ?.setAttribute("content", page.description);
   }, [page]);
-  const navigation = pages.filter((item) =>
-    item.name.toLowerCase().includes(search.toLowerCase()),
-  );
+  const isDashboard = page.id === "dashboard";
   return (
     <>
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
       <div className={`desktop-shell ${assistantOpen ? "assistant-open" : ""}`}>
-        <aside
-          id="workspace-navigation"
-          className={`sidebar ${menu ? "menu-open" : ""}`}
-          aria-label="Workspace navigation"
-        >
-          <header className="sidebar-header">
-            <span className="window-dots" aria-hidden="true">
-              <i />
-              <i />
-              <i />
-            </span>
-            <a className="brand" href="#dashboard">
-              <span className="brand-logo">
-                {/* A ticked answer box: the mark reads as "checked", which is
-                    what ExaMate is for. Decorative — the name follows it. */}
-                <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-                  <rect width="32" height="32" rx="9" fill="#526750" />
-                  <rect
-                    x="7.5"
-                    y="7.5"
-                    width="17"
-                    height="17"
-                    rx="5"
-                    fill="none"
-                    stroke="#eef3ea"
-                    strokeWidth="1.6"
-                    opacity="0.45"
-                  />
-                  <path
-                    d="M11 16.3 14.5 19.8 21.4 12.4"
-                    fill="none"
-                    stroke="#f4f7f0"
-                    strokeWidth="2.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </span>
-              <span>
-                ExaMate
-                <span className="brand-subtitle">Your academic space</span>
-              </span>
-            </a>
-            <button
-              className="mobile-close"
-              aria-label="Close navigation"
-              onClick={() => {
-                setMenu(false);
-                menuToggle.current?.focus();
-              }}
-            >
-              <XMarkIcon />
-            </button>
-          </header>
-          <label className="sidebar-search">
-            <MagnifyingGlassIcon />
-            <span className="sr-only">Find a page</span>
-            <input
-              type="search"
-              placeholder="Find a page…"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <kbd aria-hidden="true">⌕</kbd>
-          </label>
-          <p className="nav-heading">WORKSPACE</p>
-          <nav aria-label="Primary">
-            <ul>
-              {navigation.map((item) => (
-                <li key={item.id}>
-                  <a
-                    href={`#${item.id}`}
-                    aria-current={page.id === item.id ? "page" : undefined}
-                  >
-                    <item.icon aria-hidden="true" />
-                    {item.name}
-                    {item.id === "assistant" && <small>Soon</small>}
-                  </a>
-                </li>
-              ))}
-            </ul>
-            {!navigation.length && (
-              <p className="search-empty">No matching pages.</p>
-            )}
-          </nav>
-          <footer className="sidebar-footer">
-            <p className="semester-label">
-              <BookOpenIcon /> A fresh chapter<span>Semester 01 · 2026</span>
-            </p>
-            <span className="profile">
-              <span className="profile-avatar">T</span>
-              <span>
-                Tài & Thắng<small>Student workspace</small>
-              </span>
-            </span>
-          </footer>
-        </aside>
+        <Sidebar
+          pages={pages}
+          currentId={page.id}
+          menuOpen={menu}
+          search={search}
+          onSearch={setSearch}
+          onClose={() => {
+            setMenu(false);
+            menuToggle.current?.focus();
+          }}
+        />
         <div className="workspace-body">
           <header className="breadcrumb">
             <button
@@ -287,176 +196,52 @@ export default function App() {
             </span>
           </header>
           <main id="main-content" tabIndex={-1}>
-            <header className="study-hero">
+            {/* The full hero belongs to the dashboard only. On working pages a
+                repeated photograph and a repeated shortcut row cost 38-42% of
+                the page while saying nothing about the page you are on. */}
+            <header
+              className={`study-hero ${isDashboard ? "" : "study-hero--compact"}`}
+            >
               <section className="page-heading" aria-label="Page introduction">
-                <p className="eyebrow">YOUR SPACE TO LEARN & GROW</p>
-                {page.id === "dashboard" && (
+                <p className="eyebrow">{page.eyebrow}</p>
+                {isDashboard && (
                   <p className="hero-greeting">Welcome back, Tài.</p>
                 )}
                 <h1 ref={heading} tabIndex={-1}>
                   {page.title}
                 </h1>
                 <p className="hero-description">{page.description}</p>
-                <nav className="hero-actions" aria-label="Study shortcuts">
-                  <a className="primary-button" href="#documents">
-                    <DocumentArrowUpIcon aria-hidden="true" />
-                    Open documents
-                  </a>
-                  <button
-                    className="hero-ai-button"
-                    onClick={() => setAssistantOpen(true)}
-                  >
-                    <SparklesIcon aria-hidden="true" />
-                    Ask ExaMate
-                  </button>
-                </nav>
+                {isDashboard && (
+                  <nav className="hero-actions" aria-label="Study shortcuts">
+                    <a className="primary-button" href="#documents">
+                      <DocumentArrowUpIcon aria-hidden="true" />
+                      Open documents
+                    </a>
+                    <button
+                      className="hero-ai-button"
+                      onClick={() => setAssistantOpen(true)}
+                    >
+                      <SparklesIcon aria-hidden="true" />
+                      Ask ExaMate
+                    </button>
+                  </nav>
+                )}
               </section>
-              <figure className="study-photo">
-                <img
-                  src="/img/hero-study.webp"
-                  alt="Bright, quiet study space with a desk, books and natural daylight"
-                  width="1200"
-                  height="800"
-                  fetchPriority="high"
-                  decoding="async"
-                />
-                <figcaption>A place to think. A space to grow.</figcaption>
-              </figure>
-            </header>
-            {page.id === "dashboard" && (
-              <div className="dashboard-grid">
-                <TasksPanel workspace={workspace} />
-                <CalendarPanel />
-                <section
-                  className="study-library full-width"
-                  aria-labelledby="study-library-title"
-                >
-                  <DocumentArrowUpIcon aria-hidden="true" />
-                  <header>
-                    <h2 id="study-library-title">Your study library</h2>
-                    <p>
-                      Keep course materials together for your next review
-                      session.
-                    </p>
-                  </header>
-                  <a href="#documents">
-                    Browse documents <ArrowUpRightIcon aria-hidden="true" />
-                  </a>
-                </section>
-                <section className="full-width" aria-label="Courses">
-                  <CoursesPanel />
-                </section>
-                <section className="full-width" aria-label="Exams">
-                  <ExamsPanel compact />
-                </section>
-                <ResearchPanel />
-                <NotesPanel />
-              </div>
-            )}
-            {page.id === "courses" && (
-              <>
-                <CourseCarousel />
-                <CoursesPanel expanded />
-              </>
-            )}
-            {page.id === "tasks" && (
-              <TasksPanel workspace={workspace} expanded />
-            )}
-            {page.id === "exams" && (
-              <>
-                <ExamsPanel />
-                <p className="page-note">
-                  These dates demonstrate the layout. Course and exam management
-                  are planned features.
-                </p>
-              </>
-            )}
-            {page.id === "research" && (
-              <>
-                <ResearchPanel />
-                <section
-                  className="secondary-panel"
-                  aria-label="Research notes"
-                >
-                  <NotesPanel />
-                </section>
-              </>
-            )}
-            {page.id === "documents" && <DocumentsPanel />}
-            {page.id === "finances" && (
-              <Panel title="Student budget" icon={<WalletIcon />}>
-                <p className="view-label">
-                  Monthly overview{" "}
-                  <span className="example-label">
-                    Illustrative budget · VND
-                  </span>
-                </p>
-                <dl className="budget-grid grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <dt>Monthly budget</dt>
-                    <dd>3,000,000 ₫</dd>
-                  </div>
-                  <div>
-                    <dt>Planned expenses</dt>
-                    <dd>1,500,000 ₫</dd>
-                  </div>
-                  <div>
-                    <dt>Remaining</dt>
-                    <dd>1,500,000 ₫</dd>
-                  </div>
-                </dl>
-                <table className="exam-table">
-                  <caption>Example study expenses</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Category</th>
-                      <th scope="col">Budget</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <th scope="row">Books & materials</th>
-                      <td>500,000 ₫</td>
-                    </tr>
-                    <tr>
-                      <th scope="row">Transport</th>
-                      <td>600,000 ₫</td>
-                    </tr>
-                    <tr>
-                      <th scope="row">Project resources</th>
-                      <td>400,000 ₫</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <p className="page-note">
-                  Budget data is illustrative. No financial records are stored
-                  or connected.
-                </p>
-              </Panel>
-            )}
-            {page.id === "assistant" && (
-              <Panel title="Ask ExaMate" icon={<SparklesIcon />}>
-                <p className="page-note">
-                  Planned feature: answers grounded in your approved project
-                  documents, with citations you can check. The AI provider is
-                  not configured yet.
-                </p>
-                <label className="assistant-label">
-                  Your question
-                  <textarea
-                    disabled
-                    placeholder="What evidence is required for our final project?"
+              {isDashboard && (
+                <figure className="study-photo">
+                  <img
+                    src="/img/hero-study.webp"
+                    alt="Bright, quiet study space with a desk, books and natural daylight"
+                    width="1200"
+                    height="800"
+                    fetchPriority="high"
+                    decoding="async"
                   />
-                </label>
-                <button className="primary-button" disabled>
-                  Ask after RAG setup
-                </button>
-                <p className="page-note">
-                  You can continue managing tasks while the assistant is
-                  unavailable.
-                </p>
-              </Panel>
-            )}
+                  <figcaption>A place to think. A space to grow.</figcaption>
+                </figure>
+              )}
+            </header>
+            <PageSections pageId={page.id} workspace={workspace} />
             <footer className="page-footer">
               <span>Make a little progress, every day.</span>
               <a href="#tasks">
