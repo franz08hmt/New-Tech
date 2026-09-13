@@ -1,5 +1,5 @@
 {
-  "name": "@coursemate/api",
+  "name": "@examate/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,8 +9,10 @@
     "build": "nest build",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "format:check": "prettier --check \"src/**/*.ts\""
+    "test": "npm run build && vitest run && node --test test/api.test.mjs test/storage.test.mjs test/reliability.test.mjs test/config.test.mjs test/migration.test.mjs",
+    "test:database": "node --test test/database.test.mjs",
+    "db:migrate": "node scripts/migrate.mjs",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/*.mjs\" \"scripts/*.mjs\""
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

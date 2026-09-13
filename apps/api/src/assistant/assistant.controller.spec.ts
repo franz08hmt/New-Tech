@@ -8,9 +8,9 @@ describe("AssistantController", () => {
     expect(controller.status()).toEqual(
       expect.objectContaining({
         status: "not_configured",
-        mode: "rag",
+        mode: "preview",
         credentialsExposedToClient: false,
-        fallback: "document_search",
+        fallback: "tasks_and_documents",
       }),
     );
   });

@@ -1,0 +1,27 @@
+> examate-ai@0.1.0 test:database
+> npm run build --workspace @examate/api && npm run test:database --workspace @examate/api
+
+
+> @examate/api@0.1.0 build
+> nest build
+
+
+> @examate/api@0.1.0 test:database
+> node --test test/database.test.mjs
+
+TAP version 13
+# Subtest: real PostgreSQL: migrations twice, HTTP Tasks/Documents persist after API restart; Storage mocked
+ok 1 - real PostgreSQL: migrations twice, HTTP Tasks/Documents persist after API restart; Storage mocked # SKIP TEST_DATABASE_URL is absent; no real DB evidence
+  ---
+  duration_ms: 0.5547
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 1089.0071

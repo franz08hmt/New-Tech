@@ -1,4 +1,6 @@
-# CourseMate AI — Project Context & Handoff
+# ExaMate AI — Project Context & Handoff
+
+> **Checkpoint mới 13/09/2026 — Homework 4 non-AI:** Tasks được siết validation; Documents chuyển từ preview sang NestJS API + Supabase Storage adapter/pg metadata. Cấu hình, migration và tests mới đã triển khai. Xem [README](../README.md), [VERIFICATION](VERIFICATION.md), [4A](HOMEWORK-4A-EVIDENCE.md), [4B](HOMEWORK-4B-EVIDENCE.md). Chưa có credentials Supabase, Docker engine chưa chạy, DB test skip; chưa có video/commit. Thư mục ZIP hiện không có `.git`. Nội dung Week 3 bên dưới là lịch sử, không dùng làm bằng chứng cho bản Homework 4. AI/RAG vẫn là kế hoạch tương lai.
 
 > **Mục đích:** đây là file tổng hợp bối cảnh để tiếp tục project khi chuyển sang box chat, model hoặc phiên làm việc khác. Hãy đọc file này trước, sau đó kiểm tra lại `git status` và chỉ nạp các source liên quan trực tiếp đến task đang làm.
 
@@ -27,7 +29,7 @@ Prompt ngắn có thể dùng khi mở box mới:
 
 ```text
 Hãy đọc D:\New-Tech\Final-Project\docs\PROJECT-CONTEXT.md trước.
-Tôi là Tài. Tiếp tục CourseMate AI từ mục "Trạng thái công việc hiện tại".
+Tôi là Tài. Tiếp tục ExaMate AI từ mục "Trạng thái công việc hiện tại".
 Trước khi sửa code hãy kiểm tra git status, đọc source liên quan và nêu task ID,
 phạm vi cùng acceptance criteria. Làm từng bước để tôi có thể hiểu và giải thích lại.
 ```
@@ -74,7 +76,7 @@ Các yêu cầu đã tổng hợp:
 
 ### Tên sản phẩm
 
-**CourseMate AI**
+**ExaMate AI**
 
 ### Vấn đề cần giải quyết
 
@@ -82,7 +84,7 @@ Nhóm sinh viên thường quản lý task và yêu cầu môn học ở nhiều
 
 ### Giải pháp
 
-CourseMate AI là web workspace giúp:
+ExaMate AI là web workspace giúp:
 
 1. Quản lý task của nhóm.
 2. Lưu tài liệu môn học/project trong một corpus được kiểm soát.
@@ -220,7 +222,8 @@ File quan trọng:
 
 | File | Vai trò |
 | --- | --- |
-| `apps/web/src/App.tsx` | UI task workspace và AI placeholder |
+| `apps/web/src/App.tsx` | Shell, hash navigation và state mở/đóng AI panel |
+| `apps/web/src/AssistantPanel.tsx` | UI preview AI theo page context; chưa gọi RAG/LLM |
 | `apps/web/src/api.ts` | REST client của frontend |
 | `apps/web/vite.config.ts` | Dev proxy `/api` sang port 3000 |
 | `apps/api/src/main.ts` | NestJS bootstrap, prefix `/api`, validation và CORS |
@@ -447,13 +450,13 @@ Phân công có thể đổi nếu kỹ năng thực tế yêu cầu, nhưng ph�
 | CM-002 | 4 | Vẽ lại và trình bày luồng tạo task | Thắng/Tài | Chéo | In progress |
 | CM-003 | 4 | Một thay đổi nhỏ xuyên frontend–API–DB | Tài | Thắng | Not started |
 | CM-101 | 4 | Document module và API metadata/upload | Thắng | Tài | Not started |
-| CM-102 | 4–5 | Documents page và upload UI | Tài | Thắng | Not started |
+| CM-102 | 4–5 | Documents page và upload UI | Tài | Thắng | FE local preview implemented; API pending |
 | CM-201 | 5 | PDF extraction và processing status | Thắng | Tài | Not started |
 | CM-202 | 5 | Chunking có source page | Thắng | Tài | Not started |
-| CM-203 | 5 | Upload loading/error/failed UI | Tài | Thắng | Not started |
+| CM-203 | 5 | Upload loading/error/failed UI | Tài | Thắng | FE mock states implemented; integration pending |
 | CM-301 | 5–6 | Embedding adapter và pgvector retrieval | Thắng | Tài | Not started |
 | CM-302 | 6 | Ask endpoint và structured output | Thắng | Tài | Not started |
-| CM-303 | 6 | Assistant UI và citation viewer | Tài | Thắng | Not started |
+| CM-303 | 6 | Assistant UI và citation viewer | Tài | Thắng | Responsive UI shell/sample citation implemented; RAG integration pending |
 | CM-304 | 6 | Unanswerable, timeout và unavailable fallback | Cả hai | Cả hai | Not started |
 | CM-401 | 6–7 | Chạy và ghi 10 evaluation cases | Tài | Thắng | Not started |
 | CM-402 | 7 | Integration test và failure test | Thắng | Tài | Not started |
@@ -597,13 +600,12 @@ Khi một task phụ thuộc vào các mục này, cần nêu lựa chọn và h
 
 Box/model tiếp theo nên bắt đầu như sau:
 
-1. Kiểm tra Git status và không đè các docs chưa commit.
-2. Hỏi/xác nhận Docker Desktop đã chạy hay chưa.
-3. Hoàn tất CM-001 bằng runtime verification.
-4. Đóng CM-002 sau khi Tài và Thắng giải thích được request path.
-5. Chốt phạm vi CM-003 trước khi sửa code.
-6. Chỉ sau đó mới bắt đầu CM-101/CM-102.
+1. Kiểm tra Git status và không commit `apps/api/tsconfig.tsbuildinfo`.
+2. Tài chạy frontend, mở Dashboard/Tasks/Documents và kiểm tra panel ở kích thước desktop/mobile.
+3. Tài giải thích state mở/đóng, page context, focus return và giới hạn “Interface preview”.
+4. Nhờ Thắng review trước khi merge `feature/tai`.
+5. Chỉ nối panel với `/api/assistant` sau khi Thắng chốt contract RAG.
 
 ---
 
-**Current resume point:** đang ở `CM-001` và `CM-002`; format check pass, Docker runtime chưa được xác minh ngày 2026-09-08. Task code kế tiếp của Tài là `CM-003`, nhưng chỉ bắt đầu sau khi baseline container chạy xanh.
+**Current resume point:** frontend-only responsive AI Copilot shell đã hoàn thành trên `feature/tai`: dock ở màn hình rộng, overlay ở laptop và bottom sheet ở mobile; 14 tests, typecheck, format và production build pass ngày 2026-09-10. Panel chỉ là interface preview, chưa gửi request AI/RAG. Việc tiếp theo của Tài là chạy walkthrough và nhờ Thắng review; `apps/api/tsconfig.tsbuildinfo` vẫn là generated file không được commit.

@@ -12,6 +12,7 @@ import {
   BookOpenIcon,
 } from "@heroicons/react/24/outline";
 import { courses, exams, research } from "./academic-data";
+import { revealClass, useReveal } from "./use-reveal";
 
 export function Panel({
   title,
@@ -131,13 +132,17 @@ export function CalendarPanel() {
   );
 }
 export function CoursesPanel({ expanded = false }: { expanded?: boolean }) {
+  const { ref, revealed } = useReveal<HTMLUListElement>();
   return (
     <Panel title="Course overview" icon={<AcademicCapIcon />}>
       <p className="view-label">
         <TableCellsIcon /> Gallery{" "}
         <span className="example-label">Example courses</span>
       </p>
-      <ul className="course-grid grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <ul
+        ref={ref}
+        className={`course-grid grid grid-cols-2 lg:grid-cols-4 gap-3 ${revealClass(revealed)}`}
+      >
         {courses.map((course) => (
           <li key={course.code}>
             <article className="course-card">
@@ -166,64 +171,92 @@ export function CoursesPanel({ expanded = false }: { expanded?: boolean }) {
     </Panel>
   );
 }
-export function ExamsPanel() {
+export function ExamsPanel({ compact = false }: { compact?: boolean }) {
+  const { ref, revealed } = useReveal<HTMLUListElement>();
   return (
     <Panel title="Upcoming exams" icon={<CalendarDaysIcon />}>
       <p className="view-label">
         <ClockIcon /> Countdown{" "}
         <span className="example-label">Example dates</span>
       </p>
-      <div
-        className="table-scroll"
-        role="region"
-        aria-label="Exam schedule"
-        tabIndex={0}
-      >
-        <table className="exam-table">
-          <caption className="sr-only">
-            Upcoming example examinations, dates and locations
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col">Aa Name</th>
-              <th scope="col">Date</th>
-              <th scope="col">Time</th>
-              <th scope="col">Location</th>
-            </tr>
-          </thead>
-          <tbody>
-            {exams.map((exam) => (
-              <tr key={exam.name}>
-                <th scope="row">
-                  {exam.name}
-                  <small>{exam.topic}</small>
-                </th>
-                <td>
-                  <time dateTime={exam.date} className="date-tag">
-                    {new Date(`${exam.date}T12:00:00`).toLocaleDateString(
-                      "en",
-                      { month: "short", day: "numeric" },
-                    )}
-                  </time>
-                </td>
-                <td>{exam.time}</td>
-                <td>{exam.room}</td>
+      {compact ? (
+        <ul ref={ref} className={`exam-agenda ${revealClass(revealed)}`}>
+          {exams.map((exam) => (
+            <li key={exam.name}>
+              <time dateTime={exam.date} className="date-tag">
+                {new Date(`${exam.date}T12:00:00`).toLocaleDateString("en", {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </time>
+              <span>
+                <strong>{exam.name}</strong>
+                <small>{exam.topic}</small>
+              </span>
+              <span>
+                {exam.time}
+                <small>{exam.room}</small>
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div
+          className="table-scroll"
+          role="region"
+          aria-label="Exam schedule"
+          tabIndex={0}
+        >
+          <table className="exam-table">
+            <caption className="sr-only">
+              Upcoming example examinations, dates and locations
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Aa Name</th>
+                <th scope="col">Date</th>
+                <th scope="col">Time</th>
+                <th scope="col">Location</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {exams.map((exam) => (
+                <tr key={exam.name}>
+                  <th scope="row">
+                    {exam.name}
+                    <small>{exam.topic}</small>
+                  </th>
+                  <td>
+                    <time dateTime={exam.date} className="date-tag">
+                      {new Date(`${exam.date}T12:00:00`).toLocaleDateString(
+                        "en",
+                        { month: "short", day: "numeric" },
+                      )}
+                    </time>
+                  </td>
+                  <td>{exam.time}</td>
+                  <td>{exam.room}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </Panel>
   );
 }
 export function ResearchPanel() {
+  const { ref, revealed } = useReveal<HTMLUListElement>();
   return (
     <Panel title="Research projects" icon={<BookOpenIcon />}>
       <p className="view-label">
         <ViewColumnsIcon /> Board{" "}
         <span className="example-label">Planning examples</span>
       </p>
-      <ul className="research-grid grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <ul
+        ref={ref}
+        className={`research-grid grid grid-cols-1 sm:grid-cols-3 gap-3 ${revealClass(revealed)}`}
+      >
         {research.map((item) => (
           <li key={item.title} className="board-column">
             <h3>
@@ -248,7 +281,7 @@ export function NotesPanel() {
   const [notes, setNotes] = useState<string[]>(() => {
     try {
       const saved: unknown = JSON.parse(
-        localStorage.getItem("coursemate-notes") || "null",
+        localStorage.getItem("examate-notes") || "null",
       );
       if (
         Array.isArray(saved) &&
@@ -270,7 +303,7 @@ export function NotesPanel() {
   function save(next: string[]) {
     setNotes(next);
     try {
-      localStorage.setItem("coursemate-notes", JSON.stringify(next));
+      localStorage.setItem("examate-notes", JSON.stringify(next));
     } catch {
       setWarning("Notes are kept only until this page is closed.");
     }

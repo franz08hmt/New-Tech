@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type Task, type TaskStatus } from "./api";
 
 export function useWorkspace() {
@@ -6,23 +6,36 @@ export function useWorkspace() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const version = useRef(0);
+  const mutating = useRef(false);
   const reload = useCallback(async () => {
+    if (mutating.current) return;
+    const currentVersion = ++version.current;
     setLoading(true);
     setError(null);
     try {
-      setTasks(await api.listTasks());
-    } catch {
+      const next = await api.listTasks();
+      if (currentVersion === version.current) setTasks(next);
+    } catch (caught) {
+      if (currentVersion !== version.current) return;
       setError(
-        "Tasks are unavailable. Start the API and database, then retry.",
+        `Tasks are unavailable. ${caught instanceof Error ? caught.message : "Please retry."}`,
       );
     } finally {
-      setLoading(false);
+      if (currentVersion === version.current) setLoading(false);
     }
   }, []);
   useEffect(() => {
     void reload();
+    return () => {
+      version.current++;
+    };
   }, [reload]);
   async function create(input: Parameters<typeof api.createTask>[0]) {
+    if (mutating.current) return false;
+    mutating.current = true;
+    version.current++;
+    setLoading(false);
     setBusy(true);
     setError(null);
     try {
@@ -35,10 +48,15 @@ export function useWorkspace() {
       );
       return false;
     } finally {
+      mutating.current = false;
       setBusy(false);
     }
   }
   async function update(id: string, status: TaskStatus) {
+    if (mutating.current) return;
+    mutating.current = true;
+    version.current++;
+    setLoading(false);
     setBusy(true);
     setError(null);
     try {
@@ -46,9 +64,12 @@ export function useWorkspace() {
       setTasks((current) =>
         current.map((task) => (task.id === id ? updated : task)),
       );
-    } catch {
-      setError("Could not update task. Your previous status has been kept.");
+    } catch (caught) {
+      setError(
+        `Could not update task. Your previous status has been kept. ${caught instanceof Error ? caught.message : ""}`,
+      );
     } finally {
+      mutating.current = false;
       setBusy(false);
     }
   }

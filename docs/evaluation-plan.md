@@ -1,4 +1,4 @@
-# CourseMate AI Evaluation Plan
+# ExaMate AI Evaluation Plan
 
 ## Status
 

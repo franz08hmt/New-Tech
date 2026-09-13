@@ -4,8 +4,12 @@ dist/
 coverage/
 .env
 .env.local
+.env.*
+!.env.example
+secrets/
+artifacts/
 *.log
 .DS_Store
 .idea/
 .vscode/
-
+*.tsbuildinfo

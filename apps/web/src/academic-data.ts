@@ -1,11 +1,15 @@
 import {
+  BeakerIcon,
   BookOpenIcon,
   BuildingLibraryIcon,
   ChartBarIcon,
   ComputerDesktopIcon,
+  VariableIcon,
 } from "@heroicons/react/24/outline";
 
 // These fixtures are explicitly labelled as examples in the interface.
+// Covers live in apps/web/public/img so the interface still renders offline;
+// see img/CREDITS.md for the source of each photograph.
 export const courses = [
   {
     name: "Computer Science",
@@ -14,6 +18,18 @@ export const courses = [
     progress: 62,
     tone: "slate",
     icon: ComputerDesktopIcon,
+    cover: "/img/course-cs.webp",
+    coverAlt: "Source code on a dark editor screen",
+  },
+  {
+    name: "Mathematics",
+    code: "MA 210",
+    detail: "Linear algebra & proof technique",
+    progress: 45,
+    tone: "sage",
+    icon: VariableIcon,
+    cover: "/img/course-math.webp",
+    coverAlt: "A system of linear equations written on paper",
   },
   {
     name: "Economics",
@@ -22,6 +38,18 @@ export const courses = [
     progress: 38,
     tone: "sand",
     icon: ChartBarIcon,
+    cover: "/img/course-econ.webp",
+    coverAlt: "Fruit and vegetable stall at a covered market",
+  },
+  {
+    name: "Biology",
+    code: "BI 150",
+    detail: "Cells, genetics & lab method",
+    progress: 29,
+    tone: "navy",
+    icon: BeakerIcon,
+    cover: "/img/course-bio.webp",
+    coverAlt: "Fluorescent microscopy image of stained cells",
   },
   {
     name: "History",
@@ -30,6 +58,8 @@ export const courses = [
     progress: 54,
     tone: "sage",
     icon: BuildingLibraryIcon,
+    cover: "/img/course-hist.webp",
+    coverAlt: "Stone domes and minarets of a historic monument",
   },
   {
     name: "Literature",
@@ -38,6 +68,8 @@ export const courses = [
     progress: 76,
     tone: "navy",
     icon: BookOpenIcon,
+    cover: "/img/course-lit.webp",
+    coverAlt: "Wall of old hardback books on wooden shelves",
   },
 ];
 export const exams = [
@@ -73,7 +105,7 @@ export const research = [
   },
   {
     status: "In progress",
-    title: "CourseMate workspace",
+    title: "ExaMate workspace",
     detail: "Build an accessible academic dashboard",
     owner: "Tài",
     tone: "rose",

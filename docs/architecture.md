@@ -1,71 +1,46 @@
-# CourseMate AI Architecture
+# Kiến trúc Homework 4 — non-AI
 
-## Architecture status at the end of Week 3
-
-The project currently uses a modular monolith. The browser communicates with one NestJS API, and PostgreSQL stores the implemented task data. The database is initialized with `pgvector` support so the future retrieval index can be added without changing the deployment shape.
-
-The local Docker Compose stack is verified. The Ubuntu virtual-machine deployment, document ingestion, retrieval pipeline, and model provider are still planned work.
-
-## System context
+Checkpoint 13/09/2026. Code Tasks/Documents đã triển khai; bằng chứng runtime cloud còn thiếu, xem [VERIFICATION.md](VERIFICATION.md).
 
 ```mermaid
 flowchart LR
-    User[Student team member] -->|HTTP or HTTPS| Proxy[Nginx reverse proxy]
-    Proxy --> Web[React web application]
-    Web -->|REST JSON| API[NestJS API]
-    API --> DB[(PostgreSQL and pgvector)]
-    API -. planned .-> Model[Hosted model or Ollama]
+  Browser[React / Vite hoặc Nginx] -->|REST /api JSON và multipart| API[NestJS API]
+  API -->|pg.Pool, verified TLS| DB[(Supabase PostgreSQL)]
+  API -->|Server JWT, HTTPS| Storage[Private Supabase Storage]
+  API -->|Signed URL 60 giây| Browser
+  Browser -->|Tải bytes qua signed URL| Storage
 ```
 
-## Implemented request flow: task creation
+Dev Vite proxy /api đến localhost:3000. Production web build tĩnh phục vụ bằng Nginx; proxy không đổi/lặp prefix. Main Compose gồm web/API, không DB local; compose.local-db.yaml chỉ dành DB test. Local web bind 127.0.0.1 vì workspace chưa authentication.
+
+## Hai luồng nghiệp vụ
+
+Task: TasksPanel.submit → useWorkspace.create → api.createTask → DTO/ValidationPipe → TasksService.create → parameterized INSERT → record RETURNING →201 → UI. PATCH status tương tự; UUID sai400, không tồn tại404. DATE lưu ngày YYYY-MM-DD, timestamps TIMESTAMPTZ.
+
+Document: chọn File (selected) → upload multipart (uploading) → Nest giới hạn một PDF10MiB và kiểm tra extension/MIME/signature → Storage object key UUID → INSERT metadata →201 (stored). List lấy DB; download đọc record stored rồi cấp signed URL. Chưa có extraction/chunks/embeddings dù schema cũ giữ lại bảng chuẩn bị.
 
 ```mermaid
-sequenceDiagram
-    participant User
-    participant Web as React web
-    participant API as NestJS API
-    participant DB as PostgreSQL
-
-    User->>Web: Submit task form
-    Web->>API: POST /api/tasks
-    API->>API: Validate DTO and business input
-    API->>DB: INSERT task
-    DB-->>API: Stored task
-    API-->>Web: 201 task JSON
-    Web-->>User: Show task in workspace
+flowchart TD
+  Upload[Storage upload thành công] --> Insert[INSERT metadata]
+  Insert -->|Có record| Stored[201 Stored]
+  Insert -->|Lỗi hoặc timeout| Probe[Query lại UUID]
+  Probe -->|Đã commit| Stored
+  Probe -->|Không có record| Cleanup[Xóa bù object]
+  Probe -->|Query cũng lỗi| Reconcile[Log key để đối chiếu, trả lỗi]
+  Cleanup -->|Xóa được| Fail[Trả lỗi gốc]
+  Cleanup -->|Không xóa được| Orphan[Log cleanup_failed, trả lỗi]
 ```
 
-Implemented backend routes currently include health checks, task listing, task creation, and task status updates. The frontend handles loading, empty, success, and error states for this workflow.
+Delete: DB set deleting → Storage remove → DB DELETE →204. Lỗi giữ metadata/key, retry thực hiện lại; record đã không còn trả204. Không transaction PostgreSQL nào tự bao phủ Storage. Response mất sau ghi có thể dẫn đến retry duplicate nếu người dùng không reload đối chiếu.
 
-## Planned grounded-answer flow
+## Ranh giới bảo mật và vận hành
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant API as NestJS API
-    participant DB as PostgreSQL and pgvector
-    participant LLM as Model provider
+- Private bucket bảo vệ object trực tiếp, không thay authorization NestJS. Chưa login/user isolation; demo dùng chung, local only.
+- Backend legacy service_role key không xuất hiện trong VITE variables/bundle/log. Signed URL là quyền tải tạm thời, không log.
+- Runtime pg role có thể là owner/bypass RLS; RLS/REVOKE trong migration bảo vệ Data API anon/authenticated, không tự cách ly truy vấn backend.
+- Migration runner tracking/checksum/lock, mỗi migration transaction; áp dụng RLS/grants trước commit initial tables để tránh cửa sổ mở Data API. Giữ 001_init.sql, vector/pgcrypto chỉ cho compatibility schema.
+- Health kiểm tra SELECT1 và timeout, storage:not_checked. Request logs có timestamp/level/id/method/path/status/duration, không body/query/token.
+- UI giữ data/File khi lỗi, có retry; Assistant disabled/preview không phụ thuộc cloud AI.
+- Test HTTP dùng compiled Nest với global prefix/validation/filter giống runtime; mock DB/Storage khác test DB riêng và khác demo Supabase thật.
 
-    User->>API: Submit question
-    API->>API: Validate and normalize input
-    API->>DB: Retrieve relevant document chunks
-    DB-->>API: Evidence and source identifiers
-    API->>LLM: Question plus bounded evidence
-    LLM-->>API: Structured answer and citation ids
-    API->>API: Validate schema and citations
-    API-->>User: Grounded answer or safe fallback
-```
-
-The planned flow must reject unsupported citations and must not present a generic model response as grounded evidence. Document text is untrusted input, so instructions found inside documents are treated as content rather than system commands.
-
-## Deployment boundary
-
-The current local deployment uses Docker Compose with a React/Nginx web container, a NestJS API container, and a PostgreSQL container. The target release will run the same Compose stack on an Ubuntu Server LTS virtual machine. Secrets will be supplied through environment variables and never embedded in the browser bundle.
-
-## Main boundaries to explain in the presentation
-
-- Browser to API: REST JSON and request validation.
-- API to database: parameterized persistence and health checks.
-- API to AI orchestration: backend-only credentials, bounded evidence, structured output validation, and failure handling.
-- AI orchestration to source data: document chunks, vector similarity, and citation identifiers.
-- Runtime to deployment: container health, reverse proxy routing, environment variables, and restart recovery.
+Các trang academic vẫn có nhãn Example; Notes là local browser utility. Kế hoạch AI dài hạn nằm trong project-plan/GUIDE lịch sử, ngoài phạm vi Homework4.

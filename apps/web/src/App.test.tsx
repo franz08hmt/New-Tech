@@ -24,12 +24,14 @@ beforeEach(() => {
   vi.stubGlobal(
     "fetch",
     vi.fn(
-      async (_url: string, init?: RequestInit) =>
+      async (url: string, init?: RequestInit) =>
         new Response(
           JSON.stringify(
-            init?.method === "POST"
-              ? { ...task, id: "task-2", title: "Build course page" }
-              : [task],
+            url === "/api/documents"
+              ? []
+              : init?.method === "POST"
+                ? { ...task, id: "task-2", title: "Build course page" }
+                : [task],
           ),
           {
             status: 200,
@@ -58,6 +60,60 @@ describe("Academic workspace", () => {
       screen.getByRole("navigation", { name: "Primary" }),
     ).toBeInTheDocument();
   });
+  it("opens and closes the ExaMate AI panel without replacing the page", async () => {
+    render(<App />);
+
+    const trigger = screen.getByRole("button", {
+      name: "Open ExaMate AI",
+    });
+    fireEvent.click(trigger);
+
+    expect(
+      screen.getByRole("complementary", { name: "ExaMate AI" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "Student academic dashboard",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Dashboard context")).toBeVisible();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Close ExaMate AI" }),
+      ).toHaveFocus(),
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(
+      screen.queryByRole("complementary", { name: "ExaMate AI" }),
+    ).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+  it("shows document-aware AI prompts without calling an Assistant API", () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "What evidence is required for the final project?",
+      }),
+    );
+
+    expect(screen.getByText("Documents context")).toBeVisible();
+    expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+      "What evidence is required for the final project?",
+    );
+    expect(screen.getByText("Interface preview")).toBeVisible();
+    expect(screen.getByText("Week 3 course guide · p. 5")).toBeVisible();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([url]) => String(url).startsWith("/api/assistant")),
+    ).toBe(false);
+  });
   it("supports page routing, task creation and the existing API contract", async () => {
     window.history.replaceState(null, "", "/#tasks");
     render(<App />);
@@ -83,6 +139,186 @@ describe("Academic workspace", () => {
         }),
       }),
     );
+  });
+  it("filters tasks by owner and shows an empty state when none match", async () => {
+    window.history.replaceState(null, "", "/#tasks");
+    render(<App />);
+    await screen.findByText("Review API contract");
+
+    const ownerFilter = screen.getByLabelText("Owner filter");
+    expect(ownerFilter).toHaveValue("all");
+
+    fireEvent.change(ownerFilter, { target: { value: "Tài" } });
+    expect(screen.getByText("Review API contract")).toBeInTheDocument();
+
+    fireEvent.change(ownerFilter, { target: { value: "Thắng" } });
+    expect(screen.queryByText("Review API contract")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("No tasks match these filters."),
+    ).toBeInTheDocument();
+  });
+  it("moves the course gallery between subjects and announces the change", () => {
+    window.history.replaceState(null, "", "/#courses");
+    render(<App />);
+
+    const gallery = screen.getByRole("region", { name: "Course gallery" });
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Computer Science" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Next course" }));
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Mathematics" }),
+    ).toBeInTheDocument();
+    expect(gallery).toHaveTextContent("Course 2 of 6: Mathematics");
+
+    // Wrapping backwards from the first subject lands on the last one.
+    fireEvent.click(screen.getByRole("button", { name: "Previous course" }));
+    fireEvent.click(screen.getByRole("button", { name: "Previous course" }));
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Literature" }),
+    ).toBeInTheDocument();
+    expect(gallery).toHaveTextContent("Course 6 of 6: Literature");
+  });
+  it("selects PDFs locally and loads persisted documents without uploading automatically", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+
+    const pdf = new File(["week three notes"], "week-3-notes.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+      target: { files: [pdf] },
+    });
+
+    expect(await screen.findByText("week-3-notes.pdf")).toBeInTheDocument();
+    expect(
+      screen.getByText("Selected locally · Not uploaded"),
+    ).toBeInTheDocument();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(
+          ([url, init]) => url === "/api/documents" && init?.method === "POST",
+        ),
+    ).toBe(false);
+  });
+  it("keeps one card when the same PDF is picked twice in one selection", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+
+    // Two picks of the same file on disk share name, size and lastModified.
+    const pick = () =>
+      new File(["shared syllabus"], "syllabus.pdf", {
+        type: "application/pdf",
+        lastModified: 1757000000000,
+      });
+    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+      target: { files: [pick(), pick()] },
+    });
+
+    expect(await screen.findAllByText("syllabus.pdf")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "1 already in the list was skipped",
+    );
+  });
+  it("reports nothing added when a selected PDF is already listed", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+
+    const picker = screen.getByLabelText("Choose PDF files");
+    const pick = () =>
+      new File(["shared syllabus"], "syllabus.pdf", {
+        type: "application/pdf",
+        lastModified: 1757000000000,
+      });
+
+    fireEvent.change(picker, { target: { files: [pick()] } });
+    await screen.findByText("syllabus.pdf");
+
+    fireEvent.change(picker, { target: { files: [pick()] } });
+
+    expect(screen.getAllByText("syllabus.pdf")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "That PDF is already in the list.",
+    );
+  });
+  it("uploads a PDF through the API and keeps File for retry after failure", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    let attempts = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/documents" && init?.method === "POST") {
+          attempts++;
+          return Response.json(
+            attempts === 1
+              ? { message: "Storage unavailable" }
+              : {
+                  id: "document-1",
+                  name: "lifecycle.pdf",
+                  size_bytes: 20,
+                  media_type: "application/pdf",
+                  storage_status: "stored",
+                },
+            { status: attempts === 1 ? 503 : 201 },
+          );
+        }
+        return Response.json(url === "/api/documents" ? [] : [task]);
+      }),
+    );
+    render(<App />);
+    const pdf = new File(["%PDF-1.4"], "lifecycle.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+      target: { files: [pdf] },
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Upload lifecycle.pdf" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Upload lifecycle.pdf" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Storage unavailable",
+    );
+    expect(
+      screen.queryByText("Stored · File and metadata saved"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retry lifecycle.pdf" }),
+    );
+    expect(
+      await screen.findByText("Stored · File and metadata saved"),
+    ).toBeVisible();
+    const calls = vi
+      .mocked(fetch)
+      .mock.calls.filter(([, init]) => init?.method === "POST");
+    expect(calls).toHaveLength(2);
+    expect((calls[1][1]?.body as FormData).get("file")).toBe(pdf);
+    expect(calls[1][1]?.headers).not.toHaveProperty("Content-Type");
+    expect(
+      screen.queryByLabelText("Preview state for lifecycle.pdf"),
+    ).not.toBeInTheDocument();
+  });
+  it("rejects non-PDF files before any upload", () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+
+    const textFile = new File(["not a pdf"], "notes.txt", {
+      type: "text/plain",
+    });
+    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+      target: { files: [textFile] },
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Only PDF files are accepted",
+    );
+    expect(screen.queryByText("notes.txt")).not.toBeInTheDocument();
   });
   it("keeps tasks intact on a failed status update", async () => {
     window.history.replaceState(null, "", "/#tasks");
@@ -131,7 +367,7 @@ describe("Academic workspace", () => {
       target: { value: "Discuss citations" },
     });
     await waitFor(() =>
-      expect(JSON.parse(localStorage.getItem("coursemate-notes")!)[0]).toBe(
+      expect(JSON.parse(localStorage.getItem("examate-notes")!)[0]).toBe(
         "Discuss citations",
       ),
     );

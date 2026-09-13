@@ -4,13 +4,12 @@ import { Controller, Get } from "@nestjs/common";
 export class AssistantController {
   @Get("status")
   status() {
-    const provider = process.env.AI_PROVIDER ?? "disabled";
     return {
-      status: provider === "disabled" ? "not_configured" : "configured",
-      provider,
-      mode: "rag",
+      status: "not_configured",
+      provider: "disabled",
+      mode: "preview",
       credentialsExposedToClient: false,
-      fallback: "document_search",
+      fallback: "tasks_and_documents",
     };
   }
 }

@@ -12,6 +12,7 @@ import {
   XMarkIcon,
   ArrowUpRightIcon,
   QuestionMarkCircleIcon,
+  DocumentArrowUpIcon,
 } from "@heroicons/react/24/outline";
 import {
   CalendarPanel,
@@ -22,6 +23,9 @@ import {
   ResearchPanel,
 } from "./AcademicPanels";
 import { TasksPanel } from "./TasksPanel";
+import { CourseCarousel } from "./CourseCarousel";
+import { DocumentsPanel } from "./DocumentsPanel";
+import { AssistantPanel } from "./AssistantPanel";
 import { useWorkspace } from "./use-workspace";
 
 const pages = [
@@ -66,6 +70,14 @@ const pages = [
       "Collect ideas, explore the evidence, and build something meaningful.",
   },
   {
+    id: "documents",
+    name: "Documents",
+    icon: DocumentArrowUpIcon,
+    title: "Your trusted study sources",
+    description:
+      "Collect the materials ExaMate will use for review and grounded answers.",
+  },
+  {
     id: "finances",
     name: "Finances",
     icon: WalletIcon,
@@ -78,7 +90,7 @@ const pages = [
     icon: SparklesIcon,
     title: "Meet your study companion",
     description:
-      "CourseMate will connect your questions to the evidence in your documents.",
+      "ExaMate will connect your questions to the evidence in your documents.",
   },
 ];
 function currentPage() {
@@ -90,12 +102,24 @@ function currentPage() {
 export default function App() {
   const [page, setPage] = useState(currentPage);
   const [menu, setMenu] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const [search, setSearch] = useState("");
   const heading = useRef<HTMLHeadingElement>(null);
   const menuToggle = useRef<HTMLButtonElement>(null);
+  const assistantToggle = useRef<HTMLButtonElement>(null);
   const workspace = useWorkspace();
+
+  function closeAssistant() {
+    setAssistantOpen(false);
+    assistantToggle.current?.focus();
+  }
+
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && assistantOpen) {
+        closeAssistant();
+        return;
+      }
       if (event.key === "Escape" && menu) {
         setMenu(false);
         menuToggle.current?.focus();
@@ -103,7 +127,7 @@ export default function App() {
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [menu]);
+  }, [assistantOpen, menu]);
   useEffect(() => {
     const onHash = () => {
       if (window.location.hash === "#main-content") {
@@ -119,7 +143,7 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   useEffect(() => {
-    document.title = `${page.name} · CourseMate AI`;
+    document.title = `${page.name} · ExaMate AI`;
     document
       .querySelector('meta[name="description"]')
       ?.setAttribute("content", page.description);
@@ -132,7 +156,7 @@ export default function App() {
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
-      <div className="desktop-shell">
+      <div className={`desktop-shell ${assistantOpen ? "assistant-open" : ""}`}>
         <aside
           id="workspace-navigation"
           className={`sidebar ${menu ? "menu-open" : ""}`}
@@ -146,10 +170,33 @@ export default function App() {
             </span>
             <a className="brand" href="#dashboard">
               <span className="brand-logo">
-                C<span>m</span>
+                {/* A ticked answer box: the mark reads as "checked", which is
+                    what ExaMate is for. Decorative — the name follows it. */}
+                <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+                  <rect width="32" height="32" rx="9" fill="#526750" />
+                  <rect
+                    x="7.5"
+                    y="7.5"
+                    width="17"
+                    height="17"
+                    rx="5"
+                    fill="none"
+                    stroke="#eef3ea"
+                    strokeWidth="1.6"
+                    opacity="0.45"
+                  />
+                  <path
+                    d="M11 16.3 14.5 19.8 21.4 12.4"
+                    fill="none"
+                    stroke="#f4f7f0"
+                    strokeWidth="2.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
               </span>
               <span>
-                CourseMate
+                ExaMate
                 <span className="brand-subtitle">Your academic space</span>
               </span>
             </a>
@@ -223,46 +270,95 @@ export default function App() {
               <AcademicCapIcon /> Workspace{" "}
               <span className="crumb-divider">/</span> {page.name}
             </span>
-            <span className="private-label">Personal workspace</span>
+            <span className="workspace-actions">
+              <span className="private-label">Personal workspace</span>
+              <button
+                ref={assistantToggle}
+                type="button"
+                className="assistant-toggle"
+                aria-label="Open ExaMate AI"
+                aria-controls="examate-ai-panel"
+                aria-expanded={assistantOpen}
+                onClick={() => setAssistantOpen(true)}
+              >
+                <SparklesIcon aria-hidden="true" />
+                <span>Ask AI</span>
+              </button>
+            </span>
           </header>
-          <figure className="cover">
-            <img
-              src="https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=1600&q=85"
-              alt="Bright, quiet study space with a desk, books and natural daylight"
-              width="1600"
-              height="450"
-              fetchPriority="high"
-            />
-            <figcaption className="cover-caption">
-              A PLACE TO THINK. A SPACE TO GROW.
-            </figcaption>
-          </figure>
           <main id="main-content" tabIndex={-1}>
-            <header className="page-heading">
-              <span className="page-emblem">
-                <AcademicCapIcon aria-hidden="true" />
-              </span>
-              <p className="eyebrow">YOUR SPACE TO MAKE THINGS HAPPEN</p>
-              <h1 ref={heading} tabIndex={-1}>
-                {page.title}
-              </h1>
-              <p>{page.description}</p>
+            <header className="study-hero">
+              <section className="page-heading" aria-label="Page introduction">
+                <p className="eyebrow">YOUR SPACE TO LEARN & GROW</p>
+                {page.id === "dashboard" && (
+                  <p className="hero-greeting">Welcome back, Tài.</p>
+                )}
+                <h1 ref={heading} tabIndex={-1}>
+                  {page.title}
+                </h1>
+                <p className="hero-description">{page.description}</p>
+                <nav className="hero-actions" aria-label="Study shortcuts">
+                  <a className="primary-button" href="#documents">
+                    <DocumentArrowUpIcon aria-hidden="true" />
+                    Open documents
+                  </a>
+                  <button
+                    className="hero-ai-button"
+                    onClick={() => setAssistantOpen(true)}
+                  >
+                    <SparklesIcon aria-hidden="true" />
+                    Ask ExaMate
+                  </button>
+                </nav>
+              </section>
+              <figure className="study-photo">
+                <img
+                  src="/img/hero-study.webp"
+                  alt="Bright, quiet study space with a desk, books and natural daylight"
+                  width="1200"
+                  height="800"
+                  fetchPriority="high"
+                  decoding="async"
+                />
+                <figcaption>A place to think. A space to grow.</figcaption>
+              </figure>
             </header>
             {page.id === "dashboard" && (
               <div className="dashboard-grid">
-                <CalendarPanel />
                 <TasksPanel workspace={workspace} />
+                <CalendarPanel />
+                <section
+                  className="study-library full-width"
+                  aria-labelledby="study-library-title"
+                >
+                  <DocumentArrowUpIcon aria-hidden="true" />
+                  <header>
+                    <h2 id="study-library-title">Your study library</h2>
+                    <p>
+                      Keep course materials together for your next review
+                      session.
+                    </p>
+                  </header>
+                  <a href="#documents">
+                    Browse documents <ArrowUpRightIcon aria-hidden="true" />
+                  </a>
+                </section>
                 <section className="full-width" aria-label="Courses">
                   <CoursesPanel />
                 </section>
                 <section className="full-width" aria-label="Exams">
-                  <ExamsPanel />
+                  <ExamsPanel compact />
                 </section>
                 <ResearchPanel />
                 <NotesPanel />
               </div>
             )}
-            {page.id === "courses" && <CoursesPanel expanded />}
+            {page.id === "courses" && (
+              <>
+                <CourseCarousel />
+                <CoursesPanel expanded />
+              </>
+            )}
             {page.id === "tasks" && (
               <TasksPanel workspace={workspace} expanded />
             )}
@@ -286,6 +382,7 @@ export default function App() {
                 </section>
               </>
             )}
+            {page.id === "documents" && <DocumentsPanel />}
             {page.id === "finances" && (
               <Panel title="Student budget" icon={<WalletIcon />}>
                 <p className="view-label">
@@ -338,7 +435,7 @@ export default function App() {
               </Panel>
             )}
             {page.id === "assistant" && (
-              <Panel title="Ask CourseMate" icon={<SparklesIcon />}>
+              <Panel title="Ask ExaMate" icon={<SparklesIcon />}>
                 <p className="page-note">
                   Planned feature: answers grounded in your approved project
                   documents, with citations you can check. The AI provider is
@@ -368,15 +465,22 @@ export default function App() {
             </footer>
           </main>
         </div>
+        {assistantOpen && (
+          <AssistantPanel
+            pageId={page.id}
+            pageName={page.name}
+            onClose={closeAssistant}
+          />
+        )}
       </div>
       <details className="help">
         <summary aria-label="About this workspace">
           <QuestionMarkCircleIcon />
         </summary>
         <p>
-          CourseMate AI · A student project by Tài & Thắng. Tasks connect to the
-          project API. Academic examples are labelled; notes stay in this
-          browser.
+          ExaMate AI · A student project by Tài & Thắng. Tasks connect to the
+          project API; Documents use persistent storage through the API.
+          Academic examples are labelled; notes stay in this browser.
         </p>
       </details>
     </>
