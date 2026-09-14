@@ -23,21 +23,31 @@ beforeEach(() => {
   localStorage.clear();
   vi.stubGlobal(
     "fetch",
-    vi.fn(
-      async (url: string, init?: RequestInit) =>
-        new Response(
-          JSON.stringify(
-            url === "/api/documents"
-              ? []
-              : init?.method === "POST"
-                ? { ...task, id: "task-2", title: "Build course page" }
-                : [task],
-          ),
-          {
-            status: 200,
-          },
-        ),
-    ),
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "/api/documents") {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+      if (init?.method !== "POST") {
+        return new Response(JSON.stringify([task]), { status: 200 });
+      }
+      // Echo the submitted fields back, like the real POST /api/tasks
+      // response does, instead of a response fixed regardless of input.
+      const submitted = JSON.parse(String(init.body)) as Record<
+        string,
+        unknown
+      >;
+      return new Response(
+        JSON.stringify({
+          ...task,
+          id: "task-2",
+          title: submitted.title,
+          owner_name: submitted.ownerName ?? null,
+          due_date: submitted.dueDate ?? null,
+          evidence_type: submitted.evidenceType ?? null,
+        }),
+        { status: 200 },
+      );
+    }),
   );
 });
 afterEach(() => {
@@ -124,6 +134,9 @@ describe("Academic workspace", () => {
     fireEvent.change(screen.getByLabelText("Owner"), {
       target: { value: "Tài" },
     });
+    fireEvent.change(screen.getByLabelText("Evidence type"), {
+      target: { value: "proposal" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Add task" }));
     expect(
       await screen.findByText("Task added successfully."),
@@ -135,8 +148,29 @@ describe("Academic workspace", () => {
         body: JSON.stringify({
           title: "Build course page",
           ownerName: "Tài",
-          evidenceType: "milestone",
+          evidenceType: "proposal",
         }),
+      }),
+    );
+    // The API echoes evidence_type back (mocked below); the list must render
+    // it rather than only sending it — a one-way contract test would miss a
+    // response that is sent but silently dropped on render.
+    expect(await screen.findByText(/proposal/)).toBeInTheDocument();
+  });
+  it("omits evidence type from the request when the field is left blank", async () => {
+    window.history.replaceState(null, "", "/#tasks");
+    render(<App />);
+    await screen.findByText("Review API contract");
+    fireEvent.change(screen.getByLabelText("Task title"), {
+      target: { value: "Build course page" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add task" }));
+    await screen.findByText("Task added successfully.");
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/tasks",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ title: "Build course page" }),
       }),
     );
   });

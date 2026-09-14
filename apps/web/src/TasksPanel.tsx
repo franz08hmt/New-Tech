@@ -44,7 +44,7 @@ export function TasksPanel({
       title,
       ownerName: String(data.get("ownerName") || "") || undefined,
       dueDate: String(data.get("dueDate") || "") || undefined,
-      evidenceType: "milestone",
+      evidenceType: String(data.get("evidenceType") || "") || undefined,
     });
     if (ok) {
       form.reset();
@@ -141,6 +141,7 @@ export function TasksPanel({
                       </time>
                     </>
                   )}
+                  {task.evidence_type && <> · {task.evidence_type}</>}
                 </small>
               </span>
               {expanded && (
@@ -196,6 +197,23 @@ export function TasksPanel({
           <label>
             Due date
             <input name="dueDate" type="date" />
+          </label>
+          <label>
+            Evidence type
+            <input
+              name="evidenceType"
+              list="evidence-type-options"
+              placeholder="e.g. proposal"
+              maxLength={80}
+            />
+            {/* Suggestions only — the column has no CHECK constraint, so any
+                text (or none) is accepted, matching evidence_type's
+                "optional, free text" contract in docs/GUIDE.md. */}
+            <datalist id="evidence-type-options">
+              <option value="proposal" />
+              <option value="environment" />
+              <option value="architecture" />
+            </datalist>
           </label>
           <button
             className="primary-button"
