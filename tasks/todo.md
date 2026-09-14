@@ -1,5 +1,18 @@
 # Tài — việc cần làm tiếp theo
 
+## Homework 4 checkpoint — 13/09/2026
+
+- [x] Audit source, giữ stack và giao diện, không commit/push.
+- [x] Tasks validation, Documents API/Storage adapter, migration và frontend integration.
+- [x] HTTP/mock/frontend tests, typecheck, format, build; output trong docs/evidence.
+- [x] Setup Supabase, hồ sơ 4A/4B, study guide và kịch bản demo tiếng Việt.
+- [ ] Cấu hình .env riêng và chạy migration/Supabase thật.
+- [ ] Chứng minh persistence/restart/download/delete bằng record và object thật.
+- [ ] Docker runtime smoke khi Docker Desktop engine hoạt động.
+- [ ] Quay video, review code rồi commit tại checkout Git hợp lệ và lấy exact hash.
+
+Trạng thái chính xác: docs/VERIFICATION.md. Các mục bên dưới là backlog/lịch sử Homework 3; preview Documents đã được thay bằng tích hợp API ở checkpoint mới.
+
 ## Hôm nay: chạy local
 
 - [ ] Đứng tại `D:\New-Tech\Final-Project` trên nhánh `feature/tai`.

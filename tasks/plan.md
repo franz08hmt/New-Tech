@@ -1,5 +1,7 @@
 # Implementation Plan: Tài tiếp quản Homework 3A
 
+> Kế hoạch hiện tại Homework 4: audit/baseline → cấu hình/validation/logs → migration + Storage API → FE Tasks/Documents → tests/quality gates → tài liệu/evidence. Code và automated checks hoàn tất theo docs/VERIFICATION.md; Supabase thật, Docker runtime, video và commit chờ môi trường của người nộp. Không có AI trong checkpoint này. Phần dưới giữ lịch sử Homework 3.
+
 ## Overview
 
 Mục tiêu trước mắt là để Tài tự chạy, kiểm tra và giải thích được React UI skeleton hiện tại. Chưa mở rộng AI/RAG trong checkpoint này.

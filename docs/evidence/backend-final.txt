@@ -1,0 +1,28 @@
+Excerpt from actual final backend execution, 2026-09-13 Asia/Saigon.
+Command: node --test apps/api/test/api.test.mjs apps/api/test/storage.test.mjs apps/api/test/reliability.test.mjs
+Exit code: 0
+Scope: HTTP Nest app with DB/Storage mocks, Storage HTTP adapter mocks,
+and real pg connection refusal against a released localhost port (no database).
+
+ok 26 - ambiguous INSERT committed: preserve object and return confirmed record
+ok 27 - ambiguous INSERT and failed reconciliation: never delete an unconfirmed object
+ok 28 - real pg connection refusal is a sanitized HTTP 503 for Tasks and health
+ok 29 - Storage HTTP adapter sends private bucket check, bytes, short signed URL and delete prefixes
+ok 30 - Storage HTTP adapter refuses public buckets and hides provider errors
+ok 31 - Storage HTTP adapter handles timeout/network and malformed signed response
+ok 32 - Configuration fails closed for missing credentials and insecure cloud TLS
+1..32
+# tests 32
+# suites 0
+# pass 32
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1847.7611
+
+Actual sanitized log from this execution:
+{"timestamp":"2026-09-12T19:36:45.408Z","level":"error","event":"database.query_failed","requestId":"36b8610e-7780-4d82-814a-cfcdc24a8e1f","code":"ECONNREFUSED"}
+{"timestamp":"2026-09-12T19:36:45.411Z","level":"info","event":"request.completed","requestId":"36b8610e-7780-4d82-814a-cfcdc24a8e1f","method":"GET","path":"/api/tasks","status":503,"durationMs":7}
+
+No successful PostgreSQL connection, database persistence or Supabase upload is implied.

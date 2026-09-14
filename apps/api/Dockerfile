@@ -2,6 +2,7 @@ FROM node:24-alpine AS build
 WORKDIR /workspace
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
 RUN npm ci --workspace @examate/api --include-workspace-root
 COPY apps/api apps/api
 RUN npm run build --workspace @examate/api
@@ -12,5 +13,7 @@ ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /workspace/node_modules ./node_modules
 COPY --from=build /workspace/apps/api ./apps/api
+COPY infra/postgres ./infra/postgres
+USER node
 EXPOSE 3000
 CMD ["node", "apps/api/dist/main.js"]

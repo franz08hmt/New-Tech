@@ -24,12 +24,14 @@ beforeEach(() => {
   vi.stubGlobal(
     "fetch",
     vi.fn(
-      async (_url: string, init?: RequestInit) =>
+      async (url: string, init?: RequestInit) =>
         new Response(
           JSON.stringify(
-            init?.method === "POST"
-              ? { ...task, id: "task-2", title: "Build course page" }
-              : [task],
+            url === "/api/documents"
+              ? []
+              : init?.method === "POST"
+                ? { ...task, id: "task-2", title: "Build course page" }
+                : [task],
           ),
           {
             status: 200,
@@ -178,7 +180,7 @@ describe("Academic workspace", () => {
     ).toBeInTheDocument();
     expect(gallery).toHaveTextContent("Course 6 of 6: Literature");
   });
-  it("selects valid PDFs locally without calling a document API", async () => {
+  it("selects PDFs locally and loads persisted documents without uploading automatically", async () => {
     window.history.replaceState(null, "", "/#documents");
     render(<App />);
 
@@ -193,7 +195,13 @@ describe("Academic workspace", () => {
     expect(
       screen.getByText("Selected locally · Not uploaded"),
     ).toBeInTheDocument();
-    expect(fetch).not.toHaveBeenCalledWith("/api/documents", expect.anything());
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(
+          ([url, init]) => url === "/api/documents" && init?.method === "POST",
+        ),
+    ).toBe(false);
   });
   it("keeps one card when the same PDF is picked twice in one selection", async () => {
     window.history.replaceState(null, "", "/#documents");
@@ -235,46 +243,66 @@ describe("Academic workspace", () => {
       "That PDF is already in the list.",
     );
   });
-  it("previews the document lifecycle without calling the backend", async () => {
+  it("uploads a PDF through the API and keeps File for retry after failure", async () => {
     window.history.replaceState(null, "", "/#documents");
+    let attempts = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/documents" && init?.method === "POST") {
+          attempts++;
+          return Response.json(
+            attempts === 1
+              ? { message: "Storage unavailable" }
+              : {
+                  id: "document-1",
+                  name: "lifecycle.pdf",
+                  size_bytes: 20,
+                  media_type: "application/pdf",
+                  storage_status: "stored",
+                },
+            { status: attempts === 1 ? 503 : 201 },
+          );
+        }
+        return Response.json(url === "/api/documents" ? [] : [task]);
+      }),
+    );
     render(<App />);
-
-    const pdf = new File(["lifecycle demo"], "lifecycle.pdf", {
+    const pdf = new File(["%PDF-1.4"], "lifecycle.pdf", {
       type: "application/pdf",
     });
     fireEvent.change(screen.getByLabelText("Choose PDF files"), {
       target: { files: [pdf] },
     });
-
-    const statePreview = await screen.findByLabelText(
-      "Preview state for lifecycle.pdf",
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Upload lifecycle.pdf" }),
+      ).toBeEnabled(),
     );
-    fireEvent.change(statePreview, { target: { value: "uploading" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Upload lifecycle.pdf" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Storage unavailable",
+    );
     expect(
-      screen.getByRole("progressbar", {
-        name: "Upload progress for lifecycle.pdf",
-      }),
-    ).toHaveAttribute("value", "64");
-
-    fireEvent.change(statePreview, { target: { value: "processing" } });
-    expect(screen.getByText("Processing document · Mock state")).toBeVisible();
-
-    fireEvent.change(statePreview, { target: { value: "ready" } });
-    expect(screen.getByText("Ready · Available to Assistant")).toBeVisible();
-
-    fireEvent.change(statePreview, { target: { value: "failed" } });
-    expect(screen.getByText("Failed · Example extraction error")).toBeVisible();
+      screen.queryByText("Stored · File and metadata saved"),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Retry lifecycle.pdf" }),
     );
-    expect(statePreview).toHaveValue("selected");
-    expect(screen.getByText("Selected locally · Not uploaded")).toBeVisible();
-
     expect(
-      vi
-        .mocked(fetch)
-        .mock.calls.some(([url]) => String(url).startsWith("/api/documents")),
-    ).toBe(false);
+      await screen.findByText("Stored · File and metadata saved"),
+    ).toBeVisible();
+    const calls = vi
+      .mocked(fetch)
+      .mock.calls.filter(([, init]) => init?.method === "POST");
+    expect(calls).toHaveLength(2);
+    expect((calls[1][1]?.body as FormData).get("file")).toBe(pdf);
+    expect(calls[1][1]?.headers).not.toHaveProperty("Content-Type");
+    expect(
+      screen.queryByLabelText("Preview state for lifecycle.pdf"),
+    ).not.toBeInTheDocument();
   });
   it("rejects non-PDF files before any upload", () => {
     window.history.replaceState(null, "", "/#documents");

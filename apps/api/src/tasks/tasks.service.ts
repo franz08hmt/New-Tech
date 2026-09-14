@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "../database/database.service.js";
 import type { CreateTaskDto } from "./create-task.dto.js";
 import type { TaskRecord, TaskStatus } from "./task.types.js";
+import { log } from "../common/log.js";
 
 @Injectable()
 export class TasksService {
@@ -32,6 +33,7 @@ export class TasksService {
         input.evidenceType?.trim() || null,
       ],
     );
+    log("info", "task.created", { taskId: result.rows[0].id });
     return result.rows[0];
   }
 
@@ -51,6 +53,7 @@ export class TasksService {
         message: "Task not found",
       });
     }
+    log("info", "task.status_updated", { taskId: id, status });
     return task;
   }
 }

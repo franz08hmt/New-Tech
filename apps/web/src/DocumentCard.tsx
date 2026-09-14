@@ -1,122 +1,81 @@
-import {
-  ArrowPathIcon,
-  DocumentTextIcon,
-  TrashIcon,
-} from "@heroicons/react/24/outline";
-import type { ChangeEvent } from "react";
+import { DocumentTextIcon, TrashIcon } from "@heroicons/react/24/outline";
 
 export type DocumentLifecycle =
-  "selected" | "uploading" | "processing" | "ready" | "failed";
-
+  "selected" | "uploading" | "stored" | "failed" | "deleting" | "legacy";
 interface DocumentCardProps {
   name: string;
-  size: number;
+  size: number | null;
   state: DocumentLifecycle;
+  error?: string;
+  busy?: boolean;
   onRemove: () => void;
-  onStateChange: (state: DocumentLifecycle) => void;
+  onUpload?: () => void;
+  onDownload?: () => void;
 }
-
-function formatFileSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function DocumentState({
-  name,
-  state,
-  onRetry,
-}: Pick<DocumentCardProps, "name" | "state"> & { onRetry: () => void }) {
-  if (state === "uploading") {
-    return (
-      <p className="document-state document-state--uploading">
-        <span>Uploading · Mock 64%</span>
-        <progress
-          aria-label={`Upload progress for ${name}`}
-          max="100"
-          value="64"
-        >
-          64%
-        </progress>
-      </p>
-    );
-  }
-
-  if (state === "processing") {
-    return (
-      <p className="document-state document-state--processing" aria-busy="true">
-        Processing document · Mock state
-      </p>
-    );
-  }
-
-  if (state === "ready") {
-    return (
-      <p className="document-state document-state--ready">
-        Ready · Available to Assistant
-      </p>
-    );
-  }
-
-  if (state === "failed") {
-    return (
-      <p className="document-state document-state--failed">
-        <span>Failed · Example extraction error</span>
-        <button type="button" onClick={onRetry}>
-          <ArrowPathIcon aria-hidden="true" />
-          <span className="sr-only">Retry {name}</span>
-        </button>
-      </p>
-    );
-  }
-
-  return (
-    <p className="document-state document-state--selected">
-      Selected locally · Not uploaded
-    </p>
-  );
-}
-
 export function DocumentCard({
   name,
   size,
   state,
+  error,
+  busy,
   onRemove,
-  onStateChange,
+  onUpload,
+  onDownload,
 }: DocumentCardProps) {
-  function changePreview(event: ChangeEvent<HTMLSelectElement>) {
-    onStateChange(event.currentTarget.value as DocumentLifecycle);
-  }
-
   return (
     <article className={`document-card document-card--${state}`}>
       <DocumentTextIcon aria-hidden="true" />
       <section className="document-card-details">
         <h4>{name}</h4>
-        <p>{formatFileSize(size)} · PDF</p>
-        <DocumentState
-          name={name}
-          state={state}
-          onRetry={() => onStateChange("selected")}
-        />
+        <p>
+          {size === null
+            ? "Unknown size"
+            : `${(size / 1024 / 1024).toFixed(2)} MiB`}{" "}
+          · PDF
+        </p>
+        <p
+          className={`document-state document-state--${state}`}
+          aria-busy={busy}
+        >
+          {state === "selected" && "Selected locally · Not uploaded"}
+          {state === "uploading" && (
+            <>
+              Uploading…
+              <progress aria-label={`Upload progress for ${name}`} />
+            </>
+          )}
+          {state === "stored" && "Stored · File and metadata saved"}
+          {state === "failed" && "Failed · File kept for retry"}
+          {state === "deleting" && "Deletion pending · Retry delete to finish"}
+          {state === "legacy" && "Legacy metadata · Storage not verified"}
+        </p>
+        {error && (
+          <p role="alert" className="error-message">
+            {error}
+          </p>
+        )}
       </section>
       <footer className="document-card-actions">
-        <label>
-          <span>Preview state</span>
-          <select
-            aria-label={`Preview state for ${name}`}
-            value={state}
-            onChange={changePreview}
+        {onUpload && (
+          <button type="button" disabled={busy} onClick={onUpload}>
+            {state === "failed" ? `Retry ${name}` : `Upload ${name}`}
+          </button>
+        )}
+        {onDownload && (
+          <button
+            type="button"
+            disabled={busy || state !== "stored"}
+            onClick={onDownload}
           >
-            <option value="selected">Selected</option>
-            <option value="uploading">Uploading</option>
-            <option value="processing">Processing</option>
-            <option value="ready">Ready</option>
-            <option value="failed">Failed</option>
-          </select>
-          <small>Frontend demo only</small>
-        </label>
-        <button type="button" aria-label={`Remove ${name}`} onClick={onRemove}>
+            Download {name}
+          </button>
+        )}
+        <button
+          type="button"
+          disabled={busy || state === "legacy"}
+          aria-label={`${onUpload ? "Remove" : "Delete"} ${name}`}
+          onClick={onRemove}
+        >
           <TrashIcon aria-hidden="true" />
         </button>
       </footer>

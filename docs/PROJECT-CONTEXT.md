@@ -1,5 +1,7 @@
 # ExaMate AI — Project Context & Handoff
 
+> **Checkpoint mới 13/09/2026 — Homework 4 non-AI:** Tasks được siết validation; Documents chuyển từ preview sang NestJS API + Supabase Storage adapter/pg metadata. Cấu hình, migration và tests mới đã triển khai. Xem [README](../README.md), [VERIFICATION](VERIFICATION.md), [4A](HOMEWORK-4A-EVIDENCE.md), [4B](HOMEWORK-4B-EVIDENCE.md). Chưa có credentials Supabase, Docker engine chưa chạy, DB test skip; chưa có video/commit. Thư mục ZIP hiện không có `.git`. Nội dung Week 3 bên dưới là lịch sử, không dùng làm bằng chứng cho bản Homework 4. AI/RAG vẫn là kế hoạch tương lai.
+
 > **Mục đích:** đây là file tổng hợp bối cảnh để tiếp tục project khi chuyển sang box chat, model hoặc phiên làm việc khác. Hãy đọc file này trước, sau đó kiểm tra lại `git status` và chỉ nạp các source liên quan trực tiếp đến task đang làm.
 
 - **Cập nhật lần cuối:** 2026-09-08

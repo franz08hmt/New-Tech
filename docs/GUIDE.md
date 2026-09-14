@@ -1,5 +1,7 @@
 # ExaMate AI — Hướng dẫn teammate và backlog phát triển
 
+> **Cập nhật Homework 4, 13/09/2026:** tài liệu dưới đây giữ kế hoạch đồ án cũ. Documents API/lưu file đã được triển khai ở checkpoint mới, chưa kiểm chứng Supabase thật. Hướng dẫn chạy hiện hành ở [README](../README.md), học code non-AI ở [BACKEND-STUDY-GUIDE-VI](BACKEND-STUDY-GUIDE-VI.md); trạng thái bằng chứng ở [VERIFICATION](VERIFICATION.md). Không triển khai AI theo backlog bên dưới trong Homework 4.
+
 ## Thành viên và vai trò
 
 - **Tài** phụ trách chính frontend, trải nghiệm người dùng và phần trình bày.

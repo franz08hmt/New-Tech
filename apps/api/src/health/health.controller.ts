@@ -13,6 +13,7 @@ export class HealthController {
         status: "ok",
         service: "examate-api",
         database: "connected",
+        storage: "not_checked",
         databaseLatencyMs,
         timestamp: new Date().toISOString(),
       };
@@ -22,6 +23,8 @@ export class HealthController {
         service: "examate-api",
         database: "unavailable",
         code: "DATABASE_UNAVAILABLE",
+        message: "Database is unavailable. Please retry.",
+        storage: "not_checked",
       });
     }
   }

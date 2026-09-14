@@ -1330,8 +1330,12 @@
   .document-state--processing {
     color: #395f7a;
   }
-  .document-state--ready {
+  .document-state--ready,
+  .document-state--stored {
     color: #31663c;
+  }
+  .document-state--deleting {
+    color: #8c5d3d;
   }
   .document-state--failed {
     display: flex;

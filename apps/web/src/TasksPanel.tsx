@@ -32,6 +32,7 @@ export function TasksPanel({
   });
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setNotice("");
     const form = event.currentTarget;
     const data = new FormData(form);
     const title = String(data.get("title") || "").trim();
@@ -69,6 +70,7 @@ export function TasksPanel({
           {workspace.error}
           <button
             className="text-button"
+            disabled={workspace.busy || workspace.loading}
             onClick={() => void workspace.reload()}
           >
             <ArrowPathIcon /> Retry
@@ -195,7 +197,10 @@ export function TasksPanel({
             Due date
             <input name="dueDate" type="date" />
           </label>
-          <button className="primary-button" disabled={workspace.busy}>
+          <button
+            className="primary-button"
+            disabled={workspace.busy || workspace.loading}
+          >
             <PlusIcon />
             {workspace.busy ? "Saving…" : "Add task"}
           </button>

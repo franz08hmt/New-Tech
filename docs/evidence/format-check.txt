@@ -1,0 +1,15 @@
+> examate-ai@0.1.0 format:check
+> npm run format:check --workspaces --if-present
+
+
+> @examate/api@0.1.0 format:check
+> prettier --check "src/**/*.ts" "test/*.mjs" "scripts/*.mjs"
+
+Checking formatting...
+All matched files use Prettier code style!
+
+> @examate/web@0.1.0 format:check
+> prettier --check "src/**/*.{ts,tsx,css}"
+
+Checking formatting...
+All matched files use Prettier code style!

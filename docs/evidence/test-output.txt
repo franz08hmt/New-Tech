@@ -1,0 +1,302 @@
+> examate-ai@0.1.0 test
+> npm run test --workspaces --if-present
+
+
+> @examate/api@0.1.0 test
+> npm run build && vitest run && node --test test/api.test.mjs test/storage.test.mjs
+
+
+> @examate/api@0.1.0 build
+> nest build
+
+
+ RUN  v5.0.0 C:/Users/WIN 11/Downloads/New-Tech-feature-tai/New-Tech-feature-tai/apps/api
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  02:22:38
+   Duration  5.82s (import 96%, transform 4%)
+
+TAP version 13
+# {"timestamp":"2026-09-12T19:23:04.964Z","level":"info","event":"task.created","requestId":"9495099f-19e9-45d9-b3da-d7f194a03dd4","taskId":"aa795587-b6fd-4eda-b924-f5ea3473d733"}
+# {"timestamp":"2026-09-12T19:23:04.979Z","level":"info","event":"request.completed","requestId":"9495099f-19e9-45d9-b3da-d7f194a03dd4","method":"POST","path":"/api/tasks","status":201,"durationMs":424}
+# {"timestamp":"2026-09-12T19:23:05.033Z","level":"info","event":"task.status_updated","requestId":"e9072283-4167-4020-8dd0-d56e92b1c41f","taskId":"aa795587-b6fd-4eda-b924-f5ea3473d733","status":"done"}
+# {"timestamp":"2026-09-12T19:23:05.035Z","level":"info","event":"request.completed","requestId":"e9072283-4167-4020-8dd0-d56e92b1c41f","method":"PATCH","path":"/api/tasks/aa795587-b6fd-4eda-b924-f5ea3473d733/status","status":200,"durationMs":10}
+# {"timestamp":"2026-09-12T19:23:05.055Z","level":"info","event":"request.completed","requestId":"b7476013-9db2-4ee8-bd1f-fb1a7105496f","method":"GET","path":"/api/tasks","status":200,"durationMs":4}
+# Subtest: HTTP Tasks: create normalized task, list and change status
+ok 1 - HTTP Tasks: create normalized task, list and change status
+  ---
+  duration_ms: 707.0046
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.125Z","level":"error","event":"request.failed","requestId":"e5874400-0188-4a44-b77a-a3c6d0243971","status":400,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.126Z","level":"info","event":"request.completed","requestId":"e5874400-0188-4a44-b77a-a3c6d0243971","method":"POST","path":"/api/tasks","status":400,"durationMs":7}
+# Subtest: HTTP Tasks rejects missing
+ok 2 - HTTP Tasks rejects missing
+  ---
+  duration_ms: 57.7806
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.155Z","level":"error","event":"request.failed","requestId":"d245ce37-df69-4c88-97a1-10f1dfe5722c","status":400,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.158Z","level":"info","event":"request.completed","requestId":"d245ce37-df69-4c88-97a1-10f1dfe5722c","method":"POST","path":"/api/tasks","status":400,"durationMs":4}
+# Subtest: HTTP Tasks rejects whitespace
+ok 3 - HTTP Tasks rejects whitespace
+  ---
+  duration_ms: 30.7928
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.180Z","level":"error","event":"request.failed","requestId":"96aa8268-2f1e-4a6e-a343-d2841a097d79","status":400,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.181Z","level":"info","event":"request.completed","requestId":"96aa8268-2f1e-4a6e-a343-d2841a097d79","method":"POST","path":"/api/tasks","status":400,"durationMs":2}
+# Subtest: HTTP Tasks rejects short
+ok 4 - HTTP Tasks rejects short
+  ---
+  duration_ms: 21.7241
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.211Z","level":"error","event":"request.failed","requestId":"8c75b7d0-77e8-4c90-84c9-0aeabe605065","status":400,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.211Z","level":"info","event":"request.completed","requestId":"8c75b7d0-77e8-4c90-84c9-0aeabe605065","method":"POST","path":"/api/tasks","status":400,"durationMs":4}
+# Subtest: HTTP Tasks rejects long
+ok 5 - HTTP Tasks rejects long
+  ---
+  duration_ms: 30.4478
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.237Z","level":"error","event":"request.failed","requestId":"21aeb775-4a3d-4c41-9874-695b19cac6a4","status":400,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.238Z","level":"info","event":"request.completed","requestId":"21aeb775-4a3d-4c41-9874-695b19cac6a4","method":"POST","path":"/api/tasks","status":400,"durationMs":2}
+# Subtest: HTTP Tasks rejects wrongType
+ok 6 - HTTP Tasks rejects wrongType
+  ---
+  duration_ms: 30.4285
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.306Z","level":"error","event":"request.failed","requestId":"528e1ab7-1e8c-49b0-9580-39e00669e886","status":400,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.309Z","level":"info","event":"request.completed","requestId":"528e1ab7-1e8c-49b0-9580-39e00669e886","method":"POST","path":"/api/tasks","status":400,"durationMs":6}
+# Subtest: HTTP Tasks rejects nullTitle
+ok 7 - HTTP Tasks rejects nullTitle
+  ---
+  duration_ms: 74.464
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.363Z","level":"error","event":"request.failed","requestId":"5d36112e-03d3-4b3a-bcd0-bdcaaf0c2535","status":400,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.364Z","level":"info","event":"request.completed","requestId":"5d36112e-03d3-4b3a-bcd0-bdcaaf0c2535","method":"POST","path":"/api/tasks","status":400,"durationMs":3}
+# Subtest: HTTP Tasks rejects unknown
+ok 8 - HTTP Tasks rejects unknown
+  ---
+  duration_ms: 46.5687
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.392Z","level":"error","event":"request.failed","requestId":"a084f224-cfa0-409a-bbed-4b149694dad8","status":400,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.393Z","level":"info","event":"request.completed","requestId":"a084f224-cfa0-409a-bbed-4b149694dad8","method":"POST","path":"/api/tasks","status":400,"durationMs":2}
+# Subtest: HTTP Tasks rejects badStatus
+ok 9 - HTTP Tasks rejects badStatus
+  ---
+  duration_ms: 28.3692
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.414Z","level":"error","event":"request.failed","requestId":"d8c73ea6-0b9d-475e-9a95-ea28d7865a7f","status":400,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.414Z","level":"info","event":"request.completed","requestId":"d8c73ea6-0b9d-475e-9a95-ea28d7865a7f","method":"POST","path":"/api/tasks","status":400,"durationMs":2}
+# Subtest: HTTP Tasks rejects nullStatus
+ok 10 - HTTP Tasks rejects nullStatus
+  ---
+  duration_ms: 20.6899
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.435Z","level":"error","event":"request.failed","requestId":"b81bfde4-65e4-42b1-96e7-d9ddcbefd06f","status":400,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.436Z","level":"info","event":"request.completed","requestId":"b81bfde4-65e4-42b1-96e7-d9ddcbefd06f","method":"POST","path":"/api/tasks","status":400,"durationMs":3}
+# Subtest: HTTP Tasks rejects badDate
+ok 11 - HTTP Tasks rejects badDate
+  ---
+  duration_ms: 21.3362
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.470Z","level":"error","event":"request.failed","requestId":"d36cd0d4-895f-4d0e-b83d-cea36f3561c6","status":400,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.471Z","level":"info","event":"request.completed","requestId":"d36cd0d4-895f-4d0e-b83d-cea36f3561c6","method":"POST","path":"/api/tasks","status":400,"durationMs":2}
+# Subtest: HTTP Tasks rejects timestamp
+ok 12 - HTTP Tasks rejects timestamp
+  ---
+  duration_ms: 38.1768
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.500Z","level":"error","event":"request.failed","requestId":"87469102-4512-4f9a-9016-b366b03e7684","status":400,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.501Z","level":"info","event":"request.completed","requestId":"87469102-4512-4f9a-9016-b366b03e7684","method":"POST","path":"/api/tasks","status":400,"durationMs":2}
+# Subtest: HTTP Tasks rejects badOwner
+ok 13 - HTTP Tasks rejects badOwner
+  ---
+  duration_ms: 27.1381
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.538Z","level":"info","event":"task.created","requestId":"45fb96b6-e25c-4064-9d2a-39621bf58c47","taskId":"5b3eb272-01a6-4746-a1c3-2b7bfe6adeb3"}
+# {"timestamp":"2026-09-12T19:23:05.540Z","level":"info","event":"request.completed","requestId":"45fb96b6-e25c-4064-9d2a-39621bf58c47","method":"POST","path":"/api/tasks","status":201,"durationMs":4}
+# {"timestamp":"2026-09-12T19:23:05.545Z","level":"error","event":"request.failed","requestId":"3a63c949-e376-4ebf-b651-7ee82ac6a556","status":400,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.545Z","level":"info","event":"request.completed","requestId":"3a63c949-e376-4ebf-b651-7ee82ac6a556","method":"PATCH","path":"/unmatched","status":400,"durationMs":1}
+# {"timestamp":"2026-09-12T19:23:05.548Z","level":"error","event":"request.failed","requestId":"21b619bf-0d73-4f9f-a141-2e83298caada","status":400,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.548Z","level":"info","event":"request.completed","requestId":"21b619bf-0d73-4f9f-a141-2e83298caada","method":"PATCH","path":"/api/tasks/6beb0387-699d-43b7-a9fa-89fe62c2f85b/status","status":400,"durationMs":1}
+# {"timestamp":"2026-09-12T19:23:05.550Z","level":"error","event":"request.failed","requestId":"d0210d68-2a2b-49f1-ad2a-78eae9dfad3f","status":404,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.551Z","level":"info","event":"request.completed","requestId":"d0210d68-2a2b-49f1-ad2a-78eae9dfad3f","method":"PATCH","path":"/api/tasks/6d725d47-a7eb-46a2-ac13-64d3f7e47ec2/status","status":404,"durationMs":1}
+# Subtest: HTTP Tasks accepts null optional data but rejects invalid status and UUID
+ok 14 - HTTP Tasks accepts null optional data but rejects invalid status and UUID
+  ---
+  duration_ms: 52.6978
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.587Z","level":"info","event":"request.completed","requestId":"05ccfcaf-907d-45a8-90ad-474ac7210c4d","method":"GET","path":"/api/health","status":200,"durationMs":3}
+# {"timestamp":"2026-09-12T19:23:05.596Z","level":"error","event":"request.failed","requestId":"d2efe8b5-215e-4170-8abc-ebeb409d9f2f","status":503,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.596Z","level":"info","event":"request.completed","requestId":"d2efe8b5-215e-4170-8abc-ebeb409d9f2f","method":"GET","path":"/api/health","status":503,"durationMs":1}
+# {"timestamp":"2026-09-12T19:23:05.603Z","level":"info","event":"request.completed","requestId":"0065dfef-6724-4126-8748-7226a0a1d027","method":"GET","path":"/api/health","status":200,"durationMs":0}
+# Subtest: HTTP health reports database only, 503 on failure, then recovers
+ok 15 - HTTP health reports database only, 503 on failure, then recovers
+  ---
+  duration_ms: 53.0373
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.699Z","level":"info","event":"document.stored","requestId":"5ed3c0a2-c9cf-40a1-9877-e7bfdb4f9289","documentId":"45f1a162-fa0c-478c-9bcb-fdf071d4248a","sizeBytes":34}
+# {"timestamp":"2026-09-12T19:23:05.700Z","level":"info","event":"request.completed","requestId":"5ed3c0a2-c9cf-40a1-9877-e7bfdb4f9289","method":"POST","path":"/api/documents","status":201,"durationMs":25}
+# {"timestamp":"2026-09-12T19:23:05.715Z","level":"info","event":"request.completed","requestId":"3494a9d9-9e71-45d0-8152-586dfdf493d9","method":"GET","path":"/api/documents","status":200,"durationMs":2}
+# {"timestamp":"2026-09-12T19:23:05.718Z","level":"info","event":"request.completed","requestId":"6df51c78-4a1e-4f77-8f3d-de50f45a8819","method":"GET","path":"/api/documents/45f1a162-fa0c-478c-9bcb-fdf071d4248a/download","status":200,"durationMs":1}
+# {"timestamp":"2026-09-12T19:23:05.721Z","level":"info","event":"document.deleted","requestId":"f20b47d6-f388-472d-bac9-e373c943f35e","documentId":"45f1a162-fa0c-478c-9bcb-fdf071d4248a"}
+# {"timestamp":"2026-09-12T19:23:05.721Z","level":"info","event":"request.completed","requestId":"f20b47d6-f388-472d-bac9-e373c943f35e","method":"DELETE","path":"/api/documents/45f1a162-fa0c-478c-9bcb-fdf071d4248a","status":204,"durationMs":1}
+# {"timestamp":"2026-09-12T19:23:05.727Z","level":"info","event":"request.completed","requestId":"5df9c865-7ad1-4718-a4b5-e08bf19cbd71","method":"DELETE","path":"/api/documents/45f1a162-fa0c-478c-9bcb-fdf071d4248a","status":204,"durationMs":4}
+# Subtest: HTTP Documents: upload, list, signed download, delete and repeated delete
+ok 16 - HTTP Documents: upload, list, signed download, delete and repeated delete
+  ---
+  duration_ms: 120.3745
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.752Z","level":"error","event":"request.failed","requestId":"c80efa01-88a0-4b09-a88f-51e4ed14e54a","status":415,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.753Z","level":"info","event":"request.completed","requestId":"c80efa01-88a0-4b09-a88f-51e4ed14e54a","method":"POST","path":"/api/documents","status":415,"durationMs":3}
+# Subtest: HTTP Documents rejects incorrect extension
+ok 17 - HTTP Documents rejects incorrect extension
+  ---
+  duration_ms: 24.2715
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.773Z","level":"error","event":"request.failed","requestId":"fa75bd8a-19a4-4ffb-855a-fe83c1bb709d","status":415,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.774Z","level":"info","event":"request.completed","requestId":"fa75bd8a-19a4-4ffb-855a-fe83c1bb709d","method":"POST","path":"/api/documents","status":415,"durationMs":3}
+# Subtest: HTTP Documents rejects incorrect mime
+ok 18 - HTTP Documents rejects incorrect mime
+  ---
+  duration_ms: 23.1838
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.804Z","level":"error","event":"request.failed","requestId":"edf88285-0c09-4963-a80e-074fcc976d96","status":415,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.805Z","level":"info","event":"request.completed","requestId":"edf88285-0c09-4963-a80e-074fcc976d96","method":"POST","path":"/api/documents","status":415,"durationMs":4}
+# Subtest: HTTP Documents rejects incorrect signature
+ok 19 - HTTP Documents rejects incorrect signature
+  ---
+  duration_ms: 30.5064
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.900Z","level":"error","event":"request.failed","requestId":"867ccc1f-0372-47fe-95fd-fceb597dfc72","status":413,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.901Z","level":"info","event":"request.completed","requestId":"867ccc1f-0372-47fe-95fd-fceb597dfc72","method":"POST","path":"/api/documents","status":413,"durationMs":51}
+# {"timestamp":"2026-09-12T19:23:05.912Z","level":"error","event":"request.failed","requestId":"c349df03-f296-423e-b871-eee40e0bff04","status":400,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.914Z","level":"info","event":"request.completed","requestId":"c349df03-f296-423e-b871-eee40e0bff04","method":"POST","path":"/api/documents","status":400,"durationMs":7}
+# {"timestamp":"2026-09-12T19:23:05.927Z","level":"error","event":"request.failed","requestId":"bcd7c8f8-9e8d-470f-a6ad-5183bc99f0b2","status":400,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.928Z","level":"info","event":"request.completed","requestId":"bcd7c8f8-9e8d-470f-a6ad-5183bc99f0b2","method":"POST","path":"/api/documents","status":400,"durationMs":4}
+# Subtest: HTTP Documents enforces multipart size, file count and missing file before Storage
+ok 20 - HTTP Documents enforces multipart size, file count and missing file before Storage
+  ---
+  duration_ms: 124.494
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:05.978Z","level":"error","event":"request.failed","requestId":"952ae887-be42-4d46-ae48-2eb528eaf09b","status":400,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.979Z","level":"info","event":"request.completed","requestId":"952ae887-be42-4d46-ae48-2eb528eaf09b","method":"POST","path":"/api/documents","status":400,"durationMs":5}
+# {"timestamp":"2026-09-12T19:23:05.985Z","level":"error","event":"request.failed","requestId":"f5e1a06b-3eb5-4833-af04-3e9bbb117066","status":400,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.985Z","level":"info","event":"request.completed","requestId":"f5e1a06b-3eb5-4833-af04-3e9bbb117066","method":"GET","path":"/unmatched","status":400,"durationMs":2}
+# {"timestamp":"2026-09-12T19:23:05.989Z","level":"error","event":"request.failed","requestId":"c95294a4-671a-4272-800a-db20a2b45932","status":404,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:05.990Z","level":"info","event":"request.completed","requestId":"c95294a4-671a-4272-800a-db20a2b45932","method":"GET","path":"/api/documents/f5f3378a-3351-49d7-91ee-c2cb2d7faa38/download","status":404,"durationMs":2}
+# Subtest: HTTP Documents rejects unknown fields, UUID and missing download
+ok 21 - HTTP Documents rejects unknown fields, UUID and missing download
+  ---
+  duration_ms: 60.5298
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:06.018Z","level":"error","event":"document.upload_uncertain","requestId":"0f3973ec-8f2a-4757-8329-78b896e2d0a9","documentId":"5cc78ed8-55e4-4c5b-85cd-dc370e633766","storageKey":"documents/5cc78ed8-55e4-4c5b-85cd-dc370e633766.pdf"}
+# {"timestamp":"2026-09-12T19:23:06.018Z","level":"error","event":"request.failed","requestId":"0f3973ec-8f2a-4757-8329-78b896e2d0a9","status":503,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:06.019Z","level":"info","event":"request.completed","requestId":"0f3973ec-8f2a-4757-8329-78b896e2d0a9","method":"POST","path":"/api/documents","status":503,"durationMs":3}
+# Subtest: HTTP Documents returns Storage failure without metadata or fake success
+ok 22 - HTTP Documents returns Storage failure without metadata or fake success
+  ---
+  duration_ms: 29.6183
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:06.043Z","level":"error","event":"request.failed","requestId":"dc9618bb-6f88-4c87-9022-6d62b52b02c1","status":500,"code":"23514"}
+# {"timestamp":"2026-09-12T19:23:06.043Z","level":"info","event":"request.completed","requestId":"dc9618bb-6f88-4c87-9022-6d62b52b02c1","method":"POST","path":"/api/documents","status":500,"durationMs":3}
+# Subtest: HTTP Documents compensates metadata failure and sanitizes response
+ok 23 - HTTP Documents compensates metadata failure and sanitizes response
+  ---
+  duration_ms: 21.861
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:06.065Z","level":"error","event":"document.cleanup_failed","requestId":"2755e883-960c-4fa0-8cef-4c8e6d5f0c6d","documentId":"b6b580ef-88d0-4600-8be2-5d5b8b4b3528","storageKey":"documents/b6b580ef-88d0-4600-8be2-5d5b8b4b3528.pdf"}
+# {"timestamp":"2026-09-12T19:23:06.065Z","level":"error","event":"request.failed","requestId":"2755e883-960c-4fa0-8cef-4c8e6d5f0c6d","status":500,"code":"23514"}
+# {"timestamp":"2026-09-12T19:23:06.066Z","level":"info","event":"request.completed","requestId":"2755e883-960c-4fa0-8cef-4c8e6d5f0c6d","method":"POST","path":"/api/documents","status":500,"durationMs":3}
+# Subtest: HTTP Documents cleanup failure keeps orphan for reconciliation and does not report success
+ok 24 - HTTP Documents cleanup failure keeps orphan for reconciliation and does not report success
+  ---
+  duration_ms: 22.6517
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:23:06.082Z","level":"info","event":"document.stored","requestId":"c5b77c75-7489-419b-835c-4e97bd3341a3","documentId":"2e578de7-4a6a-4d8d-95f2-7e60e152b8f0","sizeBytes":34}
+# {"timestamp":"2026-09-12T19:23:06.083Z","level":"info","event":"request.completed","requestId":"c5b77c75-7489-419b-835c-4e97bd3341a3","method":"POST","path":"/api/documents","status":201,"durationMs":3}
+# {"timestamp":"2026-09-12T19:23:06.087Z","level":"error","event":"request.failed","requestId":"987049fa-30c8-4118-b0ee-5f5ff0ab74f6","status":503,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:06.088Z","level":"info","event":"request.completed","requestId":"987049fa-30c8-4118-b0ee-5f5ff0ab74f6","method":"DELETE","path":"/api/documents/2e578de7-4a6a-4d8d-95f2-7e60e152b8f0","status":503,"durationMs":2}
+# {"timestamp":"2026-09-12T19:23:06.091Z","level":"error","event":"request.failed","requestId":"4e50fcf2-a162-43af-9db0-a0d87be4ebc6","status":409,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:06.092Z","level":"info","event":"request.completed","requestId":"4e50fcf2-a162-43af-9db0-a0d87be4ebc6","method":"GET","path":"/api/documents/2e578de7-4a6a-4d8d-95f2-7e60e152b8f0/download","status":409,"durationMs":2}
+# {"timestamp":"2026-09-12T19:23:06.095Z","level":"error","event":"request.failed","requestId":"ecac5572-13b4-40d0-822c-438d929421b9","status":500,"code":"UNCLASSIFIED"}
+# {"timestamp":"2026-09-12T19:23:06.095Z","level":"info","event":"request.completed","requestId":"ecac5572-13b4-40d0-822c-438d929421b9","method":"DELETE","path":"/api/documents/2e578de7-4a6a-4d8d-95f2-7e60e152b8f0","status":500,"durationMs":1}
+# {"timestamp":"2026-09-12T19:23:06.097Z","level":"info","event":"document.deleted","requestId":"d3bef719-bf6d-4564-9ec4-633d7c0f1503","documentId":"2e578de7-4a6a-4d8d-95f2-7e60e152b8f0"}
+# {"timestamp":"2026-09-12T19:23:06.098Z","level":"info","event":"request.completed","requestId":"d3bef719-bf6d-4564-9ec4-633d7c0f1503","method":"DELETE","path":"/api/documents/2e578de7-4a6a-4d8d-95f2-7e60e152b8f0","status":204,"durationMs":1}
+# Subtest: HTTP Documents delete failures retain metadata and allow retry
+ok 25 - HTTP Documents delete failures retain metadata and allow retry
+  ---
+  duration_ms: 32.0326
+  type: 'test'
+  ...
+# {"timestamp":"2026-09-12T19:22:44.686Z","level":"error","event":"storage.bucket_not_private"}
+# {"timestamp":"2026-09-12T19:22:44.688Z","level":"error","event":"storage.request_failed","status":500}
+# Subtest: Storage HTTP adapter sends private bucket check, bytes, short signed URL and delete prefixes
+ok 26 - Storage HTTP adapter sends private bucket check, bytes, short signed URL and delete prefixes
+  ---
+  duration_ms: 23.6092
+  type: 'test'
+  ...
+# Subtest: Storage HTTP adapter refuses public buckets and hides provider errors
+ok 27 - Storage HTTP adapter refuses public buckets and hides provider errors
+  ---
+  duration_ms: 5.1595
+  type: 'test'
+  ...
+# Subtest: Storage HTTP adapter handles timeout/network and malformed signed response
+ok 28 - Storage HTTP adapter handles timeout/network and malformed signed response
+  ---
+  duration_ms: 4.1491
+  type: 'test'
+  ...
+# Subtest: Configuration fails closed for missing credentials and insecure cloud TLS
+ok 29 - Configuration fails closed for missing credentials and insecure cloud TLS
+  ---
+  duration_ms: 1.5028
+  type: 'test'
+  ...
+1..29
+# tests 29
+# suites 0
+# pass 29
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 21868.6904
+
+> @examate/web@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.0 C:/Users/WIN 11/Downloads/New-Tech-feature-tai/New-Tech-feature-tai/apps/web
+
+
+ Test Files  2 passed (2)
+      Tests  19 passed (19)
+   Start at  02:23:06
+   Duration  60.64s (environment 68%, import 16%, setup 11%, tests 4%, transform 1%)

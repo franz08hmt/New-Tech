@@ -1,0 +1,47 @@
+@base = http://localhost:3000/api
+@taskId = REPLACE_WITH_CREATED_UUID
+@documentId = REPLACE_WITH_UPLOADED_UUID
+
+### Database health only (200 / 503)
+GET {{base}}/health
+
+### Create (201); dueDate is a calendar date, not a timestamp
+POST {{base}}/tasks
+Content-Type: application/json
+
+{"title":"Prepare Homework 4 demo","ownerName":"Tai","dueDate":"2026-09-30"}
+
+### Invalid title (400), request ID ties response to log
+POST {{base}}/tasks
+Content-Type: application/json
+
+{"title":"   "}
+
+### List (200)
+GET {{base}}/tasks
+
+### Update (200; missing resource 404)
+PATCH {{base}}/tasks/{{taskId}}/status
+Content-Type: application/json
+
+{"status":"done"}
+
+### File upload; place a real harmless PDF at docs/sample.pdf (do not commit sensitive files)
+POST {{base}}/documents
+Content-Type: multipart/form-data; boundary=HomeworkBoundary
+
+--HomeworkBoundary
+Content-Disposition: form-data; name="file"; filename="sample.pdf"
+Content-Type: application/pdf
+
+< ./sample.pdf
+--HomeworkBoundary--
+
+### Metadata (200)
+GET {{base}}/documents
+
+### Returns JSON {url, expiresIn:60}; URL is a short-lived bearer credential
+GET {{base}}/documents/{{documentId}}/download
+
+### Delete only the document created for this demo (204)
+DELETE {{base}}/documents/{{documentId}}

@@ -1,5 +1,7 @@
 # Final Project Planning Baseline
 
+> Checkpoint update 2026-09-13: Homework 4 implements non-AI Tasks/Documents only. This document preserves the full-project plan. Use README and docs/VERIFICATION.md for current implementation and evidence; no cloud persistence, container runtime, video or commit is verified for the new ZIP workspace yet.
+
 ## Current status
 
 **Checkpoint: end of Week 3 / 8.** ExaMate AI has a runnable React–NestJS–PostgreSQL vertical slice and a reproducible local container setup. The team has not yet implemented the AI/RAG workflow or deployed to the target virtual machine. The model provider, VM, team member names, and official LMS dates remain open decisions.
