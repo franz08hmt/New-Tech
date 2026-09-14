@@ -15,6 +15,7 @@ import {
 import { AssistantPanel } from "./AssistantPanel";
 import { PageSections } from "./PageSections";
 import { Sidebar } from "./Sidebar";
+import { findCourseBySlug } from "./academic-data";
 import { useWorkspace } from "./use-workspace";
 
 const pages = [
@@ -90,14 +91,43 @@ const pages = [
       "ExaMate will connect your questions to the evidence in your documents.",
   },
 ];
-function currentPage() {
-  return (
-    pages.find((page) => page.id === window.location.hash.slice(1)) || pages[0]
-  );
+type Page = (typeof pages)[number];
+
+interface AppRoute {
+  page: Page;
+  courseSlug?: string;
+}
+
+function currentRoute(): AppRoute {
+  const hashRoute = window.location.hash.slice(1);
+  const coursePage = pages.find((page) => page.id === "courses")!;
+
+  if (hashRoute.startsWith("courses/")) {
+    const courseSlug = hashRoute.slice("courses/".length);
+    const course = findCourseBySlug(courseSlug);
+    return {
+      page: {
+        ...coursePage,
+        eyebrow: course
+          ? `${course.code} · ILLUSTRATIVE COURSE`
+          : "COURSE DIRECTORY",
+        name: course?.name ?? "Course not found",
+        title: course?.name ?? "Course not found",
+        description:
+          course?.detail ??
+          "That address does not match a course in the example gallery.",
+      },
+      courseSlug,
+    };
+  }
+
+  return {
+    page: pages.find((page) => page.id === hashRoute) || pages[0],
+  };
 }
 
 export default function App() {
-  const [page, setPage] = useState(currentPage);
+  const [route, setRoute] = useState(currentRoute);
   const [menu, setMenu] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -105,6 +135,7 @@ export default function App() {
   const menuToggle = useRef<HTMLButtonElement>(null);
   const assistantToggle = useRef<HTMLButtonElement>(null);
   const workspace = useWorkspace();
+  const page = route.page;
 
   function closeAssistant() {
     setAssistantOpen(false);
@@ -131,7 +162,7 @@ export default function App() {
         document.getElementById("main-content")?.focus();
         return;
       }
-      setPage(currentPage());
+      setRoute(currentRoute());
       setMenu(false);
       setSearch("");
       requestAnimationFrame(() => heading.current?.focus());
@@ -241,7 +272,11 @@ export default function App() {
                 </figure>
               )}
             </header>
-            <PageSections pageId={page.id} workspace={workspace} />
+            <PageSections
+              pageId={page.id}
+              courseSlug={route.courseSlug}
+              workspace={workspace}
+            />
             <footer className="page-footer">
               <span>Make a little progress, every day.</span>
               <a href="#tasks">

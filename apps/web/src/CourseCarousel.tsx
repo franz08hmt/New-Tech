@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
+  ArrowUpRightIcon,
   BookOpenIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -109,6 +110,10 @@ export function CourseCarousel() {
               {course.progress}%
             </progress>
           </p>
+          <a className="stage-course-link" href={`#courses/${course.slug}`}>
+            Explore {course.name} course
+            <ArrowUpRightIcon aria-hidden="true" />
+          </a>
         </header>
 
         <ul className="stage-track" ref={track}>
@@ -122,6 +127,7 @@ export function CourseCarousel() {
               <button
                 type="button"
                 className={`stage-thumb ${index === active ? "is-active" : ""}`}
+                aria-label={`Select ${item.name} course`}
                 aria-current={index === active ? "true" : undefined}
                 onClick={() => setActive(index)}
               >

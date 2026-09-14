@@ -14,7 +14,9 @@ import {
 } from "./AcademicPanels";
 import { TasksPanel } from "./TasksPanel";
 import { CourseCarousel } from "./CourseCarousel";
+import { CourseDetail } from "./CourseDetail";
 import { DocumentsPanel } from "./DocumentsPanel";
+import { findCourseBySlug } from "./academic-data";
 import type { Workspace } from "./use-workspace";
 
 /**
@@ -27,13 +29,17 @@ import type { Workspace } from "./use-workspace";
  */
 export function PageSections({
   pageId,
+  courseSlug,
   workspace,
 }: {
   pageId: string;
+  courseSlug?: string;
   workspace: Workspace;
 }) {
   if (pageId === "dashboard")
     return <DashboardSections workspace={workspace} />;
+  if (pageId === "courses" && courseSlug !== undefined)
+    return <CourseDetail course={findCourseBySlug(courseSlug)} />;
   if (pageId === "courses") {
     return (
       <>

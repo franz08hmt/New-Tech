@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
@@ -213,6 +214,91 @@ describe("Academic workspace", () => {
       screen.getByRole("heading", { level: 2, name: "Literature" }),
     ).toBeInTheDocument();
     expect(gallery).toHaveTextContent("Course 6 of 6: Literature");
+  });
+  it("opens the matching course detail from a course overview card", async () => {
+    window.history.replaceState(null, "", "/#courses");
+    render(<App />);
+
+    const overview = screen
+      .getByRole("heading", { level: 2, name: "Course overview" })
+      .closest("section")!;
+    fireEvent.click(
+      within(overview).getByRole("link", { name: /Computer Science/ }),
+    );
+
+    const heading = await screen.findByRole("heading", {
+      level: 1,
+      name: "Computer Science",
+    });
+    expect(window.location.hash).toBe("#courses/cs-201");
+    await waitFor(() => expect(heading).toHaveFocus());
+  });
+  it("keeps carousel thumbnails for selection and offers a separate detail link", async () => {
+    window.history.replaceState(null, "", "/#courses");
+    render(<App />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Select Mathematics course" }),
+    );
+    expect(window.location.hash).toBe("#courses");
+
+    fireEvent.click(
+      screen.getByRole("link", { name: "Explore Mathematics course" }),
+    );
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Mathematics" }),
+    ).toBeInTheDocument();
+    expect(window.location.hash).toBe("#courses/ma-210");
+  });
+  it("renders meaningful course content from a direct deep link", () => {
+    window.history.replaceState(null, "", "/#courses/hi-204");
+    render(<App />);
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "History" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Course outline" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Learning outcomes" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Assessment approach" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/illustrative, not an official syllabus/i),
+    ).toBeVisible();
+  });
+  it("shows a friendly fallback for an unknown course code", () => {
+    window.history.replaceState(null, "", "/#courses/not-a-course");
+    render(<App />);
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Course not found" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/could not find that example course/i),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Back to course gallery" }),
+    ).toHaveAttribute("href", "#courses");
+  });
+  it("returns from a course detail to the gallery with a visible back link", async () => {
+    window.history.replaceState(null, "", "/#courses/lt-101");
+    render(<App />);
+
+    fireEvent.click(
+      screen.getByRole("link", { name: "Back to course gallery" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Your learning journey",
+      }),
+    ).toBeInTheDocument();
+    expect(window.location.hash).toBe("#courses");
   });
   it("selects PDFs locally and loads persisted documents without uploading automatically", async () => {
     window.history.replaceState(null, "", "/#documents");

@@ -10,6 +10,7 @@ import {
   ClockIcon,
   TableCellsIcon,
   BookOpenIcon,
+  ArrowUpRightIcon,
 } from "@heroicons/react/24/outline";
 import { courses, exams, research } from "./academic-data";
 import { revealClass, useReveal } from "./use-reveal";
@@ -150,19 +151,33 @@ export function CoursesPanel({ expanded = false }: { expanded?: boolean }) {
                 <course.icon aria-hidden="true" />
               </span>
               <header>
-                <h3>{course.name}</h3>
+                <h3>
+                  <a
+                    className="course-card-link"
+                    href={`#courses/${course.slug}`}
+                  >
+                    {course.name}
+                  </a>
+                </h3>
                 <p>
                   <BookOpenIcon /> {course.code} · Class
                 </p>
               </header>
               {expanded && <p className="course-detail">{course.detail}</p>}
               <footer>
-                <label htmlFor={course.code}>
+                <p className="course-progress-label">
                   Progress <span>{course.progress}%</span>
-                </label>
-                <progress id={course.code} value={course.progress} max={100}>
+                </p>
+                <progress
+                  aria-label={`${course.name} example progress: ${course.progress}%`}
+                  value={course.progress}
+                  max={100}
+                >
                   {course.progress}%
                 </progress>
+                <span className="course-card-action">
+                  View course <ArrowUpRightIcon aria-hidden="true" />
+                </span>
               </footer>
             </article>
           </li>
