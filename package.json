@@ -4,7 +4,8 @@
   "private": true,
   "packageManager": "npm@11.6.2",
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
     "db:migrate": "npm run build --workspace @examate/api && npm run db:migrate --workspace @examate/api",

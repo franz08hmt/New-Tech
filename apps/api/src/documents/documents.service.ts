@@ -7,6 +7,7 @@ import {
   UnsupportedMediaTypeException,
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
+import type { StoredDocument } from "@examate/contracts";
 import { DatabaseService } from "../database/database.service.js";
 import { log } from "../common/log.js";
 import { StorageService } from "./storage.service.js";
@@ -28,7 +29,10 @@ interface DocumentRecord {
   created_at: string;
   updated_at: string;
 }
-function publicDocument(document: DocumentRecord) {
+// The annotated return type is load-bearing: without it the shape was merely
+// inferred, so an extra field here — `storage_key`, say — would have reached
+// the browser with nothing to catch it. Now the contract rejects it.
+function publicDocument(document: DocumentRecord): StoredDocument {
   // Exclude internal keys and the legacy processing_status (no AI pipeline).
   return {
     id: document.id,

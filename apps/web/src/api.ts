@@ -1,31 +1,20 @@
-export type TaskStatus = "todo" | "in_progress" | "done";
+// The response shapes live in @examate/contracts, shared with the API, so the
+// two sides cannot drift apart. They are re-exported here because the rest of
+// the app already imports its types from "./api" — the module stays the single
+// door to the backend, it just no longer owns a second copy of the shapes.
+export type {
+  HealthStatus,
+  StoredDocument,
+  Task,
+  TaskStatus,
+} from "@examate/contracts";
 
-export interface Task {
-  id: string;
-  title: string;
-  owner_name: string | null;
-  status: TaskStatus;
-  due_date: string | null;
-  evidence_type: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface HealthStatus {
-  status: "ok" | "degraded";
-  database: "connected" | "unavailable";
-  databaseLatencyMs?: number;
-}
-
-export interface StoredDocument {
-  id: string;
-  name: string;
-  size_bytes: number | null;
-  media_type: string;
-  storage_status: "stored" | "deleting" | "legacy";
-  created_at: string;
-  updated_at: string;
-}
+import type {
+  HealthStatus,
+  StoredDocument,
+  Task,
+  TaskStatus,
+} from "@examate/contracts";
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60000);
