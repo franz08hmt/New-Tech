@@ -124,11 +124,19 @@ export const api = {
   deleteStudyPlan: (id: string) =>
     request<void>(`/api/study-plans/${id}`, { method: "DELETE" }),
   listDocuments: () => request<StoredDocument[]>("/api/documents"),
-  uploadDocument: (file: File) => {
+  uploadDocument: (file: File, courseId?: string) => {
     const body = new FormData();
     body.append("file", file);
+    // Appended only when chosen: an empty string is not a UUID and the API
+    // would reject the whole upload over an optional field.
+    if (courseId) body.append("courseId", courseId);
     return request<StoredDocument>("/api/documents", { method: "POST", body });
   },
+  setDocumentCourse: (id: string, courseId: string | null) =>
+    request<StoredDocument>(`/api/documents/${id}/course`, {
+      method: "PATCH",
+      body: JSON.stringify({ courseId }),
+    }),
   downloadDocument: (id: string) =>
     request<{ url: string; expiresIn: number }>(
       `/api/documents/${id}/download`,

@@ -2594,6 +2594,127 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+
+  /* Course workspace
+     Four blocks on the course page, each a short list plus one inline form.
+     Everything reuses the card, list and confirm styles already defined above;
+     nothing new is introduced beyond the grid that holds them. */
+  .course-workspace {
+    margin-top: 28px;
+  }
+  .course-workspace > h2 {
+    font-size: 17px;
+  }
+  .cw-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+    margin-top: 14px;
+  }
+  .cw-block {
+    border: 1px solid #e4e8dd;
+    border-radius: 12px;
+    background: #fff;
+    padding: 14px 16px;
+  }
+  .cw-block h3 {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+  .cw-block h3 svg {
+    width: 14px;
+    height: 14px;
+    color: #526750;
+  }
+  .cw-block h3 span {
+    margin-left: auto;
+    font-size: 9px;
+    font-weight: 500;
+    color: #7b8578;
+    white-space: nowrap;
+  }
+  .cw-list {
+    display: grid;
+    gap: 6px;
+    margin: 0 0 10px;
+    padding: 0;
+    list-style: none;
+  }
+  .cw-list li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px;
+    border-bottom: 1px solid #f0f2eb;
+    padding-bottom: 6px;
+  }
+  /* Blocks whose rows have no leading control still need the middle column to
+     take the space, so the first cell collapses instead of reserving width. */
+  .cw-list li > .plan-copy:first-child {
+    grid-column: 1 / 3;
+  }
+  .cw-list li.is-done .plan-copy strong {
+    color: #7b8578;
+    text-decoration: line-through;
+  }
+  .cw-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .cw-form label {
+    flex: 1 1 120px;
+    min-width: 0;
+  }
+  .cw-form input,
+  .cw-form select {
+    width: 100%;
+    font-size: 10px;
+    padding: 6px 8px;
+  }
+  .cw-form button {
+    flex: 0 0 auto;
+  }
+  .cw-notice {
+    margin-top: 10px;
+    min-height: 16px;
+    font-size: 10px;
+    color: #5d6b5c;
+  }
+
+  /* Documents: choosing a subject on upload, and re-filing a stored PDF. */
+  .upload-course {
+    display: block;
+    margin: 10px 0 4px;
+    font-size: 10px;
+  }
+  .upload-course select {
+    width: 100%;
+    margin-top: 4px;
+  }
+  .document-filter {
+    display: block;
+    margin: 8px 0 10px;
+  }
+  .document-course {
+    display: block;
+    margin-top: 6px;
+  }
+  .document-course select {
+    width: 100%;
+    font-size: 10px;
+  }
+  @media (hover: none), (pointer: coarse) {
+    .cw-form input,
+    .cw-form select,
+    .document-course select {
+      min-height: 40px;
+    }
+  }
   @media (max-width: 600px) {
     .expense-list li {
       grid-template-columns: minmax(0, 1fr) auto;

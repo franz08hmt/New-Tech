@@ -93,14 +93,16 @@ test("migration applies then skips all files with verified TLS and empty URL fal
     "Migration applied: 004_exams.sql",
     "Migration applied: 005_study_plans.sql",
     "Migration applied: 006_expenses.sql",
+    "Migration applied: 007_document_course.sql",
     "Migration already applied: 001_init.sql",
     "Migration already applied: 002_non_ai_storage.sql",
     "Migration already applied: 003_courses.sql",
     "Migration already applied: 004_exams.sql",
     "Migration already applied: 005_study_plans.sql",
     "Migration already applied: 006_expenses.sql",
+    "Migration already applied: 007_document_course.sql",
   ]);
-  assert.equal(db.history.size, 6);
+  assert.equal(db.history.size, 7);
   assert.equal(
     db.statements.filter((s) => s.startsWith("CREATE EXTENSION")).length,
     1,
@@ -111,6 +113,20 @@ test("migration applies then skips all files with verified TLS and empty URL fal
   }
   assert.equal(db.releases, 2);
   assert.equal(db.ends, 2);
+});
+
+test("linking documents to courses is additive and keeps the file", async () => {
+  const migrations = await loadMigrations();
+  const linkMigration = migrations[6].sql;
+  // ALTER, not a rebuild: documents already hold real files in Storage.
+  assert.match(linkMigration, /ALTER TABLE documents/);
+  assert.match(
+    linkMigration,
+    /ADD COLUMN course_id UUID REFERENCES courses \(id\) ON DELETE SET NULL/,
+  );
+  // Dropping the row would orphan an object that still exists in Supabase.
+  assert.doesNotMatch(linkMigration, /ON DELETE CASCADE/);
+  assert.doesNotMatch(linkMigration, /DROP TABLE|DROP COLUMN/);
 });
 
 test("expenses are an additive sixth migration that outlive their course", async () => {
@@ -181,6 +197,7 @@ test("course foundation is an additive third migration with typed illustrative s
       "004_exams.sql",
       "005_study_plans.sql",
       "006_expenses.sql",
+      "007_document_course.sql",
     ],
   );
   const courseMigration = migrations[2].sql;

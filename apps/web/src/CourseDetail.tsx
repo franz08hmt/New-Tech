@@ -7,6 +7,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { Panel } from "./AcademicPanels";
 import { courseIconFor } from "./academic-data";
+import { CourseWorkspace } from "./CourseWorkspace";
 import type { Course } from "./api";
 
 export function CourseDetail({ course }: { course?: Course }) {
@@ -112,6 +113,8 @@ export function CourseDetail({ course }: { course?: Course }) {
           </ul>
         </Panel>
       </section>
+
+      <CourseWorkspace course={course} />
     </article>
   );
 }

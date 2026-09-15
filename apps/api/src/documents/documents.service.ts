@@ -26,9 +26,34 @@ interface DocumentRecord {
   size_bytes: number | null;
   storage_key: string;
   storage_status: "stored" | "deleting" | "legacy";
+  course_id: string | null;
+  course_slug: string | null;
+  course_name: string | null;
+  course_code: string | null;
   created_at: string;
   updated_at: string;
 }
+
+/**
+ * Every read goes through this list, so the course columns are joined in one
+ * place. LEFT JOIN, because a document that belongs to no subject must still
+ * come back — and the link is nullable by design.
+ */
+const DOCUMENT_COLUMNS = `d.id,
+  d.name,
+  d.media_type,
+  d.size_bytes,
+  d.storage_key,
+  d.storage_status,
+  d.course_id,
+  c.slug AS course_slug,
+  c.name AS course_name,
+  c.code AS course_code,
+  d.created_at,
+  d.updated_at`;
+
+const DOCUMENT_FROM = `FROM documents d
+  LEFT JOIN courses c ON c.id = d.course_id`;
 // The annotated return type is load-bearing: without it the shape was merely
 // inferred, so an extra field here — `storage_key`, say — would have reached
 // the browser with nothing to catch it. Now the contract rejects it.
@@ -40,6 +65,10 @@ function publicDocument(document: DocumentRecord): StoredDocument {
     media_type: document.media_type,
     size_bytes: document.size_bytes,
     storage_status: document.storage_status,
+    course_id: document.course_id,
+    course_slug: document.course_slug,
+    course_name: document.course_name,
+    course_code: document.course_code,
     created_at: document.created_at,
     updated_at: document.updated_at,
   };
@@ -54,20 +83,21 @@ export class DocumentsService {
 
   async list() {
     const result = await this.database.query<DocumentRecord>(
-      "SELECT * FROM documents ORDER BY created_at DESC, id DESC",
+      `SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM}
+       ORDER BY d.created_at DESC, d.id DESC`,
     );
     return result.rows.map(publicDocument);
   }
 
   private async find(id: string) {
     const result = await this.database.query<DocumentRecord>(
-      "SELECT * FROM documents WHERE id = $1",
+      `SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM} WHERE d.id = $1`,
       [id],
     );
     return result.rows[0];
   }
 
-  async upload(file?: PdfFile) {
+  async upload(file?: PdfFile, courseId?: string) {
     if (!file)
       throw new BadRequestException(
         "One PDF file in the 'file' field is required",
@@ -106,9 +136,14 @@ export class DocumentsService {
     }
     try {
       const result = await this.database.query<DocumentRecord>(
-        `INSERT INTO documents (id, name, media_type, storage_key, size_bytes, storage_status)
-         VALUES ($1, $2, 'application/pdf', $3, $4, 'stored') RETURNING *`,
-        [id, name, key, file.size],
+        `WITH inserted AS (
+           INSERT INTO documents
+             (id, name, media_type, storage_key, size_bytes, storage_status, course_id)
+           VALUES ($1, $2, 'application/pdf', $3, $4, 'stored', $5)
+           RETURNING *
+         )
+         SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM.replace("FROM documents d", "FROM inserted d")}`,
+        [id, name, key, file.size, courseId ?? null],
       );
       log("info", "document.stored", { documentId: id, sizeBytes: file.size });
       return publicDocument(result.rows[0]);
@@ -144,6 +179,36 @@ export class DocumentsService {
     if (document.storage_status !== "stored")
       throw new ConflictException("Document is not available for download");
     return this.storage.signedDownload(document.storage_key, document.name);
+  }
+
+  /** Re-file a document under another subject, or under none. */
+  async setCourse(id: string, courseId: string | null) {
+    const result = await this.database
+      .query<DocumentRecord>(
+        `WITH updated AS (
+           UPDATE documents SET course_id = $2, updated_at = NOW()
+           WHERE id = $1
+           RETURNING *
+         )
+         SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM.replace("FROM documents d", "FROM updated d")}`,
+        [id, courseId],
+      )
+      .catch((error: unknown) => {
+        if (
+          error &&
+          typeof error === "object" &&
+          (error as { code?: string }).code === "23503"
+        ) {
+          throw new BadRequestException({
+            code: "COURSE_NOT_FOUND",
+            message: "Môn học này không còn trong danh sách nữa.",
+          });
+        }
+        throw error;
+      });
+    const document = result.rows[0];
+    if (!document) throw new NotFoundException("Document not found");
+    return publicDocument(document);
   }
 
   async remove(id: string) {

@@ -178,6 +178,34 @@ const planFixtures = [
     updated_at: "2026-09-15T00:00:00.000Z",
   },
 ];
+const documentFixtures = [
+  {
+    id: "doc-1",
+    name: "de-cuong-thuat-toan.pdf",
+    media_type: "application/pdf",
+    size_bytes: 2048,
+    storage_status: "stored",
+    course_id: "course-1",
+    course_slug: "cs-201",
+    course_name: "C\u00f4ng ngh\u1ec7 ph\u1ea7n m\u1ec1m",
+    course_code: "CS 201",
+    created_at: "2026-09-15T00:00:00.000Z",
+    updated_at: "2026-09-15T00:00:00.000Z",
+  },
+  {
+    id: "doc-2",
+    name: "ghi-chu-chung.pdf",
+    media_type: "application/pdf",
+    size_bytes: 1024,
+    storage_status: "stored",
+    course_id: null,
+    course_slug: null,
+    course_name: null,
+    course_code: null,
+    created_at: "2026-09-14T00:00:00.000Z",
+    updated_at: "2026-09-14T00:00:00.000Z",
+  },
+];
 const expenseFixtures = [
   {
     id: "exp-1",
@@ -231,8 +259,34 @@ beforeEach(() => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
-      if (url === "/api/documents") {
-        return new Response(JSON.stringify([]), { status: 200 });
+      if (url === "/api/documents" && init?.method !== "POST") {
+        return new Response(JSON.stringify(documentFixtures), { status: 200 });
+      }
+      if (url.startsWith("/api/documents/") && url.endsWith("/course")) {
+        const body = JSON.parse(String(init?.body ?? "{}")) as {
+          courseId?: string | null;
+        };
+        const target = documentFixtures.find((row) => url.includes(row.id))!;
+        return new Response(
+          JSON.stringify(
+            body.courseId
+              ? {
+                  ...target,
+                  course_id: "course-3",
+                  course_slug: "ec-102",
+                  course_name: "Kinh t\u1ebf vi m\u00f4",
+                  course_code: "EC 102",
+                }
+              : {
+                  ...target,
+                  course_id: null,
+                  course_slug: null,
+                  course_name: null,
+                  course_code: null,
+                },
+          ),
+          { status: 200 },
+        );
       }
       if (url === "/api/expenses") {
         return new Response(JSON.stringify(expenseFixtures), { status: 200 });
@@ -1195,6 +1249,177 @@ describe("Academic workspace", () => {
       expect(fetch).toHaveBeenCalledWith(
         "/api/expenses/exp-1",
         expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+  });
+  it("sends the chosen course with an uploaded PDF", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+    await screen.findByLabelText("Save under course");
+
+    fireEvent.change(screen.getByLabelText("Save under course"), {
+      target: { value: "course-1" },
+    });
+    const pdf = new File(["%PDF-1.4"], "de-cuong.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+      target: { files: [pdf] },
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Upload de-cuong.pdf" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Upload de-cuong.pdf" }),
+    );
+
+    await waitFor(() => {
+      const call = vi
+        .mocked(fetch)
+        .mock.calls.find(
+          ([url, init]) =>
+            url === "/api/documents" &&
+            (init as RequestInit)?.method === "POST",
+        );
+      expect(call).toBeDefined();
+      const body = (call![1] as RequestInit).body as FormData;
+      expect(body.get("courseId")).toBe("course-1");
+    });
+  });
+  it("omits the course field when no subject is chosen", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+    await screen.findByLabelText("Save under course");
+
+    const pdf = new File(["%PDF-1.4"], "roi-rac.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+      target: { files: [pdf] },
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Upload roi-rac.pdf" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Upload roi-rac.pdf" }));
+
+    // An empty string is not a UUID; sending it would fail the whole upload
+    // over a field the student deliberately left alone.
+    await waitFor(() => {
+      const call = vi
+        .mocked(fetch)
+        .mock.calls.find(
+          ([url, init]) =>
+            url === "/api/documents" &&
+            (init as RequestInit)?.method === "POST",
+        );
+      expect(call).toBeDefined();
+      expect(((call![1] as RequestInit).body as FormData).has("courseId")).toBe(
+        false,
+      );
+    });
+  });
+  it("filters stored documents by course, including those with none", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+
+    expect(
+      await screen.findByText("de-cuong-thuat-toan.pdf"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("ghi-chu-chung.pdf")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Filter by course/), {
+      target: { value: "course-1" },
+    });
+    expect(screen.getByText("de-cuong-thuat-toan.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("ghi-chu-chung.pdf")).not.toBeInTheDocument();
+
+    // "no course" is its own choice, not the absence of a filter.
+    fireEvent.change(screen.getByLabelText(/Filter by course/), {
+      target: { value: "none" },
+    });
+    expect(screen.getByText("ghi-chu-chung.pdf")).toBeInTheDocument();
+    expect(
+      screen.queryByText("de-cuong-thuat-toan.pdf"),
+    ).not.toBeInTheDocument();
+  });
+  it("re-files a stored document under another course", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+    await screen.findByText("ghi-chu-chung.pdf");
+
+    fireEvent.change(screen.getByLabelText("Course for ghi-chu-chung.pdf"), {
+      target: { value: "course-3" },
+    });
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/documents/doc-2/course",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ courseId: "course-3" }),
+        }),
+      ),
+    );
+  });
+  it("shows only this course's work on its detail page", async () => {
+    window.history.replaceState(null, "", "/#courses/cs-201");
+    render(<App />);
+
+    const workspace = await screen.findByRole("region", {
+      name: "Workspace for this course",
+    });
+    // Belongs to CS 201. findBy, not getBy: each block fetches its own
+    // list, so the workspace renders before any of them land.
+    expect(
+      await within(workspace).findByText(
+        "Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(workspace).getByText("de-cuong-thuat-toan.pdf"),
+    ).toBeInTheDocument();
+    // Belongs to other subjects, or to none.
+    expect(
+      within(workspace).queryByText(
+        "B\u00e0i ki\u1ec3m tra kinh t\u1ebf vi m\u00f4",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      within(workspace).queryByText("ghi-chu-chung.pdf"),
+    ).not.toBeInTheDocument();
+  });
+  it("adds a revision item from the course page with the course already set", async () => {
+    window.history.replaceState(null, "", "/#courses/cs-201");
+    render(<App />);
+    const workspace = await screen.findByRole("region", {
+      name: "Workspace for this course",
+    });
+
+    fireEvent.change(
+      await within(workspace).findByLabelText("What to revise"),
+      {
+        target: { value: "\u00d4n ch\u01b0\u01a1ng b\u1ed1n" },
+      },
+    );
+    fireEvent.click(
+      within(workspace).getByRole("button", { name: /Add revision item/ }),
+    );
+
+    // The student never picked a subject here: the page already knows it.
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/study-plans",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            courseId: "course-1",
+            title: "\u00d4n ch\u01b0\u01a1ng b\u1ed1n",
+          }),
+        }),
       ),
     );
   });

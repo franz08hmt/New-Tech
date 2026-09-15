@@ -51,6 +51,15 @@ export interface StoredDocument {
   media_type: string;
   size_bytes: number | null;
   storage_status: "stored" | "deleting" | "legacy";
+  /**
+   * Which subject this file belongs to, or null for material that is not tied
+   * to one. The link can also go null on its own if the course is removed: the
+   * file outlives it.
+   */
+  course_id: string | null;
+  course_slug: string | null;
+  course_name: string | null;
+  course_code: string | null;
   created_at: string;
   updated_at: string;
 }
