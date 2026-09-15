@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -684,6 +685,38 @@ describe("Academic workspace", () => {
       within(pastGroup.parentElement!).getByText("Bài kiểm tra chương tế bào"),
     ).toBeInTheDocument();
     expect(screen.getByText("7 ngày trước")).toBeInTheDocument();
+  });
+  it("reveals the exam list even though its container mounts after loading", async () => {
+    // jsdom ships no matchMedia, so useReveal treats every test as
+    // "reduced motion" and starts revealed. That silently skipped the whole
+    // animated path: this stub is what makes the hidden state real here.
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }));
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+
+    const heading = await screen.findByRole("heading", {
+      level: 3,
+      name: "Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+    });
+
+    // `.reveal > *` holds every child at opacity 0 until `is-revealed` lands.
+    // The panel renders a loading state first, so the container attaches on a
+    // later render than the hook. If the reveal only looked for it once, the
+    // exams stay in the DOM and invisible — which is the blank panel the page
+    // was showing.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(heading.closest(".reveal")).toHaveClass("is-revealed");
   });
   it("links an exam to the course it belongs to", async () => {
     window.history.replaceState(null, "", "/#exams");
