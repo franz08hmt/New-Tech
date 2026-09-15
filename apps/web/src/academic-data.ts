@@ -26,30 +26,6 @@ export function courseIconFor(slug: string): CourseIcon {
   return courseIcons[slug] ?? AcademicCapIcon;
 }
 
-export const exams = [
-  {
-    name: "Computer Science",
-    topic: "Algorithms midterm",
-    date: "2026-09-21",
-    time: "09:00",
-    room: "Room A201",
-  },
-  {
-    name: "Economics",
-    topic: "Microeconomics quiz",
-    date: "2026-09-24",
-    time: "13:30",
-    room: "Room B102",
-  },
-  {
-    name: "Literature",
-    topic: "Essay presentation",
-    date: "2026-09-28",
-    time: "10:00",
-    room: "Room C301",
-  },
-];
-
 export const research = [
   {
     status: "To explore",

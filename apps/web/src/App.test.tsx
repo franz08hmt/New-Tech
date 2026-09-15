@@ -89,7 +89,57 @@ const courseFixtures = [
     cover: "/img/course-lit.webp",
   },
 ];
+const examFixtures = [
+  {
+    id: "exam-1",
+    course_id: "course-1",
+    course_slug: "cs-201",
+    course_name: "Công nghệ phần mềm",
+    course_code: "CS 201",
+    topic: "Kiểm tra giữa kỳ phần thuật toán",
+    exam_date: "2026-09-21",
+    exam_time: "09:00",
+    room: "Phòng A201",
+    revision_note: "Ôn lại độ phức tạp và cây nhị phân tìm kiếm.",
+    created_at: "2026-09-15T00:00:00.000Z",
+    updated_at: "2026-09-15T00:00:00.000Z",
+  },
+  {
+    id: "exam-3",
+    course_id: "course-3",
+    course_slug: "ec-102",
+    course_name: "Kinh tế vi mô",
+    course_code: "EC 102",
+    topic: "Bài kiểm tra kinh tế vi mô",
+    exam_date: "2026-09-24",
+    exam_time: "13:30",
+    room: "Phòng B102",
+    revision_note: null,
+    created_at: "2026-09-15T00:00:00.000Z",
+    updated_at: "2026-09-15T00:00:00.000Z",
+  },
+  {
+    id: "exam-2",
+    course_id: "course-4",
+    course_slug: "bi-150",
+    course_name: "Sinh học đại cương",
+    course_code: "BI 150",
+    topic: "Bài kiểm tra chương tế bào",
+    exam_date: "2026-09-08",
+    exam_time: "14:00",
+    room: "Phòng D204",
+    revision_note: null,
+    created_at: "2026-09-15T00:00:00.000Z",
+    updated_at: "2026-09-15T00:00:00.000Z",
+  },
+];
 beforeEach(() => {
+  // The exam list separates upcoming from past, so the clock is pinned:
+  // otherwise these tests would start failing on their own once the fixture
+  // dates slipped into the past.
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.setSystemTime(new Date("2026-09-15T08:00:00.000Z"));
+
   window.history.replaceState(null, "", "/");
   localStorage.clear();
   vi.stubGlobal(
@@ -97,6 +147,15 @@ beforeEach(() => {
     vi.fn(async (url: string, init?: RequestInit) => {
       if (url === "/api/documents") {
         return new Response(JSON.stringify([]), { status: 200 });
+      }
+      if (url === "/api/exams") {
+        if (init?.method === "DELETE") {
+          return new Response(null, { status: 204 });
+        }
+        return new Response(JSON.stringify(examFixtures), { status: 200 });
+      }
+      if (url.startsWith("/api/exams/") && init?.method === "DELETE") {
+        return new Response(null, { status: 204 });
       }
       if (url === "/api/courses") {
         return new Response(JSON.stringify(courseFixtures), { status: 200 });
@@ -125,6 +184,7 @@ beforeEach(() => {
   );
 });
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   vi.unstubAllGlobals();
 });
@@ -601,6 +661,184 @@ describe("Academic workspace", () => {
     expect(
       screen.getByRole("button", { name: "Ask after RAG setup" }),
     ).toBeDisabled();
+  });
+  it("keeps a past exam out of the upcoming list", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+
+    // The fixtures straddle the pinned date: 21 Sep is ahead, 8 Sep is behind.
+    // The soonest upcoming exam is the one featured at the top.
+    expect(
+      await screen.findByRole("heading", {
+        level: 3,
+        name: "Kiểm tra giữa kỳ phần thuật toán",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Còn 6 ngày")).toBeInTheDocument();
+
+    // The past exam must appear once, and only under "Đã qua". Listing it in
+    // both places would still satisfy a test that merely looked for it there.
+    expect(screen.getAllByText("Bài kiểm tra chương tế bào")).toHaveLength(1);
+    const pastGroup = screen.getByRole("heading", { level: 3, name: "Đã qua" });
+    expect(
+      within(pastGroup.parentElement!).getByText("Bài kiểm tra chương tế bào"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("7 ngày trước")).toBeInTheDocument();
+  });
+  it("links an exam to the course it belongs to", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+
+    const link = await screen.findByRole("link", {
+      name: /C\u00f4ng ngh\u1ec7 ph\u1ea7n m\u1ec1m/,
+    });
+    expect(link).toHaveAttribute("href", "#courses/cs-201");
+  });
+  it("sends a new exam to the API with the date kept as a calendar day", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+    await screen.findByLabelText("Exam name");
+
+    fireEvent.change(screen.getByLabelText("Course"), {
+      target: { value: "course-1" },
+    });
+    fireEvent.change(screen.getByLabelText("Exam name"), {
+      target: { value: "Ki\u1ec3m tra cu\u1ed1i k\u1ef3" },
+    });
+    fireEvent.change(screen.getByLabelText("Date"), {
+      target: { value: "2026-12-01" },
+    });
+    fireEvent.change(screen.getByLabelText("Time"), {
+      target: { value: "07:30" },
+    });
+    fireEvent.change(screen.getByLabelText("Room"), {
+      target: { value: "Ph\u00f2ng B203" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add exam" }));
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/exams",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            courseId: "course-1",
+            topic: "Ki\u1ec3m tra cu\u1ed1i k\u1ef3",
+            examDate: "2026-12-01",
+            examTime: "07:30",
+            room: "Ph\u00f2ng B203",
+          }),
+        }),
+      ),
+    );
+  });
+  it("asks before deleting an exam and only then calls the API", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Delete exam: Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+      }),
+    );
+
+    // Nothing is sent on the first click: the row asks first.
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(
+          ([, init]) => (init as RequestInit)?.method === "DELETE",
+        ),
+    ).toBe(false);
+    expect(
+      screen.getByText("Xo\u00e1 k\u1ef3 thi n\u00e0y?"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Xo\u00e1" }));
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/exams/exam-1",
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", {
+          level: 3,
+          name: "Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+        }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+  it("does not leave the next exam primed for deletion", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Delete exam: Kiểm tra giữa kỳ phần thuật toán",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Xoá" }));
+
+    // The deleted exam was the featured one, so another exam takes its place.
+    // That new card must start closed: inheriting the open confirmation would
+    // put a one-click delete under the pointer that just clicked there.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", {
+          level: 3,
+          name: "Kiểm tra giữa kỳ phần thuật toán",
+        }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Xoá kỳ thi này?")).not.toBeInTheDocument();
+  });
+  it("keeps the exam when the confirmation is dismissed", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Delete exam: Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Gi\u1eef l\u1ea1i" }));
+
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(
+          ([, init]) => (init as RequestInit)?.method === "DELETE",
+        ),
+    ).toBe(false);
+    expect(
+      screen.getByRole("heading", {
+        level: 3,
+        name: "Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+      }),
+    ).toBeInTheDocument();
+  });
+  it("shows a readable message when the exam list cannot be loaded", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url === "/api/exams") throw new Error("Offline");
+        if (url === "/api/courses") return Response.json(courseFixtures);
+        return Response.json(url === "/api/documents" ? [] : [task]);
+      }),
+    );
+    render(<App />);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Ch\u01b0a xem \u0111\u01b0\u1ee3c l\u1ecbch thi",
+    );
+    expect(
+      within(alert).getByRole("button", { name: /Retry exams/ }),
+    ).toBeInTheDocument();
   });
   it("persists quick notes in the current browser", async () => {
     render(<App />);

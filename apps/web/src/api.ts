@@ -7,6 +7,7 @@ export type {
   CourseAssessment,
   CourseTone,
   CourseTopic,
+  Exam,
   HealthStatus,
   StoredDocument,
   Task,
@@ -15,6 +16,7 @@ export type {
 
 import type {
   Course,
+  Exam,
   HealthStatus,
   StoredDocument,
   Task,
@@ -67,6 +69,21 @@ export const api = {
   listCourses: () => request<Course[]>("/api/courses"),
   getCourse: (slug: string) =>
     request<Course>(`/api/courses/${encodeURIComponent(slug)}`),
+  listExams: () => request<Exam[]>("/api/exams"),
+  createExam: (input: {
+    courseId: string;
+    topic: string;
+    examDate: string;
+    examTime: string;
+    room: string;
+    revisionNote?: string;
+  }) =>
+    request<Exam>("/api/exams", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  deleteExam: (id: string) =>
+    request<void>(`/api/exams/${id}`, { method: "DELETE" }),
   listDocuments: () => request<StoredDocument[]>("/api/documents"),
   uploadDocument: (file: File) => {
     const body = new FormData();

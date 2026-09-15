@@ -90,11 +90,13 @@ test("migration applies then skips all files with verified TLS and empty URL fal
     "Migration applied: 001_init.sql",
     "Migration applied: 002_non_ai_storage.sql",
     "Migration applied: 003_courses.sql",
+    "Migration applied: 004_exams.sql",
     "Migration already applied: 001_init.sql",
     "Migration already applied: 002_non_ai_storage.sql",
     "Migration already applied: 003_courses.sql",
+    "Migration already applied: 004_exams.sql",
   ]);
-  assert.equal(db.history.size, 3);
+  assert.equal(db.history.size, 4);
   assert.equal(
     db.statements.filter((s) => s.startsWith("CREATE EXTENSION")).length,
     1,
@@ -107,11 +109,32 @@ test("migration applies then skips all files with verified TLS and empty URL fal
   assert.equal(db.ends, 2);
 });
 
+test("exam schedule is an additive fourth migration tied to courses", async () => {
+  const migrations = await loadMigrations();
+  const examMigration = migrations[3].sql;
+  assert.match(examMigration, /CREATE TABLE exams/);
+  // An exam without its course is meaningless, so the row must not outlive it.
+  assert.match(
+    examMigration,
+    /course_id UUID NOT NULL REFERENCES courses \(id\) ON DELETE CASCADE/,
+  );
+  assert.match(examMigration, /ENABLE ROW LEVEL SECURITY/);
+  // Seeds are joined to courses by slug rather than carrying hardcoded ids,
+  // which would break the moment the course table is reseeded.
+  assert.match(examMigration, /JOIN courses c ON c\.slug = v\.slug/);
+  assert.doesNotMatch(examMigration, /ALTER TABLE courses/);
+});
+
 test("course foundation is an additive third migration with typed illustrative seed data", async () => {
   const migrations = await loadMigrations();
   assert.deepEqual(
     migrations.map(({ name }) => name),
-    ["001_init.sql", "002_non_ai_storage.sql", "003_courses.sql"],
+    [
+      "001_init.sql",
+      "002_non_ai_storage.sql",
+      "003_courses.sql",
+      "004_exams.sql",
+    ],
   );
   const courseMigration = migrations[2].sql;
   assert.match(courseMigration, /CREATE TABLE courses/);

@@ -87,6 +87,32 @@ export interface Course {
   updated_at: string;
 }
 
+/**
+ * An exam as `GET /api/exams` returns it.
+ *
+ * The course fields are joined in rather than left to a second request: every
+ * screen that lists an exam also names its course and links to it.
+ *
+ * `exam_date` and `exam_time` are plain strings ("2026-09-21", "09:00"), not
+ * timestamps. The database columns are DATE and TIME, and the pg driver would
+ * otherwise hand back a JS Date that shifts across timezones on the way to
+ * JSON — the API formats them in SQL to keep the calendar day intact.
+ */
+export interface Exam {
+  id: string;
+  course_id: string;
+  course_slug: string;
+  course_name: string;
+  course_code: string;
+  topic: string;
+  exam_date: string;
+  exam_time: string;
+  room: string;
+  revision_note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /** Response of `GET /api/health`. */
 export interface HealthStatus {
   status: "ok" | "degraded";

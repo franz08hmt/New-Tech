@@ -7,12 +7,12 @@ import {
 import {
   CalendarPanel,
   CoursesPanel,
-  ExamsPanel,
   NotesPanel,
   Panel,
   ResearchPanel,
 } from "./AcademicPanels";
 import { TasksPanel } from "./TasksPanel";
+import { ExamsPanel } from "./ExamsPanel";
 import { CourseCarousel } from "./CourseCarousel";
 import { CourseDetail } from "./CourseDetail";
 import { DocumentsPanel } from "./DocumentsPanel";
@@ -87,8 +87,9 @@ export function PageSections({
       <>
         <ExamsPanel />
         <p className="page-note">
-          These dates demonstrate the layout. Course and exam management are
-          planned features.
+          Lịch thi được lưu trong cơ sở dữ liệu của workspace. Các kỳ thi có sẵn
+          là dữ liệu minh hoạ để bạn thử, cứ xoá đi và thêm kỳ thi của riêng
+          bạn.
         </p>
       </>
     );
