@@ -8,6 +8,8 @@ export type {
   CourseTone,
   CourseTopic,
   Exam,
+  Expense,
+  ExpenseCategory,
   HealthStatus,
   StoredDocument,
   StudyPlan,
@@ -18,6 +20,8 @@ export type {
 import type {
   Course,
   Exam,
+  Expense,
+  ExpenseCategory,
   HealthStatus,
   StoredDocument,
   StudyPlan,
@@ -86,6 +90,20 @@ export const api = {
     }),
   deleteExam: (id: string) =>
     request<void>(`/api/exams/${id}`, { method: "DELETE" }),
+  listExpenses: () => request<Expense[]>("/api/expenses"),
+  createExpense: (input: {
+    amount: number;
+    description: string;
+    spentOn: string;
+    category: ExpenseCategory;
+    courseId?: string;
+  }) =>
+    request<Expense>("/api/expenses", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  deleteExpense: (id: string) =>
+    request<void>(`/api/expenses/${id}`, { method: "DELETE" }),
   listStudyPlans: () => request<StudyPlan[]>("/api/study-plans"),
   createStudyPlan: (input: {
     courseId: string;

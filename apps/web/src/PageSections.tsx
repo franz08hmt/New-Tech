@@ -13,6 +13,7 @@ import {
 import { TasksPanel } from "./TasksPanel";
 import { ExamsPanel } from "./ExamsPanel";
 import { StudyPlanPanel } from "./StudyPlanPanel";
+import { BudgetPanel } from "./BudgetPanel";
 import { CourseCarousel } from "./CourseCarousel";
 import { CourseDetail } from "./CourseDetail";
 import { DocumentsPanel } from "./DocumentsPanel";
@@ -105,7 +106,7 @@ export function PageSections({
     );
   }
   if (pageId === "documents") return <DocumentsPanel />;
-  if (pageId === "finances") return <FinancesSection />;
+  if (pageId === "finances") return <BudgetPanel />;
   if (pageId === "assistant") return <AssistantSection />;
   return null;
 }
@@ -194,72 +195,6 @@ function CourseDataState({
         Retry courses
       </button>
     </section>
-  );
-}
-
-const BUDGET_CATEGORIES = [
-  { name: "Books & materials", planned: 500_000, spent: 380_000 },
-  { name: "Transport", planned: 600_000, spent: 545_000 },
-  { name: "Project resources", planned: 400_000, spent: 120_000 },
-];
-
-const MONTHLY_BUDGET = 3_000_000;
-
-const money = new Intl.NumberFormat("vi-VN");
-
-function FinancesSection() {
-  const planned = BUDGET_CATEGORIES.reduce((sum, row) => sum + row.planned, 0);
-  const spent = BUDGET_CATEGORIES.reduce((sum, row) => sum + row.spent, 0);
-
-  return (
-    <Panel title="Student budget" icon={<WalletIcon />}>
-      <p className="view-label">
-        Monthly overview{" "}
-        <span className="example-label">Illustrative budget · VND</span>
-      </p>
-      <dl className="budget-grid grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div>
-          <dt>Monthly budget</dt>
-          <dd>{money.format(MONTHLY_BUDGET)} ₫</dd>
-        </div>
-        <div>
-          <dt>Planned expenses</dt>
-          <dd>{money.format(planned)} ₫</dd>
-        </div>
-        <div>
-          <dt>Remaining</dt>
-          <dd>{money.format(MONTHLY_BUDGET - spent)} ₫</dd>
-        </div>
-      </dl>
-
-      <ul className="budget-bars">
-        {BUDGET_CATEGORIES.map((row) => {
-          const used = Math.round((row.spent / row.planned) * 100);
-          return (
-            <li key={row.name}>
-              <label htmlFor={`budget-${row.name}`}>
-                {row.name}
-                <span>
-                  {money.format(row.spent)} / {money.format(row.planned)} ₫
-                </span>
-              </label>
-              <progress
-                id={`budget-${row.name}`}
-                value={row.spent}
-                max={row.planned}
-              >
-                {used}%
-              </progress>
-            </li>
-          );
-        })}
-      </ul>
-
-      <p className="page-note">
-        Budget data is illustrative. No financial records are stored or
-        connected.
-      </p>
-    </Panel>
   );
 }
 

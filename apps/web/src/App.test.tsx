@@ -178,6 +178,47 @@ const planFixtures = [
     updated_at: "2026-09-15T00:00:00.000Z",
   },
 ];
+const expenseFixtures = [
+  {
+    id: "exp-1",
+    amount: 35000,
+    description: "In tài liệu ôn thuật toán",
+    spent_on: "2026-09-15",
+    category: "books",
+    course_id: "course-1",
+    course_slug: "cs-201",
+    course_name: "Công nghệ phần mềm",
+    course_code: "CS 201",
+    created_at: "2026-09-15T00:00:00.000Z",
+    updated_at: "2026-09-15T00:00:00.000Z",
+  },
+  {
+    id: "exp-2",
+    amount: 25000,
+    description: "Cà phê ngồi học nhóm",
+    spent_on: "2026-09-14",
+    category: "food",
+    course_id: null,
+    course_slug: null,
+    course_name: null,
+    course_code: null,
+    created_at: "2026-09-14T00:00:00.000Z",
+    updated_at: "2026-09-14T00:00:00.000Z",
+  },
+  {
+    id: "exp-3",
+    amount: 150000,
+    description: "Lệ phí thi lại học phần",
+    spent_on: "2026-09-05",
+    category: "fees",
+    course_id: "course-2",
+    course_slug: "ma-210",
+    course_name: "Toán ứng dụng",
+    course_code: "MA 210",
+    created_at: "2026-09-05T00:00:00.000Z",
+    updated_at: "2026-09-05T00:00:00.000Z",
+  },
+];
 beforeEach(() => {
   // The exam list separates upcoming from past, so the clock is pinned:
   // otherwise these tests would start failing on their own once the fixture
@@ -192,6 +233,12 @@ beforeEach(() => {
     vi.fn(async (url: string, init?: RequestInit) => {
       if (url === "/api/documents") {
         return new Response(JSON.stringify([]), { status: 200 });
+      }
+      if (url === "/api/expenses") {
+        return new Response(JSON.stringify(expenseFixtures), { status: 200 });
+      }
+      if (url.startsWith("/api/expenses/") && init?.method === "DELETE") {
+        return new Response(null, { status: 204 });
       }
       if (url === "/api/study-plans") {
         return new Response(JSON.stringify(planFixtures), { status: 200 });
@@ -1019,6 +1066,137 @@ describe("Academic workspace", () => {
     expect(
       await screen.findByText(/những thứ bạn cần ôn trước kỳ thi/),
     ).toBeInTheDocument();
+  });
+  it("totals only the expenses inside the chosen period", async () => {
+    window.history.replaceState(null, "", "/#finances");
+    render(<App />);
+
+    // Amounts repeat across the summary, the per-course bars and the rows, so
+    // every assertion is scoped to the summary list it is actually about.
+    const total = async () => {
+      const term = await screen.findByText(/^\u0110\u00e3 chi /);
+      return term.parentElement!.querySelector("dd")!.textContent;
+    };
+
+    expect(await total()).toBe("210.000 \u20ab");
+
+    fireEvent.click(screen.getByLabelText("Tu\u1ea7n n\u00e0y"));
+    // The week starts on Monday 14 Sep, so the 5 Sep fee drops out.
+    expect(await total()).toBe("60.000 \u20ab");
+    expect(
+      screen.queryByText("L\u1ec7 ph\u00ed thi l\u1ea1i h\u1ecdc ph\u1ea7n"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("H\u00f4m nay"));
+    expect(await total()).toBe("35.000 \u20ab");
+    expect(
+      screen.queryByText("C\u00e0 ph\u00ea ng\u1ed3i h\u1ecdc nh\u00f3m"),
+    ).not.toBeInTheDocument();
+  });
+  it("totals spending per course and keeps unassigned spending visible", async () => {
+    window.history.replaceState(null, "", "/#finances");
+    render(<App />);
+
+    const heading = await screen.findByRole("heading", {
+      level: 3,
+      name: "Chi theo môn học",
+    });
+    const list = heading.nextElementSibling as HTMLElement;
+    expect(within(list).getByText("150.000 ₫")).toBeInTheDocument();
+    expect(within(list).getByText("35.000 ₫")).toBeInTheDocument();
+    // Money that belongs to no subject must not silently vanish from the
+    // breakdown, or the per-course totals would not add up to the headline.
+    expect(within(list).getByText("Không thuộc môn nào")).toBeInTheDocument();
+  });
+  it("sends a new expense as a number, not a string", async () => {
+    window.history.replaceState(null, "", "/#finances");
+    render(<App />);
+    await screen.findByLabelText("Description");
+
+    fireEvent.change(screen.getByLabelText("Amount (₫)"), {
+      target: { value: "42000" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Mua bút" },
+    });
+    fireEvent.change(screen.getByLabelText("Date"), {
+      target: { value: "2026-09-15" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add expense" }));
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/expenses",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            amount: 42000,
+            description: "Mua bút",
+            spentOn: "2026-09-15",
+            category: "books",
+          }),
+        }),
+      ),
+    );
+  });
+  it("never sends a fractional amount to the API", async () => {
+    window.history.replaceState(null, "", "/#finances");
+    render(<App />);
+    await screen.findByLabelText("Description");
+
+    fireEvent.change(screen.getByLabelText("Amount (\u20ab)"), {
+      target: { value: "12.5" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Le" },
+    });
+    fireEvent.change(screen.getByLabelText("Date"), {
+      target: { value: "2026-09-15" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add expense" }));
+
+    // Two layers stop this, and the test locks the outcome rather than either
+    // one. A number input steps by 1 unless told otherwise, so 12.5 fails
+    // constraint validation and the submit never fires; if the field were ever
+    // changed to type="text", the integer check in the handler catches it
+    // instead. Verified by mutation: the test only goes red when both are gone.
+    // It matters because the column stores INTEGER.
+    await waitFor(() =>
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.some(
+            ([url, init]) =>
+              url === "/api/expenses" &&
+              (init as RequestInit)?.method === "POST",
+          ),
+      ).toBe(false),
+    );
+  });
+  it("asks before deleting an expense", async () => {
+    window.history.replaceState(null, "", "/#finances");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Delete expense: In tài liệu ôn thuật toán",
+      }),
+    );
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(
+          ([, init]) => (init as RequestInit)?.method === "DELETE",
+        ),
+    ).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Xoá" }));
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/expenses/exp-1",
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
   });
   it("persists quick notes in the current browser", async () => {
     render(<App />);

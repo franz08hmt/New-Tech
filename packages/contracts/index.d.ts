@@ -137,6 +137,33 @@ export interface StudyPlan {
   updated_at: string;
 }
 
+/** The fixed spending categories, mirrored by `expenses_category_check`. */
+export type ExpenseCategory =
+  "books" | "transport" | "food" | "supplies" | "fees" | "other";
+
+/**
+ * One expense as `GET /api/expenses` returns it.
+ *
+ * `amount` is a whole number of dong, and arrives as a JSON number because the
+ * column is INTEGER — see the migration for why that matters.
+ *
+ * The course fields are null for spending that belongs to no subject, and they
+ * also go null if that course is later removed: the expense outlives the link.
+ */
+export interface Expense {
+  id: string;
+  amount: number;
+  description: string;
+  spent_on: string;
+  category: ExpenseCategory;
+  course_id: string | null;
+  course_slug: string | null;
+  course_name: string | null;
+  course_code: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /** Response of `GET /api/health`. */
 export interface HealthStatus {
   status: "ok" | "degraded";

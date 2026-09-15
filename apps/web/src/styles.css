@@ -2522,6 +2522,86 @@
   }
 }
 @layer components {
+  /* Period switch
+     Real radio inputs, visually hidden rather than removed: arrow keys move
+     between them and a screen reader announces the group, which a row of
+     buttons would not give for free. */
+  .period-switch {
+    display: inline-flex;
+    gap: 2px;
+    border: 1px solid #e4e8dd;
+    border-radius: 999px;
+    background: #f6f7f2;
+    padding: 3px;
+    margin: 14px 0 4px;
+  }
+  .period-switch label {
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 10px;
+    font-weight: 500;
+    color: #5d6b5c;
+    cursor: pointer;
+    transition: background 160ms ease;
+  }
+  .period-switch label.is-active {
+    background: #526750;
+    color: #f4f7f0;
+  }
+  .period-switch input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
+    overflow: hidden;
+  }
+  .period-switch label:has(input:focus-visible) {
+    outline: 2px solid #526750;
+    outline-offset: 2px;
+  }
+  .budget-bars label a {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #3f5a52;
+  }
+  .budget-bars label svg {
+    width: 10px;
+    height: 10px;
+  }
+  .expense-list {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .expense-list li {
+    display: grid;
+    grid-template-columns: minmax(84px, auto) minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 10px;
+    border: 1px solid #e4e8dd;
+    border-radius: 9px;
+    background: #fff;
+    padding: 9px 11px;
+  }
+  .expense-amount {
+    font-size: 11px;
+    font-weight: 600;
+    color: #3f4a3e;
+    /* Tabular figures so the column of amounts lines up digit for digit. */
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  @media (max-width: 600px) {
+    .expense-list li {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .expense-amount {
+      grid-column: 1 / -1;
+    }
+  }
   /* Budget bars reuse the same progress styling as course cards — no new
      colours, only a second place the existing token set is applied. */
   .budget-bars {

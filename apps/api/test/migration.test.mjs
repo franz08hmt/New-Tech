@@ -92,13 +92,15 @@ test("migration applies then skips all files with verified TLS and empty URL fal
     "Migration applied: 003_courses.sql",
     "Migration applied: 004_exams.sql",
     "Migration applied: 005_study_plans.sql",
+    "Migration applied: 006_expenses.sql",
     "Migration already applied: 001_init.sql",
     "Migration already applied: 002_non_ai_storage.sql",
     "Migration already applied: 003_courses.sql",
     "Migration already applied: 004_exams.sql",
     "Migration already applied: 005_study_plans.sql",
+    "Migration already applied: 006_expenses.sql",
   ]);
-  assert.equal(db.history.size, 5);
+  assert.equal(db.history.size, 6);
   assert.equal(
     db.statements.filter((s) => s.startsWith("CREATE EXTENSION")).length,
     1,
@@ -109,6 +111,30 @@ test("migration applies then skips all files with verified TLS and empty URL fal
   }
   assert.equal(db.releases, 2);
   assert.equal(db.ends, 2);
+});
+
+test("expenses are an additive sixth migration that outlive their course", async () => {
+  const migrations = await loadMigrations();
+  const expenseMigration = migrations[5].sql;
+  assert.match(expenseMigration, /CREATE TABLE expenses/);
+  // SET NULL, not CASCADE: money that was spent stays spent even if the
+  // subject is removed. Deleting the expense would misstate the total.
+  assert.match(
+    expenseMigration,
+    /course_id UUID REFERENCES courses \(id\) ON DELETE SET NULL/,
+  );
+  // INTEGER, not BIGINT: the pg driver returns BIGINT as a string, which would
+  // concatenate instead of add when the UI totals a period.
+  assert.match(expenseMigration, /amount INTEGER NOT NULL/);
+  assert.doesNotMatch(expenseMigration, /amount BIGINT|amount NUMERIC/);
+  assert.match(
+    expenseMigration,
+    /CHECK \(amount > 0 AND amount <= 2000000000\)/,
+  );
+  assert.match(expenseMigration, /ENABLE ROW LEVEL SECURITY/);
+  // Seeds join on slug and must tolerate a NULL slug for unassigned spending.
+  assert.match(expenseMigration, /LEFT JOIN courses c ON c\.slug = v\.slug/);
+  assert.doesNotMatch(expenseMigration, /ALTER TABLE courses/);
 });
 
 test("study plans are an additive fifth migration tied to courses", async () => {
@@ -154,6 +180,7 @@ test("course foundation is an additive third migration with typed illustrative s
       "003_courses.sql",
       "004_exams.sql",
       "005_study_plans.sql",
+      "006_expenses.sql",
     ],
   );
   const courseMigration = migrations[2].sql;
