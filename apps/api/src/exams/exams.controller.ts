@@ -6,10 +6,12 @@ import {
   HttpCode,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
 } from "@nestjs/common";
 import { CreateExamDto } from "./create-exam.dto.js";
 import { ExamsService } from "./exams.service.js";
+import { UpdateExamDto } from "./update-exam.dto.js";
 
 @Controller("exams")
 export class ExamsController {
@@ -23,6 +25,14 @@ export class ExamsController {
   @Post()
   create(@Body() input: CreateExamDto) {
     return this.exams.create(input);
+  }
+
+  @Patch(":id")
+  update(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Body() input: UpdateExamDto,
+  ) {
+    return this.exams.update(id, input);
   }
 
   @Delete(":id")

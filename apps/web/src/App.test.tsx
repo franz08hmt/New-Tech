@@ -321,6 +321,22 @@ beforeEach(() => {
       if (url.startsWith("/api/exams/") && init?.method === "DELETE") {
         return new Response(null, { status: 204 });
       }
+      if (url.startsWith("/api/exams/") && init?.method === "PATCH") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as Record<
+          string,
+          string
+        >;
+        return new Response(
+          JSON.stringify({
+            ...examFixtures[0],
+            topic: body.topic,
+            exam_date: body.examDate,
+            exam_time: body.examTime,
+            room: body.room,
+          }),
+          { status: 200 },
+        );
+      }
       if (url === "/api/courses") {
         return new Response(JSON.stringify(courseFixtures), { status: 200 });
       }
@@ -1422,6 +1438,98 @@ describe("Academic workspace", () => {
         }),
       ),
     );
+  });
+  it("edits an exam in place and sends every field", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Edit exam: Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+      }),
+    );
+    const form = screen.getByRole("form", {
+      name: "Edit exam: Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+    });
+    // Pre-filled with what is stored, so the student corrects rather than
+    // retypes: an empty form would make "unchanged" indistinguishable from
+    // "cleared".
+    expect(within(form).getByLabelText("Room")).toHaveValue("Ph\u00f2ng A201");
+
+    fireEvent.change(within(form).getByLabelText("Room"), {
+      target: { value: "Ph\u00f2ng B999" },
+    });
+    fireEvent.click(within(form).getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/exams/exam-1",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({
+            topic:
+              "Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+            examDate: "2026-09-21",
+            examTime: "09:00",
+            room: "Ph\u00f2ng B999",
+            revisionNote:
+              "\u00d4n l\u1ea1i \u0111\u1ed9 ph\u1ee9c t\u1ea1p v\u00e0 c\u00e2y nh\u1ecb ph\u00e2n t\u00ecm ki\u1ebfm.",
+          }),
+        }),
+      ),
+    );
+  });
+  it("closes the exam editor without saving when cancelled", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Edit exam: Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Hu\u1ef7" }));
+
+    expect(
+      screen.queryByRole("button", { name: "Save changes" }),
+    ).not.toBeInTheDocument();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(
+          ([, init]) => (init as RequestInit)?.method === "PATCH",
+        ),
+    ).toBe(false);
+  });
+  it("uploads a PDF straight from the course page with the course attached", async () => {
+    window.history.replaceState(null, "", "/#courses/cs-201");
+    render(<App />);
+    const workspace = await screen.findByRole("region", {
+      name: "Workspace for this course",
+    });
+
+    const picker = await within(workspace).findByLabelText(
+      /Ch\u1ecdn t\u1ec7p PDF cho m\u00f4n n\u00e0y/,
+    );
+    const pdf = new File(["%PDF-1.4"], "slide-buoi-1.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(picker, { target: { files: [pdf] } });
+
+    // The student never chose a subject here; the page supplies it.
+    await waitFor(() => {
+      const call = vi
+        .mocked(fetch)
+        .mock.calls.find(
+          ([url, init]) =>
+            url === "/api/documents" &&
+            (init as RequestInit)?.method === "POST",
+        );
+      expect(call).toBeDefined();
+      const body = (call![1] as RequestInit).body as FormData;
+      expect(body.get("courseId")).toBe("course-1");
+      expect((body.get("file") as File).name).toBe("slide-buoi-1.pdf");
+    });
   });
   it("persists quick notes in the current browser", async () => {
     render(<App />);

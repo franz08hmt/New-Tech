@@ -145,6 +145,12 @@ export function CourseWorkspace({ course }: { course: Course }) {
     if (ok) setNotice(`${what} ${verb}.`);
   }
 
+  async function uploadHere(file: File) {
+    setNotice("");
+    const ok = await documents.upload(file, course.id);
+    if (ok) setNotice(`Đã tải "${file.name}" lên cho môn này.`);
+  }
+
   async function addExam(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -451,12 +457,32 @@ export function CourseWorkspace({ course }: { course: Course }) {
           {!courseDocuments.length && (
             <p className="empty-message">Chưa có tài liệu nào cho môn này.</p>
           )}
-          {/* Uploading a PDF needs the file picker, its size and type checks and
-              the retry path that the Documents page already owns. Sending the
-              student there is honest; rebuilding a second uploader here would
-              be a second place for those rules to drift. */}
+          {/* One picker, filed under this course automatically. The checks
+              that matter — PDF signature, 10 MiB ceiling, filename length —
+              all live in the API, so this cannot drift from the Documents
+              page: both call the same endpoint. */}
+          <label className="file-picker cw-upload">
+            {documents.busy ? "Đang tải lên…" : "Chọn tệp PDF cho môn này"}
+            <input
+              type="file"
+              accept=".pdf,application/pdf"
+              disabled={documents.busy}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                // Cleared immediately so picking the same file twice in a row
+                // still fires a change event.
+                event.target.value = "";
+                if (file) void uploadHere(file);
+              }}
+            />
+          </label>
+          {documents.error && (
+            <p role="alert" className="error-message">
+              {documents.error}
+            </p>
+          )}
           <a className="text-button" href="#documents">
-            <PlusIcon /> Tải tài liệu lên ở trang Documents
+            Mở trang Documents
           </a>
         </Block>
       </div>

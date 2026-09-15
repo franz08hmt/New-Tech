@@ -15,6 +15,16 @@ export interface ExamsState {
     room: string;
     revisionNote?: string;
   }) => Promise<boolean>;
+  update: (
+    id: string,
+    input: {
+      topic: string;
+      examDate: string;
+      examTime: string;
+      room: string;
+      revisionNote?: string;
+    },
+  ) => Promise<boolean>;
   remove: (id: string) => Promise<boolean>;
 }
 
@@ -76,6 +86,31 @@ export function useExams(): ExamsState {
     }
   }, []);
 
+  const update = useCallback<ExamsState["update"]>(async (id, input) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await api.updateExam(id, input);
+      // Re-sorted, because an edit can move the exam to a different day and
+      // the list is ordered by when it happens, not by when it was added.
+      setExams((current) =>
+        current
+          .map((exam) => (exam.id === id ? updated : exam))
+          .sort((a, b) =>
+            `${a.exam_date} ${a.exam_time}`.localeCompare(
+              `${b.exam_date} ${b.exam_time}`,
+            ),
+          ),
+      );
+      return true;
+    } catch {
+      setError("Chưa lưu được thay đổi. Xem lại thông tin rồi thử lại nhé.");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   const remove = useCallback<ExamsState["remove"]>(async (id) => {
     setBusy(true);
     setError(null);
@@ -91,7 +126,7 @@ export function useExams(): ExamsState {
     }
   }, []);
 
-  return { exams, loading, busy, error, reload, create, remove };
+  return { exams, loading, busy, error, reload, create, update, remove };
 }
 
 /**

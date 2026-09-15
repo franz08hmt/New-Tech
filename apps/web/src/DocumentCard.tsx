@@ -56,18 +56,28 @@ export function DocumentCard({
         )}
       </section>
       <footer className="document-card-actions">
+        {/* The filename lives in aria-label, not in the visible text. A button
+            captioned with a 200-character name made this column as wide as the
+            name itself, squeezing the details column down to one letter per
+            line. Screen readers still hear which file each button acts on. */}
         {onUpload && (
-          <button type="button" disabled={busy} onClick={onUpload}>
-            {state === "failed" ? `Retry ${name}` : `Upload ${name}`}
+          <button
+            type="button"
+            disabled={busy}
+            aria-label={state === "failed" ? `Retry ${name}` : `Upload ${name}`}
+            onClick={onUpload}
+          >
+            {state === "failed" ? "Retry" : "Upload"}
           </button>
         )}
         {onDownload && (
           <button
             type="button"
             disabled={busy || state !== "stored"}
+            aria-label={`Download ${name}`}
             onClick={onDownload}
           >
-            Download {name}
+            Download
           </button>
         )}
         <button

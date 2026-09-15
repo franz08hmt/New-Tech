@@ -5,6 +5,7 @@ import {
   CalendarDaysIcon,
   ClockIcon,
   MapPinIcon,
+  PencilSquareIcon,
   PlusIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline";
@@ -86,11 +87,133 @@ function DeleteExam({
   );
 }
 
+/**
+ * Inline editor for one exam.
+ *
+ * Pre-filled with what is stored and submits every field, matching the API,
+ * which replaces an exam's details rather than patching them: with a form this
+ * small, "left blank" would be ambiguous between "unchanged" and "cleared".
+ */
+function EditButton({
+  exam,
+  busy,
+  onEdit,
+}: {
+  exam: Exam;
+  busy: boolean;
+  onEdit: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="exam-remove"
+      aria-label={`Edit exam: ${exam.topic}`}
+      disabled={busy}
+      onClick={onEdit}
+    >
+      <PencilSquareIcon aria-hidden="true" />
+    </button>
+  );
+}
+
+function EditExam({
+  exam,
+  busy,
+  onSave,
+  onCancel,
+}: {
+  exam: Exam;
+  busy: boolean;
+  onSave: (input: {
+    topic: string;
+    examDate: string;
+    examTime: string;
+    room: string;
+    revisionNote?: string;
+  }) => void;
+  onCancel: () => void;
+}) {
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    onSave({
+      topic: String(data.get("topic") || "").trim(),
+      examDate: String(data.get("examDate") || ""),
+      examTime: String(data.get("examTime") || ""),
+      room: String(data.get("room") || "").trim(),
+      revisionNote: String(data.get("revisionNote") || "").trim() || undefined,
+    });
+  }
+  return (
+    <form
+      className="exam-edit exam-form grid grid-cols-1 sm:grid-cols-2 gap-4"
+      aria-label={`Edit exam: ${exam.topic}`}
+      onSubmit={submit}
+    >
+      <label className="sm:col-span-2">
+        Exam name
+        <input
+          name="topic"
+          defaultValue={exam.topic}
+          minLength={3}
+          maxLength={160}
+          required
+        />
+      </label>
+      <label>
+        Date
+        <input
+          name="examDate"
+          type="date"
+          defaultValue={exam.exam_date}
+          required
+        />
+      </label>
+      <label>
+        Time
+        <input
+          name="examTime"
+          type="time"
+          defaultValue={exam.exam_time}
+          required
+        />
+      </label>
+      <label className="sm:col-span-2">
+        Room
+        <input name="room" defaultValue={exam.room} maxLength={80} required />
+      </label>
+      <label className="sm:col-span-2">
+        Revision note
+        <textarea
+          name="revisionNote"
+          rows={2}
+          maxLength={500}
+          defaultValue={exam.revision_note ?? ""}
+        />
+      </label>
+      <span className="exam-edit-actions">
+        <button className="primary-button" disabled={busy}>
+          {busy ? "Đang lưu…" : "Save changes"}
+        </button>
+        <button
+          type="button"
+          className="text-button"
+          disabled={busy}
+          onClick={onCancel}
+        >
+          Huỷ
+        </button>
+      </span>
+    </form>
+  );
+}
+
 export function ExamsPanel({ compact = false }: { compact?: boolean }) {
   const { ref, revealed } = useReveal<HTMLDivElement>();
   const exams = useExams();
   const courses = useCourses();
   const [notice, setNotice] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const today = new Date();
   // A past exam is still useful when revising, but it must never sit among the
@@ -128,6 +251,23 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
     if (ok) {
       form.reset();
       setNotice("Đã thêm kỳ thi vào lịch.");
+    }
+  }
+
+  async function save(
+    exam: Exam,
+    input: {
+      topic: string;
+      examDate: string;
+      examTime: string;
+      room: string;
+      revisionNote?: string;
+    },
+  ) {
+    const ok = await exams.update(exam.id, input);
+    if (ok) {
+      setEditingId(null);
+      setNotice("Đã lưu thay đổi cho kỳ thi.");
     }
   }
 
@@ -182,14 +322,30 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
               <p className="exam-note">{next.revision_note}</p>
             )}
             {!compact && (
-              // Keyed by the exam itself: without this, deleting the featured
-              // exam would leave the next one mounted with the previous
-              // component's open confirmation, primed to delete on one click.
-              <DeleteExam
-                key={next.id}
+              <span className="exam-actions">
+                <EditButton
+                  exam={next}
+                  busy={exams.busy}
+                  onEdit={() => setEditingId(next.id)}
+                />
+                {/* Keyed by the exam itself: without this, deleting the
+                    featured exam would leave the next one mounted with the
+                    previous component's open confirmation, primed to delete
+                    on one click. */}
+                <DeleteExam
+                  key={next.id}
+                  exam={next}
+                  busy={exams.busy}
+                  onDelete={() => void remove(next)}
+                />
+              </span>
+            )}
+            {editingId === next.id && (
+              <EditExam
                 exam={next}
                 busy={exams.busy}
-                onDelete={() => void remove(next)}
+                onSave={(input) => void save(next, input)}
+                onCancel={() => setEditingId(null)}
               />
             )}
           </article>
@@ -224,10 +380,25 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
                     )}
                   </span>
                   {!compact && (
-                    <DeleteExam
+                    <span className="exam-actions">
+                      <EditButton
+                        exam={exam}
+                        busy={exams.busy}
+                        onEdit={() => setEditingId(exam.id)}
+                      />
+                      <DeleteExam
+                        exam={exam}
+                        busy={exams.busy}
+                        onDelete={() => void remove(exam)}
+                      />
+                    </span>
+                  )}
+                  {editingId === exam.id && (
+                    <EditExam
                       exam={exam}
                       busy={exams.busy}
-                      onDelete={() => void remove(exam)}
+                      onSave={(input) => void save(exam, input)}
+                      onCancel={() => setEditingId(null)}
                     />
                   )}
                 </li>

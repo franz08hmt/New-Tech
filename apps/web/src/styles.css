@@ -641,9 +641,41 @@
   .exam-confirm-yes:hover {
     background: #743c35;
   }
+  /* Edit and delete sit together on an exam row, and the inline editor drops
+     below the whole card rather than inside its action corner. */
+  .exam-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .exam-next .exam-actions {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+  }
+  .exam-edit {
+    grid-column: 1 / -1;
+    margin-top: 10px;
+  }
+  .exam-edit-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .cw-upload {
+    width: 100%;
+    margin-top: 4px;
+    text-align: center;
+  }
+  .exam-form {
+    padding: 20px 0 4px;
+    border-top: 1px solid var(--color-line);
+    margin-top: 20px;
+  }
   .exam-form textarea {
     resize: vertical;
-    min-height: 44px;
+    min-height: 60px;
+    font-family: inherit;
   }
   @media (hover: none), (pointer: coarse) {
     .exam-remove {
@@ -1729,6 +1761,8 @@
     margin-top: 20px;
   }
   .task-form label,
+  .exam-form label,
+  .cw-form label,
   .assistant-label {
     display: flex;
     flex-direction: column;
@@ -1736,6 +1770,9 @@
     font-size: 11px;
   }
   .task-form input,
+  .exam-form input,
+  .exam-form textarea,
+  .cw-form input,
   .assistant-label textarea,
   select {
     border: 1px solid #d8ded5;
@@ -1916,6 +1953,19 @@
   .document-card > svg {
     width: 26px;
     height: 26px;
+  }
+  /* Belt to the aria-label braces: even a short caption must not let the
+     actions column grow past its content, and a long unbroken filename in the
+     details column has to break rather than push the row wider. */
+  .document-card-actions {
+    min-width: 0;
+  }
+  .document-card-actions button {
+    white-space: nowrap;
+  }
+  .document-card-details {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   .document-card-details h4,
   .document-card-details p,
@@ -2667,8 +2717,10 @@
     align-items: center;
   }
   .cw-form label {
-    flex: 1 1 120px;
+    flex: 1 1 130px;
     min-width: 0;
+    font-size: 9px;
+    gap: 3px;
   }
   .cw-form input,
   .cw-form select {

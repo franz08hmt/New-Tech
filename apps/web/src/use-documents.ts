@@ -8,6 +8,7 @@ export interface DocumentsState {
   error: string | null;
   reload: () => void;
   setCourse: (id: string, courseId: string | null) => Promise<boolean>;
+  upload: (file: File, courseId?: string) => Promise<boolean>;
 }
 
 /**
@@ -74,5 +75,29 @@ export function useDocuments(): DocumentsState {
     [],
   );
 
-  return { documents, loading, busy, error, reload, setCourse };
+  const upload = useCallback<DocumentsState["upload"]>(
+    async (file, courseId) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const stored = await api.uploadDocument(file, courseId);
+        setDocuments((current) => [stored, ...current]);
+        return true;
+      } catch (cause) {
+        // The API's own message is worth showing here: it names the real
+        // reason, such as a file that is not a PDF or is over 10 MiB.
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Chưa tải được tệp lên. Thử lại một lần nữa nhé.",
+        );
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [],
+  );
+
+  return { documents, loading, busy, error, reload, setCourse, upload };
 }

@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { DatabaseService } from "../database/database.service.js";
 import type { CreateExamDto } from "./create-exam.dto.js";
+import type { UpdateExamDto } from "./update-exam.dto.js";
 import type { ExamRecord } from "./exam.types.js";
 
 /**
@@ -78,6 +79,41 @@ export class ExamsService {
         throw error;
       });
     return result.rows[0];
+  }
+
+  async update(id: string, input: UpdateExamDto) {
+    const result = await this.database.query<ExamRecord>(
+      `WITH updated AS (
+         UPDATE exams
+         SET topic = $2,
+             exam_date = $3::date,
+             exam_time = $4::time,
+             room = $5,
+             revision_note = $6,
+             updated_at = NOW()
+         WHERE id = $1
+         RETURNING *
+       )
+       SELECT ${EXAM_COLUMNS}
+       FROM updated e
+       JOIN courses c ON c.id = e.course_id`,
+      [
+        id,
+        input.topic,
+        input.examDate,
+        input.examTime,
+        input.room,
+        input.revisionNote ?? null,
+      ],
+    );
+    const exam = result.rows[0];
+    if (!exam) {
+      throw new NotFoundException({
+        code: "EXAM_NOT_FOUND",
+        message: "Kỳ thi này không còn nữa, có thể ai đó đã xoá trước rồi.",
+      });
+    }
+    return exam;
   }
 
   async remove(id: string) {

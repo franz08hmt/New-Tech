@@ -164,6 +164,25 @@ for (const [label, form] of [
     assert.equal((await server.request("/documents", form())).status, 415);
     assert.equal(fixture.state.uploadCalls, 0);
   });
+test("HTTP Documents: a Vietnamese filename survives multipart decoding", async () => {
+  const fixture = fakeDependencies();
+  const server = await httpApp(fixture.database, fixture.storage);
+  try {
+    const original = "ĐƠN XIN ĐĂNG KÝ MÔN HỌC.pdf";
+    const response = await server.request(
+      "/documents",
+      pdfForm(undefined, original),
+    );
+    assert.equal(response.status, 201);
+    // busboy hands the filename back as Latin-1, so without the decode this
+    // reads "ÄÆ N XIN..." — every accented letter split into the two
+    // characters its UTF-8 bytes happen to look like.
+    assert.equal((await response.json()).name, original);
+  } finally {
+    await server.app.close();
+  }
+});
+
 test("HTTP Documents enforces multipart size, file count and missing file before Storage", async () => {
   assert.equal(
     (

@@ -54,6 +54,25 @@ const DOCUMENT_COLUMNS = `d.id,
 
 const DOCUMENT_FROM = `FROM documents d
   LEFT JOIN courses c ON c.id = d.course_id`;
+/**
+ * Recovers a filename that multipart parsing handed back as Latin-1.
+ *
+ * busboy decodes the filename in Content-Disposition as Latin-1, so a UTF-8
+ * name arrives one byte per character. An upload named
+ * "ĐƠN XIN ĐĂNG KÝ MÔN HỌC.pdf" was being stored with every accented letter
+ * expanded into the two characters its UTF-8 bytes happen to look like.
+ * Reading those characters back as bytes and decoding them as UTF-8 restores
+ * the original name.
+ *
+ * Guarded rather than unconditional: if the bytes are not valid UTF-8, Node
+ * substitutes U+FFFD, and a name full of replacement characters is worse than
+ * the one we started with. Plain ASCII names are unchanged either way.
+ */
+function decodeUploadName(raw: string): string {
+  const decoded = Buffer.from(raw, "latin1").toString("utf8");
+  return decoded.includes("�") ? raw : decoded;
+}
+
 // The annotated return type is load-bearing: without it the shape was merely
 // inferred, so an extra field here — `storage_key`, say — would have reached
 // the browser with nothing to catch it. Now the contract rejects it.
@@ -112,7 +131,7 @@ export class DocumentsService {
       throw new UnsupportedMediaTypeException(
         "Only PDF files with a PDF signature are accepted",
       );
-    const name = file.originalname
+    const name = decodeUploadName(file.originalname)
       .replace(/\\/g, "/")
       .split("/")
       .pop()!

@@ -88,6 +88,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  updateExam: (
+    id: string,
+    input: {
+      topic: string;
+      examDate: string;
+      examTime: string;
+      room: string;
+      revisionNote?: string;
+    },
+  ) =>
+    request<Exam>(`/api/exams/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
   deleteExam: (id: string) =>
     request<void>(`/api/exams/${id}`, { method: "DELETE" }),
   listExpenses: () => request<Expense[]>("/api/expenses"),
