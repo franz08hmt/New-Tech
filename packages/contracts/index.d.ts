@@ -113,6 +113,30 @@ export interface Exam {
   updated_at: string;
 }
 
+/**
+ * One thing to revise for a course, as `GET /api/study-plans` returns it.
+ *
+ * `completed_at` carries both facts at once: null means still to do, a
+ * timestamp means done and says when. There is no separate boolean that could
+ * disagree with it.
+ *
+ * `due_date` is a plain calendar day for the same reason as `Exam.exam_date`.
+ */
+export interface StudyPlan {
+  id: string;
+  course_id: string;
+  course_slug: string;
+  course_name: string;
+  course_code: string;
+  title: string;
+  detail: string | null;
+  due_date: string | null;
+  owner_name: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /** Response of `GET /api/health`. */
 export interface HealthStatus {
   status: "ok" | "degraded";

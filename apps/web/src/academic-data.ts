@@ -25,27 +25,3 @@ const courseIcons: Record<string, CourseIcon> = {
 export function courseIconFor(slug: string): CourseIcon {
   return courseIcons[slug] ?? AcademicCapIcon;
 }
-
-export const research = [
-  {
-    status: "To explore",
-    title: "Document-grounded AI",
-    detail: "Read about retrieval and citations",
-    owner: "Thắng",
-    tone: "sand",
-  },
-  {
-    status: "In progress",
-    title: "ExaMate workspace",
-    detail: "Build an accessible academic dashboard",
-    owner: "Tài",
-    tone: "rose",
-  },
-  {
-    status: "To review",
-    title: "Architecture review",
-    detail: "Trace a request from UI to database",
-    owner: "Tài & Thắng",
-    tone: "sage",
-  },
-];

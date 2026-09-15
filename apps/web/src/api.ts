@@ -10,6 +10,7 @@ export type {
   Exam,
   HealthStatus,
   StoredDocument,
+  StudyPlan,
   Task,
   TaskStatus,
 } from "@examate/contracts";
@@ -19,6 +20,7 @@ import type {
   Exam,
   HealthStatus,
   StoredDocument,
+  StudyPlan,
   Task,
   TaskStatus,
 } from "@examate/contracts";
@@ -84,6 +86,25 @@ export const api = {
     }),
   deleteExam: (id: string) =>
     request<void>(`/api/exams/${id}`, { method: "DELETE" }),
+  listStudyPlans: () => request<StudyPlan[]>("/api/study-plans"),
+  createStudyPlan: (input: {
+    courseId: string;
+    title: string;
+    detail?: string;
+    dueDate?: string;
+    ownerName?: string;
+  }) =>
+    request<StudyPlan>("/api/study-plans", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  setStudyPlanCompletion: (id: string, completed: boolean) =>
+    request<StudyPlan>(`/api/study-plans/${id}/completion`, {
+      method: "PATCH",
+      body: JSON.stringify({ completed }),
+    }),
+  deleteStudyPlan: (id: string) =>
+    request<void>(`/api/study-plans/${id}`, { method: "DELETE" }),
   listDocuments: () => request<StoredDocument[]>("/api/documents"),
   uploadDocument: (file: File) => {
     const body = new FormData();

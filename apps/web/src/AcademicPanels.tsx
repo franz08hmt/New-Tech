@@ -13,7 +13,7 @@ import {
   TrashIcon,
   ArrowUturnLeftIcon,
 } from "@heroicons/react/24/outline";
-import { courseIconFor, research } from "./academic-data";
+import { courseIconFor } from "./academic-data";
 import type { Course } from "./api";
 import { revealClass, useReveal } from "./use-reveal";
 
@@ -193,38 +193,6 @@ export function CoursesPanel({
             </li>
           );
         })}
-      </ul>
-    </Panel>
-  );
-}
-export function ResearchPanel() {
-  const { ref, revealed } = useReveal<HTMLUListElement>();
-  return (
-    <Panel title="Research projects" icon={<BookOpenIcon />}>
-      <p className="view-label">
-        <ViewColumnsIcon /> Board{" "}
-        <span className="example-label">Planning examples</span>
-      </p>
-      <ul
-        ref={ref}
-        className={`research-grid grid grid-cols-1 sm:grid-cols-3 gap-3 ${revealClass(revealed)}`}
-      >
-        {research.map((item) => (
-          <li key={item.title} className="board-column">
-            <h3>
-              <span className={`board-tag ${item.tone}`}>{item.status}</span>
-              <span>1</span>
-            </h3>
-            <article className="research-card">
-              <h4>{item.title}</h4>
-              <p>{item.detail}</p>
-              <footer>
-                <span className="avatar">{item.owner.slice(0, 1)}</span>
-                {item.owner}
-              </footer>
-            </article>
-          </li>
-        ))}
       </ul>
     </Panel>
   );

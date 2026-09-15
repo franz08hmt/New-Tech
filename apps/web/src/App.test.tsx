@@ -134,6 +134,50 @@ const examFixtures = [
     updated_at: "2026-09-15T00:00:00.000Z",
   },
 ];
+const planFixtures = [
+  {
+    id: "plan-1",
+    course_id: "course-1",
+    course_slug: "cs-201",
+    course_name: "Công nghệ phần mềm",
+    course_code: "CS 201",
+    title: "Ôn lại độ phức tạp thuật toán",
+    detail: "Làm lại năm bài so sánh.",
+    due_date: "2026-09-19",
+    owner_name: "Tài",
+    completed_at: null,
+    created_at: "2026-09-15T00:00:00.000Z",
+    updated_at: "2026-09-15T00:00:00.000Z",
+  },
+  {
+    id: "plan-2",
+    course_id: "course-1",
+    course_slug: "cs-201",
+    course_name: "Công nghệ phần mềm",
+    course_code: "CS 201",
+    title: "Đọc lại ghi chú buổi thực hành",
+    detail: null,
+    due_date: "2026-09-16",
+    owner_name: null,
+    completed_at: "2026-09-14T10:00:00.000Z",
+    created_at: "2026-09-15T00:00:00.000Z",
+    updated_at: "2026-09-15T00:00:00.000Z",
+  },
+  {
+    id: "plan-3",
+    course_id: "course-3",
+    course_slug: "ec-102",
+    course_name: "Kinh tế vi mô",
+    course_code: "EC 102",
+    title: "Vẽ lại đồ thị cung cầu",
+    detail: null,
+    due_date: null,
+    owner_name: "Thắng",
+    completed_at: null,
+    created_at: "2026-09-15T00:00:00.000Z",
+    updated_at: "2026-09-15T00:00:00.000Z",
+  },
+];
 beforeEach(() => {
   // The exam list separates upcoming from past, so the clock is pinned:
   // otherwise these tests would start failing on their own once the fixture
@@ -148,6 +192,24 @@ beforeEach(() => {
     vi.fn(async (url: string, init?: RequestInit) => {
       if (url === "/api/documents") {
         return new Response(JSON.stringify([]), { status: 200 });
+      }
+      if (url === "/api/study-plans") {
+        return new Response(JSON.stringify(planFixtures), { status: 200 });
+      }
+      if (url.startsWith("/api/study-plans/")) {
+        if (init?.method === "DELETE") {
+          return new Response(null, { status: 204 });
+        }
+        const body = JSON.parse(String(init?.body ?? "{}")) as {
+          completed?: boolean;
+        };
+        return new Response(
+          JSON.stringify({
+            ...planFixtures[0],
+            completed_at: body.completed ? "2026-09-15T08:00:00.000Z" : null,
+          }),
+          { status: 200 },
+        );
       }
       if (url === "/api/exams") {
         if (init?.method === "DELETE") {
@@ -871,6 +933,91 @@ describe("Academic workspace", () => {
     );
     expect(
       within(alert).getByRole("button", { name: /Retry exams/ }),
+    ).toBeInTheDocument();
+  });
+  it("groups revision items by course and counts what is finished", async () => {
+    window.history.replaceState(null, "", "/#study-plan");
+    render(<App />);
+
+    const cs = await screen.findByRole("heading", {
+      level: 3,
+      name: /Công nghệ phần mềm/,
+    });
+    // Two items for this course, one of them already done.
+    expect(cs).toHaveTextContent("1/2 xọng".replace("xọng", "xong"));
+    expect(
+      within(cs).getByRole("link", { name: /Công nghệ phần mềm/ }),
+    ).toHaveAttribute("href", "#courses/cs-201");
+
+    const ec = screen.getByRole("heading", { level: 3, name: /Kinh tế vi mô/ });
+    expect(ec).toHaveTextContent("0/1 xong");
+  });
+  it("marks a revision item as done through the API", async () => {
+    window.history.replaceState(null, "", "/#study-plan");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Mark as done: Ôn lại độ phức tạp thuật toán",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/study-plans/plan-1/completion",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ completed: true }),
+        }),
+      ),
+    );
+    // The button flips, so the same control can undo what it just did.
+    expect(
+      await screen.findByRole("button", {
+        name: "Mark as not done: Ôn lại độ phức tạp thuật toán",
+      }),
+    ).toBeInTheDocument();
+  });
+  it("asks before deleting a revision item", async () => {
+    window.history.replaceState(null, "", "/#study-plan");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Delete revision item: Ôn lại độ phức tạp thuật toán",
+      }),
+    );
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(
+          ([, init]) => (init as RequestInit)?.method === "DELETE",
+        ),
+    ).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Xoá" }));
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/study-plans/plan-1",
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+  });
+  it("explains what the study plan is for when there is nothing in it", async () => {
+    window.history.replaceState(null, "", "/#study-plan");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url === "/api/study-plans") return Response.json([]);
+        if (url === "/api/courses") return Response.json(courseFixtures);
+        if (url === "/api/exams") return Response.json([]);
+        return Response.json(url === "/api/documents" ? [] : [task]);
+      }),
+    );
+    render(<App />);
+
+    expect(
+      await screen.findByText(/những thứ bạn cần ôn trước kỳ thi/),
     ).toBeInTheDocument();
   });
   it("persists quick notes in the current browser", async () => {

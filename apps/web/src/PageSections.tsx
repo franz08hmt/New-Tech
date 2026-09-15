@@ -9,10 +9,10 @@ import {
   CoursesPanel,
   NotesPanel,
   Panel,
-  ResearchPanel,
 } from "./AcademicPanels";
 import { TasksPanel } from "./TasksPanel";
 import { ExamsPanel } from "./ExamsPanel";
+import { StudyPlanPanel } from "./StudyPlanPanel";
 import { CourseCarousel } from "./CourseCarousel";
 import { CourseDetail } from "./CourseDetail";
 import { DocumentsPanel } from "./DocumentsPanel";
@@ -94,11 +94,11 @@ export function PageSections({
       </>
     );
   }
-  if (pageId === "research") {
+  if (pageId === "study-plan") {
     return (
       <>
-        <ResearchPanel />
-        <section className="secondary-panel" aria-label="Research notes">
+        <StudyPlanPanel />
+        <section className="secondary-panel" aria-label="Quick notes">
           <NotesPanel />
         </section>
       </>
@@ -152,7 +152,7 @@ function DashboardSections({
       <section className="full-width" aria-label="Exams">
         <ExamsPanel compact />
       </section>
-      <ResearchPanel />
+      <StudyPlanPanel compact />
       <NotesPanel />
     </div>
   );

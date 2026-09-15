@@ -11,6 +11,8 @@ import { CoursesController } from "./courses/courses.controller.js";
 import { CoursesService } from "./courses/courses.service.js";
 import { ExamsController } from "./exams/exams.controller.js";
 import { ExamsService } from "./exams/exams.service.js";
+import { StudyPlansController } from "./study-plans/study-plans.controller.js";
+import { StudyPlansService } from "./study-plans/study-plans.service.js";
 
 @Module({
   controllers: [
@@ -20,6 +22,7 @@ import { ExamsService } from "./exams/exams.service.js";
     DocumentsController,
     CoursesController,
     ExamsController,
+    StudyPlansController,
   ],
   providers: [
     DatabaseService,
@@ -28,6 +31,7 @@ import { ExamsService } from "./exams/exams.service.js";
     StorageService,
     CoursesService,
     ExamsService,
+    StudyPlansService,
   ],
 })
 export class AppModule {}

@@ -4,7 +4,7 @@ import {
   Squares2X2Icon,
   ListBulletIcon,
   ClipboardDocumentListIcon,
-  MagnifyingGlassIcon,
+  ClipboardDocumentCheckIcon,
   WalletIcon,
   SparklesIcon,
   Bars3Icon,
@@ -56,13 +56,13 @@ const pages = [
       "Keep upcoming assessments in view and give yourself room to prepare.",
   },
   {
-    id: "research",
-    eyebrow: "PROJECT BOARD",
-    name: "Research",
-    icon: MagnifyingGlassIcon,
-    title: "Follow your curiosity",
+    id: "study-plan",
+    eyebrow: "REVISION BOARD",
+    name: "Study plan",
+    icon: ClipboardDocumentCheckIcon,
+    title: "One subject at a time",
     description:
-      "Collect ideas, explore the evidence, and build something meaningful.",
+      "What each subject still needs from you before its exam, in one list.",
   },
   {
     id: "documents",

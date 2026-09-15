@@ -655,6 +655,80 @@
       min-height: 36px;
     }
   }
+
+  /* Study plan
+     Grouped by course, so each subject reads as its own short checklist.
+     Reuses the exam card tokens rather than introducing a second style. */
+  .plan-group {
+    margin-bottom: 14px;
+  }
+  .plan-group h3 {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+    font-size: 11px;
+  }
+  .plan-group h3 a {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #3f5a52;
+  }
+  .plan-group h3 svg {
+    width: 10px;
+    height: 10px;
+  }
+  .plan-group h3 span {
+    font-size: 9px;
+    font-weight: 500;
+    color: #7b8578;
+    white-space: nowrap;
+  }
+  .plan-list {
+    display: grid;
+    gap: 6px;
+  }
+  .plan-list li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 9px;
+    border: 1px solid #e4e8dd;
+    border-radius: 9px;
+    background: #fff;
+    padding: 9px 11px;
+  }
+  .plan-copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .plan-copy strong {
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .plan-copy small {
+    font-size: 9.5px;
+    line-height: 1.55;
+    color: #5d6b5c;
+  }
+  .plan-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    color: #7b8578;
+  }
+  /* Finished work stays legible but clearly settled, the same treatment past
+     exams get, so the eye goes to what is still outstanding. */
+  .plan-list li.is-done {
+    background: #f6f6f3;
+  }
+  .plan-list li.is-done .plan-copy strong {
+    color: #7b8578;
+    text-decoration: line-through;
+  }
   .dashboard-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);

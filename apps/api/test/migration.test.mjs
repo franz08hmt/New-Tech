@@ -91,12 +91,14 @@ test("migration applies then skips all files with verified TLS and empty URL fal
     "Migration applied: 002_non_ai_storage.sql",
     "Migration applied: 003_courses.sql",
     "Migration applied: 004_exams.sql",
+    "Migration applied: 005_study_plans.sql",
     "Migration already applied: 001_init.sql",
     "Migration already applied: 002_non_ai_storage.sql",
     "Migration already applied: 003_courses.sql",
     "Migration already applied: 004_exams.sql",
+    "Migration already applied: 005_study_plans.sql",
   ]);
-  assert.equal(db.history.size, 4);
+  assert.equal(db.history.size, 5);
   assert.equal(
     db.statements.filter((s) => s.startsWith("CREATE EXTENSION")).length,
     1,
@@ -107,6 +109,23 @@ test("migration applies then skips all files with verified TLS and empty URL fal
   }
   assert.equal(db.releases, 2);
   assert.equal(db.ends, 2);
+});
+
+test("study plans are an additive fifth migration tied to courses", async () => {
+  const migrations = await loadMigrations();
+  const planMigration = migrations[4].sql;
+  assert.match(planMigration, /CREATE TABLE study_plans/);
+  assert.match(
+    planMigration,
+    /course_id UUID NOT NULL REFERENCES courses \(id\) ON DELETE CASCADE/,
+  );
+  assert.match(planMigration, /ENABLE ROW LEVEL SECURITY/);
+  assert.match(planMigration, /JOIN courses c ON c\.slug = v\.slug/);
+  // Completion is one nullable timestamp, not a boolean plus a date that
+  // could contradict each other.
+  assert.match(planMigration, /completed_at TIMESTAMPTZ/);
+  assert.doesNotMatch(planMigration, /is_done|completed BOOLEAN/);
+  assert.doesNotMatch(planMigration, /ALTER TABLE courses/);
 });
 
 test("exam schedule is an additive fourth migration tied to courses", async () => {
@@ -134,6 +153,7 @@ test("course foundation is an additive third migration with typed illustrative s
       "002_non_ai_storage.sql",
       "003_courses.sql",
       "004_exams.sql",
+      "005_study_plans.sql",
     ],
   );
   const courseMigration = migrations[2].sql;
