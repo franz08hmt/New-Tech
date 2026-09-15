@@ -16,7 +16,7 @@ import { TasksPanel } from "./TasksPanel";
 import { CourseCarousel } from "./CourseCarousel";
 import { CourseDetail } from "./CourseDetail";
 import { DocumentsPanel } from "./DocumentsPanel";
-import { findCourseBySlug } from "./academic-data";
+import type { CoursesState } from "./use-courses";
 import type { Workspace } from "./use-workspace";
 
 /**
@@ -30,21 +30,54 @@ import type { Workspace } from "./use-workspace";
 export function PageSections({
   pageId,
   courseSlug,
+  coursesState,
   workspace,
 }: {
   pageId: string;
   courseSlug?: string;
+  coursesState: CoursesState;
   workspace: Workspace;
 }) {
   if (pageId === "dashboard")
-    return <DashboardSections workspace={workspace} />;
-  if (pageId === "courses" && courseSlug !== undefined)
-    return <CourseDetail course={findCourseBySlug(courseSlug)} />;
+    return (
+      <DashboardSections workspace={workspace} coursesState={coursesState} />
+    );
+  if (pageId === "courses" && courseSlug !== undefined) {
+    if (coursesState.loading)
+      return <CourseDataState state="loading" onRetry={coursesState.retry} />;
+    if (coursesState.error)
+      return (
+        <CourseDataState
+          state="error"
+          message={coursesState.error}
+          onRetry={coursesState.retry}
+        />
+      );
+    return (
+      <CourseDetail
+        course={coursesState.courses.find(
+          (course) => course.slug === courseSlug,
+        )}
+      />
+    );
+  }
   if (pageId === "courses") {
+    if (coursesState.loading)
+      return <CourseDataState state="loading" onRetry={coursesState.retry} />;
+    if (coursesState.error)
+      return (
+        <CourseDataState
+          state="error"
+          message={coursesState.error}
+          onRetry={coursesState.retry}
+        />
+      );
+    if (coursesState.courses.length === 0)
+      return <CourseDataState state="empty" onRetry={coursesState.retry} />;
     return (
       <>
-        <CourseCarousel />
-        <CoursesPanel expanded />
+        <CourseCarousel courses={coursesState.courses} />
+        <CoursesPanel courses={coursesState.courses} expanded />
       </>
     );
   }
@@ -76,7 +109,13 @@ export function PageSections({
   return null;
 }
 
-function DashboardSections({ workspace }: { workspace: Workspace }) {
+function DashboardSections({
+  workspace,
+  coursesState,
+}: {
+  workspace: Workspace;
+  coursesState: CoursesState;
+}) {
   return (
     <div className="dashboard-grid">
       <TasksPanel workspace={workspace} />
@@ -95,7 +134,19 @@ function DashboardSections({ workspace }: { workspace: Workspace }) {
         </a>
       </section>
       <section className="full-width" aria-label="Courses">
-        <CoursesPanel />
+        {coursesState.loading ? (
+          <CourseDataState state="loading" onRetry={coursesState.retry} />
+        ) : coursesState.error ? (
+          <CourseDataState
+            state="error"
+            message={coursesState.error}
+            onRetry={coursesState.retry}
+          />
+        ) : coursesState.courses.length ? (
+          <CoursesPanel courses={coursesState.courses} />
+        ) : (
+          <CourseDataState state="empty" onRetry={coursesState.retry} />
+        )}
       </section>
       <section className="full-width" aria-label="Exams">
         <ExamsPanel compact />
@@ -103,6 +154,45 @@ function DashboardSections({ workspace }: { workspace: Workspace }) {
       <ResearchPanel />
       <NotesPanel />
     </div>
+  );
+}
+
+function CourseDataState({
+  state,
+  message,
+  onRetry,
+}: {
+  state: "loading" | "error" | "empty";
+  message?: string;
+  onRetry: () => void;
+}) {
+  if (state === "loading") {
+    return (
+      <section
+        className="panel course-data-state"
+        aria-busy="true"
+        aria-live="polite"
+      >
+        <h2>Loading courses</h2>
+        <p>Đang mở danh sách môn học từ workspace…</p>
+      </section>
+    );
+  }
+
+  return (
+    <section
+      className="panel course-data-state"
+      {...(state === "error" ? { role: "alert" } : {})}
+    >
+      <h2>{state === "error" ? "Courses need a moment" : "No courses yet"}</h2>
+      <p>
+        {message ??
+          "Workspace chưa có môn học nào. Hãy chạy migration hoặc kiểm tra dữ liệu seed."}
+      </p>
+      <button className="primary-button" type="button" onClick={onRetry}>
+        Retry courses
+      </button>
+    </section>
   );
 }
 

@@ -15,7 +15,7 @@ import {
 import { AssistantPanel } from "./AssistantPanel";
 import { PageSections } from "./PageSections";
 import { Sidebar } from "./Sidebar";
-import { findCourseBySlug } from "./academic-data";
+import { useCourses } from "./use-courses";
 import { useWorkspace } from "./use-workspace";
 
 const pages = [
@@ -104,19 +104,8 @@ function currentRoute(): AppRoute {
 
   if (hashRoute.startsWith("courses/")) {
     const courseSlug = hashRoute.slice("courses/".length);
-    const course = findCourseBySlug(courseSlug);
     return {
-      page: {
-        ...coursePage,
-        eyebrow: course
-          ? `${course.code} · ILLUSTRATIVE COURSE`
-          : "COURSE DIRECTORY",
-        name: course?.name ?? "Course not found",
-        title: course?.name ?? "Course not found",
-        description:
-          course?.detail ??
-          "That address does not match a course in the example gallery.",
-      },
+      page: coursePage,
       courseSlug,
     };
   }
@@ -135,7 +124,31 @@ export default function App() {
   const menuToggle = useRef<HTMLButtonElement>(null);
   const assistantToggle = useRef<HTMLButtonElement>(null);
   const workspace = useWorkspace();
-  const page = route.page;
+  const coursesState = useCourses();
+  const selectedCourse = route.courseSlug
+    ? coursesState.courses.find((course) => course.slug === route.courseSlug)
+    : undefined;
+  const courseResolved = !coursesState.loading && !coursesState.error;
+  const page =
+    route.courseSlug !== undefined
+      ? {
+          ...route.page,
+          eyebrow: selectedCourse
+            ? `${selectedCourse.code} · ILLUSTRATIVE COURSE`
+            : "COURSE DIRECTORY",
+          name:
+            selectedCourse?.name ??
+            (courseResolved ? "Course not found" : "Course details"),
+          title:
+            selectedCourse?.name ??
+            (courseResolved ? "Course not found" : "Course details"),
+          description:
+            selectedCourse?.detail ??
+            (courseResolved
+              ? "That address does not match a course in the example gallery."
+              : "Loading this course from the ExaMate workspace."),
+        }
+      : route.page;
 
   function closeAssistant() {
     setAssistantOpen(false);
@@ -275,6 +288,7 @@ export default function App() {
             <PageSections
               pageId={page.id}
               courseSlug={route.courseSlug}
+              coursesState={coursesState}
               workspace={workspace}
             />
             <footer className="page-footer">

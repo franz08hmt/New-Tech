@@ -55,6 +55,38 @@ export interface StoredDocument {
   updated_at: string;
 }
 
+/** Visual treatment chosen from the existing ExaMate course-card palette. */
+export type CourseTone = "slate" | "sage" | "sand" | "navy" | "rose";
+
+export interface CourseTopic {
+  title: string;
+  summary: string;
+}
+
+export interface CourseAssessment {
+  method: string;
+  weight_percent: number;
+  description: string;
+}
+
+/** A course exactly as `GET /api/courses` and `GET /api/courses/:slug` return it. */
+export interface Course {
+  id: string;
+  slug: string;
+  name: string;
+  code: string;
+  detail: string;
+  progress: number;
+  tone: CourseTone;
+  cover: string;
+  cover_alt: string;
+  outline: CourseTopic[];
+  outcomes: string[];
+  assessment: CourseAssessment[];
+  created_at: string;
+  updated_at: string;
+}
+
 /** Response of `GET /api/health`. */
 export interface HealthStatus {
   status: "ok" | "degraded";

@@ -3,6 +3,10 @@
 // the app already imports its types from "./api" — the module stays the single
 // door to the backend, it just no longer owns a second copy of the shapes.
 export type {
+  Course,
+  CourseAssessment,
+  CourseTone,
+  CourseTopic,
   HealthStatus,
   StoredDocument,
   Task,
@@ -10,6 +14,7 @@ export type {
 } from "@examate/contracts";
 
 import type {
+  Course,
   HealthStatus,
   StoredDocument,
   Task,
@@ -59,6 +64,9 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  listCourses: () => request<Course[]>("/api/courses"),
+  getCourse: (slug: string) =>
+    request<Course>(`/api/courses/${encodeURIComponent(slug)}`),
   listDocuments: () => request<StoredDocument[]>("/api/documents"),
   uploadDocument: (file: File) => {
     const body = new FormData();

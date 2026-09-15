@@ -6,7 +6,8 @@ import {
   ClipboardDocumentListIcon,
 } from "@heroicons/react/24/outline";
 import { Panel } from "./AcademicPanels";
-import type { Course } from "./academic-data";
+import { courseIconFor } from "./academic-data";
+import type { Course } from "./api";
 
 export function CourseDetail({ course }: { course?: Course }) {
   if (!course) {
@@ -15,8 +16,8 @@ export function CourseDetail({ course }: { course?: Course }) {
         <CourseBreadcrumb />
         <Panel title="Course not found" icon={<AcademicCapIcon />}>
           <p>
-            We could not find that example course. The address may be incomplete
-            or the course may no longer be in this gallery.
+            Không tìm thấy môn học minh họa này. Đường dẫn có thể chưa đầy đủ
+            hoặc môn học không còn trong gallery.
           </p>
           <a className="primary-button" href="#courses">
             Browse available courses
@@ -25,6 +26,8 @@ export function CourseDetail({ course }: { course?: Course }) {
       </article>
     );
   }
+
+  const CourseIcon = courseIconFor(course.slug);
 
   return (
     <article className="course-detail-page">
@@ -35,7 +38,7 @@ export function CourseDetail({ course }: { course?: Course }) {
         aria-labelledby="course-summary-title"
       >
         <span className={`course-art ${course.tone}`} aria-hidden="true">
-          <course.icon />
+          <CourseIcon />
         </span>
         <header className="course-summary-copy">
           <p className="example-label">Illustrative course guide</p>
@@ -101,7 +104,7 @@ export function CourseDetail({ course }: { course?: Course }) {
               <li key={item.method}>
                 <header>
                   <h3>{item.method}</h3>
-                  <strong>{item.weight}</strong>
+                  <strong>{item.weight_percent}%</strong>
                 </header>
                 <p>{item.description}</p>
               </li>

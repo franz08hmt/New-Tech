@@ -12,7 +12,8 @@ import {
   BookOpenIcon,
   ArrowUpRightIcon,
 } from "@heroicons/react/24/outline";
-import { courses, exams, research } from "./academic-data";
+import { courseIconFor, exams, research } from "./academic-data";
+import type { Course } from "./api";
 import { revealClass, useReveal } from "./use-reveal";
 
 export function Panel({
@@ -132,7 +133,13 @@ export function CalendarPanel() {
     </Panel>
   );
 }
-export function CoursesPanel({ expanded = false }: { expanded?: boolean }) {
+export function CoursesPanel({
+  courses,
+  expanded = false,
+}: {
+  courses: Course[];
+  expanded?: boolean;
+}) {
   const { ref, revealed } = useReveal<HTMLUListElement>();
   return (
     <Panel title="Course overview" icon={<AcademicCapIcon />}>
@@ -144,44 +151,47 @@ export function CoursesPanel({ expanded = false }: { expanded?: boolean }) {
         ref={ref}
         className={`course-grid grid grid-cols-2 lg:grid-cols-4 gap-3 ${revealClass(revealed)}`}
       >
-        {courses.map((course) => (
-          <li key={course.code}>
-            <article className="course-card">
-              <span className={`course-art ${course.tone}`}>
-                <course.icon aria-hidden="true" />
-              </span>
-              <header>
-                <h3>
-                  <a
-                    className="course-card-link"
-                    href={`#courses/${course.slug}`}
-                  >
-                    {course.name}
-                  </a>
-                </h3>
-                <p>
-                  <BookOpenIcon /> {course.code} · Class
-                </p>
-              </header>
-              {expanded && <p className="course-detail">{course.detail}</p>}
-              <footer>
-                <p className="course-progress-label">
-                  Progress <span>{course.progress}%</span>
-                </p>
-                <progress
-                  aria-label={`${course.name} example progress: ${course.progress}%`}
-                  value={course.progress}
-                  max={100}
-                >
-                  {course.progress}%
-                </progress>
-                <span className="course-card-action">
-                  View course <ArrowUpRightIcon aria-hidden="true" />
+        {courses.map((course) => {
+          const Icon = courseIconFor(course.slug);
+          return (
+            <li key={course.code}>
+              <article className="course-card">
+                <span className={`course-art ${course.tone}`}>
+                  <Icon aria-hidden="true" />
                 </span>
-              </footer>
-            </article>
-          </li>
-        ))}
+                <header>
+                  <h3>
+                    <a
+                      className="course-card-link"
+                      href={`#courses/${course.slug}`}
+                    >
+                      {course.name}
+                    </a>
+                  </h3>
+                  <p>
+                    <BookOpenIcon /> {course.code} · Class
+                  </p>
+                </header>
+                {expanded && <p className="course-detail">{course.detail}</p>}
+                <footer>
+                  <p className="course-progress-label">
+                    Progress <span>{course.progress}%</span>
+                  </p>
+                  <progress
+                    aria-label={`${course.name} example progress: ${course.progress}%`}
+                    value={course.progress}
+                    max={100}
+                  >
+                    {course.progress}%
+                  </progress>
+                  <span className="course-card-action">
+                    View course <ArrowUpRightIcon aria-hidden="true" />
+                  </span>
+                </footer>
+              </article>
+            </li>
+          );
+        })}
       </ul>
     </Panel>
   );

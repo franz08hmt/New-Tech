@@ -37,7 +37,11 @@ function databaseMock({ failSql = false, wrongChecksum = false } = {}) {
             ? [{ checksum: wrongChecksum ? "changed" : history.get(values[0]) }]
             : [],
         };
-      if (failSql && sql.startsWith("CREATE EXTENSION"))
+      if (failSql === true && sql.startsWith("CREATE EXTENSION"))
+        throw Object.assign(new Error("private provider details"), {
+          code: "42501",
+        });
+      if (failSql === "courses" && sql.startsWith("CREATE TABLE courses"))
         throw Object.assign(new Error("private provider details"), {
           code: "42501",
         });
@@ -76,7 +80,7 @@ function databaseMock({ failSql = false, wrongChecksum = false } = {}) {
   };
 }
 
-test("migration applies then skips both files with verified TLS and empty URL fallback (mock DB)", async () => {
+test("migration applies then skips all files with verified TLS and empty URL fallback (mock DB)", async () => {
   const db = databaseMock();
   process.env.MIGRATION_DATABASE_URL = "";
   await migrate();
@@ -85,10 +89,12 @@ test("migration applies then skips both files with verified TLS and empty URL fa
   assert.deepEqual(db.messages, [
     "Migration applied: 001_init.sql",
     "Migration applied: 002_non_ai_storage.sql",
+    "Migration applied: 003_courses.sql",
     "Migration already applied: 001_init.sql",
     "Migration already applied: 002_non_ai_storage.sql",
+    "Migration already applied: 003_courses.sql",
   ]);
-  assert.equal(db.history.size, 2);
+  assert.equal(db.history.size, 3);
   assert.equal(
     db.statements.filter((s) => s.startsWith("CREATE EXTENSION")).length,
     1,
@@ -99,6 +105,20 @@ test("migration applies then skips both files with verified TLS and empty URL fa
   }
   assert.equal(db.releases, 2);
   assert.equal(db.ends, 2);
+});
+
+test("course foundation is an additive third migration with typed illustrative seed data", async () => {
+  const migrations = await loadMigrations();
+  assert.deepEqual(
+    migrations.map(({ name }) => name),
+    ["001_init.sql", "002_non_ai_storage.sql", "003_courses.sql"],
+  );
+  const courseMigration = migrations[2].sql;
+  assert.match(courseMigration, /CREATE TABLE courses/);
+  assert.match(courseMigration, /JSONB/);
+  assert.match(courseMigration, /ENABLE ROW LEVEL SECURITY/);
+  assert.equal((courseMigration.match(/'cs-201'/g) ?? []).length, 1);
+  assert.equal((courseMigration.match(/\),\s*\(/g) ?? []).length, 5);
 });
 
 test("migration owner override is used when present (mock DB)", async () => {
@@ -120,6 +140,17 @@ test("failed SQL rolls back, unlocks and closes without recording migration (moc
   assert.ok(db.statements.includes("SELECT pg_advisory_unlock(424204)"));
   assert.equal(db.releases, 1);
   assert.equal(db.ends, 1);
+});
+
+test("failed course seed is rolled back without recording the third migration", async () => {
+  const db = databaseMock({ failSql: "courses" });
+  await assert.rejects(migrate(), { code: "42501" });
+  assert.deepEqual(
+    [...db.history.keys()],
+    ["001_init.sql", "002_non_ai_storage.sql"],
+  );
+  assert.ok(db.statements.includes("ROLLBACK"));
+  assert.ok(db.statements.includes("SELECT pg_advisory_unlock(424204)"));
 });
 
 test("changed migration checksum fails without reapplying SQL (mock DB)", async () => {

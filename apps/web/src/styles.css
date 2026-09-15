@@ -1165,6 +1165,25 @@
     margin: 8px 0 18px;
     color: var(--color-muted);
   }
+  .course-data-state {
+    display: grid;
+    justify-items: start;
+    gap: 10px;
+    min-height: 150px;
+    align-content: center;
+  }
+  .course-data-state h2 {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .course-data-state p {
+    max-width: 62ch;
+    color: var(--color-muted);
+    font-size: 11px;
+  }
+  .course-data-state .primary-button {
+    min-height: 44px;
+  }
   .table-scroll {
     overflow-x: auto;
   }

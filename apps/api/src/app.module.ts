@@ -7,6 +7,8 @@ import { TasksService } from "./tasks/tasks.service.js";
 import { DocumentsController } from "./documents/documents.controller.js";
 import { DocumentsService } from "./documents/documents.service.js";
 import { StorageService } from "./documents/storage.service.js";
+import { CoursesController } from "./courses/courses.controller.js";
+import { CoursesService } from "./courses/courses.service.js";
 
 @Module({
   controllers: [
@@ -14,7 +16,14 @@ import { StorageService } from "./documents/storage.service.js";
     TasksController,
     AssistantController,
     DocumentsController,
+    CoursesController,
   ],
-  providers: [DatabaseService, TasksService, DocumentsService, StorageService],
+  providers: [
+    DatabaseService,
+    TasksService,
+    DocumentsService,
+    StorageService,
+    CoursesService,
+  ],
 })
 export class AppModule {}

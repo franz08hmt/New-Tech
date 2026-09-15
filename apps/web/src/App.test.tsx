@@ -19,6 +19,76 @@ const task = {
   created_at: "2026-09-09",
   updated_at: "2026-09-09",
 };
+const course = {
+  id: "course-1",
+  slug: "cs-201",
+  name: "Công nghệ phần mềm",
+  code: "CS 201",
+  detail: "Thiết kế, kiểm thử và vận hành phần mềm theo nhóm",
+  progress: 62,
+  tone: "slate",
+  cover: "/img/course-cs.webp",
+  cover_alt: "Màn hình mã nguồn trong không gian học tập",
+  outline: [
+    {
+      title: "Phân tích yêu cầu",
+      summary: "Chuyển nhu cầu thành phạm vi và tiêu chí kiểm chứng rõ ràng.",
+    },
+  ],
+  outcomes: ["Giải thích được luồng đi của một tính năng trong hệ thống."],
+  assessment: [
+    {
+      method: "Bài tập thực hành",
+      weight_percent: 40,
+      description: "Xây dựng và kiểm chứng một lát cắt chức năng nhỏ.",
+    },
+  ],
+  created_at: "2026-09-15T00:00:00.000Z",
+  updated_at: "2026-09-15T00:00:00.000Z",
+};
+const courseFixtures = [
+  course,
+  {
+    ...course,
+    id: "course-2",
+    slug: "ma-210",
+    name: "Toán ứng dụng",
+    code: "MA 210",
+    cover: "/img/course-math.webp",
+  },
+  {
+    ...course,
+    id: "course-3",
+    slug: "ec-102",
+    name: "Kinh tế vi mô",
+    code: "EC 102",
+    cover: "/img/course-econ.webp",
+  },
+  {
+    ...course,
+    id: "course-4",
+    slug: "bi-150",
+    name: "Sinh học đại cương",
+    code: "BI 150",
+    cover: "/img/course-bio.webp",
+  },
+  {
+    ...course,
+    id: "course-5",
+    slug: "hi-204",
+    name: "Lịch sử thế giới hiện đại",
+    code: "HI 204",
+    cover: "/img/course-hist.webp",
+  },
+  {
+    ...course,
+    id: "course-6",
+    slug: "lt-101",
+    name: "Văn học và tư duy phản biện",
+    code: "LT 101",
+    cover: "/img/course-lit.webp",
+  },
+];
 beforeEach(() => {
   window.history.replaceState(null, "", "/");
   localStorage.clear();
@@ -27,6 +97,9 @@ beforeEach(() => {
     vi.fn(async (url: string, init?: RequestInit) => {
       if (url === "/api/documents") {
         return new Response(JSON.stringify([]), { status: 200 });
+      }
+      if (url === "/api/courses") {
+        return new Response(JSON.stringify(courseFixtures), { status: 200 });
       }
       if (init?.method !== "POST") {
         return new Response(JSON.stringify([task]), { status: 200 });
@@ -57,6 +130,38 @@ afterEach(() => {
 });
 
 describe("Academic workspace", () => {
+  it("loads the course gallery from the API instead of static fixtures", async () => {
+    window.history.replaceState(null, "", "/#courses");
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 2,
+        name: "Công nghệ phần mềm",
+      }),
+    ).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/courses",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("shows a useful course error without falling back to invented static data", async () => {
+    window.history.replaceState(null, "", "/#courses");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url === "/api/courses") throw new Error("Offline");
+        return Response.json(url === "/api/documents" ? [] : [task]);
+      }),
+    );
+    render(<App />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Courses are unavailable",
+    );
+    expect(screen.queryByText("Computer Science")).not.toBeInTheDocument();
+  });
   it("renders semantic dashboard and explicit sample data", async () => {
     render(<App />);
     expect(
@@ -192,43 +297,51 @@ describe("Academic workspace", () => {
       screen.getByText("No tasks match these filters."),
     ).toBeInTheDocument();
   });
-  it("moves the course gallery between subjects and announces the change", () => {
+  it("moves the course gallery between subjects and announces the change", async () => {
     window.history.replaceState(null, "", "/#courses");
     render(<App />);
 
-    const gallery = screen.getByRole("region", { name: "Course gallery" });
     expect(
-      screen.getByRole("heading", { level: 2, name: "Computer Science" }),
+      await screen.findByRole("heading", {
+        level: 2,
+        name: "Công nghệ phần mềm",
+      }),
     ).toBeInTheDocument();
+    const gallery = screen.getByRole("region", { name: "Course gallery" });
 
     fireEvent.click(screen.getByRole("button", { name: "Next course" }));
     expect(
-      screen.getByRole("heading", { level: 2, name: "Mathematics" }),
+      screen.getByRole("heading", { level: 2, name: "Toán ứng dụng" }),
     ).toBeInTheDocument();
-    expect(gallery).toHaveTextContent("Course 2 of 6: Mathematics");
+    expect(gallery).toHaveTextContent("Course 2 of 6: Toán ứng dụng");
 
     // Wrapping backwards from the first subject lands on the last one.
     fireEvent.click(screen.getByRole("button", { name: "Previous course" }));
     fireEvent.click(screen.getByRole("button", { name: "Previous course" }));
     expect(
-      screen.getByRole("heading", { level: 2, name: "Literature" }),
+      screen.getByRole("heading", {
+        level: 2,
+        name: "Văn học và tư duy phản biện",
+      }),
     ).toBeInTheDocument();
-    expect(gallery).toHaveTextContent("Course 6 of 6: Literature");
+    expect(gallery).toHaveTextContent(
+      "Course 6 of 6: Văn học và tư duy phản biện",
+    );
   });
   it("opens the matching course detail from a course overview card", async () => {
     window.history.replaceState(null, "", "/#courses");
     render(<App />);
 
-    const overview = screen
-      .getByRole("heading", { level: 2, name: "Course overview" })
-      .closest("section")!;
+    const overview = (
+      await screen.findByRole("heading", { level: 2, name: "Course overview" })
+    ).closest("section")!;
     fireEvent.click(
-      within(overview).getByRole("link", { name: /Computer Science/ }),
+      within(overview).getByRole("link", { name: /Công nghệ phần mềm/ }),
     );
 
     const heading = await screen.findByRole("heading", {
       level: 1,
-      name: "Computer Science",
+      name: "Công nghệ phần mềm",
     });
     expect(window.location.hash).toBe("#courses/cs-201");
     await waitFor(() => expect(heading).toHaveFocus());
@@ -238,24 +351,29 @@ describe("Academic workspace", () => {
     render(<App />);
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Select Mathematics course" }),
+      await screen.findByRole("button", {
+        name: "Select Toán ứng dụng course",
+      }),
     );
     expect(window.location.hash).toBe("#courses");
 
     fireEvent.click(
-      screen.getByRole("link", { name: "Explore Mathematics course" }),
+      screen.getByRole("link", { name: "Explore Toán ứng dụng course" }),
     );
     expect(
-      await screen.findByRole("heading", { level: 1, name: "Mathematics" }),
+      await screen.findByRole("heading", { level: 1, name: "Toán ứng dụng" }),
     ).toBeInTheDocument();
     expect(window.location.hash).toBe("#courses/ma-210");
   });
-  it("renders meaningful course content from a direct deep link", () => {
+  it("renders meaningful course content from a direct deep link", async () => {
     window.history.replaceState(null, "", "/#courses/hi-204");
     render(<App />);
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "History" }),
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Lịch sử thế giới hiện đại",
+      }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { level: 2, name: "Course outline" }),
@@ -270,15 +388,18 @@ describe("Academic workspace", () => {
       screen.getByText(/illustrative, not an official syllabus/i),
     ).toBeVisible();
   });
-  it("shows a friendly fallback for an unknown course code", () => {
+  it("shows a friendly fallback for an unknown course code", async () => {
     window.history.replaceState(null, "", "/#courses/not-a-course");
     render(<App />);
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "Course not found" }),
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Course not found",
+      }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/could not find that example course/i),
+      screen.getByText(/Không tìm thấy môn học minh họa này/i),
     ).toBeVisible();
     expect(
       screen.getByRole("link", { name: "Back to course gallery" }),
@@ -289,7 +410,7 @@ describe("Academic workspace", () => {
     render(<App />);
 
     fireEvent.click(
-      screen.getByRole("link", { name: "Back to course gallery" }),
+      await screen.findByRole("link", { name: "Back to course gallery" }),
     );
 
     expect(
@@ -469,9 +590,9 @@ describe("Academic workspace", () => {
   it("shows a retry action when the backend is unavailable", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Offline")));
     render(<App />);
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Tasks are unavailable",
-    );
+    expect(
+      await screen.findByText(/Tasks are unavailable/),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
   it("keeps the AI boundary disabled on the assistant page", () => {

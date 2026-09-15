@@ -37,6 +37,30 @@ test("HTTP Tasks: create normalized task, list and change status", async () => {
   assert.equal(list.status, 200);
   assert.equal((await list.json())[0].status, "done");
 });
+
+test("HTTP Courses: lists seeded course guides and reads one by slug", async () => {
+  const listResponse = await server.request("/courses");
+  assert.equal(listResponse.status, 200);
+  const courses = await listResponse.json();
+  assert.equal(courses.length, 6);
+  assert.ok(courses.some((course) => course.name === "Công nghệ phần mềm"));
+  assert.ok(Array.isArray(courses[0].outline));
+  assert.ok(Array.isArray(courses[0].outcomes));
+  assert.ok(Array.isArray(courses[0].assessment));
+
+  const detailResponse = await server.request("/courses/cs-201");
+  assert.equal(detailResponse.status, 200);
+  assert.equal((await detailResponse.json()).slug, "cs-201");
+});
+
+test("HTTP Courses: rejects malformed slugs and returns a safe missing-course response", async () => {
+  assert.equal((await server.request("/courses/CS%20201")).status, 400);
+  const response = await server.request("/courses/not-a-course");
+  assert.equal(response.status, 404);
+  const body = await response.json();
+  assert.equal(body.code, "COURSE_NOT_FOUND");
+  assert.ok(!JSON.stringify(body).includes("SELECT"));
+});
 for (const [label, input] of Object.entries({
   missing: {},
   whitespace: { title: "     " },

@@ -43,6 +43,50 @@ export function fakeDependencies() {
   const tasks = new Map();
   const documents = new Map();
   const objects = new Map();
+  const courseRows = [
+    ["cs-201", "Công nghệ phần mềm", "CS 201", "slate", "/img/course-cs.webp"],
+    ["ma-210", "Toán ứng dụng", "MA 210", "sage", "/img/course-math.webp"],
+    ["ec-102", "Kinh tế vi mô", "EC 102", "sand", "/img/course-econ.webp"],
+    ["bi-150", "Sinh học đại cương", "BI 150", "navy", "/img/course-bio.webp"],
+    [
+      "hi-204",
+      "Lịch sử thế giới hiện đại",
+      "HI 204",
+      "sage",
+      "/img/course-hist.webp",
+    ],
+    [
+      "lt-101",
+      "Văn học và tư duy phản biện",
+      "LT 101",
+      "navy",
+      "/img/course-lit.webp",
+    ],
+  ].map(([slug, name, code, tone, cover]) => ({
+    id: randomUUID(),
+    slug,
+    name,
+    code,
+    detail: "Nội dung minh họa cho không gian học tập.",
+    progress: 40,
+    tone,
+    cover,
+    cover_alt: `Ảnh minh họa cho ${name}`,
+    outline: [
+      { title: "Chủ đề mẫu", summary: "Nội dung học được chia rõ ràng." },
+    ],
+    outcomes: ["Giải thích được nội dung bằng lời của mình."],
+    assessment: [
+      {
+        method: "Bài tập",
+        weight_percent: 100,
+        description: "Bài thực hành minh họa.",
+      },
+    ],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }));
+  const courses = new Map(courseRows.map((course) => [course.slug, course]));
   const state = {
     failInsert: false,
     failCleanup: false,
@@ -59,6 +103,11 @@ export function fakeDependencies() {
       return 1;
     },
     async query(sql, values = []) {
+      if (sql.includes("FROM courses") && sql.includes("WHERE slug")) {
+        const course = courses.get(values[0]);
+        return { rows: course ? [course] : [] };
+      }
+      if (sql.includes("FROM courses")) return { rows: [...courses.values()] };
       if (sql.includes("INSERT INTO tasks")) {
         const row = {
           id: randomUUID(),
@@ -139,5 +188,5 @@ export function fakeDependencies() {
       return { url: "https://storage.example.test/signed-demo", expiresIn: 60 };
     },
   };
-  return { database, storage, state, tasks, documents, objects };
+  return { database, storage, state, tasks, documents, objects, courses };
 }

@@ -45,7 +45,7 @@ export function configureApp(app: INestApplication, origins: string[] = []) {
       const safePath =
         /^\/api\/(health|tasks|documents|assistant\/status)(\/[0-9a-f-]{36}(\/status|\/download)?)?$/i.test(
           path,
-        )
+        ) || /^\/api\/courses(\/[a-z0-9-]+)?$/.test(path)
           ? path
           : "/unmatched";
       res.setHeader("X-Request-ID", requestId);
