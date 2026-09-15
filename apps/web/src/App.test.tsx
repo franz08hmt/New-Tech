@@ -158,7 +158,7 @@ describe("Academic workspace", () => {
     render(<App />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Courses are unavailable",
+      "Chưa tải được danh sách môn học",
     );
     expect(screen.queryByText("Computer Science")).not.toBeInTheDocument();
   });
@@ -608,9 +608,66 @@ describe("Academic workspace", () => {
       target: { value: "Discuss citations" },
     });
     await waitFor(() =>
-      expect(JSON.parse(localStorage.getItem("examate-notes")!)[0]).toBe(
+      expect(JSON.parse(localStorage.getItem("examate-notes")!)[0].text).toBe(
         "Discuss citations",
       ),
     );
+  });
+  it("deletes a quick note and drops it from storage", async () => {
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Quick note 1"), {
+      target: { value: "Bỏ tờ này đi" },
+    });
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem("examate-notes")!)[0].text).toBe(
+        "Bỏ tờ này đi",
+      ),
+    );
+    const before = JSON.parse(localStorage.getItem("examate-notes")!).length;
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Delete note 1: Bỏ tờ này đi/ }),
+    );
+
+    await waitFor(() => {
+      const saved = JSON.parse(localStorage.getItem("examate-notes")!);
+      expect(saved).toHaveLength(before - 1);
+      expect(
+        saved.some((note: { text: string }) => note.text === "Bỏ tờ này đi"),
+      ).toBe(false);
+    });
+  });
+  it("puts a deleted note back when the undo action is used", async () => {
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Quick note 1"), {
+      target: { value: "Đừng mất tôi" },
+    });
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem("examate-notes")!)[0].text).toBe(
+        "Đừng mất tôi",
+      ),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Delete note 1: Đừng mất tôi/ }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Hoàn tác/ }));
+
+    await waitFor(() => {
+      const saved = JSON.parse(localStorage.getItem("examate-notes")!);
+      expect(saved[0].text).toBe("Đừng mất tôi");
+    });
+  });
+  it("keeps notes saved by an earlier build that stored plain strings", async () => {
+    localStorage.setItem(
+      "examate-notes",
+      JSON.stringify(["Ghi chú kiểu cũ", "Tờ thứ hai"]),
+    );
+    render(<App />);
+
+    expect(
+      await screen.findByDisplayValue("Ghi chú kiểu cũ"),
+    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Tờ thứ hai")).toBeInTheDocument();
   });
 });

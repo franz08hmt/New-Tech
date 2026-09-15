@@ -187,7 +187,7 @@ function CourseDataState({
       <h2>{state === "error" ? "Courses need a moment" : "No courses yet"}</h2>
       <p>
         {message ??
-          "Workspace chưa có môn học nào. Hãy chạy migration hoặc kiểm tra dữ liệu seed."}
+          "Chưa có môn học nào ở đây. Khi môn học được thêm vào, chúng sẽ hiện ngay tại đây."}
       </p>
       <button className="primary-button" type="button" onClick={onRetry}>
         Retry courses

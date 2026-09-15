@@ -11,6 +11,8 @@ import {
   TableCellsIcon,
   BookOpenIcon,
   ArrowUpRightIcon,
+  TrashIcon,
+  ArrowUturnLeftIcon,
 } from "@heroicons/react/24/outline";
 import { courseIconFor, exams, research } from "./academic-data";
 import type { Course } from "./api";
@@ -302,37 +304,113 @@ export function ResearchPanel() {
     </Panel>
   );
 }
-export function NotesPanel() {
-  const [notes, setNotes] = useState<string[]>(() => {
-    try {
-      const saved: unknown = JSON.parse(
-        localStorage.getItem("examate-notes") || "null",
-      );
-      if (
-        Array.isArray(saved) &&
-        saved.every((item) => typeof item === "string")
-      )
-        return saved.slice(0, 6);
-    } catch {
-      /* Storage may be unavailable. */
+interface Note {
+  id: string;
+  text: string;
+  /** Index into the five sticky colours; stored so deleting never reshuffles them. */
+  tone: number;
+}
+
+const NOTE_LIMIT = 6;
+const NOTE_TONES = 5;
+const UNDO_MS = 8000;
+
+function noteId() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `note-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * Reads whatever is in storage, including the older string[] format that
+ * earlier builds wrote, so an existing user does not lose their notes.
+ */
+function loadNotes(): Note[] {
+  try {
+    const saved: unknown = JSON.parse(
+      localStorage.getItem("examate-notes") || "null",
+    );
+    if (Array.isArray(saved)) {
+      const restored = saved
+        .map((item, index): Note | null => {
+          if (typeof item === "string")
+            return { id: noteId(), text: item, tone: index % NOTE_TONES };
+          if (
+            item &&
+            typeof item === "object" &&
+            typeof (item as Note).text === "string"
+          ) {
+            const note = item as Partial<Note>;
+            return {
+              id: typeof note.id === "string" ? note.id : noteId(),
+              text: note.text as string,
+              tone:
+                typeof note.tone === "number"
+                  ? note.tone % NOTE_TONES
+                  : index % NOTE_TONES,
+            };
+          }
+          return null;
+        })
+        .filter((note): note is Note => note !== null);
+      if (restored.length) return restored.slice(0, NOTE_LIMIT);
     }
-    return [
-      "Small steps,\nbig progress.",
-      "Review the\nAPI contract",
-      "Keep your\nsources close.",
-      "One thing\nat a time.",
-      "You’ve got this!",
-    ];
-  });
+  } catch {
+    /* Storage may be unavailable or hold something we cannot read. */
+  }
+  return [
+    "Đi chậm một chút\ncũng không sao.",
+    "Xem lại hợp đồng\nAPI trước buổi họp",
+    "Giữ nguồn tài liệu\nở gần tay.",
+    "Mỗi lần một việc\nthôi nhé.",
+    "Bạn làm được mà!",
+  ].map((text, index) => ({ id: noteId(), text, tone: index % NOTE_TONES }));
+}
+
+/** A note lifted out of the list, kept just long enough to be put back. */
+interface RemovedNote {
+  note: Note;
+  index: number;
+}
+
+export function NotesPanel() {
+  const [notes, setNotes] = useState<Note[]>(loadNotes);
   const [warning, setWarning] = useState("");
-  function save(next: string[]) {
+  const [removed, setRemoved] = useState<RemovedNote | null>(null);
+
+  function save(next: Note[]) {
     setNotes(next);
     try {
       localStorage.setItem("examate-notes", JSON.stringify(next));
     } catch {
-      setWarning("Notes are kept only until this page is closed.");
+      setWarning("Ghi chú sẽ chỉ còn đến khi bạn đóng trang này thôi.");
     }
   }
+
+  // Deleting is destructive, so the note is held aside and can be put back
+  // rather than hidden behind a confirmation dialog for one line of text.
+  function remove(index: number) {
+    const note = notes[index];
+    if (!note) return;
+    save(notes.filter((_, i) => i !== index));
+    setRemoved({ note, index });
+    window.setTimeout(
+      () =>
+        setRemoved((current) =>
+          current?.note.id === note.id ? null : current,
+        ),
+      UNDO_MS,
+    );
+  }
+
+  function undo() {
+    if (!removed) return;
+    const next = [...notes];
+    next.splice(Math.min(removed.index, next.length), 0, removed.note);
+    save(next.slice(0, NOTE_LIMIT));
+    setRemoved(null);
+  }
+
   return (
     <Panel title="Quick notes" warm icon={<DocumentTextIcon />}>
       <p className="view-label">
@@ -340,31 +418,67 @@ export function NotesPanel() {
         <span className="example-label">Saved on this browser</span>
       </p>
       <ul className="notes-grid grid grid-cols-3 gap-2">
-        {notes.map((note, index) => (
-          <li key={index} className={`sticky sticky-${index % 5}`}>
-            <textarea
-              aria-label={`Quick note ${index + 1}`}
-              maxLength={180}
-              value={note}
-              onChange={(event) =>
-                save(
-                  notes.map((item, i) =>
-                    i === index ? event.target.value : item,
-                  ),
-                )
-              }
-            />
-          </li>
-        ))}
+        {notes.map((note, index) => {
+          const preview = note.text.trim().split("\n")[0].slice(0, 30);
+          return (
+            <li key={note.id} className={`sticky sticky-${note.tone}`}>
+              <textarea
+                aria-label={`Quick note ${index + 1}`}
+                maxLength={180}
+                value={note.text}
+                onChange={(event) =>
+                  save(
+                    notes.map((item, i) =>
+                      i === index
+                        ? { ...item, text: event.target.value }
+                        : item,
+                    ),
+                  )
+                }
+              />
+              <button
+                type="button"
+                className="sticky-remove"
+                aria-label={
+                  preview
+                    ? `Delete note ${index + 1}: ${preview}`
+                    : `Delete empty note ${index + 1}`
+                }
+                onClick={() => remove(index)}
+              >
+                <TrashIcon aria-hidden="true" />
+              </button>
+            </li>
+          );
+        })}
       </ul>
-      <button
-        className="text-button"
-        disabled={notes.length >= 6}
-        onClick={() => save([...notes, ""])}
-      >
-        <PlusIcon /> Add note
-      </button>
-      {warning && <p role="status">{warning}</p>}
+      <p className="notes-actions">
+        <button
+          className="text-button"
+          type="button"
+          disabled={notes.length >= NOTE_LIMIT}
+          onClick={() =>
+            save([
+              ...notes,
+              { id: noteId(), text: "", tone: notes.length % NOTE_TONES },
+            ])
+          }
+        >
+          <PlusIcon /> Add note
+        </button>
+      </p>
+      <p role="status" className="notes-status">
+        {removed ? (
+          <>
+            <span>Đã bỏ một tờ ghi chú.</span>
+            <button className="text-button" type="button" onClick={undo}>
+              <ArrowUturnLeftIcon /> Hoàn tác
+            </button>
+          </>
+        ) : (
+          warning
+        )}
+      </p>
     </Panel>
   );
 }

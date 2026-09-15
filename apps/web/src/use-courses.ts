@@ -29,7 +29,7 @@ export function useCourses(): CoursesState {
         if (active) {
           setCourses([]);
           setError(
-            "Courses are unavailable. Chưa lấy được danh sách môn học; hãy kiểm tra API rồi thử lại.",
+            "Chưa tải được danh sách môn học. Có thể kết nối đang trục trặc một chút, thử lại giúp mình nhé.",
           );
         }
       })
