@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type PointerEvent, type ReactNode } from "react";
 import {
   CalendarDaysIcon,
   ChevronLeftIcon,
@@ -12,6 +12,7 @@ import {
   ArrowUpRightIcon,
   TrashIcon,
   ArrowUturnLeftIcon,
+  Bars3Icon,
 } from "@heroicons/react/24/outline";
 import { courseIconFor } from "./academic-data";
 import type { Course } from "./api";
@@ -261,6 +262,28 @@ function loadNotes(): Note[] {
 }
 
 /** A note lifted out of the list, kept just long enough to be put back. */
+/**
+ * Moves one item to another position, leaving the rest in order.
+ *
+ * Pure and exported so the reordering rule can be tested directly: a pointer
+ * drag depends on layout, which jsdom does not have, and a rule this easy to
+ * get subtly wrong deserves checking without one.
+ */
+export function moveNote<T>(items: T[], from: number, to: number): T[] {
+  if (
+    from === to ||
+    from < 0 ||
+    to < 0 ||
+    from >= items.length ||
+    to >= items.length
+  )
+    return items;
+  const next = [...items];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
 interface RemovedNote {
   note: Note;
   index: number;
@@ -270,6 +293,9 @@ export function NotesPanel() {
   const [notes, setNotes] = useState<Note[]>(loadNotes);
   const [warning, setWarning] = useState("");
   const [removed, setRemoved] = useState<RemovedNote | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
 
   function save(next: Note[]) {
     setNotes(next);
@@ -278,6 +304,87 @@ export function NotesPanel() {
     } catch {
       setWarning("Ghi chú sẽ chỉ còn đến khi bạn đóng trang này thôi.");
     }
+  }
+
+  /**
+   * Which note the pointer is over, by hit-testing the rendered stickies.
+   *
+   * Measured rather than derived from the pointer's offset, because the grid
+   * wraps: the note to the "right" of the third one is on the next row, and
+   * arithmetic on coordinates would have to know the column count to say so.
+   */
+  function indexAt(x: number, y: number): number {
+    return itemRefs.current.findIndex((element) => {
+      if (!element) return false;
+      const box = element.getBoundingClientRect();
+      return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+    });
+  }
+
+  function reorder(from: number, to: number, note: Note) {
+    const next = moveNote(notes, from, to);
+    if (next === notes) return;
+    setNotes(next);
+    const preview = note.text.trim().split("\n")[0].slice(0, 30);
+    setAnnouncement(
+      `\u0110\u00e3 chuy\u1ec3n ${preview || "ghi ch\u00fa tr\u1ed1ng"} sang v\u1ecb tr\u00ed ${to + 1} tr\u00ean ${next.length}.`,
+    );
+    return next;
+  }
+
+  // Pointer events rather than HTML5 drag and drop: the latter does nothing on
+  // a touch screen, and this way mouse, pen and finger all take one path.
+  function onHandleDown(event: PointerEvent<HTMLButtonElement>, note: Note) {
+    // Capture keeps the moves coming once the pointer leaves the handle, which
+    // it does immediately. Guarded because it throws for a pointer the browser
+    // does not consider active, and an unguarded throw here would abort the
+    // drag before it started — silently, since nothing else would run.
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      /* Without capture the drag still starts; it just needs the pointer to
+         stay over the handle. */
+    }
+    setDraggingId(note.id);
+  }
+
+  function onHandleMove(event: PointerEvent<HTMLButtonElement>, note: Note) {
+    if (draggingId !== note.id) return;
+    const from = notes.findIndex((item) => item.id === note.id);
+    const to = indexAt(event.clientX, event.clientY);
+    if (to < 0 || to === from) return;
+    reorder(from, to, note);
+  }
+
+  function onHandleUp(event: PointerEvent<HTMLButtonElement>, note: Note) {
+    if (draggingId !== note.id) return;
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      /* Never captured, nothing to release. */
+    }
+    setDraggingId(null);
+    // Written once, at the end. Saving on every pointermove would hammer
+    // localStorage for a position the user is still choosing.
+    save(notes);
+  }
+
+  /** Arrow keys on the handle, so the order is reachable without a pointer. */
+  function onHandleKey(
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    note: Note,
+  ) {
+    const step =
+      event.key === "ArrowLeft" || event.key === "ArrowUp"
+        ? -1
+        : event.key === "ArrowRight" || event.key === "ArrowDown"
+          ? 1
+          : 0;
+    if (!step) return;
+    event.preventDefault();
+    const from = notes.findIndex((item) => item.id === note.id);
+    const next = reorder(from, from + step, note);
+    if (next) save(next);
   }
 
   // Deleting is destructive, so the note is held aside and can be put back
@@ -314,7 +421,32 @@ export function NotesPanel() {
         {notes.map((note, index) => {
           const preview = note.text.trim().split("\n")[0].slice(0, 30);
           return (
-            <li key={note.id} className={`sticky sticky-${note.tone}`}>
+            <li
+              key={note.id}
+              ref={(element) => {
+                itemRefs.current[index] = element;
+              }}
+              className={`sticky sticky-${note.tone} ${
+                draggingId === note.id ? "is-dragging" : ""
+              }`}
+            >
+              {/* A handle rather than a draggable note: the note is a textarea,
+                  and making the whole thing draggable would fight selecting
+                  and editing the text inside it. */}
+              <button
+                type="button"
+                className="sticky-handle"
+                aria-label={`Move note ${index + 1}${
+                  preview ? `: ${preview}` : ""
+                }. Dùng phím mũi tên để đổi vị trí.`}
+                onPointerDown={(event) => onHandleDown(event, note)}
+                onPointerMove={(event) => onHandleMove(event, note)}
+                onPointerUp={(event) => onHandleUp(event, note)}
+                onPointerCancel={(event) => onHandleUp(event, note)}
+                onKeyDown={(event) => onHandleKey(event, note)}
+              >
+                <Bars3Icon aria-hidden="true" />
+              </button>
               <textarea
                 aria-label={`Quick note ${index + 1}`}
                 maxLength={180}
@@ -359,6 +491,9 @@ export function NotesPanel() {
         >
           <PlusIcon /> Add note
         </button>
+      </p>
+      <p className="sr-only" role="status" aria-live="polite">
+        {announcement}
       </p>
       <p role="status" className="notes-status">
         {removed ? (

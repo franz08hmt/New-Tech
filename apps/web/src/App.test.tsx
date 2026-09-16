@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
+import { moveNote } from "./AcademicPanels";
 
 const task = {
   id: "task-1",
@@ -1674,6 +1675,93 @@ describe("Academic workspace", () => {
       await screen.findByRole("heading", { level: 1, name: /prepared/i }),
     ).toBeInTheDocument();
     expect(document.querySelector(".is-focus-target")).toBeNull();
+  });
+  it("moves one note without disturbing the order of the rest", () => {
+    const items = ["a", "b", "c", "d"];
+    expect(moveNote(items, 0, 2)).toEqual(["b", "c", "a", "d"]);
+    expect(moveNote(items, 3, 1)).toEqual(["a", "d", "b", "c"]);
+    // Nothing to do, and nothing to break: the same array comes back.
+    expect(moveNote(items, 1, 1)).toBe(items);
+    expect(moveNote(items, 0, 9)).toBe(items);
+    expect(moveNote(items, -1, 0)).toBe(items);
+    expect(items).toEqual(["a", "b", "c", "d"]);
+  });
+  it("reorders notes with the arrow keys and remembers the new order", async () => {
+    localStorage.setItem(
+      "examate-notes",
+      JSON.stringify([
+        { id: "n1", text: "\u0110\u1ea7u ti\u00ean", tone: 0 },
+        { id: "n2", text: "Th\u1ee9 hai", tone: 1 },
+        { id: "n3", text: "Th\u1ee9 ba", tone: 2 },
+      ]),
+    );
+    render(<App />);
+
+    const handle = screen.getByRole("button", {
+      name: /Move note 1: \u0110\u1ea7u ti\u00ean/,
+    });
+    fireEvent.keyDown(handle, { key: "ArrowRight" });
+
+    await waitFor(() => {
+      const saved = JSON.parse(localStorage.getItem("examate-notes")!) as {
+        id: string;
+      }[];
+      expect(saved.map((note) => note.id)).toEqual(["n2", "n1", "n3"]);
+    });
+    // The move is announced, because nothing about it is visible to someone
+    // who cannot see the grid rearrange.
+    expect(
+      screen.getByText(
+        /\u0110\u00e3 chuy\u1ec3n \u0110\u1ea7u ti\u00ean sang v\u1ecb tr\u00ed 2 tr\u00ean 3/,
+      ),
+    ).toBeInTheDocument();
+  });
+  it("refuses to move the first note further back or the last one further on", async () => {
+    localStorage.setItem(
+      "examate-notes",
+      JSON.stringify([
+        { id: "n1", text: "\u0110\u1ea7u ti\u00ean", tone: 0 },
+        { id: "n2", text: "Th\u1ee9 hai", tone: 1 },
+      ]),
+    );
+    render(<App />);
+
+    fireEvent.keyDown(
+      screen.getByRole("button", {
+        name: /Move note 1: \u0110\u1ea7u ti\u00ean/,
+      }),
+      { key: "ArrowLeft" },
+    );
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: /Move note 2: Th\u1ee9 hai/ }),
+      { key: "ArrowRight" },
+    );
+
+    // Neither edge wraps around, and neither writes anything.
+    expect(localStorage.getItem("examate-notes")).toBe(
+      JSON.stringify([
+        { id: "n1", text: "\u0110\u1ea7u ti\u00ean", tone: 0 },
+        { id: "n2", text: "Th\u1ee9 hai", tone: 1 },
+      ]),
+    );
+  });
+  it("keeps the note text editable, which is why dragging has its own handle", async () => {
+    render(<App />);
+
+    // The textarea is not inside anything draggable: the handle is a separate
+    // control, so selecting and editing the text still works normally.
+    const field = screen.getByLabelText("Quick note 1");
+    expect(field.closest("[draggable=true]")).toBeNull();
+    fireEvent.change(field, {
+      target: {
+        value: "S\u1eeda \u0111\u01b0\u1ee3c b\u00ecnh th\u01b0\u1eddng",
+      },
+    });
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem("examate-notes")!)[0].text).toBe(
+        "S\u1eeda \u0111\u01b0\u1ee3c b\u00ecnh th\u01b0\u1eddng",
+      ),
+    );
   });
   it("persists quick notes in the current browser", async () => {
     render(<App />);
