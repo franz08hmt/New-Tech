@@ -662,6 +662,22 @@
     align-items: center;
     gap: 10px;
   }
+  /* The row a search result pointed at.
+     A ring rather than a background swap, so it reads on the white cards, the
+     settled grey ones and the featured exam alike without repainting any of
+     them. Fades out on its own; the class is removed after a few seconds. */
+  .is-focus-target {
+    outline: 2px solid #526750;
+    outline-offset: 2px;
+    border-radius: 9px;
+    transition: outline-color 400ms ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .is-focus-target {
+      transition: none;
+    }
+  }
+
   /* Sidebar search results
      Sits between the box and the nav, so the nav stays where the eye expects
      it rather than being pushed around by an unrelated list. */

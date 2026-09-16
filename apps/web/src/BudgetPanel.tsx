@@ -220,7 +220,7 @@ export function BudgetPanel() {
           {visible.length ? (
             <ul className="expense-list">
               {visible.map((item) => (
-                <li key={item.id}>
+                <li key={item.id} data-focus-id={item.id}>
                   <span className="expense-amount">
                     {money.format(item.amount)} ₫
                   </span>

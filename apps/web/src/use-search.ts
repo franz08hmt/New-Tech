@@ -127,21 +127,21 @@ export function useWorkspaceSearch(query: string) {
             kind: "exam" as const,
             label: exam.topic,
             detail: `${exam.course_name} · ${exam.exam_date} · ${exam.room}`,
-            href: "#exams",
+            href: `#exams/${exam.id}`,
           })),
           ...plans.map((plan) => ({
             key: `plan-${plan.id}`,
             kind: "plan" as const,
             label: plan.title,
             detail: plan.course_name,
-            href: "#study-plan",
+            href: `#study-plan/${plan.id}`,
           })),
           ...documents.map((document) => ({
             key: `document-${document.id}`,
             kind: "document" as const,
             label: document.name,
             detail: document.course_name ?? "Chưa gắn môn nào",
-            href: "#documents",
+            href: `#documents/${document.id}`,
           })),
           ...expenses.map((expense) => ({
             key: `expense-${expense.id}`,
@@ -150,14 +150,14 @@ export function useWorkspaceSearch(query: string) {
             detail: `${money.format(expense.amount)} ₫ · ${
               CATEGORY_LABELS[expense.category]
             }${expense.course_code ? ` · ${expense.course_code}` : ""}`,
-            href: "#finances",
+            href: `#finances/${expense.id}`,
           })),
           ...tasks.map((task) => ({
             key: `task-${task.id}`,
             kind: "task" as const,
             label: task.title,
             detail: task.owner_name ?? "Chưa giao cho ai",
-            href: "#tasks",
+            href: `#tasks/${task.id}`,
           })),
         ];
         setLoaded({ hits });

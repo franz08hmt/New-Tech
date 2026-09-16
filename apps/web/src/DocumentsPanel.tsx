@@ -334,7 +334,7 @@ export function DocumentsPanel() {
           ) : (
             <ul>
               {visibleDocuments.map((item) => (
-                <li key={item.id}>
+                <li key={item.id} data-focus-id={item.id}>
                   <DocumentCard
                     name={item.name}
                     size={item.size_bytes}

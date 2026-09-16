@@ -115,7 +115,7 @@ export function TasksPanel({
       ) : tasks.length ? (
         <ul className="task-list">
           {(expanded ? tasks : tasks.slice(0, 4)).map((task) => (
-            <li key={task.id}>
+            <li key={task.id} data-focus-id={task.id}>
               <button
                 className={`task-check ${task.status === "done" ? "checked" : ""}`}
                 aria-label={`${task.status === "done" ? "Reopen" : "Complete"} ${task.title}`}

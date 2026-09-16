@@ -144,7 +144,11 @@ export function StudyPlanPanel({ compact = false }: { compact?: boolean }) {
                   {group.plans.map((plan) => {
                     const done = Boolean(plan.completed_at);
                     return (
-                      <li key={plan.id} className={done ? "is-done" : ""}>
+                      <li
+                        key={plan.id}
+                        data-focus-id={plan.id}
+                        className={done ? "is-done" : ""}
+                      >
                         <button
                           type="button"
                           className={`task-check ${done ? "checked" : ""}`}

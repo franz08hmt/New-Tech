@@ -15,6 +15,7 @@ import {
 import { AssistantPanel } from "./AssistantPanel";
 import { PageSections } from "./PageSections";
 import { Sidebar } from "./Sidebar";
+import { useFocusTarget } from "./use-focus-target";
 import { useCourses } from "./use-courses";
 import { useWorkspace } from "./use-workspace";
 
@@ -96,6 +97,8 @@ type Page = (typeof pages)[number];
 interface AppRoute {
   page: Page;
   courseSlug?: string;
+  /** An object on that page to scroll to, set by a search result. */
+  focusId?: string;
 }
 
 function currentRoute(): AppRoute {
@@ -110,13 +113,19 @@ function currentRoute(): AppRoute {
     };
   }
 
+  // Every other page may carry one id after a slash, the same shape a course
+  // slug already uses: "#exams/<exam id>". A page with no suffix is unchanged,
+  // so existing links keep working.
+  const [pageId, focusId] = hashRoute.split("/");
   return {
-    page: pages.find((page) => page.id === hashRoute) || pages[0],
+    page: pages.find((page) => page.id === pageId) || pages[0],
+    focusId: focusId || undefined,
   };
 }
 
 export default function App() {
   const [route, setRoute] = useState(currentRoute);
+  useFocusTarget(route.focusId);
   const [menu, setMenu] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [search, setSearch] = useState("");

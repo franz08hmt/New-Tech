@@ -1541,21 +1541,21 @@ describe("Academic workspace", () => {
     const results = await screen.findByRole("region", {
       name: "Search results",
     });
-    // One phrase, three different kinds of object, each pointing at the page
-    // that actually holds it.
+    // One phrase, three different kinds of object. Each link names the
+    // object itself, not just its page, so the destination can scroll to it.
     expect(
       within(results).getByRole("link", {
         name: /Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n/,
       }),
-    ).toHaveAttribute("href", "#exams");
+    ).toHaveAttribute("href", "#exams/exam-1");
     expect(
       within(results).getByRole("link", {
         name: /\u00d4n l\u1ea1i \u0111\u1ed9 ph\u1ee9c t\u1ea1p thu\u1eadt to\u00e1n/,
       }),
-    ).toHaveAttribute("href", "#study-plan");
+    ).toHaveAttribute("href", "#study-plan/plan-1");
     expect(
       within(results).getByRole("link", { name: /de-cuong-thuat-toan\.pdf/ }),
-    ).toHaveAttribute("href", "#documents");
+    ).toHaveAttribute("href", "#documents/doc-1");
   });
   it("finds a course and links straight to its own page", async () => {
     render(<App />);
@@ -1623,6 +1623,57 @@ describe("Academic workspace", () => {
     // that filtering was the reason it was useless, every page being visible
     // already.
     expect(within(nav).getAllByRole("link")).toHaveLength(before);
+  });
+  it("scrolls to and marks the object a link named", async () => {
+    // jsdom has no layout, so scrollIntoView is a stub; spying on it is the
+    // only way to prove the right element was the one scrolled to.
+    const scrolled: HTMLElement[] = [];
+    const original = window.HTMLElement.prototype.scrollIntoView;
+    window.HTMLElement.prototype.scrollIntoView = function scrollIntoViewSpy(
+      this: HTMLElement,
+    ) {
+      scrolled.push(this);
+    };
+    try {
+      window.history.replaceState(null, "", "/#exams/exam-3");
+      render(<App />);
+
+      // The id after the page name must not be mistaken for part of it. Get
+      // this wrong and the app falls back to the dashboard, which also lists
+      // exams — so the row would still be found, on entirely the wrong page.
+      expect(
+        await screen.findByRole("heading", { level: 1, name: /prepared/i }),
+      ).toBeInTheDocument();
+
+      const row = await waitFor(() => {
+        const found = document.querySelector<HTMLElement>(
+          '[data-focus-id="exam-3"]',
+        );
+        expect(found).not.toBeNull();
+        return found!;
+      });
+
+      // The row only exists once the list has loaded, which is after the
+      // navigation: the lookup has to keep trying, not run once.
+      await waitFor(() => expect(scrolled).toContain(row));
+      expect(row).toHaveClass("is-focus-target");
+      expect(row).toHaveTextContent(
+        "B\u00e0i ki\u1ec3m tra kinh t\u1ebf vi m\u00f4",
+      );
+    } finally {
+      window.HTMLElement.prototype.scrollIntoView = original;
+    }
+  });
+  it("still opens a page when the link carries no object", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+
+    // Links written before search existed have no id after the page name and
+    // must keep working untouched.
+    expect(
+      await screen.findByRole("heading", { level: 1, name: /prepared/i }),
+    ).toBeInTheDocument();
+    expect(document.querySelector(".is-focus-target")).toBeNull();
   });
   it("persists quick notes in the current browser", async () => {
     render(<App />);

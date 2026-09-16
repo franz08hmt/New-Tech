@@ -306,7 +306,7 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
 
       <div ref={ref} className={revealClass(revealed)}>
         {next ? (
-          <article className="exam-next">
+          <article className="exam-next" data-focus-id={next.id}>
             <p className="exam-countdown">
               {countdownLabel(daysUntil(next.exam_date, today))}
             </p>
@@ -365,7 +365,7 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
             </h3>
             <ul className="exam-list">
               {(compact ? laterExams.slice(0, 2) : laterExams).map((exam) => (
-                <li key={exam.id}>
+                <li key={exam.id} data-focus-id={exam.id}>
                   <span className="exam-when">
                     {countdownLabel(daysUntil(exam.exam_date, today))}
                   </span>
@@ -414,7 +414,7 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
             </h3>
             <ul className="exam-list is-past">
               {past.map((exam) => (
-                <li key={exam.id}>
+                <li key={exam.id} data-focus-id={exam.id}>
                   <span className="exam-when">
                     {countdownLabel(daysUntil(exam.exam_date, today))}
                   </span>
