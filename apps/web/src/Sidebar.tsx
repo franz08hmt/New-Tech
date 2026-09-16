@@ -4,6 +4,7 @@ import {
   MagnifyingGlassIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
+import { KIND_LABELS, useWorkspaceSearch } from "./use-search";
 
 export type NavPage = {
   id: string;
@@ -30,9 +31,7 @@ export function Sidebar({
   onSearch: (value: string) => void;
   onClose: () => void;
 }) {
-  const navigation = pages.filter((item) =>
-    item.name.toLowerCase().includes(search.toLowerCase()),
-  );
+  const results = useWorkspaceSearch(search);
 
   return (
     <aside
@@ -89,20 +88,59 @@ export function Sidebar({
 
       <label className="sidebar-search">
         <MagnifyingGlassIcon />
-        <span className="sr-only">Find a page</span>
+        {/* Named on the input itself: the label also holds a decorative
+            keycap, and its text would otherwise leak into the accessible
+            name. */}
         <input
           type="search"
-          placeholder="Find a page…"
+          aria-label="Find an object"
+          placeholder="Find an object…"
           value={search}
           onChange={(event) => onSearch(event.target.value)}
         />
         <kbd aria-hidden="true">⌕</kbd>
       </label>
 
+      {results.searching && (
+        <section className="sidebar-results" aria-label="Search results">
+          {results.loading && (
+            <p role="status" className="search-empty">
+              Đang tìm…
+            </p>
+          )}
+          {results.error && (
+            <p role="alert" className="search-empty">
+              {results.error}
+            </p>
+          )}
+          {!results.loading && !results.error && !results.total && (
+            <p className="search-empty">Không tìm thấy gì khớp.</p>
+          )}
+          {results.groups.map(([kind, hits]) => (
+            <div key={kind}>
+              <p className="result-kind">{KIND_LABELS[kind]}</p>
+              <ul>
+                {hits.map((hit) => (
+                  <li key={hit.key}>
+                    <a href={hit.href} onClick={() => onSearch("")}>
+                      <strong>{hit.label}</strong>
+                      <small>{hit.detail}</small>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          {results.truncated && (
+            <p className="search-empty">Còn nữa — gõ thêm cho hẹp bớt nhé.</p>
+          )}
+        </section>
+      )}
+
       <p className="nav-heading">WORKSPACE</p>
       <nav aria-label="Primary">
         <ul>
-          {navigation.map((item) => (
+          {pages.map((item) => (
             <li key={item.id}>
               <a
                 href={`#${item.id}`}
@@ -115,9 +153,6 @@ export function Sidebar({
             </li>
           ))}
         </ul>
-        {!navigation.length && (
-          <p className="search-empty">No matching pages.</p>
-        )}
       </nav>
 
       <footer className="sidebar-footer">

@@ -1531,6 +1531,99 @@ describe("Academic workspace", () => {
       expect((body.get("file") as File).name).toBe("slide-buoi-1.pdf");
     });
   });
+  it("finds workspace objects by name and links each to where it lives", async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Find an object"), {
+      target: { value: "thu\u1eadt to\u00e1n" },
+    });
+
+    const results = await screen.findByRole("region", {
+      name: "Search results",
+    });
+    // One phrase, three different kinds of object, each pointing at the page
+    // that actually holds it.
+    expect(
+      within(results).getByRole("link", {
+        name: /Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n/,
+      }),
+    ).toHaveAttribute("href", "#exams");
+    expect(
+      within(results).getByRole("link", {
+        name: /\u00d4n l\u1ea1i \u0111\u1ed9 ph\u1ee9c t\u1ea1p thu\u1eadt to\u00e1n/,
+      }),
+    ).toHaveAttribute("href", "#study-plan");
+    expect(
+      within(results).getByRole("link", { name: /de-cuong-thuat-toan\.pdf/ }),
+    ).toHaveAttribute("href", "#documents");
+  });
+  it("finds a course and links straight to its own page", async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Find an object"), {
+      target: { value: "C\u00f4ng ngh\u1ec7" },
+    });
+
+    const results = await screen.findByRole("region", {
+      name: "Search results",
+    });
+    // The phrase also appears on every exam, revision item and document
+    // belonging to that course, which is the point of matching the
+    // supporting line too. Scoped to the course group to be unambiguous.
+    const courseGroup =
+      within(results).getByText("M\u00f4n h\u1ecdc").parentElement!;
+    expect(
+      within(courseGroup).getByRole("link", {
+        name: /C\u00f4ng ngh\u1ec7 ph\u1ea7n m\u1ec1m/,
+      }),
+    ).toHaveAttribute("href", "#courses/cs-201");
+  });
+  it("matches Vietnamese text typed without tone marks", async () => {
+    render(<App />);
+
+    // How most people type in a hurry. Folding the diacritics on both sides is
+    // what makes "thuat toan" reach "thuật toán".
+    fireEvent.change(screen.getByLabelText("Find an object"), {
+      target: { value: "thuat toan" },
+    });
+
+    const results = await screen.findByRole("region", {
+      name: "Search results",
+    });
+    expect(
+      within(results).getByRole("link", {
+        name: /Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n/,
+      }),
+    ).toBeInTheDocument();
+  });
+  it("says so plainly when nothing matches", async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Find an object"), {
+      target: { value: "zzzzz" },
+    });
+
+    expect(
+      await screen.findByText(
+        "Kh\u00f4ng t\u00ecm th\u1ea5y g\u00ec kh\u1edbp.",
+      ),
+    ).toBeInTheDocument();
+  });
+  it("keeps every page in the sidebar while searching", async () => {
+    render(<App />);
+    const nav = screen.getByRole("navigation", { name: "Primary" });
+    const before = within(nav).getAllByRole("link").length;
+
+    fireEvent.change(screen.getByLabelText("Find an object"), {
+      target: { value: "zzzzz" },
+    });
+    await screen.findByText("Kh\u00f4ng t\u00ecm th\u1ea5y g\u00ec kh\u1edbp.");
+
+    // The box used to hide pages as you typed. It no longer touches the nav:
+    // that filtering was the reason it was useless, every page being visible
+    // already.
+    expect(within(nav).getAllByRole("link")).toHaveLength(before);
+  });
   it("persists quick notes in the current browser", async () => {
     render(<App />);
     fireEvent.change(screen.getByLabelText("Quick note 1"), {
