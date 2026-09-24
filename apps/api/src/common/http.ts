@@ -43,7 +43,7 @@ export function configureApp(app: INestApplication, origins: string[] = []) {
       // Only known route shapes reach logs; arbitrary query strings and filenames do not.
       const path = req.url.split("?")[0];
       const safePath =
-        /^\/api\/(health|tasks|documents|assistant\/status)(\/[0-9a-f-]{36}(\/status|\/download)?)?$/i.test(
+        /^\/api\/(health|tasks|documents|assistant\/(status|chat))(\/[0-9a-f-]{36}(\/status|\/download)?)?$/i.test(
           path,
         )
           ? path
