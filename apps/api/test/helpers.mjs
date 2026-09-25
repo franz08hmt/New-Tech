@@ -4,14 +4,19 @@ import { randomUUID } from "node:crypto";
 import { AppModule } from "../dist/app.module.js";
 import { DatabaseService } from "../dist/database/database.service.js";
 import { StorageService } from "../dist/documents/storage.service.js";
+import { GeminiService } from "../dist/assistant/gemini.service.js";
 import { configureApp } from "../dist/common/http.js";
 
-export async function httpApp(database, storage) {
+export async function httpApp(database, storage, assistantProvider) {
   let builder = Test.createTestingModule({ imports: [AppModule] });
   if (database)
     builder = builder.overrideProvider(DatabaseService).useValue(database);
   if (storage)
     builder = builder.overrideProvider(StorageService).useValue(storage);
+  if (assistantProvider)
+    builder = builder
+      .overrideProvider(GeminiService)
+      .useValue(assistantProvider);
   const module = await builder.compile();
   const app = module.createNestApplication({ logger: false });
   configureApp(app);

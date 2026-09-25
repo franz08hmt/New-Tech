@@ -1,8 +1,10 @@
-# ExaMate — Homework 4A & 4B (non-AI)
+# ExaMate — Tasks, Documents và Gemini Assistant backend
 
-Workspace học tập dùng React + NestJS + PostgreSQL/Supabase Storage. Hai luồng chính: tạo/đổi trạng thái task và upload/list/download/delete PDF. Giữ giao diện/navigation/responsive hiện có; Assistant chỉ là preview, không có LLM, embeddings, RAG hoặc xử lý PDF.
+Workspace học tập dùng React + NestJS + PostgreSQL/Supabase Storage. Hai luồng chính: tạo/đổi trạng thái task và upload/list/download/delete PDF. Assistant backend hỗ trợ Gemini text-to-text qua REST JSON; frontend vẫn là preview chưa kết nối chat. Chưa có RAG, embeddings hoặc xử lý nội dung PDF.
 
-Code đã có automated HTTP/frontend tests. **Chưa xác minh Supabase thật, persistence thật, Docker runtime hoặc deploy public** vì môi trường không có credential và Docker engine đang tắt. Kết quả chính xác, lệnh và phần skip ở [VERIFICATION.md](docs/VERIFICATION.md); audit trước sửa ở [AUDIT-BASELINE.md](docs/AUDIT-BASELINE.md). Bản ZIP hiện không có `.git`; chưa có commit đại diện cho thay đổi này.
+Hướng dẫn Assistant và contract mới: [Gemini Assistant setup](docs/ASSISTANT-SETUP.md). Các tài liệu Homework 4A/4B bên dưới ghi nhận checkpoint non-AI trước khi bổ sung Assistant.
+
+Code có automated HTTP/frontend tests. [VERIFICATION.md](docs/VERIFICATION.md) và [AUDIT-BASELINE.md](docs/AUDIT-BASELINE.md) ghi nhận kiểm tra của checkpoint trước, không chứng minh thay đổi Gemini hiện tại đã pass. Phạm vi và cách kiểm tra Assistant nằm trong [ASSISTANT-SETUP.md](docs/ASSISTANT-SETUP.md).
 
 ## Kiến trúc và phạm vi
 
@@ -20,7 +22,7 @@ Tasks/Documents đi qua NestJS. Không có database key trong frontend. Download
 - Supabase project do bạn quản lý, connection PostgreSQL và secret key (hoặc legacy service_role JWT) cho Storage.
 - Docker Desktop Linux engine + Compose mới nếu chạy containers; có CLI chưa đủ, `docker info` phải thành công.
 
-Không nâng cấp toàn bộ dependencies. `npm ci` dùng package-lock v3; đã cài lại bằng cache offline trong phiên này.
+Không nâng cấp toàn bộ dependencies. `npm ci` dùng package-lock v3.
 
 ## Chạy development từ đầu (Windows PowerShell)
 
@@ -33,6 +35,8 @@ Copy-Item .env.example .env
 ```
 
 Chỉnh `.env` bằng editor local theo [SUPABASE-SETUP.md](docs/SUPABASE-SETUP.md): lấy URI đúng project, percent-encode password, cấu hình TLS/CA; điền SUPABASE_SECRET_KEY server-only (hoặc service_role JWT fallback) và tạo bucket private giới hạn PDF 10 MiB. Không paste secrets vào chat, shell history hoặc VITE_*.
+
+Khi chạy trực tiếp React, NestJS và Supabase Cloud, không cần Docker. Đường dẫn CA được resolve từ repository root: `DATABASE_CA_CERT_PATH=secrets/prod-supabase.cer.crt`.
 
 ```powershell
 npm run db:migrate
@@ -111,7 +115,8 @@ Test migration hai lần, tạo task/document qua HTTP, đóng/mở lại API v�
 | GET /api/documents/:id/download | 200 {url, expiresIn:60} | 400 UUID, 404, 409 pending/legacy, 503 |
 | DELETE /api/documents/:id | 204, idempotent khi đã xóa | 400 UUID, 409 legacy, 503 partial failure |
 | GET /api/health | 200 DB connected | 503 DB unavailable |
-| GET /api/assistant/status | 200 disabled/preview | Không gọi AI |
+| GET /api/assistant/status | 200 ready/not_configured, google/llm, ragEnabled:false | Chỉ kiểm tra cấu hình, không gọi AI |
+| POST /api/assistant/chat | 200 {answer, provider, model, ragEnabled:false} | 400 DTO, 502 upstream, 503 unavailable/not configured, 504 timeout |
 
 Title trim trước check 3–160. status có todo/in_progress/done, bỏ qua thì todo, null là 400. ownerName/dueDate/evidenceType bỏ qua hoặc null được lưu NULL; owner/evidence trống sau trim cũng NULL. dueDate chỉ ngày YYYY-MM-DD thực sự tồn tại, không timestamp. Field lạ bị 400. SQL dùng placeholders. Response lỗi có requestId; chưa phân loại là 500, không tự chuyển mọi lỗi thành 503.
 

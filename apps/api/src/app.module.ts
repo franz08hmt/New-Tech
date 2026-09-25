@@ -1,5 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AssistantController } from "./assistant/assistant.controller.js";
+import { AssistantService } from "./assistant/assistant.service.js";
+import { GeminiService } from "./assistant/gemini.service.js";
 import { DatabaseService } from "./database/database.service.js";
 import { HealthController } from "./health/health.controller.js";
 import { TasksController } from "./tasks/tasks.controller.js";
@@ -36,6 +38,8 @@ import { ExpensesService } from "./expenses/expenses.service.js";
     ExamsService,
     StudyPlansService,
     ExpensesService,
+    AssistantService,
+    GeminiService,
   ],
 })
 export class AppModule {}

@@ -9,13 +9,14 @@
     "build": "nest build",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && vitest run && node --test test/api.test.mjs test/storage.test.mjs test/reliability.test.mjs test/config.test.mjs test/migration.test.mjs",
+    "test": "npm run build && vitest run && node --test test/api.test.mjs test/assistant.test.mjs test/storage.test.mjs test/reliability.test.mjs test/config.test.mjs test/migration.test.mjs",
     "test:database": "node --test test/database.test.mjs",
     "db:migrate": "node scripts/migrate.mjs",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/*.mjs\" \"scripts/*.mjs\""
   },
   "dependencies": {
     "@examate/contracts": "*",
+    "@google/genai": "^2.24.0",
     "@nestjs/common": "^12.0.1",
     "@nestjs/core": "^12.0.1",
     "@nestjs/platform-express": "^12.0.1",

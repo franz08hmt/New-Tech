@@ -16,6 +16,20 @@ export function loadEnvironment() {
   }
 }
 export class ConfigurationError extends Error {}
+export function geminiConfig() {
+  const rawKey = process.env.GEMINI_API_KEY?.trim();
+  const apiKey = rawKey && !rawKey.includes("REPLACE_") ? rawKey : undefined;
+  const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+  if (!/^gemini-[A-Za-z0-9._-]{1,80}$/.test(model) || model === apiKey)
+    throw new ConfigurationError("Invalid configuration: GEMINI_MODEL");
+  return {
+    configured: Boolean(apiKey),
+    apiKey,
+    model,
+    timeoutMs: integer("GEMINI_TIMEOUT_MS", 30000, 60000),
+    maxOutputTokens: integer("GEMINI_MAX_OUTPUT_TOKENS", 1024, 8192),
+  };
+}
 function integer(name: string, fallback: number, max: number) {
   const value = Number(process.env[name] ?? fallback);
   if (!Number.isInteger(value) || value < 1 || value > max)
@@ -160,6 +174,7 @@ export function appConfig() {
   }
   return {
     database,
+    gemini: geminiConfig(),
     port: integer("PORT", 3000, 65535),
     origins,
     storage: {
