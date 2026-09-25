@@ -128,3 +128,7 @@ Handoff này không chứa secrets. Không lưu database URL, key, signed URL ho
 Đã đọc lại handoff, evidence Homework 4A/4B, Supabase setup, verification, migration, configuration, Compose và source liên quan. Kết quả khớp handoff cũ: thư mục không có `.git`, không có `.env`/Supabase variables, và Docker Desktop Linux engine vẫn không hoạt động. Không chạy lại toàn bộ tests trong chặng này.
 
 Rà soát bổ sung xác nhận migration script có advisory lock, checksum và transaction; `config.ts` fail-closed khi thiếu URI/key, không fallback PostgreSQL localhost; Compose không tạo DB local cho runtime; các giá trị placeholder không được xem là cấu hình thật. Blocker ưu tiên cao nhất hiện là cần người nộp điền credential qua `.env` local để chạy `npm run db:migrate`, health và persistence proof. Không có phần cloud nào được đánh dấu hoàn thành từ lần rà soát này.
+
+## ExaMate AI chatbox — 24/09/2026
+
+Phần giao diện AI (launcher nổi, panel dùng chung, điểm nối `AskTransport` cho Thắng) có tài liệu riêng: `docs/AI-CHATBOX-HANDOFF.md`. Backend vẫn chỉ có `GET /api/assistant/status` (`not_configured`); chưa có API hỏi-đáp.

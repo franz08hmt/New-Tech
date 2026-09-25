@@ -248,6 +248,25 @@ const expenseFixtures = [
     updated_at: "2026-09-05T00:00:00.000Z",
   },
 ];
+/**
+ * Builds the row a create endpoint returns: the submitted body, resolved
+ * against the course fixtures, plus timestamps.
+ */
+function createdRow(
+  init: RequestInit,
+  shape: (
+    body: Record<string, any>,
+    course: (typeof courseFixtures)[number] | undefined,
+  ) => Record<string, unknown>,
+) {
+  const body = JSON.parse(String(init.body)) as Record<string, any>;
+  const course = courseFixtures.find((row) => row.id === body.courseId);
+  return {
+    ...shape(body, course),
+    created_at: "2026-09-15T08:00:00.000Z",
+    updated_at: "2026-09-15T08:00:00.000Z",
+  };
+}
 beforeEach(() => {
   // The exam list separates upcoming from past, so the clock is pinned:
   // otherwise these tests would start failing on their own once the fixture
@@ -290,6 +309,29 @@ beforeEach(() => {
         );
       }
       if (url === "/api/expenses") {
+        if (init?.method === "POST") {
+          // Echo what was sent, the way POST /api/expenses answers. Returning
+          // the whole fixture list here handed the component an array where it
+          // expected one row, and the sort that follows a create threw on
+          // `spent_on` being undefined — after the test had already passed,
+          // which is why it surfaced only as an unhandled error.
+          return new Response(
+            JSON.stringify(
+              createdRow(init, (body, course) => ({
+                id: "exp-new",
+                amount: body.amount,
+                description: body.description,
+                spent_on: body.spentOn,
+                category: body.category,
+                course_id: course?.id ?? null,
+                course_slug: course?.slug ?? null,
+                course_name: course?.name ?? null,
+                course_code: course?.code ?? null,
+              })),
+            ),
+            { status: 201 },
+          );
+        }
         return new Response(JSON.stringify(expenseFixtures), { status: 200 });
       }
       if (url.startsWith("/api/expenses/") && init?.method === "DELETE") {
@@ -316,6 +358,25 @@ beforeEach(() => {
       if (url === "/api/exams") {
         if (init?.method === "DELETE") {
           return new Response(null, { status: 204 });
+        }
+        if (init?.method === "POST") {
+          return new Response(
+            JSON.stringify(
+              createdRow(init, (body, course) => ({
+                id: "exam-new",
+                course_id: body.courseId,
+                course_slug: course!.slug,
+                course_name: course!.name,
+                course_code: course!.code,
+                topic: body.topic,
+                exam_date: body.examDate,
+                exam_time: body.examTime,
+                room: body.room,
+                revision_note: body.revisionNote ?? null,
+              })),
+            ),
+            { status: 201 },
+          );
         }
         return new Response(JSON.stringify(examFixtures), { status: 200 });
       }
@@ -435,10 +496,9 @@ describe("Academic workspace", () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByText("Dashboard context")).toBeVisible();
+    // A chat opens to its composer: that is what the launcher is for.
     await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Close ExaMate AI" }),
-      ).toHaveFocus(),
+      expect(screen.getByLabelText("Question for ExaMate")).toHaveFocus(),
     );
 
     fireEvent.keyDown(window, { key: "Escape" });
@@ -836,11 +896,20 @@ describe("Academic workspace", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
-  it("keeps the AI boundary disabled on the assistant page", () => {
+  it("opens the one shared panel from the assistant page, not a second composer", async () => {
     window.history.replaceState(null, "", "/#assistant");
     render(<App />);
+
     expect(
-      screen.getByRole("button", { name: "Ask after RAG setup" }),
+      await screen.findByRole("complementary", { name: "ExaMate AI" }),
+    ).toBeInTheDocument();
+    // One draft, one place to type it. The page used to have its own disabled
+    // textarea, which was a second draft that could never be sent either.
+    expect(screen.getAllByRole("textbox", { name: /question/i })).toHaveLength(
+      1,
+    );
+    expect(
+      screen.getByRole("button", { name: /Send question/ }),
     ).toBeDisabled();
   });
   it("keeps a past exam out of the upcoming list", async () => {
@@ -1762,6 +1831,159 @@ describe("Academic workspace", () => {
         "S\u1eeda \u0111\u01b0\u1ee3c b\u00ecnh th\u01b0\u1eddng",
       ),
     );
+  });
+  it("replaces the header Ask AI button with one floating launcher", () => {
+    render(<App />);
+
+    expect(screen.queryByText("Ask AI")).not.toBeInTheDocument();
+    const launchers = screen.getAllByRole("button", {
+      name: "Open ExaMate AI",
+    });
+    expect(launchers).toHaveLength(1);
+    expect(launchers[0]).toHaveAttribute("aria-expanded", "false");
+    expect(launchers[0]).toHaveAttribute("aria-controls", "examate-ai-panel");
+
+    fireEvent.click(launchers[0]);
+    expect(launchers[0]).toHaveAttribute("aria-expanded", "true");
+  });
+  it("keeps the panel mounted but out of reach while it is closed", () => {
+    render(<App />);
+
+    // Mounted, so the draft has somewhere to live; hidden, so a closed panel
+    // takes no Tab stops and is not read out.
+    const panel = document.getElementById("examate-ai-panel");
+    expect(panel).not.toBeNull();
+    expect(panel).toHaveAttribute("hidden");
+    expect(
+      screen.queryByRole("complementary", { name: "ExaMate AI" }),
+    ).not.toBeInTheDocument();
+  });
+  it("keeps the draft when the panel is closed and opened again", () => {
+    render(<App />);
+    const launcher = screen.getByRole("button", { name: "Open ExaMate AI" });
+
+    fireEvent.click(launcher);
+    fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+      target: { value: "C\u00e2u h\u1ecfi \u0111ang g\u00f5 d\u1edf" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Close ExaMate AI" }));
+    fireEvent.click(launcher);
+
+    expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+      "C\u00e2u h\u1ecfi \u0111ang g\u00f5 d\u1edf",
+    );
+  });
+  it("keeps the draft when the page changes underneath it", async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+      target: { value: "Gi\u1eef qua chuy\u1ec3n trang" },
+    });
+
+    window.history.replaceState(null, "", "/#tasks");
+    fireEvent(window, new HashChangeEvent("hashchange"));
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: /Small steps/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+      "Gi\u1eef qua chuy\u1ec3n trang",
+    );
+  });
+  it("returns focus to whichever control opened the panel", () => {
+    render(<App />);
+
+    const hero = screen.getByRole("button", { name: /Ask ExaMate/ });
+    fireEvent.click(hero);
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(hero).toHaveFocus();
+  });
+  it("says plainly that AI is not connected and sends nothing", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+      target: { value: "C\u00f3 g\u1eedi \u0111\u01b0\u1ee3c kh\u00f4ng?" },
+    });
+
+    expect(
+      screen.getByText(
+        /Ph\u1ea7n AI \u0111ang \u0111\u01b0\u1ee3c Th\u1eafng k\u1ebft n\u1ed1i/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Send question/ }),
+    ).toBeDisabled();
+    // No reply appears out of nowhere either.
+    expect(screen.queryByRole("list", { name: "Conversation" })).toBeNull();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([url]) => String(url).includes("assistant")),
+    ).toBe(false);
+  });
+  it("opens as a modal sheet on a narrow screen and releases the page on close", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width"),
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }));
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+
+    const sheet = screen.getByRole("dialog", { name: "ExaMate AI" });
+    expect(sheet).toHaveAttribute("aria-modal", "true");
+    // Everything behind the sheet is inert, which is what keeps Tab inside it,
+    // and the page underneath stops scrolling.
+    expect(document.querySelector(".desktop-shell")).toHaveAttribute("inert");
+    expect(document.body.style.overflow).toBe("hidden");
+    // Nothing outside the sheet may stay reachable. The skip link sits outside
+    // the shell, so making only the shell inert left Tab one stop to escape
+    // through — found by listing every focusable element at 375px.
+    const panel = document.getElementById("examate-ai-panel")!;
+    const reachable = [
+      ...document.querySelectorAll<HTMLElement>(
+        "a[href], button, input, select, textarea, summary",
+      ),
+    ].filter(
+      (element) => !panel.contains(element) && !element.closest("[inert]"),
+    );
+    expect(reachable).toEqual([]);
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(document.querySelector(".desktop-shell")).not.toHaveAttribute(
+      "inert",
+    );
+    expect(document.body.style.overflow).toBe("");
+  });
+  it("does not let navigation pull focus out of an open modal sheet", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width"),
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }));
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    const composer = screen.getByLabelText("Question for ExaMate");
+    await waitFor(() => expect(composer).toHaveFocus());
+
+    window.history.replaceState(null, "", "/#tasks");
+    fireEvent(window, new HashChangeEvent("hashchange"));
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+
+    // The router normally moves focus to the new page heading. With a modal
+    // open that heading is inert behind it, so focus has to stay put.
+    expect(composer).toHaveFocus();
   });
   it("persists quick notes in the current browser", async () => {
     render(<App />);

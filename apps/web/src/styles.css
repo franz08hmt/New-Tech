@@ -251,31 +251,10 @@
     background-image: radial-gradient(#52675014 1.1px, transparent 1.1px);
     background-size: 22px 22px;
   }
-  .workspace-actions,
-  .assistant-toggle {
+  .workspace-actions {
     display: flex;
     align-items: center;
-  }
-  .workspace-actions {
     gap: 12px;
-  }
-  .assistant-toggle {
-    gap: 6px;
-    min-height: 36px;
-    padding: 7px 12px;
-    border: 1px solid #cdd7ca;
-    border-radius: 999px;
-    color: #fff;
-    background: var(--color-ai-accent);
-    font-size: 10px;
-    font-weight: 600;
-  }
-  .assistant-toggle:hover {
-    background: #455a45;
-  }
-  .assistant-toggle svg {
-    width: 16px;
-    height: 16px;
   }
   .breadcrumb {
     display: flex;
@@ -296,8 +275,13 @@
   .private-label {
     font-size: 9px;
   }
+  /* The floating Help and AI controls sit over the bottom-right corner:
+     16px from the edge, 52px tall. The bottom padding clears that footprint
+     plus a margin, so the last line of every page — the footer's "Your next
+     step" link included — can scroll above them instead of sitting under. */
   main {
-    padding: 0 36px 24px;
+    --floating-clearance: 88px;
+    padding: 0 36px var(--floating-clearance);
   }
   .page-heading {
     min-width: 0;
@@ -425,7 +409,7 @@
   }
   .primary-button,
   .hero-ai-button,
-  .assistant-toggle,
+  .ai-launcher,
   .sidebar nav a {
     transition:
       background-color 180ms ease,
@@ -440,9 +424,6 @@
   }
   .study-hero {
     animation: workspace-arrive 220ms ease-out;
-  }
-  .assistant-panel {
-    animation: assistant-arrive 220ms ease-out;
   }
   /* Scroll reveal for card groups.
      This reveal deliberately never touches `opacity`, only `transform`.
@@ -673,6 +654,10 @@
     transition: outline-color 400ms ease;
   }
   @media (prefers-reduced-motion: reduce) {
+    .assistant-panel:not([hidden]),
+    .ai-launcher-tip {
+      transition: none;
+    }
     .is-focus-target {
       transition: none;
     }
@@ -2218,20 +2203,135 @@
     width: 12px;
     height: 12px;
   }
+  /* ExaMate AI window
+     One element in two presentations. Wide screens get a floating, non-modal
+     window above the launcher: the page stays usable around it and nothing
+     reflows. Phone widths get a modal bottom sheet. Either way the header and
+     composer stay put and only the middle scrolls. */
   .assistant-panel {
     position: fixed;
-    inset: auto 0 0;
     z-index: 70;
     display: flex;
     flex-direction: column;
-    width: 100%;
-    max-height: 84dvh;
-    overflow-y: auto;
+    overflow: hidden;
     border: 1px solid #d8ddd4;
+    background: var(--color-ai-surface);
+  }
+  .assistant-panel.is-window {
+    right: 20px;
+    /* Clears the launcher row beneath it (52px tall, 16px from the edge). */
+    bottom: 84px;
+    width: min(400px, calc(100vw - 40px));
+    max-height: min(620px, calc(100dvh - 108px));
+    border-radius: 16px;
+    box-shadow: 0 18px 44px #26332926;
+  }
+  .assistant-panel.is-sheet {
+    inset: auto 0 0;
+    width: 100%;
+    /* dvh, not vh: it tracks the visible area as mobile browser bars and the
+       on-screen keyboard come and go, so the composer is not pushed off. */
+    max-height: 88dvh;
     border-bottom: 0;
     border-radius: 16px 16px 0 0;
-    background: var(--color-ai-surface);
-    box-shadow: 0 -16px 48px #2633292e;
+    padding-bottom: env(safe-area-inset-bottom);
+    /* Dims the page behind a modal sheet without an extra element. */
+    box-shadow:
+      0 -16px 48px #2633292e,
+      0 0 0 100vmax #1f29221f;
+  }
+  .assistant-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  /* Entrance: a small scale from the edge each presentation is anchored to.
+
+     A stalled transition holds its STARTING value, and this renderer has been
+     measured stalling one indefinitely. So the start has to be harmless on its
+     own. Opacity is ruled out — that is a panel that never appears. A slide is
+     ruled out too: the sheet sits on the bottom edge, and a stuck 24px drop
+     pushed its Send button off-screen at 375px. Scaling about the anchored edge
+     keeps that edge where it is, so the worst case is a panel 2-3% small with
+     every control still in view. */
+  .assistant-panel.is-window {
+    transform-origin: bottom right;
+  }
+  .assistant-panel.is-sheet {
+    transform-origin: bottom center;
+  }
+  .assistant-panel:not([hidden]) {
+    transition: transform 180ms ease-out;
+  }
+  @starting-style {
+    .assistant-panel.is-window:not([hidden]) {
+      transform: scale(0.97);
+    }
+    .assistant-panel.is-sheet:not([hidden]) {
+      transform: scale(0.98);
+    }
+  }
+  .assistant-messages {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 14px 18px 0;
+    list-style: none;
+  }
+  .assistant-messages > li {
+    max-width: 88%;
+    border-radius: 12px;
+    padding: 9px 12px;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  .assistant-messages > li.is-user {
+    justify-self: end;
+    background: var(--color-ai-accent);
+    color: #fff;
+  }
+  .assistant-messages > li.is-assistant {
+    justify-self: start;
+    border: 1px solid #d8ddd4;
+    background: #fff;
+  }
+  .assistant-messages p {
+    margin: 0;
+    /* Plain text can still carry a long URL or file name. */
+    overflow-wrap: anywhere;
+  }
+  .assistant-citations {
+    display: grid;
+    gap: 4px;
+    margin: 8px 0 0;
+    padding: 8px 0 0;
+    border-top: 1px solid #e4e8dd;
+    list-style: none;
+    font-size: 9.5px;
+    color: #5d6b5c;
+  }
+  .assistant-citations li {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    overflow-wrap: anywhere;
+  }
+  .assistant-citations svg {
+    flex: none;
+    width: 12px;
+    height: 12px;
+  }
+  .assistant-status {
+    /* Reserves its line so the send button does not jump when a status
+       appears or clears. */
+    min-height: 16px;
+    margin: 0;
+    font-size: 9.5px;
+    color: #5d6b5c;
+  }
+  .assistant-status[role="alert"] {
+    color: #8c4a42;
   }
   .assistant-panel-header {
     position: sticky;
@@ -2277,6 +2377,15 @@
     width: 40px;
     height: 40px;
     border-radius: 50%;
+  }
+  /* Directly after the rule it overrides, on purpose: placed earlier in the
+     file, with equal specificity, the 40px above won and the touch target
+     stayed below 44px. */
+  @media (hover: none), (pointer: coarse) {
+    .assistant-panel-header > button {
+      width: 44px;
+      height: 44px;
+    }
   }
   .assistant-intro,
   .assistant-suggestions,
@@ -2403,28 +2512,98 @@
     font-size: 10px;
     font-weight: 600;
   }
-  .help {
+  /* Floating controls
+     Help and the AI launcher sit side by side in one corner as a single row,
+     so neither can land on the other, and the open AI window above them
+     covers neither. */
+  .floating-controls {
     position: fixed;
-    bottom: 15px;
-    right: 15px;
-    z-index: 30;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(16px, env(safe-area-inset-bottom));
+    z-index: 60;
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  .help {
+    position: relative;
   }
   .help summary {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
     list-style: none;
-    background: #fff;
     border: 1px solid var(--color-line);
     border-radius: 50%;
-    padding: 7px;
-    width: fit-content;
-    margin-left: auto;
+    background: #fff;
+    cursor: pointer;
   }
+  .help summary::-webkit-details-marker {
+    display: none;
+  }
+  .help summary svg {
+    width: 20px;
+    height: 20px;
+  }
+  /* Opens beside the stack rather than inside it, so reading the note does
+     not shove the launcher out of place. */
   .help p {
-    background: white;
-    box-shadow: 0 5px 30px #0002;
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 8px);
+    width: max-content;
+    max-width: min(280px, calc(100vw - 32px));
+    margin: 0;
     padding: 16px;
-    max-width: min(280px, 85vw);
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 5px 30px #0002;
     font-size: 12px;
-    margin-top: 6px;
+  }
+  .ai-launcher {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    color: #fff;
+    background: var(--color-ai-accent);
+    box-shadow: 0 8px 22px #26332933;
+  }
+  .ai-launcher:hover {
+    background: #455a45;
+  }
+  .ai-launcher[aria-expanded="true"] {
+    box-shadow:
+      0 0 0 3px var(--color-ai-surface),
+      0 0 0 5px var(--color-ai-accent);
+  }
+  .ai-launcher svg {
+    width: 24px;
+    height: 24px;
+  }
+  /* The visible hint for mouse and keyboard alike. The button already carries
+     its accessible name, so this is hidden from assistive technology. */
+  .ai-launcher-tip {
+    position: absolute;
+    right: calc(100% + 10px);
+    top: 50%;
+    padding: 5px 9px;
+    border-radius: 6px;
+    background: #2f3b30;
+    color: #fff;
+    font-size: 10px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-50%);
+    transition: opacity 150ms ease;
+  }
+  .ai-launcher:hover .ai-launcher-tip,
+  .ai-launcher:focus-visible .ai-launcher-tip {
+    opacity: 1;
   }
   .skip-link {
     position: fixed;
@@ -2464,44 +2643,13 @@
     display: none;
   }
 }
-@media (min-width: 900px) and (max-width: 1439px) {
-  .desktop-shell.assistant-open {
-    overflow: visible;
-  }
-  .assistant-panel {
-    inset: 0 0 0 auto;
-    width: min(400px, calc(100vw - 48px));
-    max-height: 100dvh;
-    border-width: 0 0 0 1px;
-    border-radius: 0;
-    box-shadow: -16px 0 48px #2633292e;
-  }
-}
 @media (min-width: 1440px) {
-  .desktop-shell.assistant-open {
-    grid-template-columns: 210px minmax(0, 1fr) 380px;
-    max-width: 1600px;
-  }
-  .assistant-panel {
-    position: relative;
-    inset: auto;
-    grid-column: 3;
-    grid-row: 1;
-    width: auto;
-    max-height: none;
-    border-width: 0 0 0 1px;
-    border-radius: 0;
-    box-shadow: none;
-  }
   main {
     padding-right: 48px;
     padding-left: 48px;
   }
 }
 @media (max-width: 899px) {
-  .desktop-shell.assistant-open {
-    overflow: visible;
-  }
   .desktop-shell {
     margin: 0;
     border-radius: 0;
@@ -2540,7 +2688,7 @@
 }
 @media (max-width: 600px) {
   main {
-    padding: 0 16px 24px;
+    padding: 0 16px var(--floating-clearance);
   }
   .dashboard-grid {
     grid-template-columns: 1fr;
@@ -2560,14 +2708,6 @@
     font-size: 23px;
   }
   .private-label {
-    display: none;
-  }
-  .assistant-toggle {
-    min-width: 44px;
-    min-height: 44px;
-    padding: 10px;
-  }
-  .assistant-toggle span {
     display: none;
   }
   /* Touch targets. Merged here from a second max-width:600px block that used to
@@ -2673,16 +2813,6 @@
   from {
     opacity: 0;
     transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-@keyframes assistant-arrive {
-  from {
-    opacity: 0;
-    transform: translateY(16px);
   }
   to {
     opacity: 1;

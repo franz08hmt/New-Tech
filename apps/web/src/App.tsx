@@ -16,6 +16,7 @@ import { AssistantPanel } from "./AssistantPanel";
 import { PageSections } from "./PageSections";
 import { Sidebar } from "./Sidebar";
 import { useFocusTarget } from "./use-focus-target";
+import { useAssistant } from "./use-assistant";
 import { useCourses } from "./use-courses";
 import { useWorkspace } from "./use-workspace";
 
@@ -123,15 +124,52 @@ function currentRoute(): AppRoute {
   };
 }
 
+/** Below this width the assistant becomes a modal bottom sheet. */
+const NARROW_SCREEN = "(max-width: 767px)";
+
+/**
+ * Whether the viewport is phone-sized, kept current as it changes.
+ *
+ * Guarded because matchMedia is absent in some environments — jsdom among
+ * them — and treating that as "wide" gives the non-modal window, the safer of
+ * the two layouts to fall back to.
+ */
+function useNarrowScreen() {
+  const [narrow, setNarrow] = useState(
+    () =>
+      typeof window.matchMedia === "function" &&
+      window.matchMedia(NARROW_SCREEN).matches,
+  );
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const list = window.matchMedia(NARROW_SCREEN);
+    const update = () => setNarrow(list.matches);
+    update();
+    list.addEventListener?.("change", update);
+    return () => list.removeEventListener?.("change", update);
+  }, []);
+  return narrow;
+}
+
 export default function App() {
   const [route, setRoute] = useState(currentRoute);
   useFocusTarget(route.focusId);
   const [menu, setMenu] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  // The conversation lives here, above the panel, so hiding the panel or
+  // changing page never takes the draft with it.
+  const assistant = useAssistant();
+  const narrow = useNarrowScreen();
+  const modal = assistantOpen && narrow;
+  const modalOpen = useRef(false);
+  modalOpen.current = modal;
+  const launcher = useRef<HTMLButtonElement>(null);
+  // Whichever control opened the panel, so closing can hand focus back to it.
+  const opener = useRef<HTMLElement | null>(null);
+  const restoreFocus = useRef(false);
   const [search, setSearch] = useState("");
   const heading = useRef<HTMLHeadingElement>(null);
   const menuToggle = useRef<HTMLButtonElement>(null);
-  const assistantToggle = useRef<HTMLButtonElement>(null);
   const workspace = useWorkspace();
   const coursesState = useCourses();
   const selectedCourse = route.courseSlug
@@ -159,10 +197,45 @@ export default function App() {
         }
       : route.page;
 
-  function closeAssistant() {
-    setAssistantOpen(false);
-    assistantToggle.current?.focus();
+  function openAssistant(from: HTMLElement | null) {
+    opener.current = from;
+    setAssistantOpen(true);
   }
+
+  function closeAssistant() {
+    restoreFocus.current = true;
+    setAssistantOpen(false);
+  }
+
+  // Focus goes back once the panel has actually closed, not in the same breath
+  // as closing it: while a modal sheet is still up the page behind is inert,
+  // and focusing something inert simply fails.
+  useEffect(() => {
+    if (assistantOpen || !restoreFocus.current) return;
+    restoreFocus.current = false;
+    const target = opener.current?.isConnected
+      ? opener.current
+      : launcher.current;
+    target?.focus();
+  }, [assistantOpen]);
+
+  // The assistant page is a way in to the same panel, not a second one:
+  // arriving there opens it. Keyed on the page, so closing it while on that
+  // page does not immediately reopen it.
+  useEffect(() => {
+    if (route.page.id === "assistant") openAssistant(null);
+  }, [route.page.id]);
+
+  // A modal sheet stops the page behind it from scrolling, and gives the
+  // scroll back exactly as it found it.
+  useEffect(() => {
+    if (!modal) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [modal]);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -184,9 +257,11 @@ export default function App() {
         document.getElementById("main-content")?.focus();
         return;
       }
-      setRoute(currentRoute());
+      const next = currentRoute();
+      setRoute(next);
       setMenu(false);
       setSearch("");
+      if (modalOpen.current || next.page.id === "assistant") return;
       requestAnimationFrame(() => heading.current?.focus());
     };
     window.addEventListener("hashchange", onHash);
@@ -201,10 +276,12 @@ export default function App() {
   const isDashboard = page.id === "dashboard";
   return (
     <>
-      <a href="#main-content" className="skip-link">
+      {/* Outside the shell, so it needs its own inert: leave it reachable and
+          Tab escapes a modal sheet through it. */}
+      <a href="#main-content" className="skip-link" inert={modal}>
         Skip to main content
       </a>
-      <div className={`desktop-shell ${assistantOpen ? "assistant-open" : ""}`}>
+      <div className="desktop-shell" inert={modal}>
         <Sidebar
           pages={pages}
           currentId={page.id}
@@ -234,18 +311,6 @@ export default function App() {
             </span>
             <span className="workspace-actions">
               <span className="private-label">Personal workspace</span>
-              <button
-                ref={assistantToggle}
-                type="button"
-                className="assistant-toggle"
-                aria-label="Open ExaMate AI"
-                aria-controls="examate-ai-panel"
-                aria-expanded={assistantOpen}
-                onClick={() => setAssistantOpen(true)}
-              >
-                <SparklesIcon aria-hidden="true" />
-                <span>Ask AI</span>
-              </button>
             </span>
           </header>
           <main id="main-content" tabIndex={-1}>
@@ -272,7 +337,7 @@ export default function App() {
                     </a>
                     <button
                       className="hero-ai-button"
-                      onClick={() => setAssistantOpen(true)}
+                      onClick={(event) => openAssistant(event.currentTarget)}
                     >
                       <SparklesIcon aria-hidden="true" />
                       Ask ExaMate
@@ -299,6 +364,7 @@ export default function App() {
               courseSlug={route.courseSlug}
               coursesState={coursesState}
               workspace={workspace}
+              onOpenAssistant={openAssistant}
             />
             <footer className="page-footer">
               <span>Make a little progress, every day.</span>
@@ -308,24 +374,47 @@ export default function App() {
             </footer>
           </main>
         </div>
-        {assistantOpen && (
-          <AssistantPanel
-            pageId={page.id}
-            pageName={page.name}
-            onClose={closeAssistant}
-          />
-        )}
       </div>
-      <details className="help">
-        <summary aria-label="About this workspace">
-          <QuestionMarkCircleIcon />
-        </summary>
-        <p>
-          ExaMate AI · A student project by Tài & Thắng. Tasks connect to the
-          project API. Academic examples are labelled; notes stay in this
-          browser.
-        </p>
-      </details>
+      <AssistantPanel
+        open={assistantOpen}
+        modal={modal}
+        pageId={page.id}
+        pageName={page.name}
+        assistant={assistant}
+        onClose={closeAssistant}
+      />
+      {/* Help and the AI launcher share one corner as a single stack, so
+          neither can land on top of the other. */}
+      <div className="floating-controls" inert={modal}>
+        <details className="help">
+          <summary aria-label="About this workspace">
+            <QuestionMarkCircleIcon />
+          </summary>
+          <p>
+            ExaMate AI · A student project by Tài & Thắng. Tasks connect to the
+            project API. Academic examples are labelled; notes stay in this
+            browser.
+          </p>
+        </details>
+        <button
+          ref={launcher}
+          type="button"
+          className="ai-launcher"
+          aria-label="Open ExaMate AI"
+          aria-controls="examate-ai-panel"
+          aria-expanded={assistantOpen}
+          onClick={(event) =>
+            assistantOpen
+              ? closeAssistant()
+              : openAssistant(event.currentTarget)
+          }
+        >
+          <SparklesIcon aria-hidden="true" />
+          <span className="ai-launcher-tip" aria-hidden="true">
+            {assistantOpen ? "Hide ExaMate AI" : "Ask ExaMate AI"}
+          </span>
+        </button>
+      </div>
     </>
   );
 }

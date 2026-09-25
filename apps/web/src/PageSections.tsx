@@ -33,11 +33,13 @@ export function PageSections({
   courseSlug,
   coursesState,
   workspace,
+  onOpenAssistant,
 }: {
   pageId: string;
   courseSlug?: string;
   coursesState: CoursesState;
   workspace: Workspace;
+  onOpenAssistant: (opener: HTMLElement) => void;
 }) {
   if (pageId === "dashboard")
     return (
@@ -107,7 +109,8 @@ export function PageSections({
   }
   if (pageId === "documents") return <DocumentsPanel />;
   if (pageId === "finances") return <BudgetPanel />;
-  if (pageId === "assistant") return <AssistantSection />;
+  if (pageId === "assistant")
+    return <AssistantSection onOpen={onOpenAssistant} />;
   return null;
 }
 
@@ -198,25 +201,34 @@ function CourseDataState({
   );
 }
 
-function AssistantSection() {
+/**
+ * The assistant page. It used to carry its own disabled textarea — a second
+ * draft that could never be sent either. Now it explains what the assistant
+ * will do and opens the one shared panel, which arriving here also does.
+ */
+function AssistantSection({
+  onOpen,
+}: {
+  onOpen: (opener: HTMLElement) => void;
+}) {
   return (
     <Panel title="Ask ExaMate" icon={<SparklesIcon />}>
       <p className="page-note">
-        Planned feature: answers grounded in your approved project documents,
-        with citations you can check. The AI provider is not configured yet.
+        ExaMate AI sẽ trả lời dựa trên chính tài liệu môn học bạn đã tải lên,
+        kèm nguồn dẫn để bạn tự kiểm tra lại. Phần AI đang được Thắng kết nối,
+        nên hiện bạn mới chuẩn bị được câu hỏi.
       </p>
-      <label className="assistant-label">
-        Your question
-        <textarea
-          disabled
-          placeholder="What evidence is required for our final project?"
-        />
-      </label>
-      <button className="primary-button" disabled>
-        Ask after RAG setup
+      <button
+        type="button"
+        className="primary-button"
+        onClick={(event) => onOpen(event.currentTarget)}
+      >
+        <SparklesIcon aria-hidden="true" />
+        Show ExaMate AI panel
       </button>
       <p className="page-note">
-        You can continue managing tasks while the assistant is unavailable.
+        Bạn vẫn quản lý công việc, lịch thi và tài liệu bình thường trong lúc
+        chờ.
       </p>
     </Panel>
   );
