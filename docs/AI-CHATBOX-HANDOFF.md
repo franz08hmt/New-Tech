@@ -1,8 +1,8 @@
 # Handoff — ExaMate AI chatbox (FE → Thắng)
 
-Ngày cập nhật: 24/09/2026 (Asia/Saigon) · Người làm FE: Tài (có hỗ trợ của Claude Code) · Người nhận: Thắng
+Ngày cập nhật: 25/09/2026 (Asia/Saigon) · Người làm FE: Tài (có hỗ trợ của Codex) · Người nhận: Thắng
 
-Tài liệu này thay cho mô hình dock/overlay/bottom-sheet trong `docs/ideas/responsive-ai-copilot.md`. Nó chỉ mô tả phần giao diện. **Chưa có API hỏi-đáp nào tồn tại**; mọi shape request/response bên dưới là đề xuất để hai bên thống nhất, không phải contract.
+Tài liệu này thay cho mô hình dock/overlay/bottom-sheet trong `docs/ideas/responsive-ai-copilot.md`. Chat text hiện nối với Gemini qua API của Thắng. **RAG chưa triển khai**: chat không tìm trong tài liệu, không trả citation và không phải câu trả lời grounded theo workspace.
 
 ## 1. Ai giữ cái gì
 
@@ -22,7 +22,9 @@ Launcher / nút hero / #assistant ──openAssistant()──▶ App (assistantO
                                                         │ submit
                                           assistant.send({ pageId, pageName })
                                                         │
-                                               transport(question, context)  ◀── Thắng nối ở đây
+                                          api.askAssistant({ message, pageContext })
+                                                        │
+                                       POST /api/assistant/chat → Gemini
 ```
 
 - Màn hình ≥ 768px: cửa sổ nổi **không modal** (`<aside>`), trang phía sau vẫn dùng được, không reflow.
@@ -30,17 +32,17 @@ Launcher / nút hero / #assistant ──openAssistant()──▶ App (assistantO
 
 ## 2. Cái gì chạy thật, cái gì còn preview
 
-Chạy thật trong app: mở/đóng từ mọi trang, giữ draft khi đổi trang hoặc đóng/mở lại, gợi ý câu hỏi điền vào draft, focus/Escape/inert/khóa cuộn, layout 375/768/1440.
+Chạy thật trong app: mở/đóng từ mọi trang, giữ draft khi đổi trang hoặc đóng/mở lại, gợi ý câu hỏi điền vào draft, focus/Escape/inert/khóa cuộn. Khi draft có nội dung và không ở trạng thái gửi, nút _Send question_ bật; gửi kèm page context hiện tại tới API và hiển thị câu trả lời dạng text.
 
-Còn preview: App gọi `useAssistant()` **không có transport**, nên `status = "unavailable"`, nút _Send question_ luôn disabled, panel hiện nhãn _Interface preview_ và câu “Phần AI đang được Thắng kết nối…”. Khối “Example grounded answer” là ví dụ có gắn nhãn, không phải hội thoại.
+Khi chat đã nối, panel ẩn khối “Example grounded answer” để không nhầm dữ liệu mẫu với phản hồi thật. Panel ghi rõ RAG chưa kết nối và câu trả lời chưa dựa trên tài liệu đã tải lên. Lỗi mạng/API hiện trạng thái lỗi và giữ draft để thử lại.
 
-Chỉ được kiểm thử bằng fixture (`apps/web/src/assistant.test.tsx`), **chưa từng chạy với backend**: hiển thị câu trả lời + nguồn, trạng thái đang gửi, lỗi giữ nguyên draft, chặn gửi trùng khi đang chờ.
+`apps/web/src/App.test.tsx` kiểm tra POST body, page context, hiển thị câu trả lời và disclaimer bằng fixture. `apps/web/src/assistant.test.tsx` kiểm tra hành vi của hook. Đây là kiểm thử tự động với API giả, không chứng minh Gemini thật đã được gọi hoặc có quota.
 
-Backend hiện có: chỉ `GET /api/assistant/status` (`apps/api/src/assistant/assistant.controller.ts`) trả `status: "not_configured"`. FE chưa gọi endpoint này.
+Backend có `GET /api/assistant/status` và `POST /api/assistant/chat` (`apps/api/src/assistant/assistant.controller.ts`). Status báo cấu hình hiện tại; frontend chưa gọi status tự động. Response chat hiện có `answer`, `provider`, `model`, `ragEnabled: false`.
 
-## 3. Điểm cần nối
+## 3. Luồng request hiện tại
 
-Chỉ một chỗ: viết một hàm `AskTransport` và truyền vào `useAssistant(transport)` ở `App.tsx`.
+`App.tsx` truyền transport vào `useAssistant`; transport gọi helper dùng chung trong `api.ts`, rồi chuyển `answer` sang kiểu message của UI. `pageContext` gồm `pageId` và `pageName` hiện tại.
 
 ```ts
 // apps/web/src/use-assistant.ts — kiểu view của FE, không phải HTTP contract
@@ -53,21 +55,18 @@ type AskTransport = (
 }>;
 ```
 
-Hàm này nên dùng `request()` trong `apps/web/src/api.ts` (đã có timeout 60s, thông báo lỗi và Request ID) và dịch response của BE sang kiểu trên. Hook lo phần còn lại: status `sending` → `idle`/`error`, chặn gửi trùng bằng ref, chỉ xóa draft khi thành công.
+Shape HTTP dùng chung được khai báo trong `packages/contracts/index.d.ts`: `AssistantChatRequest`, `AssistantChatResponse`, `AssistantPageContext` và `AssistantStatus`. DTO của API implement shape request này; không khai báo lại kiểu HTTP riêng cho FE/API.
 
 Dữ liệu FE **đang có** ở App: `route.page.id`, `page.name`, `route.courseSlug` và `selectedCourse` (khi ở `#courses/<slug>`), danh sách documents trong workspace (có `course_id`). Context hiện chỉ gửi `pageId`, `pageName`.
 
-Dữ liệu **cần thống nhất**: có gửi `courseId`/`documentIds` không; citation cần `documentId` để mở đúng tài liệu; hiển thị lỗi chung hay lỗi chi tiết của BE (hiện panel chỉ hiện câu chung tiếng Việt, bỏ qua message của `request()`).
+Hook lo trạng thái `sending` → `idle`/`error`, chặn gửi trùng và chỉ xóa draft khi thành công. UI hiện chưa hiển thị citations; chat contract hiện không có citations.
 
-## 4. Đề xuất contract (chưa tồn tại — cần Thắng quyết)
+## 4. Giới hạn hiện tại và việc còn lại cho RAG
 
-Nếu thống nhất, khai báo ở `packages/contracts/index.d.ts`, không khai báo trùng trong FE.
-
-- Request: `POST /api/assistant/ask` với `{ question: string; courseId?: string; pageId?: string }`.
-- Response: `{ answer: string; citations: { documentId: string; title: string; page?: number; snippet?: string }[] }`.
-- Lỗi: dùng format lỗi chung hiện có (`message`, `requestId`); phân biệt “chưa cấu hình AI” (503?), “không tìm thấy nguồn phù hợp” (200 với `citations: []` và câu trả lời nói rõ), và lỗi validation (400).
-- Streaming: chưa làm. Nếu chọn SSE, `AskTransport` phải đổi thành dạng nhận từng phần; nên chốt trước khi FE làm.
-- Câu hỏi mở: giới hạn độ dài câu hỏi; có lưu lịch sử hội thoại ở BE không; hủy request (FE chưa có nút hủy).
+- Backend gửi câu hỏi cùng page metadata tới Gemini; không truyền nội dung tài liệu, Tasks, database hay lịch sử chat.
+- Không có PDF parsing, chunking, embeddings, vector search hoặc citations. Câu trả lời có thể hữu ích nhưng không được xem là grounded theo nguồn môn học.
+- RAG cần được Thắng triển khai và thống nhất quyền truy cập, lọc theo môn, định dạng citations và hành vi khi không tìm thấy nguồn. Contract có thể cần mở rộng khi hai bên chốt các shape đó.
+- Chưa có streaming, lưu lịch sử chat hoặc nút hủy request.
 
 ## 5. Ranh giới an toàn
 
@@ -76,15 +75,14 @@ Nếu thống nhất, khai báo ở `packages/contracts/index.d.ts`, không khai
 - Câu trả lời được render dạng text (`<p>{message.text}</p>`), không dùng `dangerouslySetInnerHTML`. Nếu muốn Markdown thì phải có bước sanitize, cần thống nhất trước.
 - Không gửi nội dung workspace ra dịch vụ ngoài khi chưa thống nhất nhà cung cấp và phạm vi dữ liệu.
 
-## 6. Checklist khi tích hợp (tiêu chí tương lai, chưa pass)
+## 6. Trạng thái kiểm tra
 
-- [ ] Câu hỏi thật trả về câu trả lời thật, nhãn _Interface preview_ và khối ví dụ biến mất.
-- [ ] Mất mạng/timeout: hiện thông báo lỗi, draft còn nguyên, gửi lại được.
-- [ ] Bấm gửi hai lần nhanh: BE chỉ nhận một request.
-- [ ] Nguồn dẫn mở đúng tài liệu/trang.
-- [ ] Hủy request (nếu hỗ trợ) không làm mất draft.
-- [ ] Không có credential nào xuất hiện trong network tab hay bundle.
-- [ ] Test trong `assistant.test.tsx` vẫn xanh; thêm test cho transport thật bằng mock `fetch`.
+- [x] Có transport từ composer tới `POST /api/assistant/chat`; component test kiểm tra payload, context và câu trả lời qua fixture.
+- [x] UI không trình bày sample answer như phản hồi chat sau khi kết nối và nêu rõ RAG chưa có.
+- [ ] Gọi Gemini thật bằng cấu hình local và xác minh quyền/quota (request có thể dùng quota/chi phí).
+- [ ] Kiểm tra trực tiếp trong browser, responsive và console sau khi chạy API + web.
+- [ ] Thắng hoàn thành RAG, citations và kiểm tra quyền truy cập tài liệu.
+- [ ] Human review của Tài và Thắng.
 
 ## 7. Chạy và kiểm thử
 
@@ -94,4 +92,4 @@ npm run dev:web
 npm test --workspace @examate/web
 ```
 
-Mở `http://127.0.0.1:5173`, bấm nút tròn góc phải dưới. Đọc trước: `use-assistant.ts` → `AssistantPanel.tsx` → phần assistant trong `App.tsx` → `assistant.test.tsx`. Làm trên nhánh riêng và mở PR; không ghi đè thay đổi của nhau, không force push.
+Mở `http://127.0.0.1:5173`, bấm nút tròn góc phải dưới, nhập câu hỏi và gửi. Cần chạy API ở cổng 3000 và web ở cổng 5173; API phải báo `ready` tại `/api/assistant/status`. Đọc trước: `use-assistant.ts` → `api.ts` → `AssistantPanel.tsx` → phần assistant trong `App.tsx` → `App.test.tsx`. Không đưa credential vào browser/frontend.

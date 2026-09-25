@@ -3,6 +3,9 @@
 // the app already imports its types from "./api" — the module stays the single
 // door to the backend, it just no longer owns a second copy of the shapes.
 export type {
+  AssistantChatRequest,
+  AssistantChatResponse,
+  AssistantStatus,
   Course,
   CourseAssessment,
   CourseTone,
@@ -18,6 +21,8 @@ export type {
 } from "@examate/contracts";
 
 import type {
+  AssistantChatRequest,
+  AssistantChatResponse,
   Course,
   Exam,
   Expense,
@@ -72,6 +77,11 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  askAssistant: (input: AssistantChatRequest) =>
+    request<AssistantChatResponse>("/api/assistant/chat", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   listCourses: () => request<Course[]>("/api/courses"),
   getCourse: (slug: string) =>
     request<Course>(`/api/courses/${encodeURIComponent(slug)}`),

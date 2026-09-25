@@ -12,7 +12,7 @@ Trong lượt này chỉ tổng hợp tiến độ vào handoff; không chạy l
 - PostgreSQL `pg.Pool`, parameterized SQL, timeout, verified TLS configuration, shutdown và migration tracking/checksum.
 - Global validation, request ID, JSON logs, sanitized errors và health check database-only.
 - Frontend Tasks/Documents gọi API thật, có loading/error/retry; giữ File để retry; bỏ mock progress/preview state giả.
-- Assistant vẫn disabled/preview; không có LLM, embeddings, vector search, RAG hoặc sinh câu trả lời.
+- Assistant hiện có Gemini text-to-text ở backend và FE gọi `POST /api/assistant/chat`; RAG, truy xuất tài liệu và citations chưa triển khai.
 - Compose/Nginx/Docker đã tách Supabase bên ngoài; PostgreSQL local chỉ ở `compose.local-db.yaml` cho test riêng.
 - Đã thêm README, Supabase setup, evidence, study guide và demo script tiếng Việt.
 
@@ -28,19 +28,19 @@ Trong lượt này chỉ tổng hợp tiến độ vào handoff; không chạy l
 
 Các kết quả dưới đây lấy từ output đã lưu; không chạy lại trong lượt handoff này.
 
-| Lệnh/kiểm tra | Kết quả |
-|---|---|
-| `npm ci --offline` | PASS; dùng lockfile. Node hiện tại 22.18.0/npm 10.9.3 có cảnh báo EBADENGINE; README yêu cầu runtime phù hợp engines, dự kiến Node 24.15+ |
-| `npm run typecheck` | PASS API + web |
-| `npm test` | PASS theo suite đã chạy: 1 Assistant unit, 32 backend HTTP/Storage/reliability ở lượt cuối, 19 frontend |
-| `npm run format:check` | PASS |
-| `npm run build` | PASS API + web; web build 355 modules |
-| `node --check apps/api/scripts/migrate.mjs` | PASS syntax |
-| Hai lệnh `docker compose ... config --quiet` | PASS |
-| `npm run test:database` | SKIP 1 vì thiếu `TEST_DATABASE_URL`; chưa có persistence DB evidence |
-| `docker info`/`docker ps` | FAIL môi trường: Docker Desktop Linux engine chưa chạy |
-| API khi thiếu env | Expected exit 1, báo thiếu `DATABASE_URL`, không fallback localhost |
-| pg connection refusal test | PASS: trả 503 có request ID, không lộ connection string |
+| Lệnh/kiểm tra                                | Kết quả                                                                                                                                   |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm ci --offline`                           | PASS; dùng lockfile. Node hiện tại 22.18.0/npm 10.9.3 có cảnh báo EBADENGINE; README yêu cầu runtime phù hợp engines, dự kiến Node 24.15+ |
+| `npm run typecheck`                          | PASS API + web                                                                                                                            |
+| `npm test`                                   | PASS theo suite đã chạy: 1 Assistant unit, 32 backend HTTP/Storage/reliability ở lượt cuối, 19 frontend                                   |
+| `npm run format:check`                       | PASS                                                                                                                                      |
+| `npm run build`                              | PASS API + web; web build 355 modules                                                                                                     |
+| `node --check apps/api/scripts/migrate.mjs`  | PASS syntax                                                                                                                               |
+| Hai lệnh `docker compose ... config --quiet` | PASS                                                                                                                                      |
+| `npm run test:database`                      | SKIP 1 vì thiếu `TEST_DATABASE_URL`; chưa có persistence DB evidence                                                                      |
+| `docker info`/`docker ps`                    | FAIL môi trường: Docker Desktop Linux engine chưa chạy                                                                                    |
+| API khi thiếu env                            | Expected exit 1, báo thiếu `DATABASE_URL`, không fallback localhost                                                                       |
+| pg connection refusal test                   | PASS: trả 503 có request ID, không lộ connection string                                                                                   |
 
 Chi tiết: `docs/VERIFICATION.md`, `docs/evidence/backend-final.txt`, `docs/evidence/test-output.txt`, `docs/evidence/database-skip.txt`. HTTP/Storage integration dùng mock dependency; đây không phải bằng chứng Supabase thật.
 
@@ -131,4 +131,10 @@ Rà soát bổ sung xác nhận migration script có advisory lock, checksum và
 
 ## ExaMate AI chatbox — 24/09/2026
 
-Phần giao diện AI (launcher nổi, panel dùng chung, điểm nối `AskTransport` cho Thắng) có tài liệu riêng: `docs/AI-CHATBOX-HANDOFF.md`. Backend vẫn chỉ có `GET /api/assistant/status` (`not_configured`); chưa có API hỏi-đáp.
+Phần giao diện AI (launcher nổi và panel dùng chung) có tài liệu riêng: `docs/AI-CHATBOX-HANDOFF.md`. Tại thời điểm ghi chú 24/09, chưa có API hỏi-đáp; xem cập nhật 25/09 bên dưới để biết trạng thái mới.
+
+## ExaMate AI — cập nhật 25/09/2026
+
+Sau khi Thắng bổ sung Gemini LLM, frontend đã nối composer tới `POST /api/assistant/chat`. Kiểu request/response dùng chung nằm trong `packages/contracts/index.d.ts`; test FE xác nhận payload, page context và render câu trả lời bằng fixture. Khối ví dụ không còn được trình bày như một phản hồi thật.
+
+Đây mới là chat text, chưa có RAG: Assistant không đọc Documents/PDF, không tìm trong database/Storage và không tạo citations. Automated tests không gọi Gemini thật. Để dùng local, chạy API với key trong `.env` root và khởi động lại API, chạy web, rồi kiểm tra `/api/assistant/status`; `ready` chỉ xác nhận key có cấu hình chứ không xác minh quyền hoặc quota. Xem `docs/ASSISTANT-SETUP.md` và `docs/AI-CHATBOX-HANDOFF.md`.

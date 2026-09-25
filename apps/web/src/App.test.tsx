@@ -279,6 +279,18 @@ beforeEach(() => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "/api/assistant/chat" && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({
+            answer:
+              "Chia bài thuyết trình thành mục tiêu, demo và phần hỏi đáp.",
+            provider: "google",
+            model: "gemini-2.5-flash",
+            ragEnabled: false,
+          }),
+          { status: 200 },
+        );
+      }
       if (url === "/api/documents" && init?.method !== "POST") {
         return new Response(JSON.stringify(documentFixtures), { status: 200 });
       }
@@ -508,7 +520,7 @@ describe("Academic workspace", () => {
     ).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
-  it("shows document-aware AI prompts without calling an Assistant API", () => {
+  it("shows document-aware prompts and explains that RAG is not connected", () => {
     window.history.replaceState(null, "", "/#documents");
     render(<App />);
 
@@ -523,8 +535,16 @@ describe("Academic workspace", () => {
     expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
       "What evidence is required for the final project?",
     );
-    expect(screen.getByText("Interface preview")).toBeVisible();
-    expect(screen.getByText("Week 3 course guide · p. 5")).toBeVisible();
+    expect(
+      screen.getByText(
+        /RAG chưa kết nối nên câu trả lời chưa dựa trên tài liệu/,
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("Interface preview")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Week 3 course guide · p. 5"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send question" })).toBeEnabled();
     expect(
       vi
         .mocked(fetch)
@@ -1899,28 +1919,38 @@ describe("Academic workspace", () => {
 
     expect(hero).toHaveFocus();
   });
-  it("says plainly that AI is not connected and sends nothing", () => {
+  it("sends the question to Gemini and explains that document RAG is not ready", async () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
     fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
-      target: { value: "C\u00f3 g\u1eedi \u0111\u01b0\u1ee3c kh\u00f4ng?" },
+      target: { value: "Tôi nên chuẩn bị phần nào cho bài thuyết trình?" },
     });
 
+    const send = screen.getByRole("button", { name: /Send question/ });
+    expect(send).toBeEnabled();
     expect(
       screen.getByText(
-        /Ph\u1ea7n AI \u0111ang \u0111\u01b0\u1ee3c Th\u1eafng k\u1ebft n\u1ed1i/,
+        /RAG ch\u01b0a k\u1ebft n\u1ed1i.*ch\u01b0a d\u1ef1a tr\u00ean t\u00e0i li\u1ec7u/i,
       ),
     ).toBeInTheDocument();
+    fireEvent.click(send);
+
     expect(
-      screen.getByRole("button", { name: /Send question/ }),
-    ).toBeDisabled();
-    // No reply appears out of nowhere either.
-    expect(screen.queryByRole("list", { name: "Conversation" })).toBeNull();
-    expect(
-      vi
-        .mocked(fetch)
-        .mock.calls.some(([url]) => String(url).includes("assistant")),
-    ).toBe(false);
+      await screen.findByText(
+        "Chia bài thuyết trình thành mục tiêu, demo và phần hỏi đáp.",
+      ),
+    ).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/assistant/chat",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          message: "Tôi nên chuẩn bị phần nào cho bài thuyết trình?",
+          pageContext: { pageId: "dashboard", pageName: "Dashboard" },
+        }),
+      }),
+    );
+    expect(screen.queryByText("Example grounded answer")).toBeNull();
   });
   it("opens as a modal sheet on a narrow screen and releases the page on close", () => {
     vi.stubGlobal("matchMedia", (query: string) => ({

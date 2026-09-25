@@ -179,3 +179,31 @@ export interface HealthStatus {
   database: "connected" | "unavailable";
   databaseLatencyMs?: number;
 }
+
+/** Untrusted screen metadata attached to a single Assistant request. */
+export interface AssistantPageContext {
+  pageId: string;
+  pageName: string;
+}
+
+/** Request body of `POST /api/assistant/chat`. */
+export interface AssistantChatRequest {
+  message: string;
+  pageContext?: AssistantPageContext | null;
+}
+
+/** Text-only response of `POST /api/assistant/chat`; document RAG is not enabled. */
+export interface AssistantChatResponse {
+  answer: string;
+  provider: "google";
+  model: string;
+  ragEnabled: false;
+}
+
+/** Response of `GET /api/assistant/status`. */
+export type AssistantStatus = {
+  provider: "google";
+  mode: "llm";
+  ragEnabled: false;
+  credentialsExposedToClient: false;
+} & ({ status: "ready"; model: string } | { status: "not_configured" });

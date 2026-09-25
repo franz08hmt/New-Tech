@@ -113,6 +113,13 @@ export function AssistantPanel({
           </section>
         )}
 
+        {!preview && (
+          <p className="assistant-capability">
+            Bạn có thể hỏi Gemini bằng văn bản. RAG chưa kết nối nên câu trả lời
+            chưa dựa trên tài liệu bạn đã tải lên.
+          </p>
+        )}
+
         {assistant.messages.length > 0 && (
           <ol className="assistant-messages" aria-label="Conversation">
             {assistant.messages.map((message) => (

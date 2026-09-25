@@ -1,16 +1,10 @@
-export type AssistantStatus = {
-  provider: "google";
-  mode: "llm";
-  ragEnabled: false;
-  credentialsExposedToClient: false;
-} & ({ status: "ready"; model: string } | { status: "not_configured" });
+import type {
+  AssistantChatResponse,
+  AssistantStatus,
+} from "@examate/contracts";
 
-export interface AssistantAnswer {
-  answer: string;
-  provider: "google";
-  model: string;
-  ragEnabled: false;
-}
+export type { AssistantStatus };
+export type AssistantAnswer = AssistantChatResponse;
 
 export interface AssistantGeneration {
   systemInstruction: string;

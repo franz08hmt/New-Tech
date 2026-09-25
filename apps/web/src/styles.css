@@ -2390,8 +2390,16 @@
   .assistant-intro,
   .assistant-suggestions,
   .assistant-composer,
-  .assistant-answer-preview {
+  .assistant-answer-preview,
+  .assistant-capability {
     margin: 0 16px;
+  }
+  .assistant-capability {
+    padding: 10px 12px;
+    border-left: 3px solid var(--color-ai-accent);
+    color: var(--color-muted);
+    background: var(--color-ai-accent-soft);
+    font-size: 11px;
   }
   .assistant-intro {
     padding: 20px 0 16px;

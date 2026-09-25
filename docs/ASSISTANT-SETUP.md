@@ -3,7 +3,7 @@
 Luồng: `POST /api/assistant/chat → AssistantController → AssistantService → GeminiService → Google Gemini API`.
 Controller nhận DTO đã validate và gọi service. AssistantService xây dựng system instruction cố định, tách nội dung user và trả contract. GeminiService dùng SDK chính thức `@google/genai`, chuyển lỗi provider thành loại lỗi an toàn. AssistantExceptionFilter ánh xạ loại lỗi sang HTTP, giữ request ID theo cơ chế hiện có.
 
-Frontend hiện vẫn là preview; chưa kết nối nút gửi chat. Có thể kiểm tra backend bằng PowerShell bên dưới.
+Frontend đã kết nối nút gửi với `POST /api/assistant/chat` qua `api.askAssistant()`. Khi API và Gemini key sẵn sàng, câu hỏi sẽ được gửi tới Gemini. Đây hiện chỉ là chat text: RAG chưa kết nối, nên câu trả lời không được tìm trong Tasks, Documents hay tài liệu đã tải lên. Có thể kiểm tra backend bằng PowerShell bên dưới.
 
 ## Cấu hình và chạy
 
@@ -87,13 +87,13 @@ HTTP 200:
 
 `message` bắt buộc là string, trim trước validation, 1–4000 ký tự. `pageContext` tùy chọn (bỏ qua hoặc null); nếu có object thì `pageId` và `pageName` bắt buộc là string không rỗng sau trim, tối đa 80 và 120 ký tự. Array, sai kiểu và field lạ ở cả hai cấp bị từ chối theo ValidationPipe. Không có field nhận key, URL, file hoặc lịch sử hội thoại. URL trong văn bản người dùng chỉ là văn bản, không được backend truy cập.
 
-| Tình huống | HTTP | Message |
-| --- | --- | --- |
-| Validation lỗi | 400 | ValidationPipe hiện có |
-| Thiếu key | 503 | AI assistant is not configured. |
-| Timeout | 504 | AI assistant timed out. Please retry. |
-| Quota/rate limit, authentication, unavailable | 503 | AI assistant is temporarily unavailable. |
-| Response rỗng, output chứa credential, lỗi upstream khác | 502 | AI assistant is temporarily unavailable. |
+| Tình huống                                               | HTTP | Message                                  |
+| -------------------------------------------------------- | ---- | ---------------------------------------- |
+| Validation lỗi                                           | 400  | ValidationPipe hiện có                   |
+| Thiếu key                                                | 503  | AI assistant is not configured.          |
+| Timeout                                                  | 504  | AI assistant timed out. Please retry.    |
+| Quota/rate limit, authentication, unavailable            | 503  | AI assistant is temporarily unavailable. |
+| Response rỗng, output chứa credential, lỗi upstream khác | 502  | AI assistant is temporarily unavailable. |
 
 Lỗi có `statusCode`, `message`, `requestId`; không trả SDK error, headers, prompt hay stack. Logs chỉ có event, model, duration, outcome và loại lỗi đã chuẩn hóa. Timer được dọn sau request; khi hết hạn, AbortController hủy transport và Promise timeout giới hạn thời gian chờ. SDK không retry. Hủy kết nối local không bảo đảm Google dừng generation hoặc không tính phí request đã nhận.
 
@@ -129,18 +129,18 @@ Unit tests mock SDK/provider. HTTP tests dùng compiled NestJS với ValidationP
 
 Chạy trên Node 22.18.0 / npm 10.9.3 với source Gemini hiện tại:
 
-| Lệnh | Kết quả |
-| --- | --- |
-| `npm run typecheck --workspace @examate/api` | PASS |
-| `npm run build --workspace @examate/api` | PASS |
-| `npm test --workspace @examate/api` | PASS: 37 unit + 89 HTTP/adapter; 0 fail, 0 skip |
-| `npm run typecheck` | PASS cả API và web |
-| `npm run build` | PASS cả API và web |
-| `npm test` | PASS: 37 API unit + 89 API HTTP/adapter + 19 web; 0 fail, 0 skip |
+| Lệnh                                            | Kết quả                                                                          |
+| ----------------------------------------------- | -------------------------------------------------------------------------------- |
+| `npm run typecheck --workspace @examate/api`    | PASS                                                                             |
+| `npm run build --workspace @examate/api`        | PASS                                                                             |
+| `npm test --workspace @examate/api`             | PASS: 37 unit + 89 HTTP/adapter; 0 fail, 0 skip                                  |
+| `npm run typecheck`                             | PASS cả API và web                                                               |
+| `npm run build`                                 | PASS cả API và web                                                               |
+| `npm test`                                      | PASS: 37 API unit + 89 API HTTP/adapter + 19 web; 0 fail, 0 skip                 |
 | `npm run format:check --workspace @examate/api` | FAIL ở 19 file có sẵn ngoài thay đổi Gemini; các file Assistant không bị báo lỗi |
 
 Vitest và Vite ban đầu bị sandbox Windows chặn `spawn EPERM`; chạy lại ngoài sandbox đã pass, không cần sửa dependency hay bỏ test. Chưa xác minh runtime Node 24.
 
 Smoke test sau automated tests: copy riêng `apps/api/dist` vào cây thư mục tạm, dùng cấu hình giả, không có `.env`, bỏ Gemini key rồi chạy entrypoint `main.js`. Backend khởi động bằng providers thật trên loopback/cổng tạm; GET status trả 200 `not_configured`, POST chat trả 503 `AI assistant is not configured.`. Không đọc root `.env`, không gọi Gemini/Supabase và đã đóng ứng dụng sau kiểm tra. Kiểm tra này không chứng minh cấu hình Supabase thật hay quyền/quota Gemini thật.
 
-Không chạy bộ integration database thật `npm run test:database`. Chưa gọi Gemini thật hoặc kết nối frontend. Sau khi backend đang chạy với cấu hình riêng, người dùng có thể tự chạy GET status và một POST chat ngắn theo ví dụ ở trên; POST với key hợp lệ có thể dùng quota/chi phí. Không lặp request tự động.
+Không chạy bộ integration database thật `npm run test:database`. Các test frontend giả lập endpoint chat; chúng chứng minh request/response được nối đúng, không chứng minh key có quyền/quota hay Gemini trả lời thật. POST chat với key hợp lệ sẽ gọi Google và có thể dùng quota/chi phí. Không lặp request tự động.

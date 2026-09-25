@@ -13,6 +13,7 @@ import {
   DocumentArrowUpIcon,
 } from "@heroicons/react/24/outline";
 import { AssistantPanel } from "./AssistantPanel";
+import { api } from "./api";
 import { PageSections } from "./PageSections";
 import { Sidebar } from "./Sidebar";
 import { useFocusTarget } from "./use-focus-target";
@@ -158,7 +159,10 @@ export default function App() {
   const [assistantOpen, setAssistantOpen] = useState(false);
   // The conversation lives here, above the panel, so hiding the panel or
   // changing page never takes the draft with it.
-  const assistant = useAssistant();
+  const assistant = useAssistant(async (question, pageContext) => {
+    const response = await api.askAssistant({ message: question, pageContext });
+    return { text: response.answer, citations: [] };
+  });
   const narrow = useNarrowScreen();
   const modal = assistantOpen && narrow;
   const modalOpen = useRef(false);

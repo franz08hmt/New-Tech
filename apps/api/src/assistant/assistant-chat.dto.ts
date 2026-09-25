@@ -7,8 +7,12 @@ import {
   MaxLength,
   ValidateNested,
 } from "class-validator";
+import type {
+  AssistantChatRequest,
+  AssistantPageContext,
+} from "@examate/contracts";
 
-export class AssistantPageContextDto {
+export class AssistantPageContextDto implements AssistantPageContext {
   @Transform(({ value }: { value: unknown }) =>
     typeof value === "string" ? value.trim() : value,
   )
@@ -26,7 +30,7 @@ export class AssistantPageContextDto {
   pageName!: string;
 }
 
-export class AssistantChatDto {
+export class AssistantChatDto implements AssistantChatRequest {
   @Transform(({ value }: { value: unknown }) =>
     typeof value === "string" ? value.trim() : value,
   )
