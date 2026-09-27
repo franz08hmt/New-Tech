@@ -1,12 +1,15 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
+import { moveNote } from "./AcademicPanels";
 
 const task = {
   id: "task-1",
@@ -18,34 +21,507 @@ const task = {
   created_at: "2026-09-09",
   updated_at: "2026-09-09",
 };
+const course = {
+  id: "course-1",
+  slug: "cs-201",
+  name: "Công nghệ phần mềm",
+  code: "CS 201",
+  detail: "Thiết kế, kiểm thử và vận hành phần mềm theo nhóm",
+  progress: 62,
+  tone: "slate",
+  cover: "/img/course-cs.webp",
+  cover_alt: "Màn hình mã nguồn trong không gian học tập",
+  outline: [
+    {
+      title: "Phân tích yêu cầu",
+      summary: "Chuyển nhu cầu thành phạm vi và tiêu chí kiểm chứng rõ ràng.",
+    },
+  ],
+  outcomes: ["Giải thích được luồng đi của một tính năng trong hệ thống."],
+  assessment: [
+    {
+      method: "Bài tập thực hành",
+      weight_percent: 40,
+      description: "Xây dựng và kiểm chứng một lát cắt chức năng nhỏ.",
+    },
+  ],
+  created_at: "2026-09-15T00:00:00.000Z",
+  updated_at: "2026-09-15T00:00:00.000Z",
+};
+const courseFixtures = [
+  course,
+  {
+    ...course,
+    id: "course-2",
+    slug: "ma-210",
+    name: "Toán ứng dụng",
+    code: "MA 210",
+    cover: "/img/course-math.webp",
+  },
+  {
+    ...course,
+    id: "course-3",
+    slug: "ec-102",
+    name: "Kinh tế vi mô",
+    code: "EC 102",
+    cover: "/img/course-econ.webp",
+  },
+  {
+    ...course,
+    id: "course-4",
+    slug: "bi-150",
+    name: "Sinh học đại cương",
+    code: "BI 150",
+    cover: "/img/course-bio.webp",
+  },
+  {
+    ...course,
+    id: "course-5",
+    slug: "hi-204",
+    name: "Lịch sử thế giới hiện đại",
+    code: "HI 204",
+    cover: "/img/course-hist.webp",
+  },
+  {
+    ...course,
+    id: "course-6",
+    slug: "lt-101",
+    name: "Văn học và tư duy phản biện",
+    code: "LT 101",
+    cover: "/img/course-lit.webp",
+  },
+];
+const examFixtures = [
+  {
+    id: "exam-1",
+    course_id: "course-1",
+    course_slug: "cs-201",
+    course_name: "Công nghệ phần mềm",
+    course_code: "CS 201",
+    topic: "Kiểm tra giữa kỳ phần thuật toán",
+    exam_date: "2026-09-21",
+    exam_time: "09:00",
+    room: "Phòng A201",
+    revision_note: "Ôn lại độ phức tạp và cây nhị phân tìm kiếm.",
+    created_at: "2026-09-15T00:00:00.000Z",
+    updated_at: "2026-09-15T00:00:00.000Z",
+  },
+  {
+    id: "exam-3",
+    course_id: "course-3",
+    course_slug: "ec-102",
+    course_name: "Kinh tế vi mô",
+    course_code: "EC 102",
+    topic: "Bài kiểm tra kinh tế vi mô",
+    exam_date: "2026-09-24",
+    exam_time: "13:30",
+    room: "Phòng B102",
+    revision_note: null,
+    created_at: "2026-09-15T00:00:00.000Z",
+    updated_at: "2026-09-15T00:00:00.000Z",
+  },
+  {
+    id: "exam-2",
+    course_id: "course-4",
+    course_slug: "bi-150",
+    course_name: "Sinh học đại cương",
+    course_code: "BI 150",
+    topic: "Bài kiểm tra chương tế bào",
+    exam_date: "2026-09-08",
+    exam_time: "14:00",
+    room: "Phòng D204",
+    revision_note: null,
+    created_at: "2026-09-15T00:00:00.000Z",
+    updated_at: "2026-09-15T00:00:00.000Z",
+  },
+];
+const planFixtures = [
+  {
+    id: "plan-1",
+    course_id: "course-1",
+    course_slug: "cs-201",
+    course_name: "Công nghệ phần mềm",
+    course_code: "CS 201",
+    title: "Ôn lại độ phức tạp thuật toán",
+    detail: "Làm lại năm bài so sánh.",
+    due_date: "2026-09-19",
+    owner_name: "Tài",
+    completed_at: null,
+    created_at: "2026-09-15T00:00:00.000Z",
+    updated_at: "2026-09-15T00:00:00.000Z",
+  },
+  {
+    id: "plan-2",
+    course_id: "course-1",
+    course_slug: "cs-201",
+    course_name: "Công nghệ phần mềm",
+    course_code: "CS 201",
+    title: "Đọc lại ghi chú buổi thực hành",
+    detail: null,
+    due_date: "2026-09-16",
+    owner_name: null,
+    completed_at: "2026-09-14T10:00:00.000Z",
+    created_at: "2026-09-15T00:00:00.000Z",
+    updated_at: "2026-09-15T00:00:00.000Z",
+  },
+  {
+    id: "plan-3",
+    course_id: "course-3",
+    course_slug: "ec-102",
+    course_name: "Kinh tế vi mô",
+    course_code: "EC 102",
+    title: "Vẽ lại đồ thị cung cầu",
+    detail: null,
+    due_date: null,
+    owner_name: "Thắng",
+    completed_at: null,
+    created_at: "2026-09-15T00:00:00.000Z",
+    updated_at: "2026-09-15T00:00:00.000Z",
+  },
+];
+const documentFixtures = [
+  {
+    id: "doc-1",
+    name: "de-cuong-thuat-toan.pdf",
+    media_type: "application/pdf",
+    size_bytes: 2048,
+    storage_status: "stored",
+    processing_status: "pending",
+    index_quality: null,
+    course_id: "course-1",
+    course_slug: "cs-201",
+    course_name: "C\u00f4ng ngh\u1ec7 ph\u1ea7n m\u1ec1m",
+    course_code: "CS 201",
+    created_at: "2026-09-15T00:00:00.000Z",
+    updated_at: "2026-09-15T00:00:00.000Z",
+  },
+  {
+    id: "doc-2",
+    name: "ghi-chu-chung.pdf",
+    media_type: "application/pdf",
+    size_bytes: 1024,
+    storage_status: "stored",
+    processing_status: "ready",
+    index_quality: null,
+    course_id: null,
+    course_slug: null,
+    course_name: null,
+    course_code: null,
+    created_at: "2026-09-14T00:00:00.000Z",
+    updated_at: "2026-09-14T00:00:00.000Z",
+  },
+];
+const expenseFixtures = [
+  {
+    id: "exp-1",
+    amount: 35000,
+    description: "In tài liệu ôn thuật toán",
+    spent_on: "2026-09-15",
+    category: "books",
+    course_id: "course-1",
+    course_slug: "cs-201",
+    course_name: "Công nghệ phần mềm",
+    course_code: "CS 201",
+    created_at: "2026-09-15T00:00:00.000Z",
+    updated_at: "2026-09-15T00:00:00.000Z",
+  },
+  {
+    id: "exp-2",
+    amount: 25000,
+    description: "Cà phê ngồi học nhóm",
+    spent_on: "2026-09-14",
+    category: "food",
+    course_id: null,
+    course_slug: null,
+    course_name: null,
+    course_code: null,
+    created_at: "2026-09-14T00:00:00.000Z",
+    updated_at: "2026-09-14T00:00:00.000Z",
+  },
+  {
+    id: "exp-3",
+    amount: 150000,
+    description: "Lệ phí thi lại học phần",
+    spent_on: "2026-09-05",
+    category: "fees",
+    course_id: "course-2",
+    course_slug: "ma-210",
+    course_name: "Toán ứng dụng",
+    course_code: "MA 210",
+    created_at: "2026-09-05T00:00:00.000Z",
+    updated_at: "2026-09-05T00:00:00.000Z",
+  },
+];
+/**
+ * Builds the row a create endpoint returns: the submitted body, resolved
+ * against the course fixtures, plus timestamps.
+ */
+function createdRow(
+  init: RequestInit,
+  shape: (
+    body: Record<string, any>,
+    course: (typeof courseFixtures)[number] | undefined,
+  ) => Record<string, unknown>,
+) {
+  const body = JSON.parse(String(init.body)) as Record<string, any>;
+  const course = courseFixtures.find((row) => row.id === body.courseId);
+  return {
+    ...shape(body, course),
+    created_at: "2026-09-15T08:00:00.000Z",
+    updated_at: "2026-09-15T08:00:00.000Z",
+  };
+}
 beforeEach(() => {
+  // The exam list separates upcoming from past, so the clock is pinned:
+  // otherwise these tests would start failing on their own once the fixture
+  // dates slipped into the past.
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.setSystemTime(new Date("2026-09-15T08:00:00.000Z"));
+
   window.history.replaceState(null, "", "/");
   localStorage.clear();
   vi.stubGlobal(
     "fetch",
-    vi.fn(
-      async (url: string, init?: RequestInit) =>
-        new Response(
-          JSON.stringify(
-            url === "/api/documents"
-              ? []
-              : init?.method === "POST"
-                ? { ...task, id: "task-2", title: "Build course page" }
-                : [task],
-          ),
-          {
-            status: 200,
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "/api/assistant/chat" && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({
+            answer:
+              "Chia bài thuyết trình thành mục tiêu, demo và phần hỏi đáp.",
+            answerable: true,
+            reasonCode: "ANSWER_GENERATED",
+            citations: [
+              {
+                sourceId: "S1",
+                documentId: "11111111-1111-4111-8111-111111111111",
+                chunkId: "22222222-2222-4222-8222-222222222222",
+                title: "de-cuong-du-an.pdf",
+                page: 5,
+                chunkIndex: 2,
+              },
+            ],
+            provider: "google",
+            model: "gemini-2.5-flash",
+            mode: "documents",
+            ragEnabled: true,
+            promptVersion: "rag-v1",
+          }),
+          { status: 200 },
+        );
+      }
+      if (url === "/api/documents" && init?.method !== "POST") {
+        return new Response(JSON.stringify(documentFixtures), { status: 200 });
+      }
+      if (
+        url.startsWith("/api/documents/") &&
+        url.endsWith("/process") &&
+        init?.method === "POST"
+      ) {
+        return Response.json({
+          document_id: "doc-1",
+          processing_status: "ready",
+          chunk_count: 4,
+          indexed_at: "2026-09-15T08:00:00.000Z",
+          index_quality: {
+            total_page_count: 5,
+            useful_text_page_count: 4,
+            low_text_page_count: 1,
+            indexed_chunk_count: 4,
+            skipped_page_numbers: [3],
+            needs_ocr: true,
+            ocr_page_count: 0,
+            ocr_page_numbers: [],
           },
-        ),
-    ),
+        });
+      }
+      if (url.startsWith("/api/documents/") && url.endsWith("/download")) {
+        return Response.json({
+          url: "https://storage.example.test/source.pdf?token=signed",
+          expiresIn: 60,
+        });
+      }
+      if (url.startsWith("/api/documents/") && url.endsWith("/course")) {
+        const body = JSON.parse(String(init?.body ?? "{}")) as {
+          courseId?: string | null;
+        };
+        const target = documentFixtures.find((row) => url.includes(row.id))!;
+        return new Response(
+          JSON.stringify(
+            body.courseId
+              ? {
+                  ...target,
+                  course_id: "course-3",
+                  course_slug: "ec-102",
+                  course_name: "Kinh t\u1ebf vi m\u00f4",
+                  course_code: "EC 102",
+                }
+              : {
+                  ...target,
+                  course_id: null,
+                  course_slug: null,
+                  course_name: null,
+                  course_code: null,
+                },
+          ),
+          { status: 200 },
+        );
+      }
+      if (url === "/api/expenses") {
+        if (init?.method === "POST") {
+          // Echo what was sent, the way POST /api/expenses answers. Returning
+          // the whole fixture list here handed the component an array where it
+          // expected one row, and the sort that follows a create threw on
+          // `spent_on` being undefined — after the test had already passed,
+          // which is why it surfaced only as an unhandled error.
+          return new Response(
+            JSON.stringify(
+              createdRow(init, (body, course) => ({
+                id: "exp-new",
+                amount: body.amount,
+                description: body.description,
+                spent_on: body.spentOn,
+                category: body.category,
+                course_id: course?.id ?? null,
+                course_slug: course?.slug ?? null,
+                course_name: course?.name ?? null,
+                course_code: course?.code ?? null,
+              })),
+            ),
+            { status: 201 },
+          );
+        }
+        return new Response(JSON.stringify(expenseFixtures), { status: 200 });
+      }
+      if (url.startsWith("/api/expenses/") && init?.method === "DELETE") {
+        return new Response(null, { status: 204 });
+      }
+      if (url === "/api/study-plans") {
+        return new Response(JSON.stringify(planFixtures), { status: 200 });
+      }
+      if (url.startsWith("/api/study-plans/")) {
+        if (init?.method === "DELETE") {
+          return new Response(null, { status: 204 });
+        }
+        const body = JSON.parse(String(init?.body ?? "{}")) as {
+          completed?: boolean;
+        };
+        return new Response(
+          JSON.stringify({
+            ...planFixtures[0],
+            completed_at: body.completed ? "2026-09-15T08:00:00.000Z" : null,
+          }),
+          { status: 200 },
+        );
+      }
+      if (url === "/api/exams") {
+        if (init?.method === "DELETE") {
+          return new Response(null, { status: 204 });
+        }
+        if (init?.method === "POST") {
+          return new Response(
+            JSON.stringify(
+              createdRow(init, (body, course) => ({
+                id: "exam-new",
+                course_id: body.courseId,
+                course_slug: course!.slug,
+                course_name: course!.name,
+                course_code: course!.code,
+                topic: body.topic,
+                exam_date: body.examDate,
+                exam_time: body.examTime,
+                room: body.room,
+                revision_note: body.revisionNote ?? null,
+              })),
+            ),
+            { status: 201 },
+          );
+        }
+        return new Response(JSON.stringify(examFixtures), { status: 200 });
+      }
+      if (url.startsWith("/api/exams/") && init?.method === "DELETE") {
+        return new Response(null, { status: 204 });
+      }
+      if (url.startsWith("/api/exams/") && init?.method === "PATCH") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as Record<
+          string,
+          string
+        >;
+        return new Response(
+          JSON.stringify({
+            ...examFixtures[0],
+            topic: body.topic,
+            exam_date: body.examDate,
+            exam_time: body.examTime,
+            room: body.room,
+          }),
+          { status: 200 },
+        );
+      }
+      if (url === "/api/courses") {
+        return new Response(JSON.stringify(courseFixtures), { status: 200 });
+      }
+      if (init?.method !== "POST") {
+        return new Response(JSON.stringify([task]), { status: 200 });
+      }
+      // Echo the submitted fields back, like the real POST /api/tasks
+      // response does, instead of a response fixed regardless of input.
+      const submitted = JSON.parse(String(init.body)) as Record<
+        string,
+        unknown
+      >;
+      return new Response(
+        JSON.stringify({
+          ...task,
+          id: "task-2",
+          title: submitted.title,
+          owner_name: submitted.ownerName ?? null,
+          due_date: submitted.dueDate ?? null,
+          evidence_type: submitted.evidenceType ?? null,
+        }),
+        { status: 200 },
+      );
+    }),
   );
 });
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   vi.unstubAllGlobals();
 });
 
 describe("Academic workspace", () => {
+  it("loads the course gallery from the API instead of static fixtures", async () => {
+    window.history.replaceState(null, "", "/#courses");
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 2,
+        name: "Công nghệ phần mềm",
+      }),
+    ).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/courses",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("shows a useful course error without falling back to invented static data", async () => {
+    window.history.replaceState(null, "", "/#courses");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url === "/api/courses") throw new Error("Offline");
+        return Response.json(url === "/api/documents" ? [] : [task]);
+      }),
+    );
+    render(<App />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Chưa tải được danh sách môn học",
+    );
+    expect(screen.queryByText("Computer Science")).not.toBeInTheDocument();
+  });
   it("renders semantic dashboard and explicit sample data", async () => {
     render(<App />);
     expect(
@@ -78,10 +554,9 @@ describe("Academic workspace", () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByText("Dashboard context")).toBeVisible();
+    // A chat opens to its composer: that is what the launcher is for.
     await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Close ExaMate AI" }),
-      ).toHaveFocus(),
+      expect(screen.getByLabelText("Question for ExaMate")).toHaveFocus(),
     );
 
     fireEvent.keyDown(window, { key: "Escape" });
@@ -91,7 +566,7 @@ describe("Academic workspace", () => {
     ).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
-  it("shows document-aware AI prompts without calling an Assistant API", () => {
+  it("shows document-aware prompts and explains grounded retrieval", () => {
     window.history.replaceState(null, "", "/#documents");
     render(<App />);
 
@@ -106,8 +581,16 @@ describe("Academic workspace", () => {
     expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
       "What evidence is required for the final project?",
     );
-    expect(screen.getByText("Interface preview")).toBeVisible();
-    expect(screen.getByText("Week 3 course guide · p. 5")).toBeVisible();
+    expect(
+      screen.getByText(
+        /chỉ dựa trên các tài liệu đã lập chỉ mục.*backend kiểm chứng/,
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("Interface preview")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Week 3 course guide · p. 5"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send question" })).toBeEnabled();
     expect(
       vi
         .mocked(fetch)
@@ -124,6 +607,9 @@ describe("Academic workspace", () => {
     fireEvent.change(screen.getByLabelText("Owner"), {
       target: { value: "Tài" },
     });
+    fireEvent.change(screen.getByLabelText("Evidence type"), {
+      target: { value: "proposal" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Add task" }));
     expect(
       await screen.findByText("Task added successfully."),
@@ -135,8 +621,29 @@ describe("Academic workspace", () => {
         body: JSON.stringify({
           title: "Build course page",
           ownerName: "Tài",
-          evidenceType: "milestone",
+          evidenceType: "proposal",
         }),
+      }),
+    );
+    // The API echoes evidence_type back (mocked below); the list must render
+    // it rather than only sending it — a one-way contract test would miss a
+    // response that is sent but silently dropped on render.
+    expect(await screen.findByText(/proposal/)).toBeInTheDocument();
+  });
+  it("omits evidence type from the request when the field is left blank", async () => {
+    window.history.replaceState(null, "", "/#tasks");
+    render(<App />);
+    await screen.findByText("Review API contract");
+    fireEvent.change(screen.getByLabelText("Task title"), {
+      target: { value: "Build course page" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add task" }));
+    await screen.findByText("Task added successfully.");
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/tasks",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ title: "Build course page" }),
       }),
     );
   });
@@ -157,28 +664,129 @@ describe("Academic workspace", () => {
       screen.getByText("No tasks match these filters."),
     ).toBeInTheDocument();
   });
-  it("moves the course gallery between subjects and announces the change", () => {
+  it("moves the course gallery between subjects and announces the change", async () => {
     window.history.replaceState(null, "", "/#courses");
     render(<App />);
 
-    const gallery = screen.getByRole("region", { name: "Course gallery" });
     expect(
-      screen.getByRole("heading", { level: 2, name: "Computer Science" }),
+      await screen.findByRole("heading", {
+        level: 2,
+        name: "Công nghệ phần mềm",
+      }),
     ).toBeInTheDocument();
+    const gallery = screen.getByRole("region", { name: "Course gallery" });
 
     fireEvent.click(screen.getByRole("button", { name: "Next course" }));
     expect(
-      screen.getByRole("heading", { level: 2, name: "Mathematics" }),
+      screen.getByRole("heading", { level: 2, name: "Toán ứng dụng" }),
     ).toBeInTheDocument();
-    expect(gallery).toHaveTextContent("Course 2 of 6: Mathematics");
+    expect(gallery).toHaveTextContent("Course 2 of 6: Toán ứng dụng");
 
     // Wrapping backwards from the first subject lands on the last one.
     fireEvent.click(screen.getByRole("button", { name: "Previous course" }));
     fireEvent.click(screen.getByRole("button", { name: "Previous course" }));
     expect(
-      screen.getByRole("heading", { level: 2, name: "Literature" }),
+      screen.getByRole("heading", {
+        level: 2,
+        name: "Văn học và tư duy phản biện",
+      }),
     ).toBeInTheDocument();
-    expect(gallery).toHaveTextContent("Course 6 of 6: Literature");
+    expect(gallery).toHaveTextContent(
+      "Course 6 of 6: Văn học và tư duy phản biện",
+    );
+  });
+  it("opens the matching course detail from a course overview card", async () => {
+    window.history.replaceState(null, "", "/#courses");
+    render(<App />);
+
+    const overview = (
+      await screen.findByRole("heading", { level: 2, name: "Course overview" })
+    ).closest("section")!;
+    fireEvent.click(
+      within(overview).getByRole("link", { name: /Công nghệ phần mềm/ }),
+    );
+
+    const heading = await screen.findByRole("heading", {
+      level: 1,
+      name: "Công nghệ phần mềm",
+    });
+    expect(window.location.hash).toBe("#courses/cs-201");
+    await waitFor(() => expect(heading).toHaveFocus());
+  });
+  it("keeps carousel thumbnails for selection and offers a separate detail link", async () => {
+    window.history.replaceState(null, "", "/#courses");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Select Toán ứng dụng course",
+      }),
+    );
+    expect(window.location.hash).toBe("#courses");
+
+    fireEvent.click(
+      screen.getByRole("link", { name: "Explore Toán ứng dụng course" }),
+    );
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Toán ứng dụng" }),
+    ).toBeInTheDocument();
+    expect(window.location.hash).toBe("#courses/ma-210");
+  });
+  it("renders meaningful course content from a direct deep link", async () => {
+    window.history.replaceState(null, "", "/#courses/hi-204");
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Lịch sử thế giới hiện đại",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Course outline" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Learning outcomes" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Assessment approach" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/illustrative, not an official syllabus/i),
+    ).toBeVisible();
+  });
+  it("shows a friendly fallback for an unknown course code", async () => {
+    window.history.replaceState(null, "", "/#courses/not-a-course");
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Course not found",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Không tìm thấy môn học minh họa này/i),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Back to course gallery" }),
+    ).toHaveAttribute("href", "#courses");
+  });
+  it("returns from a course detail to the gallery with a visible back link", async () => {
+    window.history.replaceState(null, "", "/#courses/lt-101");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("link", { name: "Back to course gallery" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Your learning journey",
+      }),
+    ).toBeInTheDocument();
+    expect(window.location.hash).toBe("#courses");
   });
   it("selects PDFs locally and loads persisted documents without uploading automatically", async () => {
     window.history.replaceState(null, "", "/#documents");
@@ -202,6 +810,69 @@ describe("Academic workspace", () => {
           ([url, init]) => url === "/api/documents" && init?.method === "POST",
         ),
     ).toBe(false);
+  });
+  it("indexes a stored PDF and exposes the ready state without a list refresh", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+
+    const index = await screen.findByRole("button", {
+      name: "Index de-cuong-thuat-toan.pdf",
+    });
+    fireEvent.click(index);
+
+    expect(
+      await screen.findByText("AI index · Searchable content ready"),
+    ).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "4 đoạn để Assistant truy xuất",
+    );
+    expect(
+      screen.getByText(
+        /Độ phủ: đọc được 4\/5 trang.*1 trang có ít chữ.*đã đọc hết nội dung trong ảnh/,
+      ),
+    ).toBeVisible();
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/documents/doc-1/process",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(
+      screen.getByRole("button", {
+        name: "Re-index de-cuong-thuat-toan.pdf",
+      }),
+    ).toBeEnabled();
+  });
+  it("shows an indexing failure as a retryable document state", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/documents")
+          return Response.json([documentFixtures[0]]);
+        if (url.endsWith("/process") && init?.method === "POST")
+          return Response.json(
+            { message: "Embedding provider unavailable" },
+            { status: 503 },
+          );
+        return Response.json([]);
+      }),
+    );
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Index de-cuong-thuat-toan.pdf",
+      }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Embedding provider unavailable",
+    );
+    expect(screen.getByText(/AI index · Failed/)).toBeVisible();
+    expect(
+      screen.getByRole("button", {
+        name: "Retry indexing de-cuong-thuat-toan.pdf",
+      }),
+    ).toBeEnabled();
   });
   it("keeps one card when the same PDF is picked twice in one selection", async () => {
     window.history.replaceState(null, "", "/#documents");
@@ -349,17 +1020,1223 @@ describe("Academic workspace", () => {
   it("shows a retry action when the backend is unavailable", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Offline")));
     render(<App />);
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Tasks are unavailable",
-    );
+    expect(
+      await screen.findByText(/Tasks are unavailable/),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
-  it("keeps the AI boundary disabled on the assistant page", () => {
+  it("opens the one shared panel from the assistant page, not a second composer", async () => {
     window.history.replaceState(null, "", "/#assistant");
     render(<App />);
+
     expect(
-      screen.getByRole("button", { name: "Ask after RAG setup" }),
+      await screen.findByRole("complementary", { name: "ExaMate AI" }),
+    ).toBeInTheDocument();
+    // One draft, one place to type it. The page used to have its own disabled
+    // textarea, which was a second draft that could never be sent either.
+    expect(screen.getAllByRole("textbox", { name: /question/i })).toHaveLength(
+      1,
+    );
+    expect(
+      screen.getByRole("button", { name: /Send question/ }),
     ).toBeDisabled();
+  });
+  it("keeps a past exam out of the upcoming list", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+
+    // The fixtures straddle the pinned date: 21 Sep is ahead, 8 Sep is behind.
+    // The soonest upcoming exam is the one featured at the top.
+    expect(
+      await screen.findByRole("heading", {
+        level: 3,
+        name: "Kiểm tra giữa kỳ phần thuật toán",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Còn 6 ngày")).toBeInTheDocument();
+
+    // The past exam must appear once, and only under "Đã qua". Listing it in
+    // both places would still satisfy a test that merely looked for it there.
+    expect(screen.getAllByText("Bài kiểm tra chương tế bào")).toHaveLength(1);
+    const pastGroup = screen.getByRole("heading", { level: 3, name: "Đã qua" });
+    expect(
+      within(pastGroup.parentElement!).getByText("Bài kiểm tra chương tế bào"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("7 ngày trước")).toBeInTheDocument();
+  });
+  it("reveals the exam list even though its container mounts after loading", async () => {
+    // jsdom ships no matchMedia, so useReveal treats every test as
+    // "reduced motion" and starts revealed. That silently skipped the whole
+    // animated path: this stub is what makes the hidden state real here.
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }));
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+
+    const heading = await screen.findByRole("heading", {
+      level: 3,
+      name: "Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+    });
+
+    // `.reveal > *` holds every child at opacity 0 until `is-revealed` lands.
+    // The panel renders a loading state first, so the container attaches on a
+    // later render than the hook. If the reveal only looked for it once, the
+    // exams stay in the DOM and invisible — which is the blank panel the page
+    // was showing.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(heading.closest(".reveal")).toHaveClass("is-revealed");
+  });
+  it("links an exam to the course it belongs to", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+
+    const link = await screen.findByRole("link", {
+      name: /C\u00f4ng ngh\u1ec7 ph\u1ea7n m\u1ec1m/,
+    });
+    expect(link).toHaveAttribute("href", "#courses/cs-201");
+  });
+  it("sends a new exam to the API with the date kept as a calendar day", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+    await screen.findByLabelText("Exam name");
+
+    fireEvent.change(screen.getByLabelText("Course"), {
+      target: { value: "course-1" },
+    });
+    fireEvent.change(screen.getByLabelText("Exam name"), {
+      target: { value: "Ki\u1ec3m tra cu\u1ed1i k\u1ef3" },
+    });
+    fireEvent.change(screen.getByLabelText("Date"), {
+      target: { value: "2026-12-01" },
+    });
+    fireEvent.change(screen.getByLabelText("Time"), {
+      target: { value: "07:30" },
+    });
+    fireEvent.change(screen.getByLabelText("Room"), {
+      target: { value: "Ph\u00f2ng B203" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add exam" }));
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/exams",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            courseId: "course-1",
+            topic: "Ki\u1ec3m tra cu\u1ed1i k\u1ef3",
+            examDate: "2026-12-01",
+            examTime: "07:30",
+            room: "Ph\u00f2ng B203",
+          }),
+        }),
+      ),
+    );
+  });
+  it("asks before deleting an exam and only then calls the API", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Delete exam: Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+      }),
+    );
+
+    // Nothing is sent on the first click: the row asks first.
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(
+          ([, init]) => (init as RequestInit)?.method === "DELETE",
+        ),
+    ).toBe(false);
+    expect(
+      screen.getByText("Xo\u00e1 k\u1ef3 thi n\u00e0y?"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Xo\u00e1" }));
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/exams/exam-1",
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", {
+          level: 3,
+          name: "Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+        }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+  it("does not leave the next exam primed for deletion", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Delete exam: Kiểm tra giữa kỳ phần thuật toán",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Xoá" }));
+
+    // The deleted exam was the featured one, so another exam takes its place.
+    // That new card must start closed: inheriting the open confirmation would
+    // put a one-click delete under the pointer that just clicked there.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", {
+          level: 3,
+          name: "Kiểm tra giữa kỳ phần thuật toán",
+        }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Xoá kỳ thi này?")).not.toBeInTheDocument();
+  });
+  it("keeps the exam when the confirmation is dismissed", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Delete exam: Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Gi\u1eef l\u1ea1i" }));
+
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(
+          ([, init]) => (init as RequestInit)?.method === "DELETE",
+        ),
+    ).toBe(false);
+    expect(
+      screen.getByRole("heading", {
+        level: 3,
+        name: "Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+      }),
+    ).toBeInTheDocument();
+  });
+  it("shows a readable message when the exam list cannot be loaded", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url === "/api/exams") throw new Error("Offline");
+        if (url === "/api/courses") return Response.json(courseFixtures);
+        return Response.json(url === "/api/documents" ? [] : [task]);
+      }),
+    );
+    render(<App />);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Ch\u01b0a xem \u0111\u01b0\u1ee3c l\u1ecbch thi",
+    );
+    expect(
+      within(alert).getByRole("button", { name: /Retry exams/ }),
+    ).toBeInTheDocument();
+  });
+  it("groups revision items by course and counts what is finished", async () => {
+    window.history.replaceState(null, "", "/#study-plan");
+    render(<App />);
+
+    const cs = await screen.findByRole("heading", {
+      level: 3,
+      name: /Công nghệ phần mềm/,
+    });
+    // Two items for this course, one of them already done.
+    expect(cs).toHaveTextContent("1/2 xọng".replace("xọng", "xong"));
+    expect(
+      within(cs).getByRole("link", { name: /Công nghệ phần mềm/ }),
+    ).toHaveAttribute("href", "#courses/cs-201");
+
+    const ec = screen.getByRole("heading", { level: 3, name: /Kinh tế vi mô/ });
+    expect(ec).toHaveTextContent("0/1 xong");
+  });
+  it("marks a revision item as done through the API", async () => {
+    window.history.replaceState(null, "", "/#study-plan");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Mark as done: Ôn lại độ phức tạp thuật toán",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/study-plans/plan-1/completion",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ completed: true }),
+        }),
+      ),
+    );
+    // The button flips, so the same control can undo what it just did.
+    expect(
+      await screen.findByRole("button", {
+        name: "Mark as not done: Ôn lại độ phức tạp thuật toán",
+      }),
+    ).toBeInTheDocument();
+  });
+  it("asks before deleting a revision item", async () => {
+    window.history.replaceState(null, "", "/#study-plan");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Delete revision item: Ôn lại độ phức tạp thuật toán",
+      }),
+    );
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(
+          ([, init]) => (init as RequestInit)?.method === "DELETE",
+        ),
+    ).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Xoá" }));
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/study-plans/plan-1",
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+  });
+  it("explains what the study plan is for when there is nothing in it", async () => {
+    window.history.replaceState(null, "", "/#study-plan");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url === "/api/study-plans") return Response.json([]);
+        if (url === "/api/courses") return Response.json(courseFixtures);
+        if (url === "/api/exams") return Response.json([]);
+        return Response.json(url === "/api/documents" ? [] : [task]);
+      }),
+    );
+    render(<App />);
+
+    expect(
+      await screen.findByText(/những thứ bạn cần ôn trước kỳ thi/),
+    ).toBeInTheDocument();
+  });
+  it("totals only the expenses inside the chosen period", async () => {
+    window.history.replaceState(null, "", "/#finances");
+    render(<App />);
+
+    // Amounts repeat across the summary, the per-course bars and the rows, so
+    // every assertion is scoped to the summary list it is actually about.
+    const total = async () => {
+      const term = await screen.findByText(/^\u0110\u00e3 chi /);
+      return term.parentElement!.querySelector("dd")!.textContent;
+    };
+
+    expect(await total()).toBe("210.000 \u20ab");
+
+    fireEvent.click(screen.getByLabelText("Tu\u1ea7n n\u00e0y"));
+    // The week starts on Monday 14 Sep, so the 5 Sep fee drops out.
+    expect(await total()).toBe("60.000 \u20ab");
+    expect(
+      screen.queryByText("L\u1ec7 ph\u00ed thi l\u1ea1i h\u1ecdc ph\u1ea7n"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("H\u00f4m nay"));
+    expect(await total()).toBe("35.000 \u20ab");
+    expect(
+      screen.queryByText("C\u00e0 ph\u00ea ng\u1ed3i h\u1ecdc nh\u00f3m"),
+    ).not.toBeInTheDocument();
+  });
+  it("totals spending per course and keeps unassigned spending visible", async () => {
+    window.history.replaceState(null, "", "/#finances");
+    render(<App />);
+
+    const heading = await screen.findByRole("heading", {
+      level: 3,
+      name: "Chi theo môn học",
+    });
+    const list = heading.nextElementSibling as HTMLElement;
+    expect(within(list).getByText("150.000 ₫")).toBeInTheDocument();
+    expect(within(list).getByText("35.000 ₫")).toBeInTheDocument();
+    // Money that belongs to no subject must not silently vanish from the
+    // breakdown, or the per-course totals would not add up to the headline.
+    expect(within(list).getByText("Không thuộc môn nào")).toBeInTheDocument();
+  });
+  it("sends a new expense as a number, not a string", async () => {
+    window.history.replaceState(null, "", "/#finances");
+    render(<App />);
+    await screen.findByLabelText("Description");
+
+    fireEvent.change(screen.getByLabelText("Amount (₫)"), {
+      target: { value: "42000" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Mua bút" },
+    });
+    fireEvent.change(screen.getByLabelText("Date"), {
+      target: { value: "2026-09-15" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add expense" }));
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/expenses",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            amount: 42000,
+            description: "Mua bút",
+            spentOn: "2026-09-15",
+            category: "books",
+          }),
+        }),
+      ),
+    );
+  });
+  it("never sends a fractional amount to the API", async () => {
+    window.history.replaceState(null, "", "/#finances");
+    render(<App />);
+    await screen.findByLabelText("Description");
+
+    fireEvent.change(screen.getByLabelText("Amount (\u20ab)"), {
+      target: { value: "12.5" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Le" },
+    });
+    fireEvent.change(screen.getByLabelText("Date"), {
+      target: { value: "2026-09-15" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add expense" }));
+
+    // Two layers stop this, and the test locks the outcome rather than either
+    // one. A number input steps by 1 unless told otherwise, so 12.5 fails
+    // constraint validation and the submit never fires; if the field were ever
+    // changed to type="text", the integer check in the handler catches it
+    // instead. Verified by mutation: the test only goes red when both are gone.
+    // It matters because the column stores INTEGER.
+    await waitFor(() =>
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.some(
+            ([url, init]) =>
+              url === "/api/expenses" &&
+              (init as RequestInit)?.method === "POST",
+          ),
+      ).toBe(false),
+    );
+  });
+  it("asks before deleting an expense", async () => {
+    window.history.replaceState(null, "", "/#finances");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Delete expense: In tài liệu ôn thuật toán",
+      }),
+    );
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(
+          ([, init]) => (init as RequestInit)?.method === "DELETE",
+        ),
+    ).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Xoá" }));
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/expenses/exp-1",
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+  });
+  it("sends the chosen course with an uploaded PDF", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+    await screen.findByLabelText("Save under course");
+
+    fireEvent.change(screen.getByLabelText("Save under course"), {
+      target: { value: "course-1" },
+    });
+    const pdf = new File(["%PDF-1.4"], "de-cuong.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+      target: { files: [pdf] },
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Upload de-cuong.pdf" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Upload de-cuong.pdf" }),
+    );
+
+    await waitFor(() => {
+      const call = vi
+        .mocked(fetch)
+        .mock.calls.find(
+          ([url, init]) =>
+            url === "/api/documents" &&
+            (init as RequestInit)?.method === "POST",
+        );
+      expect(call).toBeDefined();
+      const body = (call![1] as RequestInit).body as FormData;
+      expect(body.get("courseId")).toBe("course-1");
+    });
+  });
+  it("omits the course field when no subject is chosen", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+    await screen.findByLabelText("Save under course");
+
+    const pdf = new File(["%PDF-1.4"], "roi-rac.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+      target: { files: [pdf] },
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Upload roi-rac.pdf" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Upload roi-rac.pdf" }));
+
+    // An empty string is not a UUID; sending it would fail the whole upload
+    // over a field the student deliberately left alone.
+    await waitFor(() => {
+      const call = vi
+        .mocked(fetch)
+        .mock.calls.find(
+          ([url, init]) =>
+            url === "/api/documents" &&
+            (init as RequestInit)?.method === "POST",
+        );
+      expect(call).toBeDefined();
+      expect(((call![1] as RequestInit).body as FormData).has("courseId")).toBe(
+        false,
+      );
+    });
+  });
+  it("filters stored documents by course, including those with none", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+
+    expect(
+      await screen.findByText("de-cuong-thuat-toan.pdf"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("ghi-chu-chung.pdf")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Filter by course/), {
+      target: { value: "course-1" },
+    });
+    expect(screen.getByText("de-cuong-thuat-toan.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("ghi-chu-chung.pdf")).not.toBeInTheDocument();
+
+    // "no course" is its own choice, not the absence of a filter.
+    fireEvent.change(screen.getByLabelText(/Filter by course/), {
+      target: { value: "none" },
+    });
+    expect(screen.getByText("ghi-chu-chung.pdf")).toBeInTheDocument();
+    expect(
+      screen.queryByText("de-cuong-thuat-toan.pdf"),
+    ).not.toBeInTheDocument();
+  });
+  it("re-files a stored document under another course", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+    await screen.findByText("ghi-chu-chung.pdf");
+
+    fireEvent.change(screen.getByLabelText("Course for ghi-chu-chung.pdf"), {
+      target: { value: "course-3" },
+    });
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/documents/doc-2/course",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ courseId: "course-3" }),
+        }),
+      ),
+    );
+  });
+  it("shows only this course's work on its detail page", async () => {
+    window.history.replaceState(null, "", "/#courses/cs-201");
+    render(<App />);
+
+    const workspace = await screen.findByRole("region", {
+      name: "Workspace for this course",
+    });
+    // Belongs to CS 201. findBy, not getBy: each block fetches its own
+    // list, so the workspace renders before any of them land.
+    expect(
+      await within(workspace).findByText(
+        "Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(workspace).getByText("de-cuong-thuat-toan.pdf"),
+    ).toBeInTheDocument();
+    // Belongs to other subjects, or to none.
+    expect(
+      within(workspace).queryByText(
+        "B\u00e0i ki\u1ec3m tra kinh t\u1ebf vi m\u00f4",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      within(workspace).queryByText("ghi-chu-chung.pdf"),
+    ).not.toBeInTheDocument();
+  });
+  it("adds a revision item from the course page with the course already set", async () => {
+    window.history.replaceState(null, "", "/#courses/cs-201");
+    render(<App />);
+    const workspace = await screen.findByRole("region", {
+      name: "Workspace for this course",
+    });
+
+    fireEvent.change(
+      await within(workspace).findByLabelText("What to revise"),
+      {
+        target: { value: "\u00d4n ch\u01b0\u01a1ng b\u1ed1n" },
+      },
+    );
+    fireEvent.click(
+      within(workspace).getByRole("button", { name: /Add revision item/ }),
+    );
+
+    // The student never picked a subject here: the page already knows it.
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/study-plans",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            courseId: "course-1",
+            title: "\u00d4n ch\u01b0\u01a1ng b\u1ed1n",
+          }),
+        }),
+      ),
+    );
+  });
+  it("edits an exam in place and sends every field", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Edit exam: Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+      }),
+    );
+    const form = screen.getByRole("form", {
+      name: "Edit exam: Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+    });
+    // Pre-filled with what is stored, so the student corrects rather than
+    // retypes: an empty form would make "unchanged" indistinguishable from
+    // "cleared".
+    expect(within(form).getByLabelText("Room")).toHaveValue("Ph\u00f2ng A201");
+
+    fireEvent.change(within(form).getByLabelText("Room"), {
+      target: { value: "Ph\u00f2ng B999" },
+    });
+    fireEvent.click(within(form).getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/exams/exam-1",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({
+            topic:
+              "Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+            examDate: "2026-09-21",
+            examTime: "09:00",
+            room: "Ph\u00f2ng B999",
+            revisionNote:
+              "\u00d4n l\u1ea1i \u0111\u1ed9 ph\u1ee9c t\u1ea1p v\u00e0 c\u00e2y nh\u1ecb ph\u00e2n t\u00ecm ki\u1ebfm.",
+          }),
+        }),
+      ),
+    );
+  });
+  it("closes the exam editor without saving when cancelled", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Edit exam: Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Hu\u1ef7" }));
+
+    expect(
+      screen.queryByRole("button", { name: "Save changes" }),
+    ).not.toBeInTheDocument();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(
+          ([, init]) => (init as RequestInit)?.method === "PATCH",
+        ),
+    ).toBe(false);
+  });
+  it("uploads a PDF straight from the course page with the course attached", async () => {
+    window.history.replaceState(null, "", "/#courses/cs-201");
+    render(<App />);
+    const workspace = await screen.findByRole("region", {
+      name: "Workspace for this course",
+    });
+
+    const picker = await within(workspace).findByLabelText(
+      /Ch\u1ecdn t\u1ec7p PDF cho m\u00f4n n\u00e0y/,
+    );
+    const pdf = new File(["%PDF-1.4"], "slide-buoi-1.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(picker, { target: { files: [pdf] } });
+
+    // The student never chose a subject here; the page supplies it.
+    await waitFor(() => {
+      const call = vi
+        .mocked(fetch)
+        .mock.calls.find(
+          ([url, init]) =>
+            url === "/api/documents" &&
+            (init as RequestInit)?.method === "POST",
+        );
+      expect(call).toBeDefined();
+      const body = (call![1] as RequestInit).body as FormData;
+      expect(body.get("courseId")).toBe("course-1");
+      expect((body.get("file") as File).name).toBe("slide-buoi-1.pdf");
+    });
+  });
+  it("finds workspace objects by name and links each to where it lives", async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Find an object"), {
+      target: { value: "thu\u1eadt to\u00e1n" },
+    });
+
+    const results = await screen.findByRole("region", {
+      name: "Search results",
+    });
+    // One phrase, three different kinds of object. Each link names the
+    // object itself, not just its page, so the destination can scroll to it.
+    expect(
+      within(results).getByRole("link", {
+        name: /Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n/,
+      }),
+    ).toHaveAttribute("href", "#exams/exam-1");
+    expect(
+      within(results).getByRole("link", {
+        name: /\u00d4n l\u1ea1i \u0111\u1ed9 ph\u1ee9c t\u1ea1p thu\u1eadt to\u00e1n/,
+      }),
+    ).toHaveAttribute("href", "#study-plan/plan-1");
+    expect(
+      within(results).getByRole("link", { name: /de-cuong-thuat-toan\.pdf/ }),
+    ).toHaveAttribute("href", "#documents/doc-1");
+  });
+  it("finds a course and links straight to its own page", async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Find an object"), {
+      target: { value: "C\u00f4ng ngh\u1ec7" },
+    });
+
+    const results = await screen.findByRole("region", {
+      name: "Search results",
+    });
+    // The phrase also appears on every exam, revision item and document
+    // belonging to that course, which is the point of matching the
+    // supporting line too. Scoped to the course group to be unambiguous.
+    const courseGroup =
+      within(results).getByText("M\u00f4n h\u1ecdc").parentElement!;
+    expect(
+      within(courseGroup).getByRole("link", {
+        name: /C\u00f4ng ngh\u1ec7 ph\u1ea7n m\u1ec1m/,
+      }),
+    ).toHaveAttribute("href", "#courses/cs-201");
+  });
+  it("matches Vietnamese text typed without tone marks", async () => {
+    render(<App />);
+
+    // How most people type in a hurry. Folding the diacritics on both sides is
+    // what makes "thuat toan" reach "thuật toán".
+    fireEvent.change(screen.getByLabelText("Find an object"), {
+      target: { value: "thuat toan" },
+    });
+
+    const results = await screen.findByRole("region", {
+      name: "Search results",
+    });
+    expect(
+      within(results).getByRole("link", {
+        name: /Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n/,
+      }),
+    ).toBeInTheDocument();
+  });
+  it("says so plainly when nothing matches", async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Find an object"), {
+      target: { value: "zzzzz" },
+    });
+
+    expect(
+      await screen.findByText(
+        "Kh\u00f4ng t\u00ecm th\u1ea5y g\u00ec kh\u1edbp.",
+      ),
+    ).toBeInTheDocument();
+  });
+  it("keeps every page in the sidebar while searching", async () => {
+    render(<App />);
+    const nav = screen.getByRole("navigation", { name: "Primary" });
+    const before = within(nav).getAllByRole("link").length;
+
+    fireEvent.change(screen.getByLabelText("Find an object"), {
+      target: { value: "zzzzz" },
+    });
+    await screen.findByText("Kh\u00f4ng t\u00ecm th\u1ea5y g\u00ec kh\u1edbp.");
+
+    // The box used to hide pages as you typed. It no longer touches the nav:
+    // that filtering was the reason it was useless, every page being visible
+    // already.
+    expect(within(nav).getAllByRole("link")).toHaveLength(before);
+  });
+  it("scrolls to and marks the object a link named", async () => {
+    // jsdom has no layout, so scrollIntoView is a stub; spying on it is the
+    // only way to prove the right element was the one scrolled to.
+    const scrolled: HTMLElement[] = [];
+    const original = window.HTMLElement.prototype.scrollIntoView;
+    window.HTMLElement.prototype.scrollIntoView = function scrollIntoViewSpy(
+      this: HTMLElement,
+    ) {
+      scrolled.push(this);
+    };
+    try {
+      window.history.replaceState(null, "", "/#exams/exam-3");
+      render(<App />);
+
+      // The id after the page name must not be mistaken for part of it. Get
+      // this wrong and the app falls back to the dashboard, which also lists
+      // exams — so the row would still be found, on entirely the wrong page.
+      expect(
+        await screen.findByRole("heading", { level: 1, name: /prepared/i }),
+      ).toBeInTheDocument();
+
+      const row = await waitFor(() => {
+        const found = document.querySelector<HTMLElement>(
+          '[data-focus-id="exam-3"]',
+        );
+        expect(found).not.toBeNull();
+        return found!;
+      });
+
+      // The row only exists once the list has loaded, which is after the
+      // navigation: the lookup has to keep trying, not run once.
+      await waitFor(() => expect(scrolled).toContain(row));
+      expect(row).toHaveClass("is-focus-target");
+      expect(row).toHaveTextContent(
+        "B\u00e0i ki\u1ec3m tra kinh t\u1ebf vi m\u00f4",
+      );
+    } finally {
+      window.HTMLElement.prototype.scrollIntoView = original;
+    }
+  });
+  it("still opens a page when the link carries no object", async () => {
+    window.history.replaceState(null, "", "/#exams");
+    render(<App />);
+
+    // Links written before search existed have no id after the page name and
+    // must keep working untouched.
+    expect(
+      await screen.findByRole("heading", { level: 1, name: /prepared/i }),
+    ).toBeInTheDocument();
+    expect(document.querySelector(".is-focus-target")).toBeNull();
+  });
+  it("moves one note without disturbing the order of the rest", () => {
+    const items = ["a", "b", "c", "d"];
+    expect(moveNote(items, 0, 2)).toEqual(["b", "c", "a", "d"]);
+    expect(moveNote(items, 3, 1)).toEqual(["a", "d", "b", "c"]);
+    // Nothing to do, and nothing to break: the same array comes back.
+    expect(moveNote(items, 1, 1)).toBe(items);
+    expect(moveNote(items, 0, 9)).toBe(items);
+    expect(moveNote(items, -1, 0)).toBe(items);
+    expect(items).toEqual(["a", "b", "c", "d"]);
+  });
+  it("reorders notes with the arrow keys and remembers the new order", async () => {
+    localStorage.setItem(
+      "examate-notes",
+      JSON.stringify([
+        { id: "n1", text: "\u0110\u1ea7u ti\u00ean", tone: 0 },
+        { id: "n2", text: "Th\u1ee9 hai", tone: 1 },
+        { id: "n3", text: "Th\u1ee9 ba", tone: 2 },
+      ]),
+    );
+    render(<App />);
+
+    const handle = screen.getByRole("button", {
+      name: /Move note 1: \u0110\u1ea7u ti\u00ean/,
+    });
+    fireEvent.keyDown(handle, { key: "ArrowRight" });
+
+    await waitFor(() => {
+      const saved = JSON.parse(localStorage.getItem("examate-notes")!) as {
+        id: string;
+      }[];
+      expect(saved.map((note) => note.id)).toEqual(["n2", "n1", "n3"]);
+    });
+    // The move is announced, because nothing about it is visible to someone
+    // who cannot see the grid rearrange.
+    expect(
+      screen.getByText(
+        /\u0110\u00e3 chuy\u1ec3n \u0110\u1ea7u ti\u00ean sang v\u1ecb tr\u00ed 2 tr\u00ean 3/,
+      ),
+    ).toBeInTheDocument();
+  });
+  it("refuses to move the first note further back or the last one further on", async () => {
+    localStorage.setItem(
+      "examate-notes",
+      JSON.stringify([
+        { id: "n1", text: "\u0110\u1ea7u ti\u00ean", tone: 0 },
+        { id: "n2", text: "Th\u1ee9 hai", tone: 1 },
+      ]),
+    );
+    render(<App />);
+
+    fireEvent.keyDown(
+      screen.getByRole("button", {
+        name: /Move note 1: \u0110\u1ea7u ti\u00ean/,
+      }),
+      { key: "ArrowLeft" },
+    );
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: /Move note 2: Th\u1ee9 hai/ }),
+      { key: "ArrowRight" },
+    );
+
+    // Neither edge wraps around, and neither writes anything.
+    expect(localStorage.getItem("examate-notes")).toBe(
+      JSON.stringify([
+        { id: "n1", text: "\u0110\u1ea7u ti\u00ean", tone: 0 },
+        { id: "n2", text: "Th\u1ee9 hai", tone: 1 },
+      ]),
+    );
+  });
+  it("keeps the note text editable, which is why dragging has its own handle", async () => {
+    render(<App />);
+
+    // The textarea is not inside anything draggable: the handle is a separate
+    // control, so selecting and editing the text still works normally.
+    const field = screen.getByLabelText("Quick note 1");
+    expect(field.closest("[draggable=true]")).toBeNull();
+    fireEvent.change(field, {
+      target: {
+        value: "S\u1eeda \u0111\u01b0\u1ee3c b\u00ecnh th\u01b0\u1eddng",
+      },
+    });
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem("examate-notes")!)[0].text).toBe(
+        "S\u1eeda \u0111\u01b0\u1ee3c b\u00ecnh th\u01b0\u1eddng",
+      ),
+    );
+  });
+  it("replaces the header Ask AI button with one floating launcher", () => {
+    render(<App />);
+
+    expect(screen.queryByText("Ask AI")).not.toBeInTheDocument();
+    const launchers = screen.getAllByRole("button", {
+      name: "Open ExaMate AI",
+    });
+    expect(launchers).toHaveLength(1);
+    expect(launchers[0]).toHaveAttribute("aria-expanded", "false");
+    expect(launchers[0]).toHaveAttribute("aria-controls", "examate-ai-panel");
+
+    fireEvent.click(launchers[0]);
+    expect(launchers[0]).toHaveAttribute("aria-expanded", "true");
+  });
+  it("keeps the panel mounted but out of reach while it is closed", () => {
+    render(<App />);
+
+    // Mounted, so the draft has somewhere to live; hidden, so a closed panel
+    // takes no Tab stops and is not read out.
+    const panel = document.getElementById("examate-ai-panel");
+    expect(panel).not.toBeNull();
+    expect(panel).toHaveAttribute("hidden");
+    expect(
+      screen.queryByRole("complementary", { name: "ExaMate AI" }),
+    ).not.toBeInTheDocument();
+  });
+  it("keeps the draft when the panel is closed and opened again", () => {
+    render(<App />);
+    const launcher = screen.getByRole("button", { name: "Open ExaMate AI" });
+
+    fireEvent.click(launcher);
+    fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+      target: { value: "C\u00e2u h\u1ecfi \u0111ang g\u00f5 d\u1edf" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Close ExaMate AI" }));
+    fireEvent.click(launcher);
+
+    expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+      "C\u00e2u h\u1ecfi \u0111ang g\u00f5 d\u1edf",
+    );
+  });
+  it("keeps the draft when the page changes underneath it", async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+      target: { value: "Gi\u1eef qua chuy\u1ec3n trang" },
+    });
+
+    window.history.replaceState(null, "", "/#tasks");
+    fireEvent(window, new HashChangeEvent("hashchange"));
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: /Small steps/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+      "Gi\u1eef qua chuy\u1ec3n trang",
+    );
+  });
+  it("returns focus to whichever control opened the panel", () => {
+    render(<App />);
+
+    const hero = screen.getByRole("button", { name: /Ask ExaMate/ });
+    fireEvent.click(hero);
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(hero).toHaveFocus();
+  });
+  it("sends the question and renders its validated document citation", async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+      target: { value: "Tôi nên chuẩn bị phần nào cho bài thuyết trình?" },
+    });
+
+    const send = screen.getByRole("button", { name: /Send question/ });
+    expect(send).toBeEnabled();
+    expect(
+      screen.getByText(
+        /chỉ dựa trên các tài liệu đã lập chỉ mục.*backend kiểm chứng/i,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(send);
+
+    expect(
+      await screen.findByText(
+        "Chia bài thuyết trình thành mục tiêu, demo và phần hỏi đáp.",
+      ),
+    ).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/assistant/chat",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          message: "Tôi nên chuẩn bị phần nào cho bài thuyết trình?",
+          mode: "documents",
+          operation: "question",
+          pageContext: { pageId: "dashboard", pageName: "Dashboard" },
+        }),
+      }),
+    );
+    expect(screen.queryByText("Example grounded answer")).toBeNull();
+    expect(screen.getByText(/de-cuong-du-an\.pdf.*tr\. 5/)).toBeInTheDocument();
+  });
+  it("translates a stable provider reason code and keeps the failed draft", async () => {
+    render(<App />);
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    vi.mocked(fetch).mockResolvedValueOnce(
+      Response.json(
+        {
+          statusCode: 503,
+          code: "AI_QUOTA",
+          message: "AI assistant is temporarily unavailable.",
+          requestId: "request-test-1",
+        },
+        { status: 503 },
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+      target: { value: "Câu hỏi phải được giữ" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Dịch vụ AI đã hết quota",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("request-test-1");
+    expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+      "Câu hỏi phải được giữ",
+    );
+  });
+  it("scopes Assistant retrieval to the course detail currently in view", async () => {
+    window.history.replaceState(null, "", "/#courses/cs-201");
+    render(<App />);
+    await screen.findByRole("heading", {
+      level: 1,
+      name: "Công nghệ phần mềm",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+      target: { value: "Tóm tắt tài liệu của môn này" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
+
+    await screen.findByText(
+      "Chia bài thuyết trình thành mục tiêu, demo và phần hỏi đáp.",
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/assistant/chat",
+      expect.objectContaining({
+        body: JSON.stringify({
+          message: "Tóm tắt tài liệu của môn này",
+          mode: "documents",
+          operation: "question",
+          pageContext: {
+            pageId: "courses",
+            pageName: "Công nghệ phần mềm",
+          },
+          courseId: "course-1",
+        }),
+      }),
+    );
+  });
+  it("summarizes only the explicitly selected indexed document", async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    fireEvent.change(await screen.findByLabelText("Tài liệu"), {
+      target: { value: "doc-2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tóm tắt tài liệu" }));
+
+    await screen.findByText(
+      "Chia bài thuyết trình thành mục tiêu, demo và phần hỏi đáp.",
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/assistant/chat",
+      expect.objectContaining({
+        body: JSON.stringify({
+          message: "Tóm tắt tài liệu đã chọn.",
+          mode: "documents",
+          operation: "summarize",
+          pageContext: { pageId: "dashboard", pageName: "Dashboard" },
+          documentId: "doc-2",
+        }),
+      }),
+    );
+  });
+  it("opens a validated citation at its PDF page using a signed URL", async () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+      target: { value: "Nguồn nào nói về phần trình bày?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Open source de-cuong-du-an.pdf, tr. 5",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(open).toHaveBeenCalledWith(
+        "https://storage.example.test/source.pdf?token=signed#page=5",
+        "_blank",
+        "noopener,noreferrer",
+      ),
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/documents/11111111-1111-4111-8111-111111111111/download",
+      expect.any(Object),
+    );
+  });
+  it("opens as a modal sheet on a narrow screen and releases the page on close", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width"),
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }));
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+
+    const sheet = screen.getByRole("dialog", { name: "ExaMate AI" });
+    expect(sheet).toHaveAttribute("aria-modal", "true");
+    // Everything behind the sheet is inert, which is what keeps Tab inside it,
+    // and the page underneath stops scrolling.
+    expect(document.querySelector(".desktop-shell")).toHaveAttribute("inert");
+    expect(document.body.style.overflow).toBe("hidden");
+    // Nothing outside the sheet may stay reachable. The skip link sits outside
+    // the shell, so making only the shell inert left Tab one stop to escape
+    // through — found by listing every focusable element at 375px.
+    const panel = document.getElementById("examate-ai-panel")!;
+    const reachable = [
+      ...document.querySelectorAll<HTMLElement>(
+        "a[href], button, input, select, textarea, summary",
+      ),
+    ].filter(
+      (element) => !panel.contains(element) && !element.closest("[inert]"),
+    );
+    expect(reachable).toEqual([]);
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(document.querySelector(".desktop-shell")).not.toHaveAttribute(
+      "inert",
+    );
+    expect(document.body.style.overflow).toBe("");
+  });
+  it("does not let navigation pull focus out of an open modal sheet", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width"),
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }));
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    const composer = screen.getByLabelText("Question for ExaMate");
+    await waitFor(() => expect(composer).toHaveFocus());
+
+    window.history.replaceState(null, "", "/#tasks");
+    fireEvent(window, new HashChangeEvent("hashchange"));
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+
+    // The router normally moves focus to the new page heading. With a modal
+    // open that heading is inert behind it, so focus has to stay put.
+    expect(composer).toHaveFocus();
   });
   it("persists quick notes in the current browser", async () => {
     render(<App />);
@@ -367,9 +2244,66 @@ describe("Academic workspace", () => {
       target: { value: "Discuss citations" },
     });
     await waitFor(() =>
-      expect(JSON.parse(localStorage.getItem("examate-notes")!)[0]).toBe(
+      expect(JSON.parse(localStorage.getItem("examate-notes")!)[0].text).toBe(
         "Discuss citations",
       ),
     );
+  });
+  it("deletes a quick note and drops it from storage", async () => {
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Quick note 1"), {
+      target: { value: "Bỏ tờ này đi" },
+    });
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem("examate-notes")!)[0].text).toBe(
+        "Bỏ tờ này đi",
+      ),
+    );
+    const before = JSON.parse(localStorage.getItem("examate-notes")!).length;
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Delete note 1: Bỏ tờ này đi/ }),
+    );
+
+    await waitFor(() => {
+      const saved = JSON.parse(localStorage.getItem("examate-notes")!);
+      expect(saved).toHaveLength(before - 1);
+      expect(
+        saved.some((note: { text: string }) => note.text === "Bỏ tờ này đi"),
+      ).toBe(false);
+    });
+  });
+  it("puts a deleted note back when the undo action is used", async () => {
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Quick note 1"), {
+      target: { value: "Đừng mất tôi" },
+    });
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem("examate-notes")!)[0].text).toBe(
+        "Đừng mất tôi",
+      ),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Delete note 1: Đừng mất tôi/ }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Hoàn tác/ }));
+
+    await waitFor(() => {
+      const saved = JSON.parse(localStorage.getItem("examate-notes")!);
+      expect(saved[0].text).toBe("Đừng mất tôi");
+    });
+  });
+  it("keeps notes saved by an earlier build that stored plain strings", async () => {
+    localStorage.setItem(
+      "examate-notes",
+      JSON.stringify(["Ghi chú kiểu cũ", "Tờ thứ hai"]),
+    );
+    render(<App />);
+
+    expect(
+      await screen.findByDisplayValue("Ghi chú kiểu cũ"),
+    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Tờ thứ hai")).toBeInTheDocument();
   });
 });

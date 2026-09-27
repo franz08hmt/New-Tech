@@ -43,9 +43,9 @@ export function configureApp(app: INestApplication, origins: string[] = []) {
       // Only known route shapes reach logs; arbitrary query strings and filenames do not.
       const path = req.url.split("?")[0];
       const safePath =
-        /^\/api\/(health|tasks|documents|assistant\/(status|chat))(\/[0-9a-f-]{36}(\/status|\/download)?)?$/i.test(
+        /^\/api\/(health|tasks|documents|assistant\/(status|chat))(\/[0-9a-f-]{36}(\/status|\/download|\/course|\/process)?)?$/i.test(
           path,
-        )
+        ) || /^\/api\/courses(\/[a-z0-9-]+)?$/.test(path)
           ? path
           : "/unmatched";
       res.setHeader("X-Request-ID", requestId);

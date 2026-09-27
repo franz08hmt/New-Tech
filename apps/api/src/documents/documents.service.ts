@@ -7,6 +7,7 @@ import {
   UnsupportedMediaTypeException,
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
+import type { StoredDocument } from "@examate/contracts";
 import { DatabaseService } from "../database/database.service.js";
 import { log } from "../common/log.js";
 import { StorageService } from "./storage.service.js";
@@ -25,17 +26,100 @@ interface DocumentRecord {
   size_bytes: number | null;
   storage_key: string;
   storage_status: "stored" | "deleting" | "legacy";
+  processing_status: "pending" | "processing" | "ready" | "failed";
+  total_page_count: number | null;
+  useful_text_page_count: number | null;
+  low_text_page_count: number | null;
+  indexed_chunk_count: number | null;
+  skipped_page_numbers: number[] | null;
+  needs_ocr: boolean | null;
+  ocr_page_count: number;
+  ocr_page_numbers: number[];
+  course_id: string | null;
+  course_slug: string | null;
+  course_name: string | null;
+  course_code: string | null;
   created_at: string;
   updated_at: string;
 }
-function publicDocument(document: DocumentRecord) {
-  // Exclude internal keys and the legacy processing_status (no AI pipeline).
+
+/**
+ * Every read goes through this list, so the course columns are joined in one
+ * place. LEFT JOIN, because a document that belongs to no subject must still
+ * come back — and the link is nullable by design.
+ */
+const DOCUMENT_COLUMNS = `d.id,
+  d.name,
+  d.media_type,
+  d.size_bytes,
+  d.storage_key,
+  d.storage_status,
+  d.processing_status,
+  d.total_page_count,
+  d.useful_text_page_count,
+  d.low_text_page_count,
+  d.indexed_chunk_count,
+  d.skipped_page_numbers,
+  d.needs_ocr,
+  d.ocr_page_count,
+  d.ocr_page_numbers,
+  d.course_id,
+  c.slug AS course_slug,
+  c.name AS course_name,
+  c.code AS course_code,
+  d.created_at,
+  d.updated_at`;
+
+const DOCUMENT_FROM = `FROM documents d
+  LEFT JOIN courses c ON c.id = d.course_id`;
+/**
+ * Recovers a filename that multipart parsing handed back as Latin-1.
+ *
+ * busboy decodes the filename in Content-Disposition as Latin-1, so a UTF-8
+ * name arrives one byte per character. An upload named
+ * "ĐƠN XIN ĐĂNG KÝ MÔN HỌC.pdf" was being stored with every accented letter
+ * expanded into the two characters its UTF-8 bytes happen to look like.
+ * Reading those characters back as bytes and decoding them as UTF-8 restores
+ * the original name.
+ *
+ * Guarded rather than unconditional: if the bytes are not valid UTF-8, Node
+ * substitutes U+FFFD, and a name full of replacement characters is worse than
+ * the one we started with. Plain ASCII names are unchanged either way.
+ */
+function decodeUploadName(raw: string): string {
+  const decoded = Buffer.from(raw, "latin1").toString("utf8");
+  return decoded.includes("�") ? raw : decoded;
+}
+
+// The annotated return type is load-bearing: without it the shape was merely
+// inferred, so an extra field here — `storage_key`, say — would have reached
+// the browser with nothing to catch it. Now the contract rejects it.
+function publicDocument(document: DocumentRecord): StoredDocument {
+  // Exclude internal keys while exposing the indexing lifecycle the UI needs.
   return {
     id: document.id,
     name: document.name,
     media_type: document.media_type,
     size_bytes: document.size_bytes,
     storage_status: document.storage_status,
+    processing_status: document.processing_status,
+    index_quality:
+      document.total_page_count == null
+        ? null
+        : {
+            total_page_count: document.total_page_count,
+            useful_text_page_count: document.useful_text_page_count!,
+            low_text_page_count: document.low_text_page_count!,
+            indexed_chunk_count: document.indexed_chunk_count!,
+            skipped_page_numbers: document.skipped_page_numbers!,
+            needs_ocr: document.needs_ocr!,
+            ocr_page_count: document.ocr_page_count,
+            ocr_page_numbers: document.ocr_page_numbers,
+          },
+    course_id: document.course_id,
+    course_slug: document.course_slug,
+    course_name: document.course_name,
+    course_code: document.course_code,
     created_at: document.created_at,
     updated_at: document.updated_at,
   };
@@ -50,20 +134,21 @@ export class DocumentsService {
 
   async list() {
     const result = await this.database.query<DocumentRecord>(
-      "SELECT * FROM documents ORDER BY created_at DESC, id DESC",
+      `SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM}
+       ORDER BY d.created_at DESC, d.id DESC`,
     );
     return result.rows.map(publicDocument);
   }
 
   private async find(id: string) {
     const result = await this.database.query<DocumentRecord>(
-      "SELECT * FROM documents WHERE id = $1",
+      `SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM} WHERE d.id = $1`,
       [id],
     );
     return result.rows[0];
   }
 
-  async upload(file?: PdfFile) {
+  async upload(file?: PdfFile, courseId?: string) {
     if (!file)
       throw new BadRequestException(
         "One PDF file in the 'file' field is required",
@@ -78,7 +163,7 @@ export class DocumentsService {
       throw new UnsupportedMediaTypeException(
         "Only PDF files with a PDF signature are accepted",
       );
-    const name = file.originalname
+    const name = decodeUploadName(file.originalname)
       .replace(/\\/g, "/")
       .split("/")
       .pop()!
@@ -102,9 +187,14 @@ export class DocumentsService {
     }
     try {
       const result = await this.database.query<DocumentRecord>(
-        `INSERT INTO documents (id, name, media_type, storage_key, size_bytes, storage_status)
-         VALUES ($1, $2, 'application/pdf', $3, $4, 'stored') RETURNING *`,
-        [id, name, key, file.size],
+        `WITH inserted AS (
+           INSERT INTO documents
+             (id, name, media_type, storage_key, size_bytes, storage_status, course_id)
+           VALUES ($1, $2, 'application/pdf', $3, $4, 'stored', $5)
+           RETURNING *
+         )
+         SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM.replace("FROM documents d", "FROM inserted d")}`,
+        [id, name, key, file.size, courseId ?? null],
       );
       log("info", "document.stored", { documentId: id, sizeBytes: file.size });
       return publicDocument(result.rows[0]);
@@ -140,6 +230,36 @@ export class DocumentsService {
     if (document.storage_status !== "stored")
       throw new ConflictException("Document is not available for download");
     return this.storage.signedDownload(document.storage_key, document.name);
+  }
+
+  /** Re-file a document under another subject, or under none. */
+  async setCourse(id: string, courseId: string | null) {
+    const result = await this.database
+      .query<DocumentRecord>(
+        `WITH updated AS (
+           UPDATE documents SET course_id = $2, updated_at = NOW()
+           WHERE id = $1
+           RETURNING *
+         )
+         SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM.replace("FROM documents d", "FROM updated d")}`,
+        [id, courseId],
+      )
+      .catch((error: unknown) => {
+        if (
+          error &&
+          typeof error === "object" &&
+          (error as { code?: string }).code === "23503"
+        ) {
+          throw new BadRequestException({
+            code: "COURSE_NOT_FOUND",
+            message: "Môn học này không còn trong danh sách nữa.",
+          });
+        }
+        throw error;
+      });
+    const document = result.rows[0];
+    if (!document) throw new NotFoundException("Document not found");
+    return publicDocument(document);
   }
 
   async remove(id: string) {

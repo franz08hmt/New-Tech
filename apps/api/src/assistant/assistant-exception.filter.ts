@@ -13,12 +13,21 @@ export class AssistantExceptionFilter implements ExceptionFilter<AssistantError>
         : error.kind === "timeout"
           ? "AI assistant timed out. Please retry."
           : "AI assistant is temporarily unavailable.";
-    log("error", "request.failed", { status: statusCode, code: error.kind });
+    const code = {
+      not_configured: "AI_NOT_CONFIGURED",
+      timeout: "AI_TIMEOUT",
+      quota: "AI_QUOTA",
+      authentication: "AI_AUTHENTICATION",
+      unavailable: "AI_UNAVAILABLE",
+      upstream: "AI_UPSTREAM",
+    }[error.kind];
+    log("error", "request.failed", { status: statusCode, code });
     const response = host.switchToHttp().getResponse<{
       status(code: number): { json(body: unknown): void };
     }>();
     response.status(statusCode).json({
       statusCode,
+      code,
       message,
       requestId: requestContext.getStore()?.requestId,
     });

@@ -16,11 +16,20 @@ export function loadEnvironment() {
   }
 }
 export class ConfigurationError extends Error {}
-export function geminiConfig() {
+function optionalGeminiApiKey() {
   const rawKey = process.env.GEMINI_API_KEY?.trim();
-  const apiKey = rawKey && !rawKey.includes("REPLACE_") ? rawKey : undefined;
-  const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
-  if (!/^gemini-[A-Za-z0-9._-]{1,80}$/.test(model) || model === apiKey)
+  return rawKey && !rawKey.includes("REPLACE_") ? rawKey : undefined;
+}
+function geminiModel(name: string, fallback: string) {
+  const model = process.env[name]?.trim() || fallback;
+  if (!/^gemini-[A-Za-z0-9._-]{1,80}$/.test(model))
+    throw new ConfigurationError(`Invalid configuration: ${name}`);
+  return model;
+}
+export function geminiConfig() {
+  const apiKey = optionalGeminiApiKey();
+  const model = geminiModel("GEMINI_MODEL", "gemini-2.5-flash");
+  if (model === apiKey)
     throw new ConfigurationError("Invalid configuration: GEMINI_MODEL");
   return {
     configured: Boolean(apiKey),
@@ -30,11 +39,83 @@ export function geminiConfig() {
     maxOutputTokens: integer("GEMINI_MAX_OUTPUT_TOKENS", 1024, 8192),
   };
 }
+export function geminiEmbeddingConfig() {
+  const apiKey = optionalGeminiApiKey();
+  const model = geminiModel("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001");
+  if (model === apiKey)
+    throw new ConfigurationError(
+      "Invalid configuration: GEMINI_EMBEDDING_MODEL",
+    );
+  const dimensions = integer("GEMINI_EMBEDDING_DIMENSIONS", 768, 3072);
+  // Migration 008 uses VECTOR(768); accepting another value here would defer a
+  // predictable configuration error until the first database insert/query.
+  if (dimensions !== 768)
+    throw new ConfigurationError(
+      "Invalid configuration: GEMINI_EMBEDDING_DIMENSIONS must be 768 to match the database schema",
+    );
+  return {
+    configured: Boolean(apiKey),
+    apiKey,
+    model,
+    dimensions,
+    timeoutMs: integer("GEMINI_EMBEDDING_TIMEOUT_MS", 30000, 60000),
+    batchSize: integer("GEMINI_EMBEDDING_BATCH_SIZE", 16, 100),
+  };
+}
+export function ragConfig() {
+  const topK = integer("RAG_TOP_K", 6, 20);
+  const candidateLimit = integer("RAG_CANDIDATE_LIMIT", 10, 50);
+  if (candidateLimit < topK)
+    throw new ConfigurationError(
+      "Invalid configuration: RAG_CANDIDATE_LIMIT must be greater than or equal to RAG_TOP_K",
+    );
+  const minScore = decimal("RAG_MIN_SCORE", 0.55, 0, 1);
+  const promptVersion = process.env.RAG_PROMPT_VERSION?.trim() || "rag-v1";
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(promptVersion))
+    throw new ConfigurationError("Invalid configuration: RAG_PROMPT_VERSION");
+  return { topK, candidateLimit, minScore, promptVersion };
+}
+
+export function documentOcrConfig() {
+  const enabled = boolean("DOCUMENT_OCR_ENABLED", false);
+  const apiKey = optionalGeminiApiKey();
+  return {
+    enabled,
+    configured: enabled && Boolean(apiKey),
+    apiKey,
+    model: geminiModel("GEMINI_OCR_MODEL", "gemini-2.5-flash"),
+    timeoutMs: integer("GEMINI_OCR_TIMEOUT_MS", 30000, 60000),
+    maxPages: integer("DOCUMENT_OCR_MAX_PAGES", 25, 50),
+  };
+}
+
+function boolean(name: string, fallback: boolean) {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (raw === undefined || raw === "") return fallback;
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  throw new ConfigurationError(
+    `Invalid configuration: ${name} must be true or false`,
+  );
+}
 function integer(name: string, fallback: number, max: number) {
   const value = Number(process.env[name] ?? fallback);
   if (!Number.isInteger(value) || value < 1 || value > max)
     throw new ConfigurationError(
       `Invalid configuration: ${name} must be 1..${max}`,
+    );
+  return value;
+}
+function decimal(name: string, fallback: number, min: number, max: number) {
+  const raw = process.env[name];
+  const value = raw === undefined ? fallback : Number(raw.trim());
+  if (!Number.isFinite(value) || value < min || value > max)
+    throw new ConfigurationError(
+      `Invalid configuration: ${name} must be ${min}..${max}`,
+    );
+  if (raw !== undefined && raw.trim() === "")
+    throw new ConfigurationError(
+      `Invalid configuration: ${name} must be ${min}..${max}`,
     );
   return value;
 }
@@ -175,6 +256,8 @@ export function appConfig() {
   return {
     database,
     gemini: geminiConfig(),
+    embedding: geminiEmbeddingConfig(),
+    rag: ragConfig(),
     port: integer("PORT", 3000, 65535),
     origins,
     storage: {

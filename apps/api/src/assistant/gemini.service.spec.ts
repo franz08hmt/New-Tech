@@ -71,9 +71,9 @@ describe("GeminiService", () => {
     expect(new GeminiService().status()).toEqual({
       status: "ready",
       provider: "google",
-      mode: "llm",
+      modes: ["general", "documents"],
       model: "gemini-2.5-flash",
-      ragEnabled: false,
+      ragEnabled: true,
       credentialsExposedToClient: false,
     });
     expect(GoogleGenAI).not.toHaveBeenCalled();
@@ -87,8 +87,8 @@ describe("GeminiService", () => {
       expect(service.status()).toEqual({
         status: "not_configured",
         provider: "google",
-        mode: "llm",
-        ragEnabled: false,
+        modes: ["general", "documents"],
+        ragEnabled: true,
         credentialsExposedToClient: false,
       });
       await expect(service.generate(input)).rejects.toMatchObject({
@@ -98,6 +98,23 @@ describe("GeminiService", () => {
       expect(generateContent).not.toHaveBeenCalled();
     },
   );
+
+  it("passes the grounded-answer JSON schema to Gemini", async () => {
+    const schema = {
+      type: "object",
+      required: ["answer"],
+      properties: { answer: { type: "string" } },
+    };
+    await new GeminiService().generate({
+      ...input,
+      responseMimeType: "application/json",
+      responseJsonSchema: schema,
+    });
+    expect(generateContent.mock.calls[0][0].config).toMatchObject({
+      responseMimeType: "application/json",
+      responseJsonSchema: schema,
+    });
+  });
 
   it("aborts the in-flight provider request and clears its timer at the deadline", async () => {
     vi.useFakeTimers();

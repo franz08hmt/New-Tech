@@ -1,5 +1,7 @@
 # Responsive AI Copilot Layout
 
+> **Đã thay thế (24/09/2026).** Mô hình dock bên cạnh ≥ 1440px / overlay 900–1439px / bottom sheet đã bỏ: dock làm trang reflow mỗi lần mở AI. Thiết kế hiện tại là một launcher nổi dùng chung, cửa sổ nổi không modal từ 768px trở lên và bottom sheet modal dưới 768px — xem `docs/AI-CHATBOX-HANDOFF.md`. Phần dưới giữ lại làm lịch sử quyết định.
+
 ## Problem Statement
 
 How might we make the document-grounded Assistant the most memorable part of ExaMate without removing or obscuring the dashboard, tasks, courses and document workflow that already work?

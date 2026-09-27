@@ -1,31 +1,54 @@
-export type TaskStatus = "todo" | "in_progress" | "done";
+// The response shapes live in @examate/contracts, shared with the API, so the
+// two sides cannot drift apart. They are re-exported here because the rest of
+// the app already imports its types from "./api" — the module stays the single
+// door to the backend, it just no longer owns a second copy of the shapes.
+export type {
+  AssistantChatRequest,
+  AssistantChatResponse,
+  AssistantMode,
+  AssistantReasonCode,
+  AssistantStatus,
+  Course,
+  CourseAssessment,
+  CourseTone,
+  CourseTopic,
+  DocumentProcessingResult,
+  Exam,
+  Expense,
+  ExpenseCategory,
+  HealthStatus,
+  StoredDocument,
+  StudyPlan,
+  Task,
+  TaskStatus,
+} from "@examate/contracts";
 
-export interface Task {
-  id: string;
-  title: string;
-  owner_name: string | null;
-  status: TaskStatus;
-  due_date: string | null;
-  evidence_type: string | null;
-  created_at: string;
-  updated_at: string;
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly code: string,
+    readonly status: number,
+    readonly requestId?: string,
+  ) {
+    super(`${message}${requestId ? ` (Request ID: ${requestId})` : ""}`);
+    this.name = "ApiError";
+  }
 }
 
-export interface HealthStatus {
-  status: "ok" | "degraded";
-  database: "connected" | "unavailable";
-  databaseLatencyMs?: number;
-}
-
-export interface StoredDocument {
-  id: string;
-  name: string;
-  size_bytes: number | null;
-  media_type: string;
-  storage_status: "stored" | "deleting" | "legacy";
-  created_at: string;
-  updated_at: string;
-}
+import type {
+  AssistantChatRequest,
+  AssistantChatResponse,
+  Course,
+  DocumentProcessingResult,
+  Exam,
+  Expense,
+  ExpenseCategory,
+  HealthStatus,
+  StoredDocument,
+  StudyPlan,
+  Task,
+  TaskStatus,
+} from "@examate/contracts";
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60000);
@@ -51,6 +74,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as {
+        code?: string;
         message?: string | string[];
         requestId?: string;
       } | null;
@@ -58,8 +82,14 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
         ? body.message.join(", ")
         : body?.message;
       const id = response.headers.get("X-Request-ID") ?? body?.requestId;
-      throw new Error(
-        `${message || ([502, 503, 504].includes(response.status) ? "Service is unavailable. Please retry." : `Request failed (${response.status}).`)}${id ? ` (Request ID: ${id})` : ""}`,
+      throw new ApiError(
+        message ||
+          ([502, 503, 504].includes(response.status)
+            ? "Service is unavailable. Please retry."
+            : `Request failed (${response.status}).`),
+        body?.code || "REQUEST_FAILED",
+        response.status,
+        id,
       );
     }
     if (response.status === 204) return undefined as T;
@@ -70,16 +100,98 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  askAssistant: (input: AssistantChatRequest) =>
+    request<AssistantChatResponse>("/api/assistant/chat", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  listCourses: () => request<Course[]>("/api/courses"),
+  getCourse: (slug: string) =>
+    request<Course>(`/api/courses/${encodeURIComponent(slug)}`),
+  listExams: () => request<Exam[]>("/api/exams"),
+  createExam: (input: {
+    courseId: string;
+    topic: string;
+    examDate: string;
+    examTime: string;
+    room: string;
+    revisionNote?: string;
+  }) =>
+    request<Exam>("/api/exams", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateExam: (
+    id: string,
+    input: {
+      topic: string;
+      examDate: string;
+      examTime: string;
+      room: string;
+      revisionNote?: string;
+    },
+  ) =>
+    request<Exam>(`/api/exams/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  deleteExam: (id: string) =>
+    request<void>(`/api/exams/${id}`, { method: "DELETE" }),
+  listExpenses: () => request<Expense[]>("/api/expenses"),
+  createExpense: (input: {
+    amount: number;
+    description: string;
+    spentOn: string;
+    category: ExpenseCategory;
+    courseId?: string;
+  }) =>
+    request<Expense>("/api/expenses", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  deleteExpense: (id: string) =>
+    request<void>(`/api/expenses/${id}`, { method: "DELETE" }),
+  listStudyPlans: () => request<StudyPlan[]>("/api/study-plans"),
+  createStudyPlan: (input: {
+    courseId: string;
+    title: string;
+    detail?: string;
+    dueDate?: string;
+    ownerName?: string;
+  }) =>
+    request<StudyPlan>("/api/study-plans", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  setStudyPlanCompletion: (id: string, completed: boolean) =>
+    request<StudyPlan>(`/api/study-plans/${id}/completion`, {
+      method: "PATCH",
+      body: JSON.stringify({ completed }),
+    }),
+  deleteStudyPlan: (id: string) =>
+    request<void>(`/api/study-plans/${id}`, { method: "DELETE" }),
   listDocuments: () => request<StoredDocument[]>("/api/documents"),
-  uploadDocument: (file: File) => {
+  uploadDocument: (file: File, courseId?: string) => {
     const body = new FormData();
     body.append("file", file);
+    // Appended only when chosen: an empty string is not a UUID and the API
+    // would reject the whole upload over an optional field.
+    if (courseId) body.append("courseId", courseId);
     return request<StoredDocument>("/api/documents", { method: "POST", body });
   },
+  setDocumentCourse: (id: string, courseId: string | null) =>
+    request<StoredDocument>(`/api/documents/${id}/course`, {
+      method: "PATCH",
+      body: JSON.stringify({ courseId }),
+    }),
   downloadDocument: (id: string) =>
     request<{ url: string; expiresIn: number }>(
       `/api/documents/${id}/download`,
     ),
+  processDocument: (id: string) =>
+    request<DocumentProcessingResult>(`/api/documents/${id}/process`, {
+      method: "POST",
+    }),
   deleteDocument: (id: string) =>
     request<void>(`/api/documents/${id}`, { method: "DELETE" }),
   health: () => request<HealthStatus>("/api/health"),

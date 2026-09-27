@@ -29,8 +29,10 @@ test("ambiguous INSERT and failed reconciliation: never delete an unconfirmed ob
   fixture.state.failInsert = true;
   const original = fixture.database.query.bind(fixture.database);
   fixture.database.query = async (sql, values) => {
-    if (sql.includes("FROM documents WHERE"))
-      throw new Error("database offline");
+    // Matches the reconciliation lookup only. It used to read
+    // "FROM documents WHERE"; the query now joins the course in, so the
+    // injection is pinned to the WHERE clause that is unique to find().
+    if (sql.includes("WHERE d.id = $1")) throw new Error("database offline");
     return original(sql, values);
   };
   const server = await httpApp(fixture.database, fixture.storage);

@@ -40,6 +40,15 @@ Content-Type: application/pdf
 ### Metadata (200)
 GET {{base}}/documents
 
+### Extract, chunk and index the uploaded PDF (200; calls embeddings)
+POST {{base}}/documents/{{documentId}}/process
+
+### Grounded chat (200 answerable/unanswerable with validated citations)
+POST {{base}}/assistant/chat
+Content-Type: application/json
+
+{"message":"What evidence is required?","pageContext":{"pageId":"evaluation","pageName":"RAG evaluation"}}
+
 ### Returns JSON {url, expiresIn:60}; URL is a short-lived bearer credential
 GET {{base}}/documents/{{documentId}}/download
 

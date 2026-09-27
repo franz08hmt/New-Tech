@@ -1,8 +1,8 @@
-# Handoff — Homework 4A/4B non-AI
+# Handoff — ExaMate với grounded RAG
 
-Ngày cập nhật: 13/09/2026 (Asia/Saigon)
+Ngày cập nhật: 26/09/2026 (Asia/Saigon)
 
-Trong lượt này chỉ tổng hợp tiến độ vào handoff; không chạy lại toàn bộ tests, không triển khai tính năng, không commit và không push.
+Phần Homework 4 non-AI bên dưới được giữ làm lịch sử. Trạng thái hiện tại đã có PDF extraction/chunking, Gemini embeddings, pgvector retrieval, grounded generation, citation validation và UI index/citation; chưa có kiểm chứng Supabase/Gemini thật, commit hoặc push.
 
 ## Đã làm
 
@@ -12,7 +12,7 @@ Trong lượt này chỉ tổng hợp tiến độ vào handoff; không chạy l
 - PostgreSQL `pg.Pool`, parameterized SQL, timeout, verified TLS configuration, shutdown và migration tracking/checksum.
 - Global validation, request ID, JSON logs, sanitized errors và health check database-only.
 - Frontend Tasks/Documents gọi API thật, có loading/error/retry; giữ File để retry; bỏ mock progress/preview state giả.
-- Assistant vẫn disabled/preview; không có LLM, embeddings, vector search, RAG hoặc sinh câu trả lời.
+- Assistant đã có RAG hoàn chỉnh ở mức code: xử lý PDF chủ động, embedding 768 chiều, retrieval có thể giới hạn theo môn, structured output và citation được backend đối chiếu. UI hiển thị processing/retry/re-index và mở nguồn bằng signed URL.
 - Compose/Nginx/Docker đã tách Supabase bên ngoài; PostgreSQL local chỉ ở `compose.local-db.yaml` cho test riêng.
 - Đã thêm README, Supabase setup, evidence, study guide và demo script tiếng Việt.
 
@@ -26,21 +26,21 @@ Trong lượt này chỉ tổng hợp tiến độ vào handoff; không chạy l
 
 ## Tests và quality gates đã có
 
-Các kết quả dưới đây lấy từ output đã lưu; không chạy lại trong lượt handoff này.
+Các quality gate chính đã được chạy lại ngày 26/09 sau khi hoàn thiện UI RAG; các kiểm tra cloud/database thật vẫn giữ trạng thái chưa xác minh.
 
-| Lệnh/kiểm tra | Kết quả |
-|---|---|
-| `npm ci --offline` | PASS; dùng lockfile. Node hiện tại 22.18.0/npm 10.9.3 có cảnh báo EBADENGINE; README yêu cầu runtime phù hợp engines, dự kiến Node 24.15+ |
-| `npm run typecheck` | PASS API + web |
-| `npm test` | PASS theo suite đã chạy: 1 Assistant unit, 32 backend HTTP/Storage/reliability ở lượt cuối, 19 frontend |
-| `npm run format:check` | PASS |
-| `npm run build` | PASS API + web; web build 355 modules |
-| `node --check apps/api/scripts/migrate.mjs` | PASS syntax |
-| Hai lệnh `docker compose ... config --quiet` | PASS |
-| `npm run test:database` | SKIP 1 vì thiếu `TEST_DATABASE_URL`; chưa có persistence DB evidence |
-| `docker info`/`docker ps` | FAIL môi trường: Docker Desktop Linux engine chưa chạy |
-| API khi thiếu env | Expected exit 1, báo thiếu `DATABASE_URL`, không fallback localhost |
-| pg connection refusal test | PASS: trả 503 có request ID, không lộ connection string |
+| Lệnh/kiểm tra                                | Kết quả                                                                                                                                   |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm ci --offline`                           | PASS; dùng lockfile. Node hiện tại 22.18.0/npm 10.9.3 có cảnh báo EBADENGINE; README yêu cầu runtime phù hợp engines, dự kiến Node 24.15+ |
+| `npm run typecheck`                          | PASS API + web                                                                                                                            |
+| `npm test`                                   | PASS: 110 API Vitest + 104 API Node + 83 web; 0 fail, 0 skip                                                                              |
+| `npm run format:check`                       | PASS                                                                                                                                      |
+| `npm run build`                              | PASS API + web; web build 370 modules                                                                                                     |
+| `node --check apps/api/scripts/migrate.mjs`  | PASS syntax                                                                                                                               |
+| Hai lệnh `docker compose ... config --quiet` | PASS                                                                                                                                      |
+| `npm run test:database`                      | SKIP 1 vì thiếu `TEST_DATABASE_URL`; chưa có persistence DB evidence                                                                      |
+| `docker info`/`docker ps`                    | FAIL môi trường: Docker Desktop Linux engine chưa chạy                                                                                    |
+| API khi thiếu env                            | Expected exit 1, báo thiếu `DATABASE_URL`, không fallback localhost                                                                       |
+| pg connection refusal test                   | PASS: trả 503 có request ID, không lộ connection string                                                                                   |
 
 Chi tiết: `docs/VERIFICATION.md`, `docs/evidence/backend-final.txt`, `docs/evidence/test-output.txt`, `docs/evidence/database-skip.txt`. HTTP/Storage integration dùng mock dependency; đây không phải bằng chứng Supabase thật.
 
@@ -128,3 +128,17 @@ Handoff này không chứa secrets. Không lưu database URL, key, signed URL ho
 Đã đọc lại handoff, evidence Homework 4A/4B, Supabase setup, verification, migration, configuration, Compose và source liên quan. Kết quả khớp handoff cũ: thư mục không có `.git`, không có `.env`/Supabase variables, và Docker Desktop Linux engine vẫn không hoạt động. Không chạy lại toàn bộ tests trong chặng này.
 
 Rà soát bổ sung xác nhận migration script có advisory lock, checksum và transaction; `config.ts` fail-closed khi thiếu URI/key, không fallback PostgreSQL localhost; Compose không tạo DB local cho runtime; các giá trị placeholder không được xem là cấu hình thật. Blocker ưu tiên cao nhất hiện là cần người nộp điền credential qua `.env` local để chạy `npm run db:migrate`, health và persistence proof. Không có phần cloud nào được đánh dấu hoàn thành từ lần rà soát này.
+
+## ExaMate AI chatbox — 24/09/2026
+
+Phần giao diện AI (launcher nổi và panel dùng chung) có tài liệu riêng: `docs/AI-CHATBOX-HANDOFF.md`. Tại thời điểm ghi chú 24/09, chưa có API hỏi-đáp; xem cập nhật 25/09 bên dưới để biết trạng thái mới.
+
+## ExaMate AI — cập nhật 26/09/2026
+
+Frontend nối composer tới `POST /api/assistant/chat`. Kiểu request/response dùng chung nằm trong `packages/contracts/index.d.ts`; test FE xác nhận payload, page context, course scope, câu trả lời và nguồn bằng fixture. Khối ví dụ không còn được trình bày như một phản hồi thật.
+
+RAG đã đọc PDF từ private Storage, chunk theo đoạn/trang, tạo embedding, tìm chunks `ready` trong pgvector rồi sinh câu trả lời có source marker. Không có evidence thì không gọi generation. Trang Documents có Index/Retry/Re-index; citation đã kiểm chứng mở signed URL tại trang tương ứng. Automated tests không gọi Gemini/Supabase thật. Để dùng local, chạy migration 008, cấu hình `.env`, khởi động lại API/web rồi kiểm tra `/api/assistant/status`; `ready` chỉ xác nhận key có cấu hình chứ không xác minh quyền hoặc quota. Xem `docs/ASSISTANT-SETUP.md`.
+
+Quality gates ngày 26/09: typecheck, format và production build toàn workspace pass; test pass 110 API Vitest + 110 API Node + 83 web (303 tổng, 0 fail/skip). Database integration thật vẫn chưa chạy vì thiếu `TEST_DATABASE_URL` riêng.
+
+Prompt cuối bổ sung evaluation harness: hai PDF tổng hợp có generator, 10 case cố định, bảy case live chạy tuần tự không retry và ba case fault-injection nối với automated tests. Runner mặc định dry-run, giới hạn tối đa 10 live case, buộc corpus revision khớp manifest, chỉ ghi create-only trong `artifacts/` và không tự xem structural pass là semantic pass. Chưa chạy case live để tránh tự ý dùng quota; hướng dẫn ở `docs/evaluation-plan.md`.

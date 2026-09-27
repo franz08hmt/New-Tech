@@ -1,6 +1,6 @@
 # ExaMate — Tasks, Documents và Gemini Assistant backend
 
-Workspace học tập dùng React + NestJS + PostgreSQL/Supabase Storage. Hai luồng chính: tạo/đổi trạng thái task và upload/list/download/delete PDF. Assistant backend hỗ trợ Gemini text-to-text qua REST JSON; frontend vẫn là preview chưa kết nối chat. Chưa có RAG, embeddings hoặc xử lý nội dung PDF.
+Workspace học tập dùng React + NestJS + PostgreSQL/Supabase Storage. Hai luồng chính: tạo/đổi trạng thái task và upload/list/download/delete PDF. Backend có PDF extraction, chunking, Gemini embeddings, semantic retrieval bằng pgvector và grounded generation. Assistant chỉ trả lời từ evidence đã retrieval; citation được backend đối chiếu với chunk thật trước khi trả về giao diện.
 
 Hướng dẫn Assistant và contract mới: [Gemini Assistant setup](docs/ASSISTANT-SETUP.md). Các tài liệu Homework 4A/4B bên dưới ghi nhận checkpoint non-AI trước khi bổ sung Assistant.
 
@@ -11,7 +11,9 @@ Code có automated HTTP/frontend tests. [VERIFICATION.md](docs/VERIFICATION.md) 
 ```text
 Browser React ── /api JSON hoặc multipart ──> NestJS
                                              ├── pg.Pool ──> Supabase PostgreSQL (records)
-                                             └── HTTPS ────> private Supabase Storage (PDF)
+                                             │                └── pgvector retrieval (ready PDF chunks)
+                                             ├── HTTPS ────> private Supabase Storage (PDF)
+                                             └── HTTPS ────> Gemini generation/embeddings
 ```
 
 Tasks/Documents đi qua NestJS. Không có database key trong frontend. Download API cấp signed URL 60 giây sau khi kiểm tra metadata; browser tải binary bằng URL đó. Health chỉ kiểm tra PostgreSQL. Đây là **workspace demo dùng chung, chưa có login/authorization**. Chỉ dùng dữ liệu mẫu; không public API cho dữ liệu thật. Courses/Exams/Research/Finances là dữ liệu minh họa có nhãn; Notes lưu riêng trên browser, không phải DB cho Tasks/Documents.
@@ -83,10 +85,13 @@ npm test
 npm run format:check
 npm run build
 npm run test:database
+npm run eval:rag        # dry-run only; no HTTP/Gemini call
 powershell -ExecutionPolicy Bypass -File scripts/verify.ps1
 ```
 
 Script cuối ghi output vào `artifacts/` (ignore Git). Kiểm tra số **skipped**, không chỉ exit code. API test build Nest bằng TypeScript trước rồi test HTTP trên compiled JS để giữ decorator metadata; Vitest giữ unit Assistant riêng. HTTP tests override DB/Storage bằng mock; adapter tests mock fetch. Frontend tests mock HTTP; không chứng minh browser đã gọi Supabase thật.
+
+Đánh giá RAG có corpus tổng hợp và 10 case cố định tại [evaluation plan](docs/evaluation-plan.md). `npm run eval:rag` mặc định chỉ dry-run; cần `--execute --corpus-revision ...` mới gửi bảy câu hỏi tuần tự và có thể dùng quota. Ba fault-injection case còn lại chạy bằng test mock, không phá dependency thật. Runner chỉ chấm invariant cấu trúc; semantic pass cần reviewer.
 
 DB test riêng (Docker engine phải chạy):
 
@@ -105,18 +110,19 @@ Test migration hai lần, tạo task/document qua HTTP, đóng/mở lại API v�
 
 ## API contract
 
-| Method/path | Thành công | Lỗi chính |
-|---|---|---|
-| GET /api/tasks | 200 array | 503 DB offline |
-| POST /api/tasks | 201 task | 400 DTO |
-| PATCH /api/tasks/:id/status | 200 task | 400 UUID/status, 404 |
-| GET /api/documents | 200 metadata array | 503 DB offline |
-| POST /api/documents | 201 metadata | 400 missing/fields, 413 size, 415 type/signature, 503 Storage |
-| GET /api/documents/:id/download | 200 {url, expiresIn:60} | 400 UUID, 404, 409 pending/legacy, 503 |
-| DELETE /api/documents/:id | 204, idempotent khi đã xóa | 400 UUID, 409 legacy, 503 partial failure |
-| GET /api/health | 200 DB connected | 503 DB unavailable |
-| GET /api/assistant/status | 200 ready/not_configured, google/llm, ragEnabled:false | Chỉ kiểm tra cấu hình, không gọi AI |
-| POST /api/assistant/chat | 200 {answer, provider, model, ragEnabled:false} | 400 DTO, 502 upstream, 503 unavailable/not configured, 504 timeout |
+| Method/path                     | Thành công                                             | Lỗi chính                                                                  |
+| ------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------- |
+| GET /api/tasks                  | 200 array                                              | 503 DB offline                                                             |
+| POST /api/tasks                 | 201 task                                               | 400 DTO                                                                    |
+| PATCH /api/tasks/:id/status     | 200 task                                               | 400 UUID/status, 404                                                       |
+| GET /api/documents              | 200 metadata array                                     | 503 DB offline                                                             |
+| POST /api/documents             | 201 metadata                                           | 400 missing/fields, 413 size, 415 type/signature, 503 Storage              |
+| POST /api/documents/:id/process | 200 indexed result                                     | 400 UUID, 404, 409 concurrent/state, 422 PDF text, 502/503/504 dependency  |
+| GET /api/documents/:id/download | 200 {url, expiresIn:60}                                | 400 UUID, 404, 409 pending/legacy, 503                                     |
+| DELETE /api/documents/:id       | 204, idempotent khi đã xóa                             | 400 UUID, 409 legacy, 503 partial failure                                  |
+| GET /api/health                 | 200 DB connected                                       | 503 DB unavailable                                                         |
+| GET /api/assistant/status       | 200 ready/not_configured, google/rag, ragEnabled:true  | Chỉ kiểm tra cấu hình, không gọi AI                                        |
+| POST /api/assistant/chat        | 200 grounded answer, answerable và validated citations | 400 DTO, 502 invalid/upstream, 503 unavailable/not configured, 504 timeout |
 
 Title trim trước check 3–160. status có todo/in_progress/done, bỏ qua thì todo, null là 400. ownerName/dueDate/evidenceType bỏ qua hoặc null được lưu NULL; owner/evidence trống sau trim cũng NULL. dueDate chỉ ngày YYYY-MM-DD thực sự tồn tại, không timestamp. Field lạ bị 400. SQL dùng placeholders. Response lỗi có requestId; chưa phân loại là 500, không tự chuyển mọi lỗi thành 503.
 
@@ -134,4 +140,4 @@ PDF kiểm tra extension + MIME + 5 bytes `%PDF-`; đây không phải parser đ
 - Học code và vấn đáp: [study guide tiếng Việt](docs/BACKEND-STUDY-GUIDE-VI.md).
 - Quay 5–8 phút, persistence/failure: [demo script](docs/DEMO-SCRIPT-VI.md).
 
-Giới hạn còn lại: chưa test project Supabase thật; chưa authentication; chưa pagination/quota toàn workspace; upload buffer tối đa 10 MiB mỗi request; không transaction phân tán, không resumable upload/idempotency token; schema AI giữ để tương thích nhưng không sử dụng. Bảng chứng cứ không đánh dấu persistence/video/deployment/commit hoàn thành nếu chưa có bằng chứng.
+Giới hạn còn lại: chưa test project Supabase/Gemini thật; chưa authentication; chưa semantic entailment tự động cho từng mệnh đề ngoài kiểm tra source ID/inline marker; chưa pagination/quota toàn workspace; upload buffer tối đa 10 MiB mỗi request; không transaction phân tán, không resumable upload/idempotency token. Bảng chứng cứ không đánh dấu persistence/video/deployment/commit hoàn thành nếu chưa có bằng chứng.

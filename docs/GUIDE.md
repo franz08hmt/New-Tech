@@ -59,12 +59,16 @@ Các API hiện có:
 | `POST`  | `/api/tasks`            | Tạo task mới                          |
 | `PATCH` | `/api/tasks/:id/status` | Đổi trạng thái task                   |
 | `GET`   | `/api/assistant/status` | Cho biết AI đã được cấu hình hay chưa |
+| `POST`  | `/api/assistant/chat`   | Hỏi đáp RAG có citation               |
+| `GET`   | `/api/documents`        | Lấy metadata tài liệu                 |
+| `POST`  | `/api/documents`        | Upload một PDF                        |
+| `POST`  | `/api/documents/:id/process` | Extract, chunk và index PDF      |
 
-### 2.2. Quản lý tài liệu — chưa triển khai
+### 2.2. Quản lý tài liệu — đã triển khai
 
-MVP nên hỗ trợ **PDF trước**, chưa cần làm đồng thời PDF, DOCX và PPTX.
+MVP hỗ trợ **PDF trước**, chưa làm đồng thời PDF, DOCX và PPTX.
 
-Một document dự kiến có:
+Một document có:
 
 - tên file;
 - media type;
@@ -72,7 +76,7 @@ Một document dự kiến có:
 - trạng thái `pending`, `processing`, `ready` hoặc `failed`;
 - thời gian tạo và cập nhật.
 
-Business rule đề xuất:
+Business rule hiện tại:
 
 - Chỉ nhận PDF trong MVP.
 - Giới hạn dung lượng ban đầu: 10 MB/file.
@@ -80,9 +84,9 @@ Business rule đề xuất:
 - Chỉ document có trạng thái `ready` mới được dùng để hỏi đáp.
 - Khi xử lý thất bại, lưu trạng thái `failed` và thông báo dễ hiểu.
 
-### 2.3. Xử lý tài liệu và retrieval — chưa triển khai
+### 2.3. Xử lý tài liệu và retrieval — đã triển khai ở mức code
 
-Luồng dự kiến:
+Luồng hiện tại:
 
 ```text
 PDF -> extract text -> chunk text -> create embedding -> store in pgvector
@@ -98,23 +102,25 @@ Mỗi chunk phải giữ được:
 - embedding;
 - thông tin cần thiết để dựng citation.
 
-### 2.4. AI Assistant có citation — chưa triển khai
+### 2.4. AI Assistant có citation — đã triển khai ở mức code
 
-Business rule đề xuất:
+Business rule hiện tại:
 
 - Model chỉ được gọi từ backend.
 - API key không bao giờ gửi xuống browser hoặc commit vào Git.
 - Câu hỏi chỉ dùng những chunk đã retrieval làm evidence.
 - Câu trả lời phải theo structured output do backend kiểm tra.
-- Citation phải trỏ tới chunk đang tồn tại.
+- Citation phải trỏ tới một chunk vừa được retrieval; source ID và inline marker đều được backend kiểm tra trước khi trả về UI.
 - Không có evidence phù hợp thì trả `unanswerable`, không dùng kiến thức chung để đoán.
-- Model timeout hoặc unavailable thì task management vẫn phải hoạt động.
+- Model timeout hoặc unavailable thì task management vẫn phải hoạt động; UI giữ câu hỏi để retry.
 
-### 2.5. Evaluation — mới có kế hoạch
+Trang Documents cho phép Index/Retry/Re-index và hiển thị `pending/processing/ready/failed`. Khi đang ở trang chi tiết môn, chat gửi `courseId` để giới hạn retrieval. Citation hợp lệ xin signed URL từ backend và mở PDF tại trang nguồn; frontend không nhận storage key.
 
-Nhóm phải chạy ít nhất 10 trường hợp trong `docs/evaluation-plan.md`, gồm câu hỏi đúng, mơ hồ, không liên quan, không thể trả lời, prompt injection, output sai, timeout, model unavailable và citation sai.
+### 2.5. Evaluation — đã có corpus và runner, chưa chạy cloud live
 
-Mỗi kết quả cần lưu:
+Mười trường hợp cố định nằm trong `docs/evaluation-cases.json`: bảy case live cho câu hỏi đúng, đa nguồn, mơ hồ, không liên quan, không thể trả lời, dài và prompt injection; ba case fault-injection dùng mock cho output sai, dependency unavailable và citation giả. Cách tạo corpus/chạy/review nằm trong `docs/evaluation-plan.md`.
+
+Mỗi kết quả live lưu:
 
 - model và prompt version;
 - corpus revision;
@@ -122,6 +128,8 @@ Mỗi kết quả cần lưu:
 - latency;
 - pass/fail;
 - nhận xét của reviewer.
+
+`npm run eval:rag` chỉ dry-run. Cờ `--execute` cùng corpus revision hợp lệ mới gọi API/Gemini; runner không retry và không tự chấm đúng nghĩa. Live evaluation vẫn là việc người nộp phải chủ động chạy và review sau khi cấu hình cloud.
 
 ## 3. Phạm vi MVP và phần không làm
 

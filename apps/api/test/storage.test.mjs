@@ -72,6 +72,40 @@ test("Storage secret key uses apikey without sending it as a Bearer JWT", async 
   };
   await new StorageService().assertPrivateBucket();
 });
+test("Storage downloads private bytes with a strict size bound", async () => {
+  configure();
+  const bytes = Buffer.from("%PDF-1.4 private fixture");
+  globalThis.fetch = async (url) =>
+    url.includes("/bucket/")
+      ? Response.json({ public: false })
+      : new Response(bytes, {
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Length": String(bytes.length),
+          },
+        });
+  await expectBuffer(
+    new StorageService().downloadBuffer("documents/test.pdf"),
+    bytes,
+  );
+
+  globalThis.fetch = async (url) =>
+    url.includes("/bucket/")
+      ? Response.json({ public: false })
+      : new Response("too large", {
+          headers: { "Content-Length": String(10 * 1024 * 1024 + 1) },
+        });
+  await assert.rejects(
+    new StorageService().downloadBuffer("documents/test.pdf"),
+    (error) => error.getStatus() === 503,
+  );
+});
+
+async function expectBuffer(promise, expected) {
+  const actual = await promise;
+  assert.ok(Buffer.isBuffer(actual));
+  assert.deepEqual(actual, expected);
+}
 test("Storage HTTP adapter refuses public buckets and hides provider errors", async () => {
   configure();
   globalThis.fetch = async () => Response.json({ public: true });

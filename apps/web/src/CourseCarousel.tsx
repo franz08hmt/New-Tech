@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
+  ArrowUpRightIcon,
   BookOpenIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
 } from "@heroicons/react/24/outline";
-import { courses } from "./academic-data";
+import type { Course } from "./api";
 
 function pad(value: number) {
   return String(value).padStart(2, "0");
@@ -19,7 +20,7 @@ function pad(value: number) {
  * swipe or drag it directly on a touch screen, and leaves far less code to
  * explain.
  */
-export function CourseCarousel() {
+export function CourseCarousel({ courses }: { courses: Course[] }) {
   const [active, setActive] = useState(0);
   const track = useRef<HTMLUListElement>(null);
   const items = useRef<(HTMLLIElement | null)[]>([]);
@@ -109,6 +110,10 @@ export function CourseCarousel() {
               {course.progress}%
             </progress>
           </p>
+          <a className="stage-course-link" href={`#courses/${course.slug}`}>
+            Explore {course.name} course
+            <ArrowUpRightIcon aria-hidden="true" />
+          </a>
         </header>
 
         <ul className="stage-track" ref={track}>
@@ -122,10 +127,11 @@ export function CourseCarousel() {
               <button
                 type="button"
                 className={`stage-thumb ${index === active ? "is-active" : ""}`}
+                aria-label={`Select ${item.name} course`}
                 aria-current={index === active ? "true" : undefined}
                 onClick={() => setActive(index)}
               >
-                <img src={item.cover} alt={item.coverAlt} loading="lazy" />
+                <img src={item.cover} alt={item.cover_alt} loading="lazy" />
                 <span>
                   <small>{item.code}</small>
                   <strong>{item.name}</strong>

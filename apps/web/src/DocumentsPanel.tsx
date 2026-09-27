@@ -13,6 +13,7 @@ import {
   ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
 import { DocumentCard } from "./DocumentCard";
+import { useCourses } from "./use-courses";
 import { api, type StoredDocument } from "./api";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -26,6 +27,12 @@ const message = (error: unknown) =>
   error instanceof Error ? error.message : "Operation failed. Please retry.";
 
 export function DocumentsPanel() {
+  const courses = useCourses();
+  // The subject chosen for the next upload, and the subject the list is
+  // filtered by. Deliberately separate: filing a new PDF under Maths should
+  // not silently hide every other subject from view.
+  const [uploadCourseId, setUploadCourseId] = useState("");
+  const [filterCourseId, setFilterCourseId] = useState("all");
   const [selected, setSelected] = useState<LocalDocument[]>([]);
   const [documents, setDocuments] = useState<StoredDocument[]>([]);
   const [error, setError] = useState("");
@@ -115,7 +122,10 @@ export function DocumentsPanel() {
       ),
     );
     try {
-      const stored = await api.uploadDocument(item.file);
+      const stored = await api.uploadDocument(
+        item.file,
+        uploadCourseId || undefined,
+      );
       setDocuments((current) => [
         stored,
         ...current.filter((row) => row.id !== stored.id),
@@ -134,6 +144,79 @@ export function DocumentsPanel() {
       finish(item.id);
     }
   }
+  // "none" is a real choice, not the absence of one: it asks for the documents
+  // that belong to no subject, which is different from asking for all of them.
+  const visibleDocuments = documents.filter((item) => {
+    if (filterCourseId === "all") return true;
+    if (filterCourseId === "none") return item.course_id === null;
+    return item.course_id === filterCourseId;
+  });
+
+  async function refile(item: StoredDocument, courseId: string | null) {
+    if (!begin(item.id)) return;
+    try {
+      const updated = await api.setDocumentCourse(item.id, courseId);
+      setDocuments((current) =>
+        current.map((row) => (row.id === item.id ? updated : row)),
+      );
+      setNotice(
+        updated.course_name
+          ? `Đã chuyển "${updated.name}" sang ${updated.course_name}.`
+          : `Đã gỡ "${updated.name}" khỏi môn học.`,
+      );
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Chưa đổi được môn cho tài liệu này.",
+      );
+    } finally {
+      finish(item.id);
+    }
+  }
+
+  async function process(item: StoredDocument) {
+    if (!begin(item.id)) return;
+    setDocuments((current) =>
+      current.map((row) =>
+        row.id === item.id ? { ...row, processing_status: "processing" } : row,
+      ),
+    );
+    try {
+      const result = await api.processDocument(item.id);
+      setDocuments((current) =>
+        current.map((row) =>
+          row.id === item.id
+            ? {
+                ...row,
+                processing_status: result.processing_status,
+                index_quality: result.index_quality,
+              }
+            : row,
+        ),
+      );
+      setNotice(
+        `Đã lập chỉ mục "${item.name}" thành ${result.chunk_count} đoạn để Assistant truy xuất.`,
+      );
+    } catch (cause) {
+      // The backend marks a claimed job failed before returning an error. Keep
+      // that state visible so the retry action is immediately available even
+      // if a follow-up list refresh cannot be made.
+      setDocuments((current) =>
+        current.map((row) =>
+          row.id === item.id ? { ...row, processing_status: "failed" } : row,
+        ),
+      );
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Chưa lập chỉ mục được tài liệu này. Bạn có thể thử lại.",
+      );
+    } finally {
+      finish(item.id);
+    }
+  }
+
   async function remove(item: StoredDocument) {
     if (
       !window.confirm(
@@ -200,6 +283,20 @@ export function DocumentsPanel() {
               onChange={selectFiles}
             />
           </label>
+          <label className="upload-course">
+            Save under course
+            <select
+              value={uploadCourseId}
+              onChange={(event) => setUploadCourseId(event.target.value)}
+            >
+              <option value="">Không thuộc môn nào</option>
+              {courses.courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.name} ({course.code})
+                </option>
+              ))}
+            </select>
+          </label>
           <p id="upload-boundary" className="upload-boundary">
             Uploaded PDFs are saved in private Storage with database metadata.
             Shared demo workspace · no login or AI processing.
@@ -259,27 +356,64 @@ export function DocumentsPanel() {
               {error ? "Retry list" : "Refresh list"}
             </button>
           </header>
+          <label className="filter-label document-filter">
+            Filter by course{" "}
+            <select
+              value={filterCourseId}
+              onChange={(event) => setFilterCourseId(event.target.value)}
+            >
+              <option value="all">Tất cả môn</option>
+              <option value="none">Chưa gắn môn nào</option>
+              {courses.courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.name} ({course.code})
+                </option>
+              ))}
+            </select>
+          </label>
           {loading ? (
             <p aria-live="polite">Loading documents…</p>
           ) : (
             <ul>
-              {documents.map((item) => (
-                <li key={item.id}>
+              {visibleDocuments.map((item) => (
+                <li key={item.id} data-focus-id={item.id}>
                   <DocumentCard
                     name={item.name}
                     size={item.size_bytes}
                     state={item.storage_status}
                     busy={busyIds.includes(item.id)}
+                    processingStatus={item.processing_status ?? "pending"}
+                    indexQuality={item.index_quality}
+                    onProcess={() => void process(item)}
                     onDownload={() => void download(item)}
                     onRemove={() => void remove(item)}
                   />
+                  <label className="document-course">
+                    <span className="sr-only">Course for {item.name}</span>
+                    <select
+                      value={item.course_id ?? ""}
+                      disabled={busyIds.includes(item.id)}
+                      onChange={(event) =>
+                        void refile(item, event.target.value || null)
+                      }
+                    >
+                      <option value="">Chưa gắn môn nào</option>
+                      {courses.courses.map((course) => (
+                        <option key={course.id} value={course.id}>
+                          {course.name} ({course.code})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </li>
               ))}
             </ul>
           )}
-          {!loading && !error && !documents.length && (
+          {!loading && !error && !visibleDocuments.length && (
             <p className="empty-message">
-              No stored documents yet. Upload a PDF to begin.
+              {documents.length
+                ? "Không có tài liệu nào thuộc lựa chọn này. Thử chọn môn khác xem sao."
+                : "Chưa có tài liệu nào. Tải một tệp PDF lên để bắt đầu."}
             </p>
           )}
         </section>
@@ -298,14 +432,14 @@ export function DocumentsPanel() {
             <CircleStackIcon aria-hidden="true" />
             <span>
               <strong>Extract and index</strong>
-              <small>Future plan · not implemented</small>
+              <small>Backend PDF processing and Gemini embeddings</small>
             </span>
           </li>
           <li>
             <MagnifyingGlassIcon aria-hidden="true" />
             <span>
               <strong>Retrieve with citations</strong>
-              <small>Future plan · Assistant preview only</small>
+              <small>Grounded Assistant with validated sources</small>
             </span>
           </li>
         </ol>

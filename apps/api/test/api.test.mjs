@@ -37,6 +37,30 @@ test("HTTP Tasks: create normalized task, list and change status", async () => {
   assert.equal(list.status, 200);
   assert.equal((await list.json())[0].status, "done");
 });
+
+test("HTTP Courses: lists seeded course guides and reads one by slug", async () => {
+  const listResponse = await server.request("/courses");
+  assert.equal(listResponse.status, 200);
+  const courses = await listResponse.json();
+  assert.equal(courses.length, 6);
+  assert.ok(courses.some((course) => course.name === "Công nghệ phần mềm"));
+  assert.ok(Array.isArray(courses[0].outline));
+  assert.ok(Array.isArray(courses[0].outcomes));
+  assert.ok(Array.isArray(courses[0].assessment));
+
+  const detailResponse = await server.request("/courses/cs-201");
+  assert.equal(detailResponse.status, 200);
+  assert.equal((await detailResponse.json()).slug, "cs-201");
+});
+
+test("HTTP Courses: rejects malformed slugs and returns a safe missing-course response", async () => {
+  assert.equal((await server.request("/courses/CS%20201")).status, 400);
+  const response = await server.request("/courses/not-a-course");
+  assert.equal(response.status, 404);
+  const body = await response.json();
+  assert.equal(body.code, "COURSE_NOT_FOUND");
+  assert.ok(!JSON.stringify(body).includes("SELECT"));
+});
 for (const [label, input] of Object.entries({
   missing: {},
   whitespace: { title: "     " },
@@ -110,6 +134,8 @@ test("HTTP Documents: upload, list, signed download, delete and repeated delete"
   assert.equal(response.status, 201);
   const document = await response.json();
   assert.equal(document.storage_status, "stored");
+  assert.equal(document.processing_status, "pending");
+  assert.equal(document.index_quality, null);
   assert.equal(document.media_type, "application/pdf");
   assert.ok(document.size_bytes > 5);
   assert.equal(document.storage_key, undefined);
@@ -131,6 +157,68 @@ test("HTTP Documents: upload, list, signed download, delete and repeated delete"
     204,
   );
 });
+test("HTTP Documents validates process UUID and delegates document indexing", async () => {
+  await server.app.close();
+  const processed = [];
+  const ingestion = {
+    async process(id) {
+      processed.push(id);
+      return {
+        document_id: id,
+        processing_status: "ready",
+        chunk_count: 2,
+        indexed_at: "2026-09-25T12:00:00.000Z",
+        index_quality: {
+          total_page_count: 3,
+          useful_text_page_count: 2,
+          low_text_page_count: 1,
+          indexed_chunk_count: 2,
+          skipped_page_numbers: [2],
+          needs_ocr: true,
+          ocr_page_count: 0,
+          ocr_page_numbers: [],
+        },
+      };
+    },
+  };
+  server = await httpApp(
+    fixture.database,
+    fixture.storage,
+    undefined,
+    ingestion,
+  );
+  assert.equal(
+    (
+      await server.request("/documents/not-a-uuid/process", {
+        method: "POST",
+      })
+    ).status,
+    400,
+  );
+  assert.equal(processed.length, 0);
+  const id = randomUUID();
+  const response = await server.request(`/documents/${id}/process`, {
+    method: "POST",
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    document_id: id,
+    processing_status: "ready",
+    chunk_count: 2,
+    indexed_at: "2026-09-25T12:00:00.000Z",
+    index_quality: {
+      total_page_count: 3,
+      useful_text_page_count: 2,
+      low_text_page_count: 1,
+      indexed_chunk_count: 2,
+      skipped_page_numbers: [2],
+      needs_ocr: true,
+      ocr_page_count: 0,
+      ocr_page_numbers: [],
+    },
+  });
+  assert.deepEqual(processed, [id]);
+});
 for (const [label, form] of [
   ["extension", () => pdfForm("%PDF-1.4", "file.txt")],
   ["mime", () => pdfForm("%PDF-1.4", "file.pdf", "text/plain")],
@@ -140,6 +228,25 @@ for (const [label, form] of [
     assert.equal((await server.request("/documents", form())).status, 415);
     assert.equal(fixture.state.uploadCalls, 0);
   });
+test("HTTP Documents: a Vietnamese filename survives multipart decoding", async () => {
+  const fixture = fakeDependencies();
+  const server = await httpApp(fixture.database, fixture.storage);
+  try {
+    const original = "ĐƠN XIN ĐĂNG KÝ MÔN HỌC.pdf";
+    const response = await server.request(
+      "/documents",
+      pdfForm(undefined, original),
+    );
+    assert.equal(response.status, 201);
+    // busboy hands the filename back as Latin-1, so without the decode this
+    // reads "ÄÆ N XIN..." — every accented letter split into the two
+    // characters its UTF-8 bytes happen to look like.
+    assert.equal((await response.json()).name, original);
+  } finally {
+    await server.app.close();
+  }
+});
+
 test("HTTP Documents enforces multipart size, file count and missing file before Storage", async () => {
   assert.equal(
     (

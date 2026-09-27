@@ -6,10 +6,20 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { useEffect, useRef, useState } from "react";
+import type { AssistantCitation, AssistantState } from "./use-assistant";
+import type { StoredDocument } from "./api";
 
 interface AssistantPanelProps {
+  open: boolean;
+  /** Narrow screens show a modal sheet; wider ones a floating window. */
+  modal: boolean;
   pageId: string;
   pageName: string;
+  courseId?: string;
+  assistant: AssistantState;
+  documents?: StoredDocument[];
+  documentsLoading?: boolean;
+  onOpenCitation?: (citation: AssistantCitation) => Promise<void>;
   onClose: () => void;
 }
 
@@ -37,24 +47,78 @@ const fallbackPrompts = [
   "What should I review next?",
 ];
 
+/**
+ * The ExaMate AI window.
+ *
+ * Presentational and always mounted: App owns whether it is open and the
+ * conversation it shows. Closing sets `hidden`, which takes it out of the tab
+ * order and the accessibility tree, instead of unmounting it — so nothing the
+ * student typed goes with it.
+ */
 export function AssistantPanel({
+  open,
+  modal,
   pageId,
   pageName,
+  courseId,
+  assistant,
+  documents = [],
+  documentsLoading = false,
+  onOpenCitation,
   onClose,
 }: AssistantPanelProps) {
-  const [draft, setDraft] = useState("");
-  const closeButton = useRef<HTMLButtonElement>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
+  const [openingCitation, setOpeningCitation] = useState<string | null>(null);
+  const [citationError, setCitationError] = useState("");
+  const [documentId, setDocumentId] = useState("");
   const prompts = promptsByPage[pageId] ?? fallbackPrompts;
+  const preview = assistant.status === "unavailable";
+  const availableDocuments = documents.filter(
+    (item) =>
+      item.storage_status === "stored" &&
+      item.processing_status === "ready" &&
+      (!courseId || item.course_id === courseId),
+  );
 
   useEffect(() => {
-    closeButton.current?.focus();
-  }, []);
+    if (
+      documentId &&
+      !availableDocuments.some((item) => item.id === documentId)
+    )
+      setDocumentId("");
+  }, [availableDocuments, documentId]);
+
+  // Opening lands in the composer: typing a question is what the launcher is
+  // for. Keyed on `open` alone, so switching page behind an open panel does
+  // not steal focus back into it.
+  useEffect(() => {
+    if (open) composer.current?.focus();
+  }, [open]);
+
+  async function openCitation(citation: AssistantCitation) {
+    if (!onOpenCitation || !citation.documentId || openingCitation) return;
+    const key = citation.id ?? citation.documentId;
+    setOpeningCitation(key);
+    setCitationError("");
+    try {
+      await onOpenCitation(citation);
+    } catch {
+      setCitationError("Chưa mở được tài liệu nguồn. Thử lại giúp mình nhé.");
+    } finally {
+      setOpeningCitation(null);
+    }
+  }
 
   return (
     <aside
       id="examate-ai-panel"
-      className="assistant-panel"
+      className={`assistant-panel ${modal ? "is-sheet" : "is-window"}`}
       aria-label="ExaMate AI"
+      // An aside is complementary content beside the page. As a sheet that
+      // covers the page and holds focus, it is a modal dialog, and says so.
+      role={modal ? "dialog" : undefined}
+      aria-modal={modal ? true : undefined}
+      hidden={!open}
     >
       <header className="assistant-panel-header">
         <span className="assistant-mark" aria-hidden="true">
@@ -65,80 +129,241 @@ export function AssistantPanel({
           <small>{pageName} context</small>
         </span>
         <button
-          ref={closeButton}
           type="button"
           aria-label="Close ExaMate AI"
+          title="Thu gọn — bản nháp vẫn được giữ"
           onClick={onClose}
         >
           <XMarkIcon aria-hidden="true" />
         </button>
       </header>
 
-      <section className="assistant-intro" aria-labelledby="assistant-title">
-        <span className="preview-badge">Interface preview</span>
-        <h2 id="assistant-title">Ask with your sources in view</h2>
-        <p>
-          This panel demonstrates the planned experience. Retrieval and the AI
-          provider are not connected yet.
-        </p>
-      </section>
+      <div className="assistant-body">
+        {preview && (
+          <section
+            className="assistant-intro"
+            aria-labelledby="assistant-title"
+          >
+            <span className="preview-badge">Interface preview</span>
+            <h2 id="assistant-title">Ask with your sources in view</h2>
+            <p>
+              Phần AI đang được Thắng kết nối. Bạn có thể chuẩn bị câu hỏi,
+              nhưng chưa gửi để nhận trả lời được.
+            </p>
+          </section>
+        )}
 
-      <section
-        className="assistant-suggestions"
-        aria-labelledby="suggestions-title"
-      >
-        <h3 id="suggestions-title">Try asking</h3>
-        <ul>
-          {prompts.map((prompt) => (
-            <li key={prompt}>
-              <button type="button" onClick={() => setDraft(prompt)}>
-                {prompt}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
+        {!preview && (
+          <>
+            <fieldset
+              className="assistant-mode"
+              disabled={assistant.status === "sending"}
+            >
+              <legend>Chế độ trả lời</legend>
+              <label>
+                <input
+                  type="radio"
+                  name="assistant-mode"
+                  value="general"
+                  checked={assistant.mode === "general"}
+                  onChange={() => assistant.setMode("general")}
+                />
+                Chat thông thường
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="assistant-mode"
+                  value="documents"
+                  checked={assistant.mode === "documents"}
+                  onChange={() => assistant.setMode("documents")}
+                />
+                Hỏi tài liệu
+              </label>
+            </fieldset>
+            <p className="assistant-capability">
+              {assistant.mode === "documents"
+                ? "Câu trả lời chỉ dựa trên các tài liệu đã lập chỉ mục và hiển thị nguồn đã được backend kiểm chứng."
+                : "Trả lời bằng kiến thức chung; không đọc hoặc suy đoán dữ liệu riêng trong ứng dụng."}
+            </p>
+            {open && assistant.mode === "documents" && (
+              <label className="assistant-document-picker">
+                Tài liệu
+                <select
+                  value={documentId}
+                  disabled={documentsLoading || assistant.status === "sending"}
+                  onChange={(event) => setDocumentId(event.target.value)}
+                >
+                  <option value="">Tất cả tài liệu đã lập chỉ mục</option>
+                  {availableDocuments.map((document) => (
+                    <option key={document.id} value={document.id}>
+                      {document.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </>
+        )}
+
+        {assistant.messages.length > 0 && (
+          <ol className="assistant-messages" aria-label="Conversation">
+            {assistant.messages.map((message) => (
+              <li key={message.id} className={`is-${message.role}`}>
+                {/* Rendered as text, never as HTML: a model's output is not
+                    trusted markup. */}
+                <p>{message.text}</p>
+                {message.citations.length > 0 && (
+                  <ul className="assistant-citations" aria-label="Sources">
+                    {message.citations.map((citation) => (
+                      <li
+                        key={
+                          citation.id ??
+                          `${citation.title}-${citation.locator ?? ""}`
+                        }
+                      >
+                        <BookOpenIcon aria-hidden="true" />
+                        {onOpenCitation && citation.documentId ? (
+                          <button
+                            type="button"
+                            disabled={openingCitation !== null}
+                            aria-label={`Open source ${citation.title}${citation.locator ? `, ${citation.locator}` : ""}`}
+                            onClick={() => void openCitation(citation)}
+                          >
+                            {citation.title}
+                            {citation.locator && ` · ${citation.locator}`}
+                          </button>
+                        ) : (
+                          <span>
+                            {citation.title}
+                            {citation.locator && ` · ${citation.locator}`}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+
+        {citationError && (
+          <p role="alert" className="assistant-citation-error">
+            {citationError}
+          </p>
+        )}
+
+        <section
+          className="assistant-suggestions"
+          aria-labelledby="suggestions-title"
+        >
+          <h3 id="suggestions-title">Try asking</h3>
+          <ul>
+            {prompts.map((prompt) => (
+              <li key={prompt}>
+                <button
+                  type="button"
+                  onClick={() => assistant.setDraft(prompt)}
+                >
+                  {prompt}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {preview && (
+          <section
+            className="assistant-answer-preview"
+            aria-labelledby="answer-preview-title"
+          >
+            <header>
+              <DocumentMagnifyingGlassIcon aria-hidden="true" />
+              <span>
+                <small>Example grounded answer</small>
+                <h3 id="answer-preview-title">Evidence stays checkable</h3>
+              </span>
+            </header>
+            <p>
+              Homework 3A asks for navigation, essential screens, a validated
+              form, visible UI states and a responsive layout.
+            </p>
+            <footer>
+              <BookOpenIcon aria-hidden="true" />
+              <span>
+                <strong>Week 3 course guide · p. 5</strong>
+                <small>Example citation · not retrieved live</small>
+              </span>
+            </footer>
+          </section>
+        )}
+      </div>
 
       <form
         className="assistant-composer"
-        onSubmit={(event) => event.preventDefault()}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void assistant.send({
+            pageId,
+            pageName,
+            ...(courseId ? { courseId } : {}),
+            ...(documentId ? { documentId } : {}),
+          });
+        }}
       >
         <label htmlFor="assistant-question">Question for ExaMate</label>
         <textarea
           id="assistant-question"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          ref={composer}
+          value={assistant.draft}
+          onChange={(event) => assistant.setDraft(event.target.value)}
           placeholder="Ask about your course or project sources…"
         />
-        <button type="submit" disabled>
+        {/* A small status line of its own, announced when it changes. The
+            conversation above is not a live region, so a new reply does not
+            make a screen reader read the whole history again. */}
+        {assistant.status === "error" ? (
+          <p role="alert" className="assistant-status">
+            {assistant.errorMessage ||
+              "Chưa gửi được câu hỏi. Bản nháp vẫn còn nguyên, thử lại nhé."}
+          </p>
+        ) : (
+          <p role="status" className="assistant-status">
+            {assistant.status === "sending" ? "Đang gửi câu hỏi…" : ""}
+          </p>
+        )}
+        <button type="submit" disabled={!assistant.canSend}>
           <PaperAirplaneIcon aria-hidden="true" />
-          Ask when RAG is ready
+          Send question
         </button>
+        {assistant.mode === "documents" && (
+          <button
+            type="button"
+            disabled={
+              !documentId ||
+              assistant.status === "sending" ||
+              assistant.status === "unavailable"
+            }
+            onClick={() =>
+              void assistant.send(
+                {
+                  pageId,
+                  pageName,
+                  ...(courseId ? { courseId } : {}),
+                  documentId,
+                },
+                {
+                  operation: "summarize",
+                  message: "Tóm tắt tài liệu đã chọn.",
+                },
+              )
+            }
+          >
+            Tóm tắt tài liệu
+          </button>
+        )}
       </form>
-
-      <section
-        className="assistant-answer-preview"
-        aria-labelledby="answer-preview-title"
-      >
-        <header>
-          <DocumentMagnifyingGlassIcon aria-hidden="true" />
-          <span>
-            <small>Example grounded answer</small>
-            <h3 id="answer-preview-title">Evidence stays checkable</h3>
-          </span>
-        </header>
-        <p>
-          Homework 3A asks for navigation, essential screens, a validated form,
-          visible UI states and a responsive layout.
-        </p>
-        <footer>
-          <BookOpenIcon aria-hidden="true" />
-          <span>
-            <strong>Week 3 course guide · p. 5</strong>
-            <small>Example citation · not retrieved live</small>
-          </span>
-        </footer>
-      </section>
     </aside>
   );
 }

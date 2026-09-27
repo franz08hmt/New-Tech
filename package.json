@@ -4,10 +4,13 @@
   "private": true,
   "packageManager": "npm@11.6.2",
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
     "db:migrate": "npm run build --workspace @examate/api && npm run db:migrate --workspace @examate/api",
+    "eval:rag": "npm run eval:rag --workspace @examate/api --",
+    "eval:rag:corpus": "npm run eval:rag:corpus --workspace @examate/api",
     "test:database": "npm run build --workspace @examate/api && npm run test:database --workspace @examate/api",
     "dev:web": "npm run dev --workspace @examate/web",
     "dev:api": "npm run dev --workspace @examate/api",

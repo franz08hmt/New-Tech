@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type PointerEvent, type ReactNode } from "react";
 import {
   CalendarDaysIcon,
   ChevronLeftIcon,
@@ -7,11 +7,15 @@ import {
   ViewColumnsIcon,
   DocumentTextIcon,
   PlusIcon,
-  ClockIcon,
   TableCellsIcon,
   BookOpenIcon,
+  ArrowUpRightIcon,
+  TrashIcon,
+  ArrowUturnLeftIcon,
+  Bars3Icon,
 } from "@heroicons/react/24/outline";
-import { courses, exams, research } from "./academic-data";
+import { courseIconFor } from "./academic-data";
+import type { Course } from "./api";
 import { revealClass, useReveal } from "./use-reveal";
 
 export function Panel({
@@ -131,7 +135,13 @@ export function CalendarPanel() {
     </Panel>
   );
 }
-export function CoursesPanel({ expanded = false }: { expanded?: boolean }) {
+export function CoursesPanel({
+  courses,
+  expanded = false,
+}: {
+  courses: Course[];
+  expanded?: boolean;
+}) {
   const { ref, revealed } = useReveal<HTMLUListElement>();
   return (
     <Panel title="Course overview" icon={<AcademicCapIcon />}>
@@ -143,171 +153,264 @@ export function CoursesPanel({ expanded = false }: { expanded?: boolean }) {
         ref={ref}
         className={`course-grid grid grid-cols-2 lg:grid-cols-4 gap-3 ${revealClass(revealed)}`}
       >
-        {courses.map((course) => (
-          <li key={course.code}>
-            <article className="course-card">
-              <span className={`course-art ${course.tone}`}>
-                <course.icon aria-hidden="true" />
-              </span>
-              <header>
-                <h3>{course.name}</h3>
-                <p>
-                  <BookOpenIcon /> {course.code} · Class
-                </p>
-              </header>
-              {expanded && <p className="course-detail">{course.detail}</p>}
-              <footer>
-                <label htmlFor={course.code}>
-                  Progress <span>{course.progress}%</span>
-                </label>
-                <progress id={course.code} value={course.progress} max={100}>
-                  {course.progress}%
-                </progress>
-              </footer>
-            </article>
-          </li>
-        ))}
-      </ul>
-    </Panel>
-  );
-}
-export function ExamsPanel({ compact = false }: { compact?: boolean }) {
-  const { ref, revealed } = useReveal<HTMLUListElement>();
-  return (
-    <Panel title="Upcoming exams" icon={<CalendarDaysIcon />}>
-      <p className="view-label">
-        <ClockIcon /> Countdown{" "}
-        <span className="example-label">Example dates</span>
-      </p>
-      {compact ? (
-        <ul ref={ref} className={`exam-agenda ${revealClass(revealed)}`}>
-          {exams.map((exam) => (
-            <li key={exam.name}>
-              <time dateTime={exam.date} className="date-tag">
-                {new Date(`${exam.date}T12:00:00`).toLocaleDateString("en", {
-                  month: "short",
-                  day: "numeric",
-                })}
-              </time>
-              <span>
-                <strong>{exam.name}</strong>
-                <small>{exam.topic}</small>
-              </span>
-              <span>
-                {exam.time}
-                <small>{exam.room}</small>
-              </span>
+        {courses.map((course) => {
+          const Icon = courseIconFor(course.slug);
+          return (
+            <li key={course.code}>
+              <article className="course-card">
+                <span className={`course-art ${course.tone}`}>
+                  <Icon aria-hidden="true" />
+                </span>
+                <header>
+                  <h3>
+                    <a
+                      className="course-card-link"
+                      href={`#courses/${course.slug}`}
+                    >
+                      {course.name}
+                    </a>
+                  </h3>
+                  <p>
+                    <BookOpenIcon /> {course.code} · Class
+                  </p>
+                </header>
+                {expanded && <p className="course-detail">{course.detail}</p>}
+                <footer>
+                  <p className="course-progress-label">
+                    Progress <span>{course.progress}%</span>
+                  </p>
+                  <progress
+                    aria-label={`${course.name} example progress: ${course.progress}%`}
+                    value={course.progress}
+                    max={100}
+                  >
+                    {course.progress}%
+                  </progress>
+                  <span className="course-card-action">
+                    View course <ArrowUpRightIcon aria-hidden="true" />
+                  </span>
+                </footer>
+              </article>
             </li>
-          ))}
-        </ul>
-      ) : (
-        <div
-          className="table-scroll"
-          role="region"
-          aria-label="Exam schedule"
-          tabIndex={0}
-        >
-          <table className="exam-table">
-            <caption className="sr-only">
-              Upcoming example examinations, dates and locations
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Aa Name</th>
-                <th scope="col">Date</th>
-                <th scope="col">Time</th>
-                <th scope="col">Location</th>
-              </tr>
-            </thead>
-            <tbody>
-              {exams.map((exam) => (
-                <tr key={exam.name}>
-                  <th scope="row">
-                    {exam.name}
-                    <small>{exam.topic}</small>
-                  </th>
-                  <td>
-                    <time dateTime={exam.date} className="date-tag">
-                      {new Date(`${exam.date}T12:00:00`).toLocaleDateString(
-                        "en",
-                        { month: "short", day: "numeric" },
-                      )}
-                    </time>
-                  </td>
-                  <td>{exam.time}</td>
-                  <td>{exam.room}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Panel>
-  );
-}
-export function ResearchPanel() {
-  const { ref, revealed } = useReveal<HTMLUListElement>();
-  return (
-    <Panel title="Research projects" icon={<BookOpenIcon />}>
-      <p className="view-label">
-        <ViewColumnsIcon /> Board{" "}
-        <span className="example-label">Planning examples</span>
-      </p>
-      <ul
-        ref={ref}
-        className={`research-grid grid grid-cols-1 sm:grid-cols-3 gap-3 ${revealClass(revealed)}`}
-      >
-        {research.map((item) => (
-          <li key={item.title} className="board-column">
-            <h3>
-              <span className={`board-tag ${item.tone}`}>{item.status}</span>
-              <span>1</span>
-            </h3>
-            <article className="research-card">
-              <h4>{item.title}</h4>
-              <p>{item.detail}</p>
-              <footer>
-                <span className="avatar">{item.owner.slice(0, 1)}</span>
-                {item.owner}
-              </footer>
-            </article>
-          </li>
-        ))}
+          );
+        })}
       </ul>
     </Panel>
   );
 }
-export function NotesPanel() {
-  const [notes, setNotes] = useState<string[]>(() => {
-    try {
-      const saved: unknown = JSON.parse(
-        localStorage.getItem("examate-notes") || "null",
-      );
-      if (
-        Array.isArray(saved) &&
-        saved.every((item) => typeof item === "string")
-      )
-        return saved.slice(0, 6);
-    } catch {
-      /* Storage may be unavailable. */
+interface Note {
+  id: string;
+  text: string;
+  /** Index into the five sticky colours; stored so deleting never reshuffles them. */
+  tone: number;
+}
+
+const NOTE_LIMIT = 6;
+const NOTE_TONES = 5;
+const UNDO_MS = 8000;
+
+function noteId() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `note-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * Reads whatever is in storage, including the older string[] format that
+ * earlier builds wrote, so an existing user does not lose their notes.
+ */
+function loadNotes(): Note[] {
+  try {
+    const saved: unknown = JSON.parse(
+      localStorage.getItem("examate-notes") || "null",
+    );
+    if (Array.isArray(saved)) {
+      const restored = saved
+        .map((item, index): Note | null => {
+          if (typeof item === "string")
+            return { id: noteId(), text: item, tone: index % NOTE_TONES };
+          if (
+            item &&
+            typeof item === "object" &&
+            typeof (item as Note).text === "string"
+          ) {
+            const note = item as Partial<Note>;
+            return {
+              id: typeof note.id === "string" ? note.id : noteId(),
+              text: note.text as string,
+              tone:
+                typeof note.tone === "number"
+                  ? note.tone % NOTE_TONES
+                  : index % NOTE_TONES,
+            };
+          }
+          return null;
+        })
+        .filter((note): note is Note => note !== null);
+      if (restored.length) return restored.slice(0, NOTE_LIMIT);
     }
-    return [
-      "Small steps,\nbig progress.",
-      "Review the\nAPI contract",
-      "Keep your\nsources close.",
-      "One thing\nat a time.",
-      "You’ve got this!",
-    ];
-  });
+  } catch {
+    /* Storage may be unavailable or hold something we cannot read. */
+  }
+  return [
+    "Đi chậm một chút\ncũng không sao.",
+    "Xem lại hợp đồng\nAPI trước buổi họp",
+    "Giữ nguồn tài liệu\nở gần tay.",
+    "Mỗi lần một việc\nthôi nhé.",
+    "Bạn làm được mà!",
+  ].map((text, index) => ({ id: noteId(), text, tone: index % NOTE_TONES }));
+}
+
+/** A note lifted out of the list, kept just long enough to be put back. */
+/**
+ * Moves one item to another position, leaving the rest in order.
+ *
+ * Pure and exported so the reordering rule can be tested directly: a pointer
+ * drag depends on layout, which jsdom does not have, and a rule this easy to
+ * get subtly wrong deserves checking without one.
+ */
+export function moveNote<T>(items: T[], from: number, to: number): T[] {
+  if (
+    from === to ||
+    from < 0 ||
+    to < 0 ||
+    from >= items.length ||
+    to >= items.length
+  )
+    return items;
+  const next = [...items];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
+interface RemovedNote {
+  note: Note;
+  index: number;
+}
+
+export function NotesPanel() {
+  const [notes, setNotes] = useState<Note[]>(loadNotes);
   const [warning, setWarning] = useState("");
-  function save(next: string[]) {
+  const [removed, setRemoved] = useState<RemovedNote | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
+
+  function save(next: Note[]) {
     setNotes(next);
     try {
       localStorage.setItem("examate-notes", JSON.stringify(next));
     } catch {
-      setWarning("Notes are kept only until this page is closed.");
+      setWarning("Ghi chú sẽ chỉ còn đến khi bạn đóng trang này thôi.");
     }
   }
+
+  /**
+   * Which note the pointer is over, by hit-testing the rendered stickies.
+   *
+   * Measured rather than derived from the pointer's offset, because the grid
+   * wraps: the note to the "right" of the third one is on the next row, and
+   * arithmetic on coordinates would have to know the column count to say so.
+   */
+  function indexAt(x: number, y: number): number {
+    return itemRefs.current.findIndex((element) => {
+      if (!element) return false;
+      const box = element.getBoundingClientRect();
+      return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+    });
+  }
+
+  function reorder(from: number, to: number, note: Note) {
+    const next = moveNote(notes, from, to);
+    if (next === notes) return;
+    setNotes(next);
+    const preview = note.text.trim().split("\n")[0].slice(0, 30);
+    setAnnouncement(
+      `\u0110\u00e3 chuy\u1ec3n ${preview || "ghi ch\u00fa tr\u1ed1ng"} sang v\u1ecb tr\u00ed ${to + 1} tr\u00ean ${next.length}.`,
+    );
+    return next;
+  }
+
+  // Pointer events rather than HTML5 drag and drop: the latter does nothing on
+  // a touch screen, and this way mouse, pen and finger all take one path.
+  function onHandleDown(event: PointerEvent<HTMLButtonElement>, note: Note) {
+    // Capture keeps the moves coming once the pointer leaves the handle, which
+    // it does immediately. Guarded because it throws for a pointer the browser
+    // does not consider active, and an unguarded throw here would abort the
+    // drag before it started — silently, since nothing else would run.
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      /* Without capture the drag still starts; it just needs the pointer to
+         stay over the handle. */
+    }
+    setDraggingId(note.id);
+  }
+
+  function onHandleMove(event: PointerEvent<HTMLButtonElement>, note: Note) {
+    if (draggingId !== note.id) return;
+    const from = notes.findIndex((item) => item.id === note.id);
+    const to = indexAt(event.clientX, event.clientY);
+    if (to < 0 || to === from) return;
+    reorder(from, to, note);
+  }
+
+  function onHandleUp(event: PointerEvent<HTMLButtonElement>, note: Note) {
+    if (draggingId !== note.id) return;
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      /* Never captured, nothing to release. */
+    }
+    setDraggingId(null);
+    // Written once, at the end. Saving on every pointermove would hammer
+    // localStorage for a position the user is still choosing.
+    save(notes);
+  }
+
+  /** Arrow keys on the handle, so the order is reachable without a pointer. */
+  function onHandleKey(
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    note: Note,
+  ) {
+    const step =
+      event.key === "ArrowLeft" || event.key === "ArrowUp"
+        ? -1
+        : event.key === "ArrowRight" || event.key === "ArrowDown"
+          ? 1
+          : 0;
+    if (!step) return;
+    event.preventDefault();
+    const from = notes.findIndex((item) => item.id === note.id);
+    const next = reorder(from, from + step, note);
+    if (next) save(next);
+  }
+
+  // Deleting is destructive, so the note is held aside and can be put back
+  // rather than hidden behind a confirmation dialog for one line of text.
+  function remove(index: number) {
+    const note = notes[index];
+    if (!note) return;
+    save(notes.filter((_, i) => i !== index));
+    setRemoved({ note, index });
+    window.setTimeout(
+      () =>
+        setRemoved((current) =>
+          current?.note.id === note.id ? null : current,
+        ),
+      UNDO_MS,
+    );
+  }
+
+  function undo() {
+    if (!removed) return;
+    const next = [...notes];
+    next.splice(Math.min(removed.index, next.length), 0, removed.note);
+    save(next.slice(0, NOTE_LIMIT));
+    setRemoved(null);
+  }
+
   return (
     <Panel title="Quick notes" warm icon={<DocumentTextIcon />}>
       <p className="view-label">
@@ -315,31 +418,95 @@ export function NotesPanel() {
         <span className="example-label">Saved on this browser</span>
       </p>
       <ul className="notes-grid grid grid-cols-3 gap-2">
-        {notes.map((note, index) => (
-          <li key={index} className={`sticky sticky-${index % 5}`}>
-            <textarea
-              aria-label={`Quick note ${index + 1}`}
-              maxLength={180}
-              value={note}
-              onChange={(event) =>
-                save(
-                  notes.map((item, i) =>
-                    i === index ? event.target.value : item,
-                  ),
-                )
-              }
-            />
-          </li>
-        ))}
+        {notes.map((note, index) => {
+          const preview = note.text.trim().split("\n")[0].slice(0, 30);
+          return (
+            <li
+              key={note.id}
+              ref={(element) => {
+                itemRefs.current[index] = element;
+              }}
+              className={`sticky sticky-${note.tone} ${
+                draggingId === note.id ? "is-dragging" : ""
+              }`}
+            >
+              {/* A handle rather than a draggable note: the note is a textarea,
+                  and making the whole thing draggable would fight selecting
+                  and editing the text inside it. */}
+              <button
+                type="button"
+                className="sticky-handle"
+                aria-label={`Move note ${index + 1}${
+                  preview ? `: ${preview}` : ""
+                }. Dùng phím mũi tên để đổi vị trí.`}
+                onPointerDown={(event) => onHandleDown(event, note)}
+                onPointerMove={(event) => onHandleMove(event, note)}
+                onPointerUp={(event) => onHandleUp(event, note)}
+                onPointerCancel={(event) => onHandleUp(event, note)}
+                onKeyDown={(event) => onHandleKey(event, note)}
+              >
+                <Bars3Icon aria-hidden="true" />
+              </button>
+              <textarea
+                aria-label={`Quick note ${index + 1}`}
+                maxLength={180}
+                value={note.text}
+                onChange={(event) =>
+                  save(
+                    notes.map((item, i) =>
+                      i === index
+                        ? { ...item, text: event.target.value }
+                        : item,
+                    ),
+                  )
+                }
+              />
+              <button
+                type="button"
+                className="sticky-remove"
+                aria-label={
+                  preview
+                    ? `Delete note ${index + 1}: ${preview}`
+                    : `Delete empty note ${index + 1}`
+                }
+                onClick={() => remove(index)}
+              >
+                <TrashIcon aria-hidden="true" />
+              </button>
+            </li>
+          );
+        })}
       </ul>
-      <button
-        className="text-button"
-        disabled={notes.length >= 6}
-        onClick={() => save([...notes, ""])}
-      >
-        <PlusIcon /> Add note
-      </button>
-      {warning && <p role="status">{warning}</p>}
+      <p className="notes-actions">
+        <button
+          className="text-button"
+          type="button"
+          disabled={notes.length >= NOTE_LIMIT}
+          onClick={() =>
+            save([
+              ...notes,
+              { id: noteId(), text: "", tone: notes.length % NOTE_TONES },
+            ])
+          }
+        >
+          <PlusIcon /> Add note
+        </button>
+      </p>
+      <p className="sr-only" role="status" aria-live="polite">
+        {announcement}
+      </p>
+      <p role="status" className="notes-status">
+        {removed ? (
+          <>
+            <span>Đã bỏ một tờ ghi chú.</span>
+            <button className="text-button" type="button" onClick={undo}>
+              <ArrowUturnLeftIcon /> Hoàn tác
+            </button>
+          </>
+        ) : (
+          warning
+        )}
+      </p>
     </Panel>
   );
 }

@@ -10,16 +10,39 @@ function fixture(status: AssistantStatus) {
   const provider: AssistantProvider = {
     model: "gemini-2.5-flash",
     status: () => status,
-    generate: vi.fn().mockResolvedValue("Study in small steps."),
+    generate: vi.fn().mockResolvedValue(
+      JSON.stringify({
+        answerable: true,
+        answer: "Study in small steps [S1].",
+        citationIds: ["S1"],
+      }),
+    ),
   };
-  const service = new AssistantService(provider);
+  const retrieval = {
+    retrieve: vi.fn().mockResolvedValue({
+      promptVersion: "rag-v1",
+      context: "evidence",
+      evidence: [],
+      citations: [
+        {
+          sourceId: "S1",
+          chunkId: "11111111-1111-4111-8111-111111111111",
+          documentId: "22222222-2222-4222-8222-222222222222",
+          title: "study.pdf",
+          page: 1,
+          chunkIndex: 0,
+        },
+      ],
+    }),
+  };
+  const service = new AssistantService(provider, retrieval as never);
   return { service, controller: new AssistantController(service) };
 }
 
 const common = {
   provider: "google",
-  mode: "llm",
-  ragEnabled: false,
+  modes: ["general", "documents"],
+  ragEnabled: true,
   credentialsExposedToClient: false,
 } as const;
 
@@ -50,15 +73,55 @@ describe("AssistantController", () => {
       { type: "body", metatype: AssistantChatDto },
     );
     await expect(controller.chat(input)).resolves.toEqual({
-      answer: "Study in small steps.",
+      answer: "Study in small steps [S1].",
+      answerable: true,
+      reasonCode: "ANSWER_GENERATED",
+      citations: [
+        {
+          sourceId: "S1",
+          chunkId: "11111111-1111-4111-8111-111111111111",
+          documentId: "22222222-2222-4222-8222-222222222222",
+          title: "study.pdf",
+          page: 1,
+          chunkIndex: 0,
+        },
+      ],
       provider: "google",
       model: "gemini-2.5-flash",
-      ragEnabled: false,
+      mode: "documents",
+      ragEnabled: true,
+      promptVersion: "rag-v1",
     });
     expect(input).toBeInstanceOf(AssistantChatDto);
     expect(chat).toHaveBeenCalledWith({
       message: "Help me study",
       pageContext: { pageId: "tasks", pageName: "Tasks" },
     });
+  });
+
+  it("accepts both modes, rejects an unknown mode, and allows legacy requests", async () => {
+    const pipe = new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    });
+    await expect(
+      pipe.transform(
+        { message: "General question", mode: "general" },
+        { type: "body", metatype: AssistantChatDto },
+      ),
+    ).resolves.toMatchObject({ mode: "general" });
+    await expect(
+      pipe.transform(
+        { message: "Legacy document question" },
+        { type: "body", metatype: AssistantChatDto },
+      ),
+    ).resolves.toMatchObject({ message: "Legacy document question" });
+    await expect(
+      pipe.transform(
+        { message: "Bad mode", mode: "anything" },
+        { type: "body", metatype: AssistantChatDto },
+      ),
+    ).rejects.toThrow();
   });
 });

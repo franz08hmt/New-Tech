@@ -18,7 +18,7 @@
     box-sizing: border-box;
   }
   body {
-    margin: 0;
+    margin: 0 16px;
     font-family: var(--font-sans);
     color: var(--color-ink);
     /* The team photograph sits behind the floating workspace shell. It is
@@ -251,31 +251,10 @@
     background-image: radial-gradient(#52675014 1.1px, transparent 1.1px);
     background-size: 22px 22px;
   }
-  .workspace-actions,
-  .assistant-toggle {
+  .workspace-actions {
     display: flex;
     align-items: center;
-  }
-  .workspace-actions {
     gap: 12px;
-  }
-  .assistant-toggle {
-    gap: 6px;
-    min-height: 36px;
-    padding: 7px 12px;
-    border: 1px solid #cdd7ca;
-    border-radius: 999px;
-    color: #fff;
-    background: var(--color-ai-accent);
-    font-size: 10px;
-    font-weight: 600;
-  }
-  .assistant-toggle:hover {
-    background: #455a45;
-  }
-  .assistant-toggle svg {
-    width: 16px;
-    height: 16px;
   }
   .breadcrumb {
     display: flex;
@@ -296,8 +275,13 @@
   .private-label {
     font-size: 9px;
   }
+  /* The floating Help and AI controls sit over the bottom-right corner:
+     16px from the edge, 52px tall. The bottom padding clears that footprint
+     plus a margin, so the last line of every page — the footer's "Your next
+     step" link included — can scroll above them instead of sitting under. */
   main {
-    padding: 0 36px 24px;
+    --floating-clearance: 88px;
+    padding: 0 36px var(--floating-clearance);
   }
   .page-heading {
     min-width: 0;
@@ -327,6 +311,21 @@
     align-items: center;
     gap: 32px;
     padding: 24px 0 32px;
+  }
+  /* Working pages get a single-column title block instead of the dashboard's
+     photograph. Same tokens, same type scale — only the footprint changes. */
+  .study-hero--compact {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding: 12px 0 18px;
+    border-bottom: 1px solid var(--color-line);
+    margin-bottom: 20px;
+  }
+  .study-hero--compact .page-heading {
+    padding: 4px 0 0;
+  }
+  .study-hero--compact .hero-description {
+    max-width: 62ch;
   }
   .hero-greeting {
     margin-bottom: 12px;
@@ -410,7 +409,7 @@
   }
   .primary-button,
   .hero-ai-button,
-  .assistant-toggle,
+  .ai-launcher,
   .sidebar nav a {
     transition:
       background-color 180ms ease,
@@ -426,24 +425,24 @@
   .study-hero {
     animation: workspace-arrive 220ms ease-out;
   }
-  .assistant-panel {
-    animation: assistant-arrive 220ms ease-out;
-  }
   /* Scroll reveal for card groups.
-     Deliberately a transition rather than an animation: the revealed state is
-     a plain declaration, so if motion is switched off or frozen the card is
-     simply visible. An animation with `fill-mode: both` would instead pin the
-     card to its first frame — invisible — because animations outrank normal
-     declarations in the cascade. */
+     This reveal deliberately never touches `opacity`, only `transform`.
+
+     It used to fade in from `opacity: 0`, and that could leave the page blank:
+     a transition is not guaranteed to run, and a stuck one holds its START
+     value, not its end value. Measured in the preview renderer, a card with
+     `is-revealed` already applied still reported `opacity: 0` six seconds
+     after load; clearing `transition` snapped it to 1, proving the
+     declaration was fine and only the interpolation had frozen.
+
+     With transform alone the worst case is a card resting ten pixels low.
+     An animation with `fill-mode: both` is worse again — it would pin the card
+     to its first frame, because animations outrank normal declarations. */
   .reveal > * {
-    opacity: 0;
-    transform: translateY(16px);
-    transition:
-      opacity 520ms ease,
-      transform 520ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    transform: translateY(10px);
+    transition: transform 520ms cubic-bezier(0.22, 0.61, 0.36, 1);
   }
   .reveal.is-revealed > * {
-    opacity: 1;
     transform: none;
   }
   .reveal.is-revealed > *:nth-child(2) {
@@ -457,6 +456,358 @@
   }
   .reveal.is-revealed > *:nth-child(n + 5) {
     transition-delay: 320ms;
+  }
+  /* Exam schedule
+     Colours are taken from the tokens already in this file; nothing new is
+     introduced. The next exam is given weight because it is the one the
+     student is actually preparing for. */
+  .exam-next {
+    position: relative;
+    border: 1px solid #d9ded2;
+    border-left: 3px solid #526750;
+    border-radius: 10px;
+    background: #f7f9f4;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+  }
+  .exam-countdown {
+    display: inline-block;
+    border-radius: 999px;
+    background: #526750;
+    color: #f4f7f0;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 3px 10px;
+  }
+  .exam-next h3 {
+    margin: 8px 0 4px;
+    font-size: 15px;
+  }
+  .exam-course {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10px;
+  }
+  .exam-course a {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: #3f5a52;
+  }
+  .exam-course svg {
+    width: 10px;
+    height: 10px;
+  }
+  .exam-course small {
+    color: #7b8578;
+  }
+  .exam-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-top: 6px;
+    font-size: 10px;
+    color: #5d6b5c;
+  }
+  .exam-facts span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .exam-facts svg {
+    width: 11px;
+    height: 11px;
+  }
+  .exam-note {
+    margin-top: 8px;
+    font-size: 10px;
+    line-height: 1.6;
+    color: #5d6b5c;
+  }
+  .exam-group {
+    margin: 16px 0 8px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #7b8578;
+  }
+  .exam-list {
+    display: grid;
+    gap: 8px;
+  }
+  .exam-list li {
+    position: relative;
+    display: grid;
+    grid-template-columns: 84px 1fr auto;
+    align-items: start;
+    gap: 10px;
+    border: 1px solid #e4e8dd;
+    border-radius: 9px;
+    background: #fff;
+    padding: 10px 12px;
+  }
+  .exam-when {
+    font-size: 9px;
+    font-weight: 600;
+    color: #526750;
+    padding-top: 2px;
+  }
+  .exam-copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .exam-copy strong {
+    font-size: 11px;
+  }
+  .exam-copy > a {
+    font-size: 10px;
+    color: #3f5a52;
+    justify-self: start;
+  }
+  /* Past exams stay readable but visibly settled, so they are never mistaken
+     for something still to revise for. */
+  .exam-list.is-past li {
+    background: #f6f6f3;
+  }
+  .exam-list.is-past .exam-when {
+    color: #8a8f83;
+  }
+  .exam-remove {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    border-radius: 999px;
+    color: #7b8578;
+  }
+  .exam-remove svg {
+    width: 14px;
+    height: 14px;
+  }
+  .exam-remove:hover {
+    background: #e8ece1;
+    color: #4a5548;
+  }
+  .exam-next .exam-remove {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+  }
+  .exam-confirm {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 9px;
+    color: #5d6b5c;
+  }
+  .exam-next .exam-confirm {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+  }
+  .exam-confirm-yes {
+    border-radius: 999px;
+    background: #8c4a42;
+    color: #fdf6f4;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 4px 10px;
+  }
+  .exam-confirm-yes:hover {
+    background: #743c35;
+  }
+  /* Edit and delete sit together on an exam row, and the inline editor drops
+     below the whole card rather than inside its action corner. */
+  .exam-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .exam-next .exam-actions {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+  }
+  .exam-edit {
+    grid-column: 1 / -1;
+    margin-top: 10px;
+  }
+  .exam-edit-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  /* The row a search result pointed at.
+     A ring rather than a background swap, so it reads on the white cards, the
+     settled grey ones and the featured exam alike without repainting any of
+     them. Fades out on its own; the class is removed after a few seconds. */
+  .is-focus-target {
+    outline: 2px solid #526750;
+    outline-offset: 2px;
+    border-radius: 9px;
+    transition: outline-color 400ms ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .assistant-panel:not([hidden]),
+    .ai-launcher-tip {
+      transition: none;
+    }
+    .is-focus-target {
+      transition: none;
+    }
+  }
+
+  /* Sidebar search results
+     Sits between the box and the nav, so the nav stays where the eye expects
+     it rather than being pushed around by an unrelated list. */
+  .sidebar-results {
+    margin: 8px 0 4px;
+    max-height: 46vh;
+    overflow-y: auto;
+  }
+  .result-kind {
+    margin: 8px 0 3px;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #7b8578;
+  }
+  .sidebar-results ul {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .sidebar-results a {
+    display: grid;
+    gap: 1px;
+    border-radius: 7px;
+    padding: 6px 8px;
+    color: inherit;
+    text-decoration: none;
+  }
+  .sidebar-results a:hover,
+  .sidebar-results a:focus-visible {
+    background: #e8ece1;
+  }
+  .sidebar-results strong {
+    font-size: 10.5px;
+    font-weight: 500;
+    /* A document name can be very long; it wraps rather than widening the
+       sidebar or spilling out of it. */
+    overflow-wrap: anywhere;
+  }
+  .sidebar-results small {
+    font-size: 9px;
+    color: #7b8578;
+    overflow-wrap: anywhere;
+  }
+  .cw-upload {
+    width: 100%;
+    margin-top: 4px;
+    text-align: center;
+  }
+  .exam-form {
+    padding: 20px 0 4px;
+    border-top: 1px solid var(--color-line);
+    margin-top: 20px;
+  }
+  .exam-form textarea {
+    resize: vertical;
+    min-height: 60px;
+    font-family: inherit;
+  }
+  @media (hover: none), (pointer: coarse) {
+    .exam-remove {
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+    }
+    .exam-confirm-yes {
+      min-height: 36px;
+    }
+  }
+
+  /* Study plan
+     Grouped by course, so each subject reads as its own short checklist.
+     Reuses the exam card tokens rather than introducing a second style. */
+  .plan-group {
+    margin-bottom: 14px;
+  }
+  .plan-group h3 {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+    font-size: 11px;
+  }
+  .plan-group h3 a {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #3f5a52;
+  }
+  .plan-group h3 svg {
+    width: 10px;
+    height: 10px;
+  }
+  .plan-group h3 span {
+    font-size: 9px;
+    font-weight: 500;
+    color: #7b8578;
+    white-space: nowrap;
+  }
+  .plan-list {
+    display: grid;
+    gap: 6px;
+  }
+  .plan-list li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 9px;
+    border: 1px solid #e4e8dd;
+    border-radius: 9px;
+    background: #fff;
+    padding: 9px 11px;
+  }
+  .plan-copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .plan-copy strong {
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .plan-copy small {
+    font-size: 9.5px;
+    line-height: 1.55;
+    color: #5d6b5c;
+  }
+  .plan-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    color: #7b8578;
+  }
+  /* Finished work stays legible but clearly settled, the same treatment past
+     exams get, so the eye goes to what is still outstanding. */
+  .plan-list li.is-done {
+    background: #f6f6f3;
+  }
+  .plan-list li.is-done .plan-copy strong {
+    color: #7b8578;
+    text-decoration: line-through;
   }
   .dashboard-grid {
     display: grid;
@@ -709,6 +1060,33 @@
   .stage-progress progress::-moz-progress-bar {
     background: #b9d3a8;
   }
+  .stage-course-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    margin-top: 18px;
+    padding: 9px 14px;
+    border: 1px solid #ffffff45;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 500;
+    text-decoration: none;
+    transition:
+      background-color 180ms ease,
+      border-color 180ms ease,
+      transform 180ms ease;
+  }
+  .stage-course-link:hover {
+    background: #ffffff1f;
+    border-color: #ffffff80;
+    transform: translateY(-2px);
+  }
+  .stage-course-link svg {
+    width: 15px;
+    height: 15px;
+  }
   .stage-track {
     grid-area: track;
     display: flex;
@@ -826,6 +1204,7 @@
     color: #fff;
   }
   .course-card {
+    position: relative;
     display: flex;
     flex-direction: column;
     border: 1px solid #dde1db;
@@ -833,6 +1212,33 @@
     overflow: hidden;
     height: 100%;
     background: var(--color-paper);
+    transition:
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      transform 180ms ease;
+  }
+  .course-card-link {
+    color: inherit;
+    text-decoration: none;
+  }
+  .course-card-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 14px;
+  }
+  .course-card:hover,
+  .course-card:focus-within {
+    border-color: var(--color-ai-accent);
+    box-shadow: 0 12px 24px #36443816;
+    transform: translateY(-3px);
+  }
+  .course-card-link:focus-visible {
+    outline: none;
+  }
+  .course-card-link:focus-visible::after {
+    outline: 2px solid #527a75;
+    outline-offset: 3px;
   }
   .course-art {
     display: flex;
@@ -871,7 +1277,7 @@
     padding: 10px 14px 14px;
     margin-top: auto;
   }
-  .course-card label {
+  .course-progress-label {
     display: flex;
     justify-content: space-between;
     font-size: 8px;
@@ -897,6 +1303,222 @@
   .course-detail {
     padding: 8px;
     font-size: 11px;
+  }
+  .course-card-action {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+    margin-top: 10px;
+    color: var(--color-ai-accent);
+    font-size: 9px;
+    font-weight: 600;
+  }
+  .course-card-action svg {
+    width: 13px;
+    height: 13px;
+  }
+  .course-detail-page {
+    display: grid;
+    gap: 20px;
+  }
+  .course-breadcrumbs {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 44px;
+    border-bottom: 1px solid var(--color-line);
+    color: var(--color-muted);
+    font-size: 10px;
+  }
+  .course-breadcrumbs a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    color: var(--color-ai-accent);
+    font-weight: 500;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .course-breadcrumbs svg {
+    width: 14px;
+    height: 14px;
+  }
+  .course-breadcrumbs [aria-current="page"] {
+    letter-spacing: 0.08em;
+  }
+  .course-summary {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 24px;
+    padding: 24px;
+    border: 1px solid var(--color-line);
+    border-radius: 16px;
+    background: var(--color-paper);
+    box-shadow:
+      0 1px 2px #3644380a,
+      0 10px 26px #3644380a;
+  }
+  .course-summary > .course-art {
+    width: 84px;
+    height: 84px;
+    margin: 0;
+    border-radius: 18px;
+  }
+  .course-summary > .course-art svg {
+    width: 46px;
+    height: 46px;
+  }
+  .course-summary-copy {
+    display: grid;
+    gap: 8px;
+  }
+  .course-summary-copy h2 {
+    font-size: 19px;
+    font-weight: 600;
+  }
+  .course-summary-copy > p:not(.example-label) {
+    color: var(--color-muted);
+    font-size: 12px;
+  }
+  .course-summary-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 30px;
+    margin: 4px 0 0;
+  }
+  .course-summary-meta div {
+    display: grid;
+    gap: 1px;
+  }
+  .course-summary-meta dt {
+    color: var(--color-muted);
+    font-size: 9px;
+  }
+  .course-summary-meta dd {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .course-summary progress {
+    width: min(100%, 360px);
+    height: 6px;
+    appearance: none;
+    border: 0;
+  }
+  .course-summary progress::-webkit-progress-bar {
+    background: var(--color-line);
+  }
+  .course-summary progress::-webkit-progress-value {
+    background: var(--color-ai-accent);
+  }
+  .course-summary progress::-moz-progress-bar {
+    background: var(--color-ai-accent);
+  }
+  .course-disclaimer {
+    margin: 0;
+    padding: 12px 14px;
+    border-left: 3px solid var(--color-ai-accent);
+    background: var(--color-ai-accent-soft);
+  }
+  .course-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 20px;
+  }
+  .course-detail-grid > .panel:first-child {
+    grid-column: 1 / -1;
+  }
+  .course-outline,
+  .course-outcomes,
+  .course-assessment {
+    display: grid;
+    gap: 0;
+    margin: 6px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .course-outline > li {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 12px;
+    padding: 16px 0;
+    border-top: 1px solid var(--color-line);
+  }
+  .course-outline > li > span {
+    color: var(--color-ai-accent);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+  .course-outline h3,
+  .course-assessment h3 {
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .course-outline p,
+  .course-assessment p {
+    margin-top: 4px;
+    color: var(--color-muted);
+    font-size: 10px;
+  }
+  .course-outcomes > li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    padding: 14px 0;
+    border-top: 1px solid var(--color-line);
+    font-size: 11px;
+  }
+  .course-outcomes svg {
+    width: 17px;
+    height: 17px;
+    color: var(--color-ai-accent);
+  }
+  .course-assessment > li {
+    padding: 14px 0;
+    border-top: 1px solid var(--color-line);
+  }
+  .course-assessment header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .course-assessment strong {
+    color: var(--color-ai-accent);
+    font-size: 11px;
+  }
+  .course-not-found .panel {
+    max-width: 680px;
+  }
+  .course-not-found .panel > p {
+    max-width: 58ch;
+    margin: 8px 0 18px;
+    color: var(--color-muted);
+  }
+  .course-data-state {
+    display: grid;
+    justify-items: start;
+    gap: 10px;
+    min-height: 150px;
+    align-content: center;
+  }
+  .course-data-state h2 {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .course-data-state p {
+    max-width: 62ch;
+    color: var(--color-muted);
+    font-size: 11px;
+  }
+  .course-data-state .primary-button {
+    min-height: 44px;
   }
   .table-scroll {
     overflow-x: auto;
@@ -1015,6 +1637,158 @@
     outline: 2px solid #527a75;
     outline-offset: -2px;
   }
+  /* The fold is drawn, not just clipped, so the corner reads as paper rather
+     than as a missing rectangle. Purely decorative. */
+  .sticky::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 15%;
+    height: 15%;
+    background: #3f3a2318;
+    clip-path: polygon(0 100%, 100% 0, 100% 100%);
+    pointer-events: none;
+  }
+  .sticky {
+    transition:
+      transform 160ms ease,
+      box-shadow 160ms ease;
+  }
+  .sticky:hover,
+  .sticky:focus-within {
+    transform: translateY(-2px);
+    box-shadow: 2px 5px 7px #3f3a2320;
+  }
+  /* Revealed only on hover or keyboard focus so six delete buttons do not
+     compete with the notes themselves, but never hidden from assistive tech. */
+  .sticky-remove {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+    border-radius: 999px;
+    color: #4d4a3a;
+    opacity: 0;
+    transition: opacity 140ms ease;
+  }
+  .sticky-remove svg {
+    width: 13px;
+    height: 13px;
+  }
+  .sticky:hover .sticky-remove,
+  .sticky-remove:focus-visible {
+    opacity: 1;
+  }
+  .sticky-remove:hover {
+    background: #3f3a2318;
+  }
+  /* A touch screen has no hover, so the control would never appear there.
+     Show it permanently and give it a finger-sized target instead. */
+  @media (hover: none), (pointer: coarse) {
+    .sticky-remove {
+      top: 0;
+      right: 0;
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      opacity: 1;
+    }
+    .sticky-remove svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+  /* Drag handle
+     Sits opposite the delete button and appears on the same terms, so the
+     sticky stays clean until you reach for it. */
+  .sticky-handle {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+    border-radius: 999px;
+    color: #4d4a3a;
+    opacity: 0;
+    cursor: grab;
+    /* Without this a finger drag scrolls the page instead of moving the note. */
+    touch-action: none;
+    transition: opacity 140ms ease;
+  }
+  .sticky-handle svg {
+    width: 13px;
+    height: 13px;
+  }
+  .sticky:hover .sticky-handle,
+  .sticky-handle:focus-visible {
+    opacity: 1;
+  }
+  .sticky-handle:hover {
+    background: #3f3a2318;
+  }
+  .sticky-handle:active {
+    cursor: grabbing;
+  }
+  /* The note being carried: lifted and slightly see-through, so the gap it
+     leaves and the place it is about to land are both readable. */
+  .sticky.is-dragging {
+    opacity: 0.72;
+    box-shadow: 2px 6px 10px #3f3a2333;
+    transform: scale(1.03);
+    z-index: 2;
+  }
+  @media (hover: none), (pointer: coarse) {
+    .sticky-handle {
+      top: 0;
+      left: 0;
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      opacity: 1;
+    }
+    .sticky-handle svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sticky-handle {
+      transition: none;
+    }
+    .sticky.is-dragging {
+      transform: none;
+    }
+  }
+  .notes-actions {
+    margin-top: 6px;
+  }
+  .notes-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 20px;
+    margin-top: 2px;
+    font-size: 9px;
+    color: #5d6b5c;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sticky,
+    .sticky-remove {
+      transition: none;
+    }
+    .sticky:hover,
+    .sticky:focus-within {
+      transform: none;
+    }
+  }
   .sticky-0 {
     background: #f6e4ad;
   }
@@ -1099,6 +1873,8 @@
     margin-top: 20px;
   }
   .task-form label,
+  .exam-form label,
+  .cw-form label,
   .assistant-label {
     display: flex;
     flex-direction: column;
@@ -1106,6 +1882,9 @@
     font-size: 11px;
   }
   .task-form input,
+  .exam-form input,
+  .exam-form textarea,
+  .cw-form input,
   .assistant-label textarea,
   select {
     border: 1px solid #d8ded5;
@@ -1287,6 +2066,19 @@
     width: 26px;
     height: 26px;
   }
+  /* Belt to the aria-label braces: even a short caption must not let the
+     actions column grow past its content, and a long unbroken filename in the
+     details column has to break rather than push the row wider. */
+  .document-card-actions {
+    min-width: 0;
+  }
+  .document-card-actions button {
+    white-space: nowrap;
+  }
+  .document-card-details {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
   .document-card-details h4,
   .document-card-details p,
   .document-card-actions small {
@@ -1315,8 +2107,12 @@
   .document-state--processing {
     color: #395f7a;
   }
+  .document-state--ready,
   .document-state--stored {
     color: #31663c;
+  }
+  .document-state--deleting {
+    color: #8c5d3d;
   }
   .document-state--failed {
     display: flex;
@@ -1338,6 +2134,12 @@
   .document-state button svg {
     width: 14px;
     height: 14px;
+  }
+  .document-index-quality {
+    margin-top: 4px;
+    color: var(--color-muted);
+    font-size: 8px;
+    line-height: 1.5;
   }
   .document-card-actions {
     display: flex;
@@ -1407,20 +2209,158 @@
     width: 12px;
     height: 12px;
   }
+  /* ExaMate AI window
+     One element in two presentations. Wide screens get a floating, non-modal
+     window above the launcher: the page stays usable around it and nothing
+     reflows. Phone widths get a modal bottom sheet. Either way the header and
+     composer stay put and only the middle scrolls. */
   .assistant-panel {
     position: fixed;
-    inset: auto 0 0;
     z-index: 70;
     display: flex;
     flex-direction: column;
-    width: 100%;
-    max-height: 84dvh;
-    overflow-y: auto;
+    overflow: hidden;
     border: 1px solid #d8ddd4;
+    background: var(--color-ai-surface);
+  }
+  .assistant-panel.is-window {
+    right: 20px;
+    /* Clears the launcher row beneath it (52px tall, 16px from the edge). */
+    bottom: 84px;
+    width: min(400px, calc(100vw - 40px));
+    max-height: min(620px, calc(100dvh - 108px));
+    border-radius: 16px;
+    box-shadow: 0 18px 44px #26332926;
+  }
+  .assistant-panel.is-sheet {
+    inset: auto 0 0;
+    width: 100%;
+    /* dvh, not vh: it tracks the visible area as mobile browser bars and the
+       on-screen keyboard come and go, so the composer is not pushed off. */
+    max-height: 88dvh;
     border-bottom: 0;
     border-radius: 16px 16px 0 0;
-    background: var(--color-ai-surface);
-    box-shadow: 0 -16px 48px #2633292e;
+    padding-bottom: env(safe-area-inset-bottom);
+    /* Dims the page behind a modal sheet without an extra element. */
+    box-shadow:
+      0 -16px 48px #2633292e,
+      0 0 0 100vmax #1f29221f;
+  }
+  .assistant-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  /* Entrance: a small scale from the edge each presentation is anchored to.
+
+     A stalled transition holds its STARTING value, and this renderer has been
+     measured stalling one indefinitely. So the start has to be harmless on its
+     own. Opacity is ruled out — that is a panel that never appears. A slide is
+     ruled out too: the sheet sits on the bottom edge, and a stuck 24px drop
+     pushed its Send button off-screen at 375px. Scaling about the anchored edge
+     keeps that edge where it is, so the worst case is a panel 2-3% small with
+     every control still in view. */
+  .assistant-panel.is-window {
+    transform-origin: bottom right;
+  }
+  .assistant-panel.is-sheet {
+    transform-origin: bottom center;
+  }
+  .assistant-panel:not([hidden]) {
+    transition: transform 180ms ease-out;
+  }
+  @starting-style {
+    .assistant-panel.is-window:not([hidden]) {
+      transform: scale(0.97);
+    }
+    .assistant-panel.is-sheet:not([hidden]) {
+      transform: scale(0.98);
+    }
+  }
+  .assistant-messages {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 14px 18px 0;
+    list-style: none;
+  }
+  .assistant-messages > li {
+    max-width: 88%;
+    border-radius: 12px;
+    padding: 9px 12px;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  .assistant-messages > li.is-user {
+    justify-self: end;
+    background: var(--color-ai-accent);
+    color: #fff;
+  }
+  .assistant-messages > li.is-assistant {
+    justify-self: start;
+    border: 1px solid #d8ddd4;
+    background: #fff;
+  }
+  .assistant-messages p {
+    margin: 0;
+    /* Plain text can still carry a long URL or file name. */
+    overflow-wrap: anywhere;
+  }
+  .assistant-citations {
+    display: grid;
+    gap: 4px;
+    margin: 8px 0 0;
+    padding: 8px 0 0;
+    border-top: 1px solid #e4e8dd;
+    list-style: none;
+    font-size: 9.5px;
+    color: #5d6b5c;
+  }
+  .assistant-citations li {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    overflow-wrap: anywhere;
+  }
+  .assistant-citations svg {
+    flex: none;
+    width: 12px;
+    height: 12px;
+  }
+  .assistant-citations button {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .assistant-citations button:hover:not(:disabled) {
+    color: #304c42;
+  }
+  .assistant-citations button:disabled {
+    cursor: wait;
+    opacity: 0.65;
+  }
+  .assistant-citation-error {
+    margin: 0;
+    color: #8c4a42;
+    font-size: 9.5px;
+  }
+  .assistant-status {
+    /* Reserves its line so the send button does not jump when a status
+       appears or clears. */
+    min-height: 16px;
+    margin: 0;
+    font-size: 9.5px;
+    color: #5d6b5c;
+  }
+  .assistant-status[role="alert"] {
+    color: #8c4a42;
   }
   .assistant-panel-header {
     position: sticky;
@@ -1467,11 +2407,76 @@
     height: 40px;
     border-radius: 50%;
   }
+  /* Directly after the rule it overrides, on purpose: placed earlier in the
+     file, with equal specificity, the 40px above won and the touch target
+     stayed below 44px. */
+  @media (hover: none), (pointer: coarse) {
+    .assistant-panel-header > button {
+      width: 44px;
+      height: 44px;
+    }
+  }
   .assistant-intro,
   .assistant-suggestions,
   .assistant-composer,
-  .assistant-answer-preview {
+  .assistant-answer-preview,
+  .assistant-capability {
     margin: 0 16px;
+  }
+  .assistant-document-picker {
+    display: grid;
+    gap: 5px;
+    margin: 0 16px;
+    color: var(--color-muted);
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .assistant-document-picker select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #dce2d8;
+    border-radius: 8px;
+    background: #fff;
+  }
+
+  .assistant-mode {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .assistant-mode legend {
+    margin-bottom: 0.4rem;
+    color: var(--color-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .assistant-mode label {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid #dce2d8;
+    border-radius: 0.65rem;
+    cursor: pointer;
+  }
+
+  .assistant-mode:disabled label {
+    cursor: wait;
+    opacity: 0.7;
+  }
+  .assistant-capability {
+    padding: 10px 12px;
+    border-left: 3px solid var(--color-ai-accent);
+    color: var(--color-muted);
+    background: var(--color-ai-accent-soft);
+    font-size: 11px;
   }
   .assistant-intro {
     padding: 20px 0 16px;
@@ -1592,28 +2597,98 @@
     font-size: 10px;
     font-weight: 600;
   }
-  .help {
+  /* Floating controls
+     Help and the AI launcher sit side by side in one corner as a single row,
+     so neither can land on the other, and the open AI window above them
+     covers neither. */
+  .floating-controls {
     position: fixed;
-    bottom: 15px;
-    right: 15px;
-    z-index: 30;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(16px, env(safe-area-inset-bottom));
+    z-index: 60;
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  .help {
+    position: relative;
   }
   .help summary {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
     list-style: none;
-    background: #fff;
     border: 1px solid var(--color-line);
     border-radius: 50%;
-    padding: 7px;
-    width: fit-content;
-    margin-left: auto;
+    background: #fff;
+    cursor: pointer;
   }
+  .help summary::-webkit-details-marker {
+    display: none;
+  }
+  .help summary svg {
+    width: 20px;
+    height: 20px;
+  }
+  /* Opens beside the stack rather than inside it, so reading the note does
+     not shove the launcher out of place. */
   .help p {
-    background: white;
-    box-shadow: 0 5px 30px #0002;
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 8px);
+    width: max-content;
+    max-width: min(280px, calc(100vw - 32px));
+    margin: 0;
     padding: 16px;
-    max-width: min(280px, 85vw);
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 5px 30px #0002;
     font-size: 12px;
-    margin-top: 6px;
+  }
+  .ai-launcher {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    color: #fff;
+    background: var(--color-ai-accent);
+    box-shadow: 0 8px 22px #26332933;
+  }
+  .ai-launcher:hover {
+    background: #455a45;
+  }
+  .ai-launcher[aria-expanded="true"] {
+    box-shadow:
+      0 0 0 3px var(--color-ai-surface),
+      0 0 0 5px var(--color-ai-accent);
+  }
+  .ai-launcher svg {
+    width: 24px;
+    height: 24px;
+  }
+  /* The visible hint for mouse and keyboard alike. The button already carries
+     its accessible name, so this is hidden from assistive technology. */
+  .ai-launcher-tip {
+    position: absolute;
+    right: calc(100% + 10px);
+    top: 50%;
+    padding: 5px 9px;
+    border-radius: 6px;
+    background: #2f3b30;
+    color: #fff;
+    font-size: 10px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-50%);
+    transition: opacity 150ms ease;
+  }
+  .ai-launcher:hover .ai-launcher-tip,
+  .ai-launcher:focus-visible .ai-launcher-tip {
+    opacity: 1;
   }
   .skip-link {
     position: fixed;
@@ -1653,44 +2728,13 @@
     display: none;
   }
 }
-@media (min-width: 900px) and (max-width: 1439px) {
-  .desktop-shell.assistant-open {
-    overflow: visible;
-  }
-  .assistant-panel {
-    inset: 0 0 0 auto;
-    width: min(400px, calc(100vw - 48px));
-    max-height: 100dvh;
-    border-width: 0 0 0 1px;
-    border-radius: 0;
-    box-shadow: -16px 0 48px #2633292e;
-  }
-}
 @media (min-width: 1440px) {
-  .desktop-shell.assistant-open {
-    grid-template-columns: 210px minmax(0, 1fr) 380px;
-    max-width: 1600px;
-  }
-  .assistant-panel {
-    position: relative;
-    inset: auto;
-    grid-column: 3;
-    grid-row: 1;
-    width: auto;
-    max-height: none;
-    border-width: 0 0 0 1px;
-    border-radius: 0;
-    box-shadow: none;
-  }
   main {
     padding-right: 48px;
     padding-left: 48px;
   }
 }
 @media (max-width: 899px) {
-  .desktop-shell.assistant-open {
-    overflow: visible;
-  }
   .desktop-shell {
     margin: 0;
     border-radius: 0;
@@ -1705,10 +2749,31 @@
   .document-layout {
     grid-template-columns: 1fr;
   }
+  /* Merged here from a second max-width:899px block that styled the same
+     breakpoint 120 lines further down — `.desktop-shell` appeared in both. */
+  .desktop-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .course-stage {
+    min-height: 0;
+  }
+  .stage-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "copy"
+      "track"
+      "controls";
+    align-items: start;
+    padding: 22px 20px 18px;
+  }
+  .stage-detail,
+  .stage-progress {
+    max-width: none;
+  }
 }
 @media (max-width: 600px) {
   main {
-    padding: 0 16px 24px;
+    padding: 0 16px var(--floating-clearance);
   }
   .dashboard-grid {
     grid-template-columns: 1fr;
@@ -1730,13 +2795,40 @@
   .private-label {
     display: none;
   }
-  .assistant-toggle {
-    min-width: 44px;
+  /* Touch targets. Merged here from a second max-width:600px block that used to
+     style the same breakpoint further down the file. */
+  .calendar-toolbar button,
+  .menu-toggle,
+  .mobile-close,
+  .text-button {
     min-height: 44px;
-    padding: 10px;
+    min-width: 44px;
   }
-  .assistant-toggle span {
-    display: none;
+  .task-check {
+    min-width: 32px;
+    height: 32px;
+  }
+  /* Measured under 44px before: carousel arrows were 34x34, the footer link
+     14px tall, and every form control 36-39px. */
+  .stage-buttons button {
+    width: 44px;
+    height: 44px;
+  }
+  .stage-course-link {
+    min-height: 44px;
+  }
+  .page-footer a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .task-form input,
+  .task-form select,
+  .task-filters select,
+  .primary-button,
+  .hero-ai-button,
+  .file-picker {
+    min-height: 44px;
   }
   .breadcrumb {
     padding: 12px 16px;
@@ -1744,6 +2836,7 @@
   .exam-table {
     min-width: 430px;
   }
+
   .sticky textarea {
     font-size: 11px;
   }
@@ -1775,28 +2868,24 @@
     flex-wrap: wrap;
     justify-content: space-between;
   }
-}
-@media (max-width: 899px) {
-  .desktop-shell {
+  .course-summary {
     grid-template-columns: minmax(0, 1fr);
-  }
-  .course-stage {
-    min-height: 0;
-  }
-  .stage-body {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "copy"
-      "track"
-      "controls";
     align-items: start;
-    padding: 22px 20px 18px;
+    padding: 18px;
   }
-  .stage-detail {
-    max-width: none;
+  .course-summary > .course-art {
+    width: 64px;
+    height: 64px;
   }
-  .stage-progress {
-    max-width: none;
+  .course-summary > .course-art svg {
+    width: 36px;
+    height: 36px;
+  }
+  .course-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .course-detail-grid > .panel:first-child {
+    grid-column: auto;
   }
 }
 .full-width {
@@ -1805,33 +2894,10 @@
 .panel > .exam-table {
   min-width: 0;
 }
-@media (max-width: 600px) {
-  .calendar-toolbar button,
-  .menu-toggle,
-  .mobile-close,
-  .text-button {
-    min-height: 44px;
-    min-width: 44px;
-  }
-  .task-check {
-    min-width: 32px;
-    height: 32px;
-  }
-}
 @keyframes workspace-arrive {
   from {
     opacity: 0;
     transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-@keyframes assistant-arrive {
-  from {
-    opacity: 0;
-    transform: translateY(16px);
   }
   to {
     opacity: 1;
@@ -1845,5 +2911,243 @@
     scroll-behavior: auto !important;
     transition: none !important;
     animation: none !important;
+  }
+}
+@layer components {
+  /* Period switch
+     Real radio inputs, visually hidden rather than removed: arrow keys move
+     between them and a screen reader announces the group, which a row of
+     buttons would not give for free. */
+  .period-switch {
+    display: inline-flex;
+    gap: 2px;
+    border: 1px solid #e4e8dd;
+    border-radius: 999px;
+    background: #f6f7f2;
+    padding: 3px;
+    margin: 14px 0 4px;
+  }
+  .period-switch label {
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 10px;
+    font-weight: 500;
+    color: #5d6b5c;
+    cursor: pointer;
+    transition: background 160ms ease;
+  }
+  .period-switch label.is-active {
+    background: #526750;
+    color: #f4f7f0;
+  }
+  .period-switch input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
+    overflow: hidden;
+  }
+  .period-switch label:has(input:focus-visible) {
+    outline: 2px solid #526750;
+    outline-offset: 2px;
+  }
+  .budget-bars label a {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #3f5a52;
+  }
+  .budget-bars label svg {
+    width: 10px;
+    height: 10px;
+  }
+  .expense-list {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .expense-list li {
+    display: grid;
+    grid-template-columns: minmax(84px, auto) minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 10px;
+    border: 1px solid #e4e8dd;
+    border-radius: 9px;
+    background: #fff;
+    padding: 9px 11px;
+  }
+  .expense-amount {
+    font-size: 11px;
+    font-weight: 600;
+    color: #3f4a3e;
+    /* Tabular figures so the column of amounts lines up digit for digit. */
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* Course workspace
+     Four blocks on the course page, each a short list plus one inline form.
+     Everything reuses the card, list and confirm styles already defined above;
+     nothing new is introduced beyond the grid that holds them. */
+  .course-workspace {
+    margin-top: 28px;
+  }
+  .course-workspace > h2 {
+    font-size: 17px;
+  }
+  .cw-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+    margin-top: 14px;
+  }
+  .cw-block {
+    border: 1px solid #e4e8dd;
+    border-radius: 12px;
+    background: #fff;
+    padding: 14px 16px;
+  }
+  .cw-block h3 {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+  .cw-block h3 svg {
+    width: 14px;
+    height: 14px;
+    color: #526750;
+  }
+  .cw-block h3 span {
+    margin-left: auto;
+    font-size: 9px;
+    font-weight: 500;
+    color: #7b8578;
+    white-space: nowrap;
+  }
+  .cw-list {
+    display: grid;
+    gap: 6px;
+    margin: 0 0 10px;
+    padding: 0;
+    list-style: none;
+  }
+  .cw-list li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px;
+    border-bottom: 1px solid #f0f2eb;
+    padding-bottom: 6px;
+  }
+  /* Blocks whose rows have no leading control still need the middle column to
+     take the space, so the first cell collapses instead of reserving width. */
+  .cw-list li > .plan-copy:first-child {
+    grid-column: 1 / 3;
+  }
+  .cw-list li.is-done .plan-copy strong {
+    color: #7b8578;
+    text-decoration: line-through;
+  }
+  .cw-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .cw-form label {
+    flex: 1 1 130px;
+    min-width: 0;
+    font-size: 9px;
+    gap: 3px;
+  }
+  .cw-form input,
+  .cw-form select {
+    width: 100%;
+    font-size: 10px;
+    padding: 6px 8px;
+  }
+  .cw-form button {
+    flex: 0 0 auto;
+  }
+  .cw-notice {
+    margin-top: 10px;
+    min-height: 16px;
+    font-size: 10px;
+    color: #5d6b5c;
+  }
+
+  /* Documents: choosing a subject on upload, and re-filing a stored PDF. */
+  .upload-course {
+    display: block;
+    margin: 10px 0 4px;
+    font-size: 10px;
+  }
+  .upload-course select {
+    width: 100%;
+    margin-top: 4px;
+  }
+  .document-filter {
+    display: block;
+    margin: 8px 0 10px;
+  }
+  .document-course {
+    display: block;
+    margin-top: 6px;
+  }
+  .document-course select {
+    width: 100%;
+    font-size: 10px;
+  }
+  @media (hover: none), (pointer: coarse) {
+    .cw-form input,
+    .cw-form select,
+    .document-course select {
+      min-height: 40px;
+    }
+  }
+  @media (max-width: 600px) {
+    .expense-list li {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .expense-amount {
+      grid-column: 1 / -1;
+    }
+  }
+  /* Budget bars reuse the same progress styling as course cards — no new
+     colours, only a second place the existing token set is applied. */
+  .budget-bars {
+    display: grid;
+    gap: 14px;
+    margin: 18px 0 4px;
+    padding: 0;
+    list-style: none;
+  }
+  .budget-bars label {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--color-muted);
+  }
+  .budget-bars progress {
+    display: block;
+    width: 100%;
+    height: 6px;
+    margin-top: 6px;
+    appearance: none;
+    border: 0;
+  }
+  .budget-bars progress::-webkit-progress-bar {
+    background: #ebece7;
+  }
+  .budget-bars progress::-webkit-progress-value {
+    background: #8c9d8b;
+  }
+  .budget-bars progress::-moz-progress-bar {
+    background: #8c9d8b;
   }
 }
