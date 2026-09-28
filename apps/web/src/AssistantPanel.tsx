@@ -1,4 +1,6 @@
 import {
+  ArrowsPointingInIcon,
+  ArrowsPointingOutIcon,
   BookOpenIcon,
   DocumentMagnifyingGlassIcon,
   PaperAirplaneIcon,
@@ -38,8 +40,13 @@ function questionOperation(question: string) {
 
 interface AssistantPanelProps {
   open: boolean;
-  /** Narrow screens show a modal sheet; wider ones a floating window. */
+  /** Whether it covers the page and holds focus: a dialog, not an aside. */
   modal: boolean;
+  /** Narrow screens show a bottom sheet; wider ones a floating window. */
+  sheet: boolean;
+  /** Roomier for long answers. Only the styling changes, never the state. */
+  expanded: boolean;
+  onToggleExpanded: () => void;
   pageId: string;
   pageName: string;
   courseId?: string;
@@ -85,6 +92,9 @@ const fallbackPrompts = [
 export function AssistantPanel({
   open,
   modal,
+  sheet,
+  expanded,
+  onToggleExpanded,
   pageId,
   pageName,
   courseId,
@@ -94,6 +104,7 @@ export function AssistantPanel({
   onOpenCitation,
   onClose,
 }: AssistantPanelProps) {
+  const panel = useRef<HTMLElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const [openingCitation, setOpeningCitation] = useState<string | null>(null);
   const [citationError, setCitationError] = useState("");
@@ -126,6 +137,14 @@ export function AssistantPanel({
     if (open) composer.current?.focus();
   }, [open]);
 
+  // A panel can turn modal while it is already open: the screen narrows under
+  // it, or it is expanded on a tablet. Whatever held focus behind it is inert
+  // from then on, so focus moves in rather than being stranded there.
+  useEffect(() => {
+    if (open && modal && !panel.current?.contains(document.activeElement))
+      composer.current?.focus();
+  }, [open, modal]);
+
   async function openCitation(citation: AssistantCitation) {
     if (!onOpenCitation || !citation.documentId || openingCitation) return;
     const key = citation.id ?? citation.documentId;
@@ -142,11 +161,13 @@ export function AssistantPanel({
 
   return (
     <aside
+      ref={panel}
       id="examate-ai-panel"
-      className={`assistant-panel ${modal ? "is-sheet" : "is-window"}`}
+      className={`assistant-panel ${sheet ? "is-sheet" : "is-window"}${expanded ? " is-expanded" : ""}`}
       aria-label="ExaMate AI"
-      // An aside is complementary content beside the page. As a sheet that
-      // covers the page and holds focus, it is a modal dialog, and says so.
+      // An aside is complementary content beside the page. Once it covers the
+      // page and holds focus — a sheet, or an expanded window on a tablet — it
+      // is a modal dialog, and says so.
       role={modal ? "dialog" : undefined}
       aria-modal={modal ? true : undefined}
       hidden={!open}
@@ -159,10 +180,24 @@ export function AssistantPanel({
           <strong>ExaMate AI</strong>
           <small>{pageName} context</small>
         </span>
+        {/* One button whose name says what it will do next. A pressed state
+            on top of a changing name would announce the same thing twice. */}
+        <button
+          type="button"
+          aria-label={expanded ? "Collapse ExaMate AI" : "Expand ExaMate AI"}
+          title={expanded ? "Thu nhỏ khung chat" : "Mở rộng khung chat"}
+          onClick={onToggleExpanded}
+        >
+          {expanded ? (
+            <ArrowsPointingInIcon aria-hidden="true" />
+          ) : (
+            <ArrowsPointingOutIcon aria-hidden="true" />
+          )}
+        </button>
         <button
           type="button"
           aria-label="Close ExaMate AI"
-          title="Thu gọn — bản nháp vẫn được giữ"
+          title="Đóng — bản nháp vẫn được giữ"
           onClick={onClose}
         >
           <XMarkIcon aria-hidden="true" />

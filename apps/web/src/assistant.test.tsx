@@ -21,6 +21,9 @@ function Harness({ transport }: { transport?: AskTransport }) {
     <AssistantPanel
       open
       modal={false}
+      sheet={false}
+      expanded={false}
+      onToggleExpanded={() => {}}
       pageId="courses"
       pageName="Công nghệ phần mềm"
       assistant={assistant}

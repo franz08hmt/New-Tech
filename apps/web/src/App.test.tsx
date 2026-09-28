@@ -2201,6 +2201,274 @@ describe("Academic workspace", () => {
     // open that heading is inert behind it, so focus has to stay put.
     expect(composer).toHaveFocus();
   });
+  describe("expanding the assistant", () => {
+    /** A matchMedia whose answer is decided per query. */
+    function stubScreen(matches: (query: string) => boolean) {
+      vi.stubGlobal("matchMedia", (query: string) => ({
+        matches: matches(query),
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+      }));
+    }
+    const tabletOnly = (query: string) => query.includes("1023px");
+    const citedAnswer = {
+      answer: "Chương 2 nói về độ phức tạp thuật toán.",
+      answerable: true,
+      reasonCode: "ANSWER_GENERATED",
+      citations: [
+        {
+          sourceId: "src-1",
+          documentId: "doc-2",
+          chunkId: "chunk-1",
+          title: "ghi-chu-chung.pdf",
+          page: 3,
+          chunkIndex: 0,
+        },
+      ],
+      provider: "google",
+      model: "gemini-2.5-flash",
+      mode: "documents",
+      ragEnabled: true,
+      promptVersion: "rag-v1",
+    };
+    function answerWithCitation() {
+      const existingFetch = globalThis.fetch;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: RequestInit) =>
+          url === "/api/assistant/chat" && init?.method === "POST"
+            ? Response.json(citedAnswer)
+            : existingFetch(url, init),
+        ),
+      );
+    }
+    const chatBodies = () =>
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(([url]) => url === "/api/assistant/chat")
+        .map(([, init]) => JSON.parse(String(init?.body)));
+    async function openWithDocument() {
+      fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+      await screen.findByRole("option", { name: "ghi-chu-chung.pdf" });
+      fireEvent.change(screen.getByLabelText("Tài liệu"), {
+        target: { value: "doc-2" },
+      });
+    }
+    async function ask(question: string) {
+      fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+        target: { value: question },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
+      await waitFor(() =>
+        expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(""),
+      );
+    }
+
+    it("expands and collapses from the header without losing the conversation", async () => {
+      answerWithCitation();
+      render(<App />);
+      await openWithDocument();
+      await ask("Chương 2 nói gì?");
+      fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+        target: { value: "Câu hỏi tiếp theo đang soạn" },
+      });
+      const panel = document.getElementById("examate-ai-panel")!;
+
+      fireEvent.click(
+        within(panel).getByRole("button", { name: "Expand ExaMate AI" }),
+      );
+      expect(panel).toHaveClass("is-expanded");
+      // Still the one panel, and still non-modal on a wide screen.
+      expect(
+        screen.getAllByRole("textbox", { name: /question/i }),
+      ).toHaveLength(1);
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(
+        screen.getByText("Chương 2 nói về độ phức tạp thuật toán."),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+        "Câu hỏi tiếp theo đang soạn",
+      );
+      expect(screen.getByLabelText("Tài liệu")).toHaveValue("doc-2");
+      expect(screen.getByRole("radio", { name: "Hỏi tài liệu" })).toBeChecked();
+
+      fireEvent.click(screen.getByRole("radio", { name: "Chat thông thường" }));
+      fireEvent.click(
+        within(panel).getByRole("button", { name: "Collapse ExaMate AI" }),
+      );
+      expect(panel).not.toHaveClass("is-expanded");
+      expect(
+        screen.getByRole("radio", { name: "Chat thông thường" }),
+      ).toBeChecked();
+      fireEvent.click(screen.getByRole("radio", { name: "Hỏi tài liệu" }));
+      expect(screen.getByLabelText("Tài liệu")).toHaveValue("doc-2");
+      expect(
+        screen.getByText("Chương 2 nói về độ phức tạp thuật toán."),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+        "Câu hỏi tiếp theo đang soạn",
+      );
+    });
+
+    it("sends the same request and opens the same source when expanded", async () => {
+      answerWithCitation();
+      const open = vi.fn();
+      vi.stubGlobal("open", open);
+      render(<App />);
+      await openWithDocument();
+      await ask("Chương 2 nói gì?");
+      fireEvent.click(
+        screen.getByRole("button", { name: "Expand ExaMate AI" }),
+      );
+      await ask("Chương 2 nói gì?");
+
+      const [compact, expanded] = chatBodies();
+      expect(expanded).toEqual(compact);
+      expect(expanded).toMatchObject({
+        mode: "documents",
+        documentId: "doc-2",
+      });
+
+      const sources = screen.getAllByRole("button", {
+        name: "Open source ghi-chu-chung.pdf, tr. 3",
+      });
+      fireEvent.click(sources[sources.length - 1]);
+      await waitFor(() =>
+        expect(open).toHaveBeenCalledWith(
+          "https://storage.example.test/source.pdf?token=signed#page=3",
+          "_blank",
+          "noopener,noreferrer",
+        ),
+      );
+    });
+
+    it("keeps focus on the toggle and returns it to the launcher on Escape", async () => {
+      render(<App />);
+      const launcher = screen.getByRole("button", { name: "Open ExaMate AI" });
+      fireEvent.click(launcher);
+      await waitFor(() =>
+        expect(screen.getByLabelText("Question for ExaMate")).toHaveFocus(),
+      );
+
+      const toggle = screen.getByRole("button", { name: "Expand ExaMate AI" });
+      toggle.focus();
+      fireEvent.click(toggle);
+      // Same control, new name: resizing does not throw focus somewhere else.
+      expect(toggle).toHaveFocus();
+      expect(toggle).toHaveAccessibleName("Collapse ExaMate AI");
+
+      fireEvent.keyDown(window, { key: "Escape" });
+      await waitFor(() => expect(launcher).toHaveFocus());
+      expect(document.getElementById("examate-ai-panel")).not.toBeVisible();
+
+      // The size the student chose is still there when they come back.
+      fireEvent.click(launcher);
+      expect(
+        screen.getByRole("button", { name: "Collapse ExaMate AI" }),
+      ).toBeInTheDocument();
+    });
+
+    it("becomes modal when expanded on a tablet and releases the page when collapsed", () => {
+      stubScreen(tabletOnly);
+      render(<App />);
+      fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+      // Compact on a tablet is the ordinary floating window.
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(document.querySelector(".desktop-shell")).not.toHaveAttribute(
+        "inert",
+      );
+
+      const toggle = screen.getByRole("button", { name: "Expand ExaMate AI" });
+      toggle.focus();
+      fireEvent.click(toggle);
+      const dialog = screen.getByRole("dialog", { name: "ExaMate AI" });
+      expect(dialog).toHaveAttribute("aria-modal", "true");
+      expect(dialog).toHaveClass("is-window", "is-expanded");
+      expect(document.querySelector(".desktop-shell")).toHaveAttribute("inert");
+      expect(document.querySelector(".floating-controls")).toHaveAttribute(
+        "inert",
+      );
+      expect(document.body.style.overflow).toBe("hidden");
+      const reachable = [
+        ...document.querySelectorAll<HTMLElement>(
+          "a[href], button, input, select, textarea, summary",
+        ),
+      ].filter(
+        (element) => !dialog.contains(element) && !element.closest("[inert]"),
+      );
+      expect(reachable).toEqual([]);
+      expect(toggle).toHaveFocus();
+
+      fireEvent.click(toggle);
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(document.querySelector(".desktop-shell")).not.toHaveAttribute(
+        "inert",
+      );
+      expect(document.body.style.overflow).toBe("");
+      expect(toggle).toHaveFocus();
+    });
+
+    it("pulls focus inside when the screen narrows under an open panel", async () => {
+      // A matchMedia that can change its answer later, as a resize does.
+      let narrow = false;
+      const listeners = new Set<() => void>();
+      vi.stubGlobal("matchMedia", (query: string) => ({
+        get matches() {
+          return narrow && query.includes("max-width");
+        },
+        media: query,
+        onchange: null,
+        addEventListener: (_: string, listener: () => void) =>
+          listeners.add(listener),
+        removeEventListener: (_: string, listener: () => void) =>
+          listeners.delete(listener),
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+      }));
+      render(<App />);
+      fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+      // Focus is back on the page while the non-modal window stays open.
+      const pageButton = screen.getByRole("button", { name: "Ask ExaMate" });
+      pageButton.focus();
+
+      act(() => {
+        narrow = true;
+        listeners.forEach((listener) => listener());
+      });
+
+      const sheet = screen.getByRole("dialog", { name: "ExaMate AI" });
+      // The page is inert now; leaving focus there would strand the keyboard.
+      await waitFor(() =>
+        expect(sheet).toContainElement(document.activeElement as HTMLElement),
+      );
+    });
+
+    it("fills the phone screen as a sheet and still closes with Escape", async () => {
+      stubScreen((query) => query.includes("max-width"));
+      render(<App />);
+      const launcher = screen.getByRole("button", { name: "Open ExaMate AI" });
+      fireEvent.click(launcher);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Expand ExaMate AI" }),
+      );
+
+      const sheet = screen.getByRole("dialog", { name: "ExaMate AI" });
+      expect(sheet).toHaveClass("is-sheet", "is-expanded");
+      expect(
+        within(sheet).getByRole("button", { name: /Send question/ }),
+      ).toBeInTheDocument();
+
+      fireEvent.keyDown(window, { key: "Escape" });
+      await waitFor(() => expect(launcher).toHaveFocus());
+      expect(document.body.style.overflow).toBe("");
+    });
+  });
   it("persists quick notes in the current browser", async () => {
     render(<App />);
     fireEvent.change(screen.getByLabelText("Quick note 1"), {

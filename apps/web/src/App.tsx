@@ -161,29 +161,34 @@ function currentRoute(): AppRoute {
 
 /** Below this width the assistant becomes a modal bottom sheet. */
 const NARROW_SCREEN = "(max-width: 767px)";
+/**
+ * Below this width an expanded window covers nearly the whole page, so it
+ * turns modal rather than leaving controls reachable underneath it.
+ */
+const MEDIUM_SCREEN = "(max-width: 1023px)";
 
 /**
- * Whether the viewport is phone-sized, kept current as it changes.
+ * Whether the viewport matches `query`, kept current as it changes.
  *
  * Guarded because matchMedia is absent in some environments — jsdom among
  * them — and treating that as "wide" gives the non-modal window, the safer of
  * the two layouts to fall back to.
  */
-function useNarrowScreen() {
-  const [narrow, setNarrow] = useState(
+function useScreenMatches(query: string) {
+  const [matches, setMatches] = useState(
     () =>
       typeof window.matchMedia === "function" &&
-      window.matchMedia(NARROW_SCREEN).matches,
+      window.matchMedia(query).matches,
   );
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return;
-    const list = window.matchMedia(NARROW_SCREEN);
-    const update = () => setNarrow(list.matches);
+    const list = window.matchMedia(query);
+    const update = () => setMatches(list.matches);
     update();
     list.addEventListener?.("change", update);
     return () => list.removeEventListener?.("change", update);
-  }, []);
-  return narrow;
+  }, [query]);
+  return matches;
 }
 
 export default function App() {
@@ -233,8 +238,12 @@ export default function App() {
       }
     },
   );
-  const narrow = useNarrowScreen();
-  const modal = assistantOpen && narrow;
+  // Compact or expanded is App's too, beside open/closed: resizing restyles
+  // the one panel and never remounts it, so nothing in it is reset.
+  const [assistantExpanded, setAssistantExpanded] = useState(false);
+  const narrow = useScreenMatches(NARROW_SCREEN);
+  const medium = useScreenMatches(MEDIUM_SCREEN);
+  const modal = assistantOpen && (narrow || (assistantExpanded && medium));
   const modalOpen = useRef(false);
   modalOpen.current = modal;
   const launcher = useRef<HTMLButtonElement>(null);
@@ -453,6 +462,9 @@ export default function App() {
       <AssistantPanel
         open={assistantOpen}
         modal={modal}
+        sheet={narrow}
+        expanded={assistantExpanded}
+        onToggleExpanded={() => setAssistantExpanded((current) => !current)}
         pageId={page.id}
         pageName={page.name}
         courseId={selectedCourse?.id}
