@@ -9,6 +9,33 @@ import { useEffect, useRef, useState } from "react";
 import type { AssistantCitation, AssistantState } from "./use-assistant";
 import type { StoredDocument } from "./api";
 
+function documentMentionedIn(
+  question: string,
+  documents: StoredDocument[],
+): StoredDocument | undefined {
+  const normalized = question.toLocaleLowerCase("vi");
+  const matches = documents.filter((item) =>
+    normalized.includes(item.name.toLocaleLowerCase("vi")),
+  );
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+function questionOperation(question: string) {
+  if (
+    /thuộc\s+(?:khóa học|môn học|môn)\s+nào|(?:which|what)\s+course/iu.test(
+      question,
+    )
+  )
+    return "course_info" as const;
+  if (
+    /có nội dung về gì|nói về (?:điều )?gì|tóm tắt|summari[sz]e|what is .+ about/iu.test(
+      question,
+    )
+  )
+    return "summarize" as const;
+  return "question" as const;
+}
+
 interface AssistantPanelProps {
   open: boolean;
   /** Narrow screens show a modal sheet; wider ones a floating window. */
@@ -70,6 +97,7 @@ export function AssistantPanel({
   const composer = useRef<HTMLTextAreaElement>(null);
   const [openingCitation, setOpeningCitation] = useState<string | null>(null);
   const [citationError, setCitationError] = useState("");
+  const [selectionError, setSelectionError] = useState("");
   const [documentId, setDocumentId] = useState("");
   const prompts = promptsByPage[pageId] ?? fallbackPrompts;
   const preview = assistant.status === "unavailable";
@@ -78,6 +106,9 @@ export function AssistantPanel({
       item.storage_status === "stored" &&
       item.processing_status === "ready" &&
       (!courseId || item.course_id === courseId),
+  );
+  const selectedDocument = availableDocuments.find(
+    (item) => item.id === documentId,
   );
 
   useEffect(() => {
@@ -183,7 +214,7 @@ export function AssistantPanel({
             </fieldset>
             <p className="assistant-capability">
               {assistant.mode === "documents"
-                ? "Câu trả lời chỉ dựa trên các tài liệu đã lập chỉ mục và hiển thị nguồn đã được backend kiểm chứng."
+                ? "Nội dung trả lời dựa trên tài liệu đã lập chỉ mục; thông tin môn học lấy từ metadata của workspace và được ghi nguồn riêng."
                 : "Trả lời bằng kiến thức chung; không đọc hoặc suy đoán dữ liệu riêng trong ứng dụng."}
             </p>
             {open && assistant.mode === "documents" && (
@@ -192,7 +223,10 @@ export function AssistantPanel({
                 <select
                   value={documentId}
                   disabled={documentsLoading || assistant.status === "sending"}
-                  onChange={(event) => setDocumentId(event.target.value)}
+                  onChange={(event) => {
+                    setDocumentId(event.target.value);
+                    setSelectionError("");
+                  }}
                 >
                   <option value="">Tất cả tài liệu đã lập chỉ mục</option>
                   {availableDocuments.map((document) => (
@@ -202,6 +236,19 @@ export function AssistantPanel({
                   ))}
                 </select>
               </label>
+            )}
+            {open && assistant.mode === "documents" && (
+              <p className="assistant-document-status" role="status">
+                {documentsLoading
+                  ? "Đang tải danh sách tài liệu…"
+                  : selectedDocument?.index_quality
+                    ? `${selectedDocument.name} · ${selectedDocument.index_quality.indexed_chunk_count} đoạn đã lập chỉ mục; ${selectedDocument.index_quality.useful_text_page_count}/${selectedDocument.index_quality.total_page_count} trang có văn bản dùng được.`
+                    : selectedDocument
+                      ? `${selectedDocument.name} · Đã lập chỉ mục theo phiên bản cũ; chưa có thống kê độ phủ. Có thể re-index trong Documents để kiểm tra lại.`
+                      : availableDocuments.length
+                        ? "Đang tìm trong tất cả tài liệu. Chọn một file để xem trạng thái và dùng thông tin môn học của file đó."
+                        : "Chưa có tài liệu sẵn sàng để hỏi."}
+              </p>
             )}
           </>
         )}
@@ -242,6 +289,19 @@ export function AssistantPanel({
                       </li>
                     ))}
                   </ul>
+                )}
+                {message.metadataSource && (
+                  <p className="assistant-metadata-source">
+                    Nguồn: thông tin tài liệu trong workspace ·{" "}
+                    {message.metadataSource.courseSlug ? (
+                      <a href={`#courses/${message.metadataSource.courseSlug}`}>
+                        {message.metadataSource.courseName} (
+                        {message.metadataSource.courseCode})
+                      </a>
+                    ) : (
+                      "Chưa gắn môn học"
+                    )}
+                  </p>
                 )}
               </li>
             ))}
@@ -304,12 +364,34 @@ export function AssistantPanel({
         className="assistant-composer"
         onSubmit={(event) => {
           event.preventDefault();
-          void assistant.send({
-            pageId,
-            pageName,
-            ...(courseId ? { courseId } : {}),
-            ...(documentId ? { documentId } : {}),
-          });
+          const mentionsPdf =
+            assistant.mode === "documents" && /\.pdf\b/iu.test(assistant.draft);
+          const mentionedDocument = mentionsPdf
+            ? documentMentionedIn(assistant.draft, availableDocuments)
+            : undefined;
+          if (mentionsPdf && !mentionedDocument) {
+            setSelectionError(
+              "Không tìm thấy đúng tài liệu PDF này trong danh sách sẵn sàng. Hãy chọn file trong mục Tài liệu hoặc kiểm tra lại tên trước khi gửi.",
+            );
+            return;
+          }
+          setSelectionError("");
+          const resolvedDocumentId = mentionedDocument?.id || documentId;
+          const operation =
+            assistant.mode === "documents" && resolvedDocumentId
+              ? questionOperation(assistant.draft)
+              : "question";
+          if (mentionedDocument && mentionedDocument.id !== documentId)
+            setDocumentId(resolvedDocumentId);
+          void assistant.send(
+            {
+              pageId,
+              pageName,
+              ...(courseId ? { courseId } : {}),
+              ...(resolvedDocumentId ? { documentId: resolvedDocumentId } : {}),
+            },
+            { operation },
+          );
         }}
       >
         <label htmlFor="assistant-question">Question for ExaMate</label>
@@ -317,13 +399,20 @@ export function AssistantPanel({
           id="assistant-question"
           ref={composer}
           value={assistant.draft}
-          onChange={(event) => assistant.setDraft(event.target.value)}
+          onChange={(event) => {
+            assistant.setDraft(event.target.value);
+            setSelectionError("");
+          }}
           placeholder="Ask about your course or project sources…"
         />
         {/* A small status line of its own, announced when it changes. The
             conversation above is not a live region, so a new reply does not
             make a screen reader read the whole history again. */}
-        {assistant.status === "error" ? (
+        {selectionError ? (
+          <p role="alert" className="assistant-status">
+            {selectionError}
+          </p>
+        ) : assistant.status === "error" ? (
           <p role="alert" className="assistant-status">
             {assistant.errorMessage ||
               "Chưa gửi được câu hỏi. Bản nháp vẫn còn nguyên, thử lại nhé."}
@@ -338,30 +427,56 @@ export function AssistantPanel({
           Send question
         </button>
         {assistant.mode === "documents" && (
-          <button
-            type="button"
-            disabled={
-              !documentId ||
-              assistant.status === "sending" ||
-              assistant.status === "unavailable"
-            }
-            onClick={() =>
-              void assistant.send(
-                {
-                  pageId,
-                  pageName,
-                  ...(courseId ? { courseId } : {}),
-                  documentId,
-                },
-                {
-                  operation: "summarize",
-                  message: "Tóm tắt tài liệu đã chọn.",
-                },
-              )
-            }
-          >
-            Tóm tắt tài liệu
-          </button>
+          <>
+            <button
+              type="button"
+              disabled={
+                !documentId ||
+                assistant.status === "sending" ||
+                assistant.status === "unavailable"
+              }
+              onClick={() =>
+                void assistant.send(
+                  {
+                    pageId,
+                    pageName,
+                    ...(courseId ? { courseId } : {}),
+                    documentId,
+                  },
+                  {
+                    operation: "summarize",
+                    message: "Tóm tắt tài liệu đã chọn.",
+                  },
+                )
+              }
+            >
+              Tóm tắt tài liệu
+            </button>
+            <button
+              type="button"
+              disabled={
+                !documentId ||
+                assistant.status === "sending" ||
+                assistant.status === "unavailable"
+              }
+              onClick={() =>
+                void assistant.send(
+                  {
+                    pageId,
+                    pageName,
+                    ...(courseId ? { courseId } : {}),
+                    documentId,
+                  },
+                  {
+                    operation: "course_info",
+                    message: "Tài liệu này thuộc môn học nào?",
+                  },
+                )
+              }
+            >
+              Môn học của tài liệu
+            </button>
+          </>
         )}
       </form>
     </aside>

@@ -214,6 +214,9 @@ export default function App() {
           text: [translated ?? response.answer, coverageWarning]
             .filter(Boolean)
             .join("\n\n"),
+          ...(response.provider === "workspace"
+            ? { metadataSource: response.metadataSource }
+            : {}),
           citations: response.citations.map((citation) => ({
             id: citation.sourceId,
             title: citation.title,

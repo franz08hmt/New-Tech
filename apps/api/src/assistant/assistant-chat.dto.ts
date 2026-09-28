@@ -48,7 +48,7 @@ export class AssistantChatDto implements AssistantChatRequest {
   mode?: AssistantMode;
 
   @IsOptional()
-  @IsIn(["question", "summarize"] satisfies AssistantOperation[])
+  @IsIn(["question", "summarize", "course_info"] satisfies AssistantOperation[])
   operation?: AssistantOperation;
 
   @IsOptional()

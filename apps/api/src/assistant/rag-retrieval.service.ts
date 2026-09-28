@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import type { AssistantMetadataSource } from "@examate/contracts";
 import type { QueryResultRow } from "pg";
 import { log } from "../common/log.js";
 import { ragConfig } from "../config/config.js";
@@ -10,6 +11,7 @@ import { buildRagContext, type RetrievedChunk } from "./rag-context.js";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_CANDIDATE_SCAN = 100;
 
 interface RetrievalRow extends QueryResultRow {
   chunk_id: string;
@@ -46,6 +48,9 @@ interface DocumentScopeRow extends QueryResultRow {
   useful_text_page_count: number | null;
   low_text_page_count: number | null;
   needs_ocr: boolean | null;
+  course_slug: string | null;
+  course_name: string | null;
+  course_code: string | null;
 }
 
 export interface DocumentSummaryMaterial {
@@ -99,8 +104,12 @@ export class RagRetrievalService {
       )
         throw new RetrievalError("invalid_response");
 
-      const result = await this.database.query<RetrievalRow>(
-        `WITH nearest AS (
+      let scanLimit = this.config.candidateLimit;
+      let candidates: RetrievedChunk[] = [];
+      let usefulCandidates: RetrievedChunk[] = [];
+      while (true) {
+        const result = await this.database.query<RetrievalRow>(
+          `WITH nearest AS (
            SELECT dc.id::text AS chunk_id,
                   d.id::text AS document_id,
                   d.name AS document_name,
@@ -119,7 +128,7 @@ export class RagRetrievalService {
              AND char_length(dc.content) BETWEEN 1 AND 1800
              AND ($4::uuid IS NULL OR d.course_id = $4::uuid)
              AND ($5::uuid IS NULL OR d.id = $5::uuid)
-           ORDER BY dc.embedding <=> $1::vector(768)
+           ORDER BY dc.embedding <=> $1::vector(768), dc.id
            LIMIT $6
          )
          SELECT chunk_id, document_id, document_name, course_id,
@@ -127,29 +136,37 @@ export class RagRetrievalService {
          FROM nearest
          WHERE score >= $7
          ORDER BY score DESC, chunk_id`,
-        [
-          `[${vector.join(",")}]`,
-          this.embeddings.model,
-          this.embeddings.dimensions,
-          courseId,
-          documentId,
-          this.config.candidateLimit,
-          this.config.minScore,
-        ],
-      );
+          [
+            `[${vector.join(",")}]`,
+            this.embeddings.model,
+            this.embeddings.dimensions,
+            courseId,
+            documentId,
+            scanLimit,
+            this.config.minScore,
+          ],
+        );
 
-      if (result.rows.length > this.config.candidateLimit)
-        throw new RetrievalError("invalid_response");
-      const candidates = result.rows.map((row) => this.validateRow(row));
-      if (
-        candidates.some((chunk) => chunk.score < this.config.minScore) ||
-        new Set(candidates.map((chunk) => chunk.chunkId)).size !==
-          candidates.length
-      )
-        throw new RetrievalError("invalid_response");
-      const usefulCandidates = candidates.filter((chunk) =>
-        isUsefulDocumentText(chunk.content, chunk.sourcePage ?? undefined),
-      );
+        if (result.rows.length > scanLimit)
+          throw new RetrievalError("invalid_response");
+        candidates = result.rows.map((row) => this.validateRow(row));
+        if (
+          candidates.some((chunk) => chunk.score < this.config.minScore) ||
+          new Set(candidates.map((chunk) => chunk.chunkId)).size !==
+            candidates.length
+        )
+          throw new RetrievalError("invalid_response");
+        usefulCandidates = candidates.filter((chunk) =>
+          isUsefulDocumentText(chunk.content, chunk.sourcePage ?? undefined),
+        );
+        if (
+          usefulCandidates.length >= this.config.topK ||
+          result.rows.length < scanLimit ||
+          scanLimit >= MAX_CANDIDATE_SCAN
+        )
+          break;
+        scanLimit = Math.min(MAX_CANDIDATE_SCAN, scanLimit * 2);
+      }
       const chunks = usefulCandidates.slice(0, this.config.topK);
       const ragContext: ReturnType<typeof buildRagContext> = {
         ...buildRagContext(chunks, this.config.promptVersion),
@@ -167,6 +184,7 @@ export class RagRetrievalService {
       log("info", "rag.retrieval.completed", {
         model: this.embeddings.model,
         candidateCount: candidates.length,
+        scanLimit,
         rejectedLowInformationCount:
           candidates.length - usefulCandidates.length,
         evidenceCount: ragContext.evidence.length,
@@ -250,13 +268,37 @@ export class RagRetrievalService {
     };
   }
 
+  async documentMetadata(
+    documentId: string,
+    scope: { courseId?: string | null } = {},
+  ): Promise<AssistantMetadataSource> {
+    const courseId = scope.courseId ?? null;
+    if (
+      !UUID_PATTERN.test(documentId) ||
+      (courseId !== null && !UUID_PATTERN.test(courseId))
+    )
+      throw new RetrievalError("invalid_input");
+    const document = await this.documentInScope(documentId, courseId);
+    return {
+      documentId: document.id,
+      title: document.name,
+      courseId: document.course_id,
+      courseSlug: document.course_slug,
+      courseName: document.course_name,
+      courseCode: document.course_code,
+    };
+  }
+
   private async documentInScope(documentId: string, courseId: string | null) {
     const result = await this.database.query<DocumentScopeRow>(
-      `SELECT id::text, name, course_id::text AS course_id,
-              storage_status, processing_status, total_page_count,
-              useful_text_page_count, low_text_page_count, needs_ocr
-       FROM documents
-       WHERE id = $1::uuid`,
+      `SELECT d.id::text, d.name, d.course_id::text AS course_id,
+              c.slug AS course_slug, c.name AS course_name,
+              c.code AS course_code, d.storage_status, d.processing_status,
+              d.total_page_count, d.useful_text_page_count,
+              d.low_text_page_count, d.needs_ocr
+       FROM documents d
+       LEFT JOIN courses c ON c.id = d.course_id
+       WHERE d.id = $1::uuid`,
       [documentId],
     );
     const document = result.rows[0];

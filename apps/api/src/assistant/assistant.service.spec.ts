@@ -58,6 +58,14 @@ function fixture(
   };
   const retrieval = {
     retrieve: vi.fn().mockResolvedValue(rag),
+    documentMetadata: vi.fn().mockResolvedValue({
+      documentId: citation.documentId,
+      title: citation.title,
+      courseId: "33333333-3333-4333-8333-333333333333",
+      courseSlug: "cs-201",
+      courseName: "Công nghệ phần mềm",
+      courseCode: "CS 201",
+    }),
     documentForSummary: vi.fn().mockResolvedValue({
       documentId: citation.documentId,
       documentName: citation.title,
@@ -78,6 +86,71 @@ function fixture(
 }
 
 describe("AssistantService grounded orchestration", () => {
+  it("answers a selected document's course from workspace metadata without generating text", async () => {
+    const { service, retrieval, generate } = fixture();
+    const result = await service.chat({
+      message: "Tài liệu này thuộc môn nào?",
+      mode: "documents",
+      operation: "course_info" as never,
+      documentId: citation.documentId,
+    });
+
+    expect(result).toMatchObject({
+      answerable: true,
+      reasonCode: "DOCUMENT_METADATA",
+      provider: "workspace",
+      mode: "documents",
+      citations: [],
+      metadataSource: {
+        documentId: citation.documentId,
+        courseCode: "CS 201",
+      },
+    });
+    expect(result.answer).toContain("Công nghệ phần mềm (CS 201)");
+    expect(retrieval.documentMetadata).toHaveBeenCalledWith(
+      citation.documentId,
+      { courseId: undefined },
+    );
+    expect(retrieval.retrieve).not.toHaveBeenCalled();
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("says plainly when an indexed document has no course association", async () => {
+    const { service, retrieval, generate } = fixture();
+    retrieval.documentMetadata.mockResolvedValueOnce({
+      documentId: citation.documentId,
+      title: citation.title,
+      courseId: null,
+      courseSlug: null,
+      courseName: null,
+      courseCode: null,
+    });
+
+    const result = await service.chat({
+      message: "Tài liệu này thuộc môn nào?",
+      mode: "documents",
+      operation: "course_info",
+      documentId: citation.documentId,
+    });
+
+    expect(result.answer).toContain("chưa được gắn với môn học nào");
+    expect(result.citations).toEqual([]);
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("requires an exact document selection for course metadata", async () => {
+    const { service, retrieval, generate } = fixture();
+    await expect(
+      service.chat({
+        message: "Tài liệu này thuộc môn nào?",
+        mode: "documents",
+        operation: "course_info",
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(retrieval.documentMetadata).not.toHaveBeenCalled();
+    expect(generate).not.toHaveBeenCalled();
+  });
+
   it("returns only backend-validated citation metadata", async () => {
     const { service, generate, retrieval } = fixture();
     await expect(

@@ -179,6 +179,36 @@ test("HTTP chat validates DTO and returns backend-validated citations", async ()
   assert.ok(!logs.join().includes("Hãy giúp tôi học"));
 });
 
+test("HTTP course info reads workspace metadata without invoking Gemini", async () => {
+  retrieval.documentMetadata = mock.fn(async () => ({
+    documentId: citation.documentId,
+    title: citation.title,
+    courseId: "33333333-3333-4333-8333-333333333333",
+    courseSlug: "cs-201",
+    courseName: "Công nghệ phần mềm",
+    courseCode: "CS 201",
+  }));
+  await start();
+  const response = await server.request(
+    "/assistant/chat",
+    json("POST", {
+      message: "Tài liệu này thuộc môn nào?",
+      mode: "documents",
+      operation: "course_info",
+      documentId: citation.documentId,
+    }),
+  );
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.provider, "workspace");
+  assert.equal(body.reasonCode, "DOCUMENT_METADATA");
+  assert.deepEqual(body.citations, []);
+  assert.equal(body.metadataSource.courseCode, "CS 201");
+  assert.equal(provider.generate.mock.callCount(), 0);
+  assert.equal(retrieval.retrieve.mock.callCount(), 0);
+  assert.equal(retrieval.documentMetadata.mock.callCount(), 1);
+});
+
 test("HTTP chat returns unanswerable without calling generation when retrieval is empty", async () => {
   retrieval.retrieve = mock.fn(async () => ({
     promptVersion: "rag-v1",

@@ -92,7 +92,7 @@ export class AssistantService {
     const startedAt = Date.now();
     try {
       if (mode === "general") {
-        if (operation === "summarize" || input.documentId)
+        if (operation !== "question" || input.documentId)
           throw new BadRequestException({
             code: "DOCUMENT_MODE_REQUIRED",
             message:
@@ -102,6 +102,8 @@ export class AssistantService {
       }
       if (operation === "summarize")
         return await this.summarizeDocument(input, startedAt);
+      if (operation === "course_info")
+        return await this.documentCourseInfo(input, startedAt);
       return await this.documentChat(input, startedAt);
     } catch (error: unknown) {
       log("error", "assistant.chat.failed", {
@@ -219,6 +221,50 @@ export class AssistantService {
       generationMs: Date.now() - generationStartedAt,
       ...(rag.coverage ?? {}),
     });
+    return result;
+  }
+
+  private async documentCourseInfo(
+    input: AssistantChatDto,
+    startedAt: number,
+  ): Promise<AssistantAnswer> {
+    if (!input.documentId)
+      throw new BadRequestException({
+        code: "DOCUMENT_SELECTION_REQUIRED",
+        message: "Choose one document before asking for its course.",
+      });
+
+    let source;
+    try {
+      source = await this.retrieval.documentMetadata(input.documentId, {
+        courseId: input.courseId,
+      });
+    } catch (error: unknown) {
+      throw this.normalizeRetrievalError(error);
+    }
+    const result: AssistantAnswer = {
+      answer: source.courseName
+        ? `Trong workspace, tài liệu “${source.title}” được gắn với môn ${source.courseName} (${source.courseCode}). Đây là thông tin bạn đã gán cho tài liệu, không phải kết luận rút ra từ nội dung PDF.`
+        : `Trong workspace, tài liệu “${source.title}” chưa được gắn với môn học nào.`,
+      answerable: true,
+      reasonCode: "DOCUMENT_METADATA",
+      citations: [],
+      provider: "workspace",
+      model: "database",
+      mode: "documents",
+      ragEnabled: false,
+      promptVersion: "workspace-metadata-v1",
+      metadataSource: source,
+    };
+    this.logCompleted(
+      "documents",
+      "course_info",
+      result.reasonCode,
+      startedAt,
+      {
+        evidenceCount: 0,
+      },
+    );
     return result;
   }
 
@@ -444,7 +490,7 @@ export class AssistantService {
     answerable: boolean,
     citations: RagCitation[],
     promptVersion: string,
-    reasonCode: AssistantReasonCode,
+    reasonCode: Exclude<AssistantReasonCode, "DOCUMENT_METADATA">,
   ): AssistantAnswer {
     return {
       answer,
@@ -501,7 +547,7 @@ export class AssistantService {
 
   private logCompleted(
     mode: "general" | "documents",
-    operation: "question" | "summarize",
+    operation: "question" | "summarize" | "course_info",
     reasonCode: AssistantReasonCode,
     startedAt: number,
     fields: Record<string, unknown>,

@@ -209,14 +209,14 @@ export interface AssistantPageContext {
 }
 
 export type AssistantMode = "general" | "documents";
-export type AssistantOperation = "question" | "summarize";
+export type AssistantOperation = "question" | "summarize" | "course_info";
 
 /** Request body of `POST /api/assistant/chat`. */
 export interface AssistantChatRequest {
   message: string;
   /** Defaults to documents mode for clients that do not yet choose a mode. */
   mode?: AssistantMode;
-  /** Summarize requires a specific document in documents mode. */
+  /** Summarize and course_info require a specific document in documents mode. */
   operation?: AssistantOperation;
   pageContext?: AssistantPageContext | null;
   courseId?: string | null;
@@ -232,22 +232,49 @@ export interface AssistantCitation {
   chunkIndex: number;
 }
 
+/** Verified workspace association, not a claim extracted from the PDF. */
+export interface AssistantMetadataSource {
+  documentId: string;
+  title: string;
+  courseId: string | null;
+  courseSlug: string | null;
+  courseName: string | null;
+  courseCode: string | null;
+}
+
 export type AssistantReasonCode =
-  "ANSWER_GENERATED" | "PARTIAL_COVERAGE" | "NO_RELEVANT_EVIDENCE";
+  | "ANSWER_GENERATED"
+  | "PARTIAL_COVERAGE"
+  | "NO_RELEVANT_EVIDENCE"
+  | "DOCUMENT_METADATA";
 
 /** Response from general chat or document-grounded RAG. */
-export type AssistantChatResponse = {
+type AssistantResponseBase = {
   answer: string;
   answerable: boolean;
-  reasonCode: AssistantReasonCode;
-  citations: AssistantCitation[];
-  provider: "google";
-  model: string;
   promptVersion: string;
-} & (
-  | { mode: "general"; ragEnabled: false }
-  | { mode: "documents"; ragEnabled: true }
-);
+};
+
+export type AssistantChatResponse =
+  | (AssistantResponseBase & {
+      reasonCode: Exclude<AssistantReasonCode, "DOCUMENT_METADATA">;
+      citations: AssistantCitation[];
+      provider: "google";
+      model: string;
+      metadataSource?: never;
+    } & (
+        | { mode: "general"; ragEnabled: false }
+        | { mode: "documents"; ragEnabled: true }
+      ))
+  | (AssistantResponseBase & {
+      reasonCode: "DOCUMENT_METADATA";
+      citations: [];
+      provider: "workspace";
+      model: "database";
+      mode: "documents";
+      ragEnabled: false;
+      metadataSource: AssistantMetadataSource;
+    });
 
 /** Response of `GET /api/assistant/status`. */
 export type AssistantStatus = {

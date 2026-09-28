@@ -127,6 +127,49 @@ describe("RagRetrievalService", () => {
     expect(result.evidence[0].content).toBe(firstRow.content);
   });
 
+  it("searches beyond the first ten legacy fragments for usable evidence", async () => {
+    const fragments = Array.from({ length: 10 }, (_, index) => ({
+      ...firstRow,
+      chunk_id: `11111111-1111-4111-8111-${String(index + 1).padStart(12, "0")}`,
+      content: "61",
+      source_page: 60,
+      score: 0.95 - index * 0.01,
+    }));
+    const useful = { ...firstRow, score: 0.8 };
+    const { service, database } = fixture([]);
+    database.query.mockImplementation(async (_sql, values) => ({
+      rows: [...fragments, useful].slice(0, Number(values[5])),
+    }));
+
+    const result = await service.retrieve("What does the PDF explain?");
+
+    expect(result.evidence.map((item) => item.chunkId)).toEqual([
+      useful.chunk_id,
+    ]);
+    expect(database.query).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops after a bounded scan when every legacy fragment is unusable", async () => {
+    const fragments = Array.from({ length: 120 }, (_, index) => ({
+      ...firstRow,
+      chunk_id: `11111111-1111-4111-8111-${String(index + 1).padStart(12, "0")}`,
+      content: "61",
+      source_page: 60,
+      score: 0.95 - index * 0.001,
+    }));
+    const { service, database } = fixture([]);
+    database.query.mockImplementation(async (_sql, values) => ({
+      rows: fragments.slice(0, Number(values[5])),
+    }));
+
+    const result = await service.retrieve("What does the PDF explain?");
+
+    expect(result.evidence).toEqual([]);
+    expect(database.query.mock.calls.map(([, values]) => values[5])).toEqual([
+      10, 20, 40, 80, 100,
+    ]);
+  });
+
   it.each([
     ["bad chunk id", { chunk_id: "not-a-uuid" }],
     ["blank content", { content: " " }],
@@ -206,6 +249,38 @@ describe("RagRetrievalService", () => {
     });
     expect(database.query.mock.calls[1][0]).toContain("d.id = $5::uuid");
     expect(database.query.mock.calls[1][1][4]).toBe(documentId);
+  });
+
+  it("reads a selected document's course metadata without embedding or chunk text", async () => {
+    const { service, database, embeddings } = fixture([]);
+    database.query.mockResolvedValueOnce({
+      rows: [
+        {
+          id: firstRow.document_id,
+          name: firstRow.document_name,
+          course_id: firstRow.course_id,
+          course_slug: "cs-201",
+          course_name: "Công nghệ phần mềm",
+          course_code: "CS 201",
+          storage_status: "stored",
+          processing_status: "ready",
+        },
+      ],
+    });
+
+    await expect(
+      (
+        service as unknown as {
+          documentMetadata: (id: string) => Promise<unknown>;
+        }
+      ).documentMetadata(firstRow.document_id),
+    ).resolves.toMatchObject({
+      documentId: firstRow.document_id,
+      courseName: "Công nghệ phần mềm",
+      courseCode: "CS 201",
+    });
+    expect(embeddings.embedQuery).not.toHaveBeenCalled();
+    expect(database.query.mock.calls[0][0]).not.toContain("document_chunks");
   });
 
   it("rejects a document outside the selected course before embedding", async () => {

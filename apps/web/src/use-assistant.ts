@@ -1,5 +1,9 @@
 import { useCallback, useRef, useState } from "react";
-import type { AssistantMode, AssistantOperation } from "@examate/contracts";
+import type {
+  AssistantMetadataSource,
+  AssistantMode,
+  AssistantOperation,
+} from "@examate/contracts";
 
 /*
  * The conversation behind the ExaMate AI panel.
@@ -34,6 +38,7 @@ export interface AssistantMessage {
   role: "user" | "assistant";
   text: string;
   citations: AssistantCitation[];
+  metadataSource?: AssistantMetadataSource;
 }
 
 /** What the student was looking at when they asked. */
@@ -56,7 +61,11 @@ export type AskTransport = (
   context: AssistantContext,
   mode: AssistantMode,
   operation: AssistantOperation,
-) => Promise<{ text: string; citations: AssistantCitation[] }>;
+) => Promise<{
+  text: string;
+  citations: AssistantCitation[];
+  metadataSource?: AssistantMetadataSource;
+}>;
 
 export type AssistantStatus = "unavailable" | "idle" | "sending" | "error";
 
@@ -123,6 +132,9 @@ export function useAssistant(transport?: AskTransport): AssistantState {
             role: "assistant",
             text: reply.text,
             citations: reply.citations,
+            ...(reply.metadataSource
+              ? { metadataSource: reply.metadataSource }
+              : {}),
           },
         ]);
         // Cleared only once the question has an answer. On failure the draft

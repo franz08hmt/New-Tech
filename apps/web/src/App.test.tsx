@@ -574,7 +574,7 @@ describe("Academic workspace", () => {
     );
     expect(
       screen.getByText(
-        /chỉ dựa trên các tài liệu đã lập chỉ mục.*backend kiểm chứng/,
+        /Nội dung trả lời dựa trên tài liệu đã lập chỉ mục.*metadata của workspace/,
       ),
     ).toBeVisible();
     expect(screen.queryByText("Interface preview")).not.toBeInTheDocument();
@@ -2009,6 +2009,134 @@ describe("Academic workspace", () => {
       }),
     );
     expect(screen.queryByText("Example grounded answer")).toBeNull();
+  });
+  it("routes a named document's course question to verified workspace metadata", async () => {
+    const existingFetch = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/documents" && init?.method !== "POST")
+          return Response.json([
+            { ...documentFixtures[0], processing_status: "ready" },
+            documentFixtures[1],
+          ]);
+        if (url === "/api/assistant/chat" && init?.method === "POST")
+          return Response.json({
+            answer:
+              "Trong workspace, tài liệu được gắn với môn Công nghệ phần mềm (CS 201).",
+            answerable: true,
+            reasonCode: "DOCUMENT_METADATA",
+            citations: [],
+            provider: "workspace",
+            model: "database",
+            mode: "documents",
+            ragEnabled: false,
+            promptVersion: "workspace-metadata-v1",
+            metadataSource: {
+              documentId: "doc-1",
+              title: "de-cuong-thuat-toan.pdf",
+              courseId: "course-1",
+              courseSlug: "cs-201",
+              courseName: "Công nghệ phần mềm",
+              courseCode: "CS 201",
+            },
+          });
+        return existingFetch(url, init);
+      }),
+    );
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    await screen.findByRole("option", { name: "de-cuong-thuat-toan.pdf" });
+    fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+      target: { value: "de-cuong-thuat-toan.pdf thuộc khóa học nào" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/assistant/chat",
+        expect.objectContaining({
+          body: expect.stringContaining('"operation":"course_info"'),
+        }),
+      ),
+    );
+    const chatCall = vi
+      .mocked(fetch)
+      .mock.calls.find(([url]) => url === "/api/assistant/chat");
+    expect(JSON.parse(String(chatCall?.[1]?.body))).toMatchObject({
+      documentId: "doc-1",
+      mode: "documents",
+      operation: "course_info",
+    });
+    expect(
+      await screen.findByRole("link", { name: /Công nghệ phần mềm.*CS 201/ }),
+    ).toHaveAttribute("href", "#courses/cs-201");
+  });
+  it("summarizes a named PDF and explains when its legacy index has no coverage", async () => {
+    const existingFetch = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/documents" && init?.method !== "POST")
+          return Response.json([
+            { ...documentFixtures[0], processing_status: "ready" },
+            documentFixtures[1],
+          ]);
+        return existingFetch(url, init);
+      }),
+    );
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    await screen.findByRole("option", { name: "de-cuong-thuat-toan.pdf" });
+    fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+      target: { value: "de-cuong-thuat-toan.pdf có nội dung về gì" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
+
+    await waitFor(() => {
+      const chatCall = vi
+        .mocked(fetch)
+        .mock.calls.find(([url]) => url === "/api/assistant/chat");
+      expect(JSON.parse(String(chatCall?.[1]?.body))).toMatchObject({
+        documentId: "doc-1",
+        operation: "summarize",
+      });
+    });
+    expect(screen.getByLabelText("Tài liệu")).toHaveValue("doc-1");
+    expect(
+      screen.getByText(
+        /Đã lập chỉ mục theo phiên bản cũ; chưa có thống kê độ phủ/,
+      ),
+    ).toBeInTheDocument();
+  });
+  it("does not search a different PDF when the named document is unavailable", async () => {
+    const existingFetch = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/documents" && init?.method !== "POST")
+          return Response.json([
+            { ...documentFixtures[0], processing_status: "ready" },
+          ]);
+        return existingFetch(url, init);
+      }),
+    );
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    await screen.findByRole("option", { name: "de-cuong-thuat-toan.pdf" });
+    fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+      target: { value: "tai-lieu-chua-co.pdf có nội dung về gì" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /Không tìm thấy đúng tài liệu PDF này/,
+    );
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([url]) => url === "/api/assistant/chat"),
+    ).toBe(false);
   });
   it("opens as a modal sheet on a narrow screen and releases the page on close", () => {
     vi.stubGlobal("matchMedia", (query: string) => ({
