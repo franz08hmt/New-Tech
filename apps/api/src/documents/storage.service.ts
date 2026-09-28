@@ -6,7 +6,7 @@ import { log } from "../common/log.js";
 export class StorageService {
   private readonly config = appConfig().storage;
 
-  private async request(path: string, init: RequestInit = {}) {
+  private async response(path: string, init: RequestInit = {}) {
     try {
       const response = await fetch(`${this.config.url}/storage/v1${path}`, {
         ...init,
@@ -25,9 +25,21 @@ export class StorageService {
         await response.body?.cancel();
         throw new Error("Storage rejected request");
       }
-      return await response.json();
+      return response;
     } catch {
       // Never return provider bodies, keys, URLs or transport errors to the browser.
+      throw new ServiceUnavailableException({
+        code: "STORAGE_UNAVAILABLE",
+        message: "Document storage is unavailable. Please retry.",
+      });
+    }
+  }
+
+  private async request(path: string, init: RequestInit = {}) {
+    const response = await this.response(path, init);
+    try {
+      return await response.json();
+    } catch {
       throw new ServiceUnavailableException({
         code: "STORAGE_UNAVAILABLE",
         message: "Document storage is unavailable. Please retry.",
@@ -53,6 +65,48 @@ export class StorageService {
       headers: { "Content-Type": "application/pdf", "x-upsert": "false" },
       body: new Uint8Array(buffer),
     });
+  }
+
+  async downloadBuffer(key: string) {
+    await this.assertPrivateBucket();
+    const response = await this.response(
+      `/object/${this.config.bucket}/${key}`,
+    );
+    const declaredSize = Number(response.headers.get("content-length"));
+    const maxBytes = 10 * 1024 * 1024;
+    if (Number.isFinite(declaredSize) && declaredSize > maxBytes) {
+      await response.body?.cancel();
+      throw new ServiceUnavailableException({
+        code: "STORAGE_UNAVAILABLE",
+        message: "Document storage is unavailable. Please retry.",
+      });
+    }
+    const reader = response.body?.getReader();
+    if (!reader)
+      throw new ServiceUnavailableException({
+        code: "STORAGE_UNAVAILABLE",
+        message: "Document storage is unavailable. Please retry.",
+      });
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > maxBytes) {
+          await reader.cancel();
+          throw new Error("Storage object exceeds PDF size limit");
+        }
+        chunks.push(value);
+      }
+      return Buffer.concat(chunks, size);
+    } catch {
+      throw new ServiceUnavailableException({
+        code: "STORAGE_UNAVAILABLE",
+        message: "Document storage is unavailable. Please retry.",
+      });
+    }
   }
 
   async remove(key: string) {

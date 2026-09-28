@@ -2,6 +2,8 @@ import { Module } from "@nestjs/common";
 import { AssistantController } from "./assistant/assistant.controller.js";
 import { AssistantService } from "./assistant/assistant.service.js";
 import { GeminiService } from "./assistant/gemini.service.js";
+import { GeminiEmbeddingService } from "./assistant/gemini-embedding.service.js";
+import { RagRetrievalService } from "./assistant/rag-retrieval.service.js";
 import { DatabaseService } from "./database/database.service.js";
 import { HealthController } from "./health/health.controller.js";
 import { TasksController } from "./tasks/tasks.controller.js";
@@ -9,6 +11,9 @@ import { TasksService } from "./tasks/tasks.service.js";
 import { DocumentsController } from "./documents/documents.controller.js";
 import { DocumentsService } from "./documents/documents.service.js";
 import { StorageService } from "./documents/storage.service.js";
+import { PdfTextExtractorService } from "./documents/pdf-text-extractor.service.js";
+import { DocumentIngestionService } from "./documents/document-ingestion.service.js";
+import { DocumentOcrService } from "./documents/document-ocr.service.js";
 import { CoursesController } from "./courses/courses.controller.js";
 import { CoursesService } from "./courses/courses.service.js";
 import { ExamsController } from "./exams/exams.controller.js";
@@ -34,12 +39,17 @@ import { ExpensesService } from "./expenses/expenses.service.js";
     TasksService,
     DocumentsService,
     StorageService,
+    PdfTextExtractorService,
+    DocumentOcrService,
+    DocumentIngestionService,
     CoursesService,
     ExamsService,
     StudyPlansService,
     ExpensesService,
     AssistantService,
     GeminiService,
+    GeminiEmbeddingService,
+    RagRetrievalService,
   ],
 })
 export class AppModule {}

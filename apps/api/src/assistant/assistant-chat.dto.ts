@@ -1,14 +1,18 @@
 import { Transform, Type } from "class-transformer";
 import {
   IsNotEmpty,
+  IsIn,
   IsObject,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   ValidateNested,
 } from "class-validator";
 import type {
   AssistantChatRequest,
+  AssistantMode,
+  AssistantOperation,
   AssistantPageContext,
 } from "@examate/contracts";
 
@@ -40,8 +44,24 @@ export class AssistantChatDto implements AssistantChatRequest {
   message!: string;
 
   @IsOptional()
+  @IsIn(["general", "documents"] satisfies AssistantMode[])
+  mode?: AssistantMode;
+
+  @IsOptional()
+  @IsIn(["question", "summarize"] satisfies AssistantOperation[])
+  operation?: AssistantOperation;
+
+  @IsOptional()
   @IsObject()
   @ValidateNested()
   @Type(() => AssistantPageContextDto)
   pageContext?: AssistantPageContextDto | null;
+
+  @IsOptional()
+  @IsUUID()
+  courseId?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  documentId?: string | null;
 }

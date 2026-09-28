@@ -51,6 +51,8 @@ export interface StoredDocument {
   media_type: string;
   size_bytes: number | null;
   storage_status: "stored" | "deleting" | "legacy";
+  processing_status: "pending" | "processing" | "ready" | "failed";
+  index_quality: DocumentIndexQuality | null;
   /**
    * Which subject this file belongs to, or null for material that is not tied
    * to one. The link can also go null on its own if the course is removed: the
@@ -62,6 +64,26 @@ export interface StoredDocument {
   course_code: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** Processing coverage returned for an indexed PDF; extracted text stays server-side. */
+export interface DocumentIndexQuality {
+  total_page_count: number;
+  useful_text_page_count: number;
+  low_text_page_count: number;
+  indexed_chunk_count: number;
+  skipped_page_numbers: number[];
+  needs_ocr: boolean;
+  ocr_page_count: number;
+  ocr_page_numbers: number[];
+}
+
+export interface DocumentProcessingResult {
+  document_id: string;
+  processing_status: "ready";
+  chunk_count: number;
+  indexed_at: string;
+  index_quality: DocumentIndexQuality;
 }
 
 /** Visual treatment chosen from the existing ExaMate course-card palette. */
@@ -186,24 +208,51 @@ export interface AssistantPageContext {
   pageName: string;
 }
 
+export type AssistantMode = "general" | "documents";
+export type AssistantOperation = "question" | "summarize";
+
 /** Request body of `POST /api/assistant/chat`. */
 export interface AssistantChatRequest {
   message: string;
+  /** Defaults to documents mode for clients that do not yet choose a mode. */
+  mode?: AssistantMode;
+  /** Summarize requires a specific document in documents mode. */
+  operation?: AssistantOperation;
   pageContext?: AssistantPageContext | null;
+  courseId?: string | null;
+  documentId?: string | null;
 }
 
-/** Text-only response of `POST /api/assistant/chat`; document RAG is not enabled. */
-export interface AssistantChatResponse {
+export interface AssistantCitation {
+  sourceId: string;
+  documentId: string;
+  chunkId: string;
+  title: string;
+  page: number | null;
+  chunkIndex: number;
+}
+
+export type AssistantReasonCode =
+  "ANSWER_GENERATED" | "PARTIAL_COVERAGE" | "NO_RELEVANT_EVIDENCE";
+
+/** Response from general chat or document-grounded RAG. */
+export type AssistantChatResponse = {
   answer: string;
+  answerable: boolean;
+  reasonCode: AssistantReasonCode;
+  citations: AssistantCitation[];
   provider: "google";
   model: string;
-  ragEnabled: false;
-}
+  promptVersion: string;
+} & (
+  | { mode: "general"; ragEnabled: false }
+  | { mode: "documents"; ragEnabled: true }
+);
 
 /** Response of `GET /api/assistant/status`. */
 export type AssistantStatus = {
   provider: "google";
-  mode: "llm";
-  ragEnabled: false;
+  modes: readonly AssistantMode[];
+  ragEnabled: true;
   credentialsExposedToClient: false;
 } & ({ status: "ready"; model: string } | { status: "not_configured" });

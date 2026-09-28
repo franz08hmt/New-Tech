@@ -5,9 +5,17 @@ import { AppModule } from "../dist/app.module.js";
 import { DatabaseService } from "../dist/database/database.service.js";
 import { StorageService } from "../dist/documents/storage.service.js";
 import { GeminiService } from "../dist/assistant/gemini.service.js";
+import { DocumentIngestionService } from "../dist/documents/document-ingestion.service.js";
+import { RagRetrievalService } from "../dist/assistant/rag-retrieval.service.js";
 import { configureApp } from "../dist/common/http.js";
 
-export async function httpApp(database, storage, assistantProvider) {
+export async function httpApp(
+  database,
+  storage,
+  assistantProvider,
+  ingestionProvider,
+  retrievalProvider,
+) {
   let builder = Test.createTestingModule({ imports: [AppModule] });
   if (database)
     builder = builder.overrideProvider(DatabaseService).useValue(database);
@@ -17,6 +25,14 @@ export async function httpApp(database, storage, assistantProvider) {
     builder = builder
       .overrideProvider(GeminiService)
       .useValue(assistantProvider);
+  if (ingestionProvider)
+    builder = builder
+      .overrideProvider(DocumentIngestionService)
+      .useValue(ingestionProvider);
+  if (retrievalProvider)
+    builder = builder
+      .overrideProvider(RagRetrievalService)
+      .useValue(retrievalProvider);
   const module = await builder.compile();
   const app = module.createNestApplication({ logger: false });
   configureApp(app);
@@ -146,6 +162,7 @@ export function fakeDependencies() {
           storage_key: values[2],
           size_bytes: values[3],
           storage_status: "stored",
+          processing_status: "pending",
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };

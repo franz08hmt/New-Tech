@@ -9,6 +9,8 @@ export type AssistantAnswer = AssistantChatResponse;
 export interface AssistantGeneration {
   systemInstruction: string;
   userParts: string[];
+  responseMimeType?: "application/json";
+  responseJsonSchema?: unknown;
 }
 
 export interface AssistantProvider {

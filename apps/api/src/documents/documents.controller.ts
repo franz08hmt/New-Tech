@@ -13,6 +13,7 @@ import {
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { DocumentsService, MAX_FILE_SIZE } from "./documents.service.js";
+import { DocumentIngestionService } from "./document-ingestion.service.js";
 import type { PdfFile } from "./documents.service.js";
 import {
   SetDocumentCourseDto,
@@ -21,7 +22,10 @@ import {
 
 @Controller("documents")
 export class DocumentsController {
-  constructor(private readonly documents: DocumentsService) {}
+  constructor(
+    private readonly documents: DocumentsService,
+    private readonly ingestion: DocumentIngestionService,
+  ) {}
   @Get() list() {
     return this.documents.list();
   }
@@ -43,6 +47,11 @@ export class DocumentsController {
   )
   upload(@Body() input: UploadDocumentDto, @UploadedFile() file?: PdfFile) {
     return this.documents.upload(file, input.courseId);
+  }
+  @Post(":id/process")
+  @HttpCode(200)
+  process(@Param("id", new ParseUUIDPipe()) id: string) {
+    return this.ingestion.process(id);
   }
   @Get(":id/download")
   download(@Param("id", new ParseUUIDPipe()) id: string) {

@@ -26,6 +26,15 @@ interface DocumentRecord {
   size_bytes: number | null;
   storage_key: string;
   storage_status: "stored" | "deleting" | "legacy";
+  processing_status: "pending" | "processing" | "ready" | "failed";
+  total_page_count: number | null;
+  useful_text_page_count: number | null;
+  low_text_page_count: number | null;
+  indexed_chunk_count: number | null;
+  skipped_page_numbers: number[] | null;
+  needs_ocr: boolean | null;
+  ocr_page_count: number;
+  ocr_page_numbers: number[];
   course_id: string | null;
   course_slug: string | null;
   course_name: string | null;
@@ -45,6 +54,15 @@ const DOCUMENT_COLUMNS = `d.id,
   d.size_bytes,
   d.storage_key,
   d.storage_status,
+  d.processing_status,
+  d.total_page_count,
+  d.useful_text_page_count,
+  d.low_text_page_count,
+  d.indexed_chunk_count,
+  d.skipped_page_numbers,
+  d.needs_ocr,
+  d.ocr_page_count,
+  d.ocr_page_numbers,
   d.course_id,
   c.slug AS course_slug,
   c.name AS course_name,
@@ -77,13 +95,27 @@ function decodeUploadName(raw: string): string {
 // inferred, so an extra field here — `storage_key`, say — would have reached
 // the browser with nothing to catch it. Now the contract rejects it.
 function publicDocument(document: DocumentRecord): StoredDocument {
-  // Exclude internal keys and the legacy processing_status (no AI pipeline).
+  // Exclude internal storage keys while exposing safe indexing status metadata.
   return {
     id: document.id,
     name: document.name,
     media_type: document.media_type,
     size_bytes: document.size_bytes,
     storage_status: document.storage_status,
+    processing_status: document.processing_status,
+    index_quality:
+      document.total_page_count == null
+        ? null
+        : {
+            total_page_count: document.total_page_count,
+            useful_text_page_count: document.useful_text_page_count!,
+            low_text_page_count: document.low_text_page_count!,
+            indexed_chunk_count: document.indexed_chunk_count!,
+            skipped_page_numbers: document.skipped_page_numbers!,
+            needs_ocr: document.needs_ocr!,
+            ocr_page_count: document.ocr_page_count,
+            ocr_page_numbers: document.ocr_page_numbers,
+          },
     course_id: document.course_id,
     course_slug: document.course_slug,
     course_name: document.course_name,

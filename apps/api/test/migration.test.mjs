@@ -11,6 +11,19 @@ import {
   loadMigrations,
 } from "../scripts/migrate.mjs";
 
+const expectedMigrationNames = [
+  "001_init.sql",
+  "002_non_ai_storage.sql",
+  "003_courses.sql",
+  "004_exams.sql",
+  "005_study_plans.sql",
+  "006_expenses.sql",
+  "007_document_course.sql",
+  "008_rag_foundation.sql",
+  "009_document_index_quality.sql",
+  "010_document_ocr_coverage.sql",
+];
+
 const saved = { ...process.env };
 afterEach(() => {
   mock.restoreAll();
@@ -87,22 +100,12 @@ test("migration applies then skips all files with verified TLS and empty URL fal
   process.env.MIGRATION_DATABASE_URL = "   ";
   await migrate();
   assert.deepEqual(db.messages, [
-    "Migration applied: 001_init.sql",
-    "Migration applied: 002_non_ai_storage.sql",
-    "Migration applied: 003_courses.sql",
-    "Migration applied: 004_exams.sql",
-    "Migration applied: 005_study_plans.sql",
-    "Migration applied: 006_expenses.sql",
-    "Migration applied: 007_document_course.sql",
-    "Migration already applied: 001_init.sql",
-    "Migration already applied: 002_non_ai_storage.sql",
-    "Migration already applied: 003_courses.sql",
-    "Migration already applied: 004_exams.sql",
-    "Migration already applied: 005_study_plans.sql",
-    "Migration already applied: 006_expenses.sql",
-    "Migration already applied: 007_document_course.sql",
+    ...expectedMigrationNames.map((name) => `Migration applied: ${name}`),
+    ...expectedMigrationNames.map(
+      (name) => `Migration already applied: ${name}`,
+    ),
   ]);
-  assert.equal(db.history.size, 7);
+  assert.equal(db.history.size, expectedMigrationNames.length);
   assert.equal(
     db.statements.filter((s) => s.startsWith("CREATE EXTENSION")).length,
     1,
@@ -127,6 +130,52 @@ test("linking documents to courses is additive and keeps the file", async () => 
   // Dropping the row would orphan an object that still exists in Supabase.
   assert.doesNotMatch(linkMigration, /ON DELETE CASCADE/);
   assert.doesNotMatch(linkMigration, /DROP TABLE|DROP COLUMN/);
+});
+
+test("RAG foundation fixes vector dimensions and adds safe processing state", async () => {
+  const migrations = await loadMigrations();
+  const ragMigration = migrations[7].sql;
+  assert.match(ragMigration, /ALTER COLUMN embedding TYPE VECTOR\(768\)/);
+  assert.match(ragMigration, /vector_dims\(embedding\) <> 768/);
+  assert.match(ragMigration, /USING hnsw \(embedding vector_cosine_ops\)/);
+  assert.match(
+    ragMigration,
+    /processing_status IN \('pending', 'processing', 'ready', 'failed'\)/,
+  );
+  assert.match(ragMigration, /ADD COLUMN indexed_at TIMESTAMPTZ/);
+  assert.match(ragMigration, /ADD COLUMN processing_error_code VARCHAR\(80\)/);
+  assert.match(ragMigration, /ADD COLUMN embedding_model VARCHAR\(100\)/);
+  assert.match(ragMigration, /ADD COLUMN embedding_dimensions SMALLINT/);
+  assert.doesNotMatch(ragMigration, /DROP TABLE|TRUNCATE|DELETE FROM/);
+});
+
+test("document index quality is additive and preserves unknown legacy coverage", async () => {
+  const migrations = await loadMigrations();
+  const qualityMigration = migrations[8].sql;
+  assert.match(qualityMigration, /ALTER TABLE documents/);
+  assert.match(qualityMigration, /ADD COLUMN total_page_count SMALLINT/);
+  assert.match(qualityMigration, /ADD COLUMN useful_text_page_count SMALLINT/);
+  assert.match(
+    qualityMigration,
+    /ADD COLUMN skipped_page_numbers SMALLINT\[\]/,
+  );
+  assert.match(qualityMigration, /ADD COLUMN needs_ocr BOOLEAN/);
+  assert.doesNotMatch(
+    qualityMigration,
+    /DROP TABLE|DROP COLUMN|TRUNCATE|DELETE FROM|UPDATE documents/,
+  );
+});
+
+test("OCR coverage is additive and bounded without storing page images", async () => {
+  const migrations = await loadMigrations();
+  const ocrMigration = migrations[9].sql;
+  assert.match(ocrMigration, /ADD COLUMN ocr_page_count SMALLINT/);
+  assert.match(ocrMigration, /ADD COLUMN ocr_page_numbers SMALLINT\[\]/);
+  assert.match(ocrMigration, /ocr_page_count BETWEEN 0 AND 50/);
+  assert.doesNotMatch(
+    ocrMigration,
+    /DROP TABLE|DROP COLUMN|TRUNCATE|DELETE FROM|BYTEA/,
+  );
 });
 
 test("expenses are an additive sixth migration that outlive their course", async () => {
@@ -190,15 +239,7 @@ test("course foundation is an additive third migration with typed illustrative s
   const migrations = await loadMigrations();
   assert.deepEqual(
     migrations.map(({ name }) => name),
-    [
-      "001_init.sql",
-      "002_non_ai_storage.sql",
-      "003_courses.sql",
-      "004_exams.sql",
-      "005_study_plans.sql",
-      "006_expenses.sql",
-      "007_document_course.sql",
-    ],
+    expectedMigrationNames,
   );
   const courseMigration = migrations[2].sql;
   assert.match(courseMigration, /CREATE TABLE courses/);

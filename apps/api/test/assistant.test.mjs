@@ -15,11 +15,19 @@ const saved = { ...process.env };
 const secret = "http-test-credential-not-a-real-key";
 const common = {
   provider: "google",
-  mode: "llm",
-  ragEnabled: false,
+  modes: ["general", "documents"],
+  ragEnabled: true,
   credentialsExposedToClient: false,
 };
-let server, fixture, provider, logs;
+const citation = {
+  sourceId: "S1",
+  chunkId: "11111111-1111-4111-8111-111111111111",
+  documentId: "22222222-2222-4222-8222-222222222222",
+  title: "requirements.pdf",
+  page: 3,
+  chunkIndex: 0,
+};
+let server, fixture, provider, retrieval, logs;
 
 beforeEach(() => {
   process.env.GEMINI_API_KEY = secret;
@@ -33,7 +41,22 @@ beforeEach(() => {
   provider = {
     model: "gemini-2.5-flash",
     status: () => ({ ...common, status: "ready", model: "gemini-2.5-flash" }),
-    generate: mock.fn(async () => "Plan your study sessions."),
+    generate: mock.fn(async () =>
+      JSON.stringify({
+        answerable: true,
+        answer: "Plan your study sessions [S1].",
+        citationIds: ["S1"],
+      }),
+    ),
+  };
+  retrieval = {
+    retrieve: mock.fn(async () => ({
+      promptVersion: "rag-v1",
+      context:
+        'BEGIN_RETRIEVED_EVIDENCE\n[{"sourceId":"S1","text":"Private evidence"}]\nEND_RETRIEVED_EVIDENCE',
+      evidence: [],
+      citations: [citation],
+    })),
   };
   // Tests permit only their own loopback server; provider transport is mocked.
   globalThis.fetch = (url, init) => {
@@ -53,7 +76,13 @@ afterEach(async () => {
 });
 
 async function start(adapter = provider) {
-  server = await httpApp(fixture.database, fixture.storage, adapter);
+  server = await httpApp(
+    fixture.database,
+    fixture.storage,
+    adapter,
+    undefined,
+    retrieval,
+  );
 }
 function mockTransport(handler) {
   globalThis.fetch = (url, init) => {
@@ -84,6 +113,7 @@ test("HTTP status without key or with placeholder remains available; chat return
     assert.equal(response.status, 503);
     const body = await response.json();
     assert.equal(body.message, "AI assistant is not configured.");
+    assert.equal(body.code, "AI_NOT_CONFIGURED");
     assert.ok(body.requestId);
     await server.app.close();
     server = undefined;
@@ -101,7 +131,7 @@ test("HTTP ready status exposes only safe fields without making a provider call"
   });
 });
 
-test("HTTP chat validates and transforms DTO before service; no DB or Storage access", async () => {
+test("HTTP chat validates DTO and returns backend-validated citations", async () => {
   await start();
   const chat = mock.method(server.app.get(AssistantService), "chat");
   const response = await server.request(
@@ -113,10 +143,15 @@ test("HTTP chat validates and transforms DTO before service; no DB or Storage ac
   );
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), {
-    answer: "Plan your study sessions.",
+    answer: "Plan your study sessions [S1].",
+    answerable: true,
+    reasonCode: "ANSWER_GENERATED",
+    citations: [citation],
     provider: "google",
     model: "gemini-2.5-flash",
-    ragEnabled: false,
+    mode: "documents",
+    ragEnabled: true,
+    promptVersion: "rag-v1",
   });
   const input = chat.mock.calls[0].arguments[0];
   assert.ok(input instanceof AssistantChatDto);
@@ -128,10 +163,96 @@ test("HTTP chat validates and transforms DTO before service; no DB or Storage ac
   assert.equal(fixture.state.uploadCalls, 0);
   assert.equal(fixture.state.removeCalls, 0);
   assert.equal(provider.generate.mock.callCount(), 1);
+  assert.equal(retrieval.retrieve.mock.callCount(), 1);
   assert.ok(
     logs.some((line) => JSON.parse(line).path === "/api/assistant/chat"),
   );
+  const completion = logs
+    .map((line) => JSON.parse(line))
+    .find((entry) => entry.event === "assistant.chat.completed");
+  assert.equal(completion.mode, "documents");
+  assert.equal(completion.operation, "question");
+  assert.equal(completion.reasonCode, "ANSWER_GENERATED");
+  assert.equal(completion.evidenceCount, 0);
+  assert.ok(completion.requestId);
+  assert.equal(typeof completion.durationMs, "number");
   assert.ok(!logs.join().includes("Hãy giúp tôi học"));
+});
+
+test("HTTP chat returns unanswerable without calling generation when retrieval is empty", async () => {
+  retrieval.retrieve = mock.fn(async () => ({
+    promptVersion: "rag-v1",
+    context: null,
+    evidence: [],
+    citations: [],
+  }));
+  await start();
+  const response = await server.request(
+    "/assistant/chat",
+    json("POST", { message: "Không có trong tài liệu" }),
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    answer:
+      "Không đủ bằng chứng trong các tài liệu đã lập chỉ mục để trả lời câu hỏi này.",
+    answerable: false,
+    reasonCode: "NO_RELEVANT_EVIDENCE",
+    citations: [],
+    provider: "google",
+    model: "gemini-2.5-flash",
+    mode: "documents",
+    ragEnabled: true,
+    promptVersion: "rag-v1",
+  });
+  assert.equal(provider.generate.mock.callCount(), 0);
+});
+
+test("HTTP chat rejects a model citation that was not retrieved", async () => {
+  provider.generate = mock.fn(async () =>
+    JSON.stringify({
+      answerable: true,
+      answer: "Invented claim [S9]",
+      citationIds: ["S9"],
+    }),
+  );
+  await start();
+  const response = await server.request(
+    "/assistant/chat",
+    json("POST", { message: "Private question" }),
+  );
+  assert.equal(response.status, 502);
+  const output = (await response.text()) + logs.join();
+  assert.ok(!output.includes("Private question"));
+  assert.ok(!output.includes("Private evidence"));
+  assert.ok(!output.includes("Invented claim"));
+});
+
+test("HTTP general chat bypasses document retrieval and returns no citations", async () => {
+  provider.generate = mock.fn(
+    async () => "HTTPS protects data in transit with TLS.",
+  );
+  retrieval.retrieve = mock.fn(async () => {
+    throw new Error("general mode must not retrieve documents");
+  });
+  await start();
+  const response = await server.request(
+    "/assistant/chat",
+    json("POST", { message: "Explain HTTPS", mode: "general" }),
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    answer: "HTTPS protects data in transit with TLS.",
+    answerable: true,
+    reasonCode: "ANSWER_GENERATED",
+    citations: [],
+    provider: "google",
+    model: "gemini-2.5-flash",
+    mode: "general",
+    ragEnabled: false,
+    promptVersion: "general-v1",
+  });
+  assert.equal(provider.generate.mock.callCount(), 1);
+  assert.equal(retrieval.retrieve.mock.callCount(), 0);
 });
 
 for (const [name, body] of Object.entries({
@@ -148,6 +269,8 @@ for (const [name, body] of Object.entries({
   unknown: { message: "Help", history: [] },
   url: { message: "Help", url: "https://example.test" },
   file: { message: "Help", file: "file.pdf" },
+  badCourse: { message: "Help", courseId: "not-a-uuid" },
+  badMode: { message: "Help", mode: "unknown" },
   pageString: { message: "Help", pageContext: "tasks" },
   pageArray: {
     message: "Help",
@@ -190,6 +313,7 @@ for (const [name, body] of Object.entries({
     const text = await response.text();
     assert.ok(!text.includes(secret));
     assert.equal(provider.generate.mock.callCount(), 0);
+    assert.equal(retrieval.retrieve.mock.callCount(), 0);
   });
 }
 
@@ -231,24 +355,49 @@ for (const [kind, status] of [
         ? "AI assistant timed out. Please retry."
         : "AI assistant is temporarily unavailable.",
     );
+    assert.equal(
+      body.code,
+      {
+        timeout: "AI_TIMEOUT",
+        quota: "AI_QUOTA",
+        authentication: "AI_AUTHENTICATION",
+        upstream: "AI_UPSTREAM",
+      }[kind],
+    );
     assert.ok(body.requestId);
     assert.ok(!JSON.stringify(body).includes("stack"));
   });
 }
 
-test("real SDK with mocked fetch returns text only, without secrets in HTTP response or logs", async () => {
+test("real SDK receives grounded JSON settings without secrets in response or logs", async () => {
   let calls = 0;
   mockTransport(async (_url, init) => {
     calls++;
     const body = JSON.parse(init.body);
     assert.equal(body.contents[0].role, "user");
-    assert.equal(body.contents[0].parts[0].text, "Private question");
+    assert.equal(body.contents[0].parts[0].text, "Question: Private question");
+    assert.match(body.contents[0].parts[1].text, /BEGIN_RETRIEVED_EVIDENCE/);
     assert.equal(body.tools, undefined);
     assert.equal(body.generationConfig.maxOutputTokens, 1024);
+    assert.equal(body.generationConfig.responseMimeType, "application/json");
+    assert.equal(body.generationConfig.responseJsonSchema.type, "object");
     assert.ok(!JSON.stringify(body).includes(secret));
     return Response.json({
       candidates: [
-        { content: { role: "model", parts: [{ text: "  SDK answer  " }] } },
+        {
+          content: {
+            role: "model",
+            parts: [
+              {
+                text: JSON.stringify({
+                  answerable: true,
+                  answer: "SDK answer [S1]",
+                  citationIds: ["S1"],
+                }),
+              },
+            ],
+          },
+        },
       ],
       privateField: secret,
     });
@@ -260,10 +409,15 @@ test("real SDK with mocked fetch returns text only, without secrets in HTTP resp
   );
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), {
-    answer: "SDK answer",
+    answer: "SDK answer [S1]",
+    answerable: true,
+    reasonCode: "ANSWER_GENERATED",
+    citations: [citation],
     provider: "google",
     model: "gemini-2.5-flash",
-    ragEnabled: false,
+    mode: "documents",
+    ragEnabled: true,
+    promptVersion: "rag-v1",
   });
   assert.equal(calls, 1);
   assert.ok(!logs.join().includes(secret));

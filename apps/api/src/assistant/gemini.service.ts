@@ -21,8 +21,8 @@ export class GeminiService implements AssistantProvider {
   status(): AssistantStatus {
     const common = {
       provider: "google" as const,
-      mode: "llm" as const,
-      ragEnabled: false as const,
+      modes: ["general", "documents"] as ("general" | "documents")[],
+      ragEnabled: true as const,
       credentialsExposedToClient: false as const,
     };
     return this.config.configured
@@ -60,6 +60,12 @@ export class GeminiService implements AssistantProvider {
             maxOutputTokens: this.config.maxOutputTokens,
             candidateCount: 1,
             responseModalities: ["TEXT"],
+            ...(input.responseMimeType
+              ? { responseMimeType: input.responseMimeType }
+              : {}),
+            ...(input.responseJsonSchema
+              ? { responseJsonSchema: input.responseJsonSchema }
+              : {}),
             abortSignal: controller.signal,
             httpOptions: { retryOptions: { attempts: 1 } },
           },
