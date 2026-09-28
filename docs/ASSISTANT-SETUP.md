@@ -1,6 +1,6 @@
 # ExaMate Assistant — Gemini, RAG và xử lý PDF
 
-> **Cập nhật 28/09/2026:** phần hướng dẫn lịch sử bên dưới mô tả phiên bản Gemini text-only và có nhiều chỗ không còn đúng. Tính năng mới được tích hợp trên `feature/tai-rag-integration`: hai chế độ chat (`general`) và hỏi tài liệu (`documents`), lập chỉ mục PDF qua `POST /api/documents/:id/process`, citations đã kiểm chứng phía backend, và OCR tùy chọn. Hãy dùng README, `.env.example` và `docs/evaluation-plan.md` làm nguồn hiện tại; các migration `008`–`010` chưa được chạy lên Supabase.
+> **Cập nhật 28/09/2026:** phần hướng dẫn lịch sử bên dưới mô tả phiên bản Gemini text-only và có nhiều chỗ không còn đúng. Tính năng mới được tích hợp trên `feature/tai-rag-integration`: hai chế độ chat (`general`) và hỏi tài liệu (`documents`), lập chỉ mục PDF qua `POST /api/documents/:id/process`, citations đã kiểm chứng phía backend, và OCR tùy chọn. Supabase đang cấu hình trên máy Tài đã áp dụng migration `001`–`010`; upload PDF qua API thật đã qua kiểm tra. Hãy dùng README, `.env.example` và `docs/evaluation-plan.md` làm nguồn hiện tại. Database khác cần xác minh migration riêng.
 
 Để thử nhanh ở local: khởi động API và web, vào Documents, upload PDF, bấm **Index**, chờ trạng thái **Searchable content ready**, rồi mở Assistant và chọn **Hỏi tài liệu**. GET `/api/assistant/status` chỉ xác nhận cấu hình, không chứng minh Google key/quota hay truy xuất database hoạt động. Tránh gửi prompt có dữ liệu riêng tư; không dùng `--execute` trong bộ đánh giá nếu chưa sẵn sàng gọi Gemini và dùng quota.
 

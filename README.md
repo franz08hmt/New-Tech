@@ -2,7 +2,7 @@
 
 Workspace học tập dùng React + NestJS + PostgreSQL/Supabase Storage. Hiện có các luồng Tasks, Courses, Exams, study plans, chi tiêu, ghi chú trên trình duyệt và tài liệu PDF. Backend hỗ trợ Gemini ở hai chế độ tách biệt: chat thông thường và hỏi tài liệu đã lập chỉ mục (RAG) kèm citations. PDF được trích xuất, chia đoạn và embedding phía API; OCR là tùy chọn và mặc định tắt.
 
-**Trạng thái tích hợp:** RAG/OCR mới được ghép trên nhánh `feature/tai-rag-integration`; các migration `008`–`010` chưa được áp dụng lên Supabase. Chưa xác nhận luồng indexing/RAG end-to-end với database thật. Xem [hướng dẫn Assistant](docs/ASSISTANT-SETUP.md) và [kế hoạch đánh giá](docs/evaluation-plan.md).
+**Trạng thái tích hợp:** RAG/OCR đã được ghép trên nhánh `feature/tai-rag-integration`. Supabase đang cấu hình trên máy Tài đã áp dụng migration `001`–`010` vào ngày 28/09/2026. Upload PDF tổng hợp, gắn môn, liệt kê và xóa đã được kiểm tra qua API thật; luồng indexing và trả lời RAG end-to-end vẫn cần kiểm chứng. Với database khác, hãy kiểm tra target trước khi chạy `npm run db:migrate`. Xem [hướng dẫn Assistant](docs/ASSISTANT-SETUP.md) và [kế hoạch đánh giá](docs/evaluation-plan.md).
 
 Hướng dẫn Assistant và contract mới: [Gemini Assistant setup](docs/ASSISTANT-SETUP.md). Các tài liệu Homework 4A/4B bên dưới ghi nhận checkpoint non-AI trước khi bổ sung Assistant.
 

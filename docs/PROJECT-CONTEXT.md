@@ -1,6 +1,6 @@
 # ExaMate AI — Project Context & Handoff
 
-> **Trạng thái mới 28/09/2026:** tích hợp chọn lọc LLM+RAG/OCR của Thắng đang ở nhánh local `feature/tai-rag-integration`, tách từ `feature/tai`; nhánh `feature/thang` và `main` không bị sửa. Đã bổ sung pipeline trích xuất PDF, chunking, Gemini embeddings, vector retrieval/citations, xử lý OCR tùy chọn và giao diện hai chế độ Assistant. Migration mới `008`–`010` chỉ được thêm vào source, **chưa chạy trên Supabase**. Test/typecheck/build đã xác minh; RAG với dữ liệu thật chưa kiểm chứng vì API local không thể kết nối tới database trong môi trường hiện tại. Đọc README và [evaluation plan](evaluation-plan.md) trước khi tiếp tục. Các checkpoint cũ bên dưới là lịch sử.
+> **Trạng thái mới 28/09/2026:** tích hợp chọn lọc LLM+RAG/OCR của Thắng ở nhánh `feature/tai-rag-integration`, tách từ `feature/tai`; nhánh `feature/thang` và `main` không bị sửa. Đã bổ sung pipeline trích xuất PDF, chunking, Gemini embeddings, vector retrieval/citations, xử lý OCR tùy chọn và giao diện hai chế độ Assistant. Supabase đang cấu hình trên máy Tài đã áp dụng migration `001`–`010`; upload PDF tổng hợp, gắn môn, liệt kê và xóa qua API thật đã kiểm tra thành công ngày 28/09/2026. Chưa kiểm chứng indexing và câu trả lời RAG end-to-end. Đọc README và [evaluation plan](evaluation-plan.md) trước khi tiếp tục. Các checkpoint cũ bên dưới là lịch sử.
 
 > **Mục đích:** đây là file tổng hợp bối cảnh để tiếp tục project khi chuyển sang box chat, model hoặc phiên làm việc khác. Hãy đọc file này trước, sau đó kiểm tra lại `git status` và chỉ nạp các source liên quan trực tiếp đến task đang làm.
 
@@ -608,4 +608,4 @@ Box/model tiếp theo nên bắt đầu như sau:
 
 ---
 
-**Current resume point (28/09/2026):** làm tiếp trên `feature/tai-rag-integration`; trước mọi thao tác Git hãy kiểm tra status. Không commit/push hoặc chạy migration thật nếu Tài chưa yêu cầu. Hoàn tất review/test RAG, xác minh kết nối với database chỉ sau khi có môi trường phù hợp; sau đó Tài và Thắng cần review hợp đồng, citations, quyền truy cập và quy trình xử lý lỗi. Giữ nguyên `feature/thang` và `main`.
+**Current resume point (28/09/2026):** làm tiếp trên `feature/tai-rag-integration`; trước mọi thao tác Git hãy kiểm tra status. Schema và upload đã kiểm chứng trên Supabase cấu hình local; bước kế tiếp là thử lập chỉ mục một PDF tổng hợp và hỏi tài liệu có citations, rồi cùng Thắng review hợp đồng, quyền truy cập và quy trình xử lý lỗi. Giữ nguyên `feature/thang` và `main`.
