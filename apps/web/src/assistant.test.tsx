@@ -13,8 +13,7 @@ import { useAssistant, type AskTransport } from "./use-assistant";
 /**
  * These drive the panel with a fixture transport. They prove the seam Thắng
  * will plug into renders a reply, its sources, a pending state and a failure
- * correctly. They do not mean the assistant answers anything in the product:
- * the app passes no transport, and the preview tests in App.test.tsx cover that.
+ * correctly. The app's integration tests exercise the real HTTP transport.
  */
 function Harness({ transport }: { transport?: AskTransport }) {
   const assistant = useAssistant(transport);
@@ -52,10 +51,15 @@ describe("ExaMate AI seam", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/de-cuong-thuat-toan\.pdf/)).toBeInTheDocument();
     // The page context travels with the question, so the backend can scope it.
-    expect(transport).toHaveBeenCalledWith("Nên ôn gì trước?", {
-      pageId: "courses",
-      pageName: "Công nghệ phần mềm",
-    });
+    expect(transport).toHaveBeenCalledWith(
+      "Nên ôn gì trước?",
+      {
+        pageId: "courses",
+        pageName: "Công nghệ phần mềm",
+      },
+      "documents",
+      "question",
+    );
     // Sent successfully, so the composer is ready for the next question.
     expect(screen.getByLabelText("Question for ExaMate")).toHaveValue("");
   });
@@ -71,7 +75,7 @@ describe("ExaMate AI seam", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/Chưa gửi được/);
+    expect(await screen.findByRole("alert")).toHaveTextContent("offline");
     // Losing what someone typed because the network dropped is the one thing
     // an error path must never do.
     expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(

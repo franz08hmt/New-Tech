@@ -1,6 +1,6 @@
 # ExaMate AI — Project Context & Handoff
 
-> **Checkpoint mới 13/09/2026 — Homework 4 non-AI:** Tasks được siết validation; Documents chuyển từ preview sang NestJS API + Supabase Storage adapter/pg metadata. Cấu hình, migration và tests mới đã triển khai. Xem [README](../README.md), [VERIFICATION](VERIFICATION.md), [4A](HOMEWORK-4A-EVIDENCE.md), [4B](HOMEWORK-4B-EVIDENCE.md). Chưa có credentials Supabase, Docker engine chưa chạy, DB test skip; chưa có video/commit. Thư mục ZIP hiện không có `.git`. Nội dung Week 3 bên dưới là lịch sử, không dùng làm bằng chứng cho bản Homework 4. AI/RAG vẫn là kế hoạch tương lai.
+> **Trạng thái mới 28/09/2026:** tích hợp chọn lọc LLM+RAG/OCR của Thắng đang ở nhánh local `feature/tai-rag-integration`, tách từ `feature/tai`; nhánh `feature/thang` và `main` không bị sửa. Đã bổ sung pipeline trích xuất PDF, chunking, Gemini embeddings, vector retrieval/citations, xử lý OCR tùy chọn và giao diện hai chế độ Assistant. Migration mới `008`–`010` chỉ được thêm vào source, **chưa chạy trên Supabase**. Test/typecheck/build đã xác minh; RAG với dữ liệu thật chưa kiểm chứng vì API local không thể kết nối tới database trong môi trường hiện tại. Đọc README và [evaluation plan](evaluation-plan.md) trước khi tiếp tục. Các checkpoint cũ bên dưới là lịch sử.
 
 > **Mục đích:** đây là file tổng hợp bối cảnh để tiếp tục project khi chuyển sang box chat, model hoặc phiên làm việc khác. Hãy đọc file này trước, sau đó kiểm tra lại `git status` và chỉ nạp các source liên quan trực tiếp đến task đang làm.
 
@@ -608,4 +608,4 @@ Box/model tiếp theo nên bắt đầu như sau:
 
 ---
 
-**Current resume point:** frontend-only responsive AI Copilot shell đã hoàn thành trên `feature/tai`: dock ở màn hình rộng, overlay ở laptop và bottom sheet ở mobile; 14 tests, typecheck, format và production build pass ngày 2026-09-10. Panel chỉ là interface preview, chưa gửi request AI/RAG. Việc tiếp theo của Tài là chạy walkthrough và nhờ Thắng review; `apps/api/tsconfig.tsbuildinfo` vẫn là generated file không được commit.
+**Current resume point (28/09/2026):** làm tiếp trên `feature/tai-rag-integration`; trước mọi thao tác Git hãy kiểm tra status. Không commit/push hoặc chạy migration thật nếu Tài chưa yêu cầu. Hoàn tất review/test RAG, xác minh kết nối với database chỉ sau khi có môi trường phù hợp; sau đó Tài và Thắng cần review hợp đồng, citations, quyền truy cập và quy trình xử lý lỗi. Giữ nguyên `feature/thang` và `main`.

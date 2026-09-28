@@ -186,6 +186,8 @@ const documentFixtures = [
     media_type: "application/pdf",
     size_bytes: 2048,
     storage_status: "stored",
+    processing_status: "pending",
+    index_quality: null,
     course_id: "course-1",
     course_slug: "cs-201",
     course_name: "C\u00f4ng ngh\u1ec7 ph\u1ea7n m\u1ec1m",
@@ -199,6 +201,8 @@ const documentFixtures = [
     media_type: "application/pdf",
     size_bytes: 1024,
     storage_status: "stored",
+    processing_status: "ready",
+    index_quality: null,
     course_id: null,
     course_slug: null,
     course_name: null,
@@ -284,15 +288,48 @@ beforeEach(() => {
           JSON.stringify({
             answer:
               "Chia bài thuyết trình thành mục tiêu, demo và phần hỏi đáp.",
+            answerable: true,
+            reasonCode: "ANSWER_GENERATED",
+            citations: [],
             provider: "google",
             model: "gemini-2.5-flash",
-            ragEnabled: false,
+            mode: "documents",
+            ragEnabled: true,
+            promptVersion: "rag-v1",
           }),
           { status: 200 },
         );
       }
       if (url === "/api/documents" && init?.method !== "POST") {
         return new Response(JSON.stringify(documentFixtures), { status: 200 });
+      }
+      if (
+        url.startsWith("/api/documents/") &&
+        url.endsWith("/process") &&
+        init?.method === "POST"
+      ) {
+        return Response.json({
+          document_id: "doc-1",
+          processing_status: "ready",
+          chunk_count: 4,
+          indexed_at: "2026-09-15T08:00:00.000Z",
+          index_quality: {
+            total_page_count: 5,
+            useful_text_page_count: 4,
+            low_text_page_count: 1,
+            indexed_chunk_count: 4,
+            skipped_page_numbers: [3],
+            needs_ocr: true,
+            ocr_page_count: 0,
+            ocr_page_numbers: [],
+          },
+        });
+      }
+      if (url.startsWith("/api/documents/") && url.endsWith("/download")) {
+        return Response.json({
+          url: "https://storage.example.test/source.pdf?token=signed",
+          expiresIn: 60,
+        });
       }
       if (url.startsWith("/api/documents/") && url.endsWith("/course")) {
         const body = JSON.parse(String(init?.body ?? "{}")) as {
@@ -520,7 +557,7 @@ describe("Academic workspace", () => {
     ).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
-  it("shows document-aware prompts and explains that RAG is not connected", () => {
+  it("shows separate general and document-grounded assistant modes", () => {
     window.history.replaceState(null, "", "/#documents");
     render(<App />);
 
@@ -537,7 +574,7 @@ describe("Academic workspace", () => {
     );
     expect(
       screen.getByText(
-        /RAG chưa kết nối nên câu trả lời chưa dựa trên tài liệu/,
+        /chỉ dựa trên các tài liệu đã lập chỉ mục.*backend kiểm chứng/,
       ),
     ).toBeVisible();
     expect(screen.queryByText("Interface preview")).not.toBeInTheDocument();
@@ -764,6 +801,27 @@ describe("Academic workspace", () => {
           ([url, init]) => url === "/api/documents" && init?.method === "POST",
         ),
     ).toBe(false);
+  });
+  it("indexes a stored PDF and exposes its searchable state", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Index de-cuong-thuat-toan.pdf",
+      }),
+    );
+
+    expect(
+      await screen.findByText("AI index · Searchable content ready"),
+    ).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "4 đoạn để Assistant truy xuất",
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/documents/doc-1/process",
+      expect.objectContaining({ method: "POST" }),
+    );
   });
   it("keeps one card when the same PDF is picked twice in one selection", async () => {
     window.history.replaceState(null, "", "/#documents");
@@ -1919,7 +1977,7 @@ describe("Academic workspace", () => {
 
     expect(hero).toHaveFocus();
   });
-  it("sends the question to Gemini and explains that document RAG is not ready", async () => {
+  it("sends the question in document-grounded mode and renders the answer", async () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
     fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
@@ -1929,9 +1987,7 @@ describe("Academic workspace", () => {
     const send = screen.getByRole("button", { name: /Send question/ });
     expect(send).toBeEnabled();
     expect(
-      screen.getByText(
-        /RAG ch\u01b0a k\u1ebft n\u1ed1i.*ch\u01b0a d\u1ef1a tr\u00ean t\u00e0i li\u1ec7u/i,
-      ),
+      screen.getByRole("group", { name: "Chế độ trả lời" }),
     ).toBeInTheDocument();
     fireEvent.click(send);
 
@@ -1946,6 +2002,8 @@ describe("Academic workspace", () => {
         method: "POST",
         body: JSON.stringify({
           message: "Tôi nên chuẩn bị phần nào cho bài thuyết trình?",
+          mode: "documents",
+          operation: "question",
           pageContext: { pageId: "dashboard", pageName: "Dashboard" },
         }),
       }),

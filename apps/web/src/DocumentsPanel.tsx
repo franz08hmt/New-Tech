@@ -153,7 +153,7 @@ export function DocumentsPanel() {
   });
 
   async function refile(item: StoredDocument, courseId: string | null) {
-    begin(item.id);
+    if (!begin(item.id)) return;
     try {
       const updated = await api.setDocumentCourse(item.id, courseId);
       setDocuments((current) =>
@@ -169,6 +169,48 @@ export function DocumentsPanel() {
         cause instanceof Error
           ? cause.message
           : "Chưa đổi được môn cho tài liệu này.",
+      );
+    } finally {
+      finish(item.id);
+    }
+  }
+
+  async function process(item: StoredDocument) {
+    if (!begin(item.id)) return;
+    setDocuments((current) =>
+      current.map((row) =>
+        row.id === item.id ? { ...row, processing_status: "processing" } : row,
+      ),
+    );
+    try {
+      const result = await api.processDocument(item.id);
+      setDocuments((current) =>
+        current.map((row) =>
+          row.id === item.id
+            ? {
+                ...row,
+                processing_status: result.processing_status,
+                index_quality: result.index_quality,
+              }
+            : row,
+        ),
+      );
+      setNotice(
+        `Đã lập chỉ mục "${item.name}" thành ${result.chunk_count} đoạn để Assistant truy xuất.`,
+      );
+    } catch (cause) {
+      // The backend marks a claimed job failed before returning an error. Keep
+      // that state visible so the retry action is immediately available even
+      // if a follow-up list refresh cannot be made.
+      setDocuments((current) =>
+        current.map((row) =>
+          row.id === item.id ? { ...row, processing_status: "failed" } : row,
+        ),
+      );
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Chưa lập chỉ mục được tài liệu này. Bạn có thể thử lại.",
       );
     } finally {
       finish(item.id);
@@ -257,7 +299,7 @@ export function DocumentsPanel() {
           </label>
           <p id="upload-boundary" className="upload-boundary">
             Uploaded PDFs are saved in private Storage with database metadata.
-            Shared demo workspace · no login or AI processing.
+            Shared demo workspace · index documents for grounded answers.
           </p>
           {error && (
             <p className="error-message" role="alert">
@@ -340,6 +382,9 @@ export function DocumentsPanel() {
                     size={item.size_bytes}
                     state={item.storage_status}
                     busy={busyIds.includes(item.id)}
+                    processingStatus={item.processing_status ?? "pending"}
+                    indexQuality={item.index_quality}
+                    onProcess={() => void process(item)}
                     onDownload={() => void download(item)}
                     onRemove={() => void remove(item)}
                   />
@@ -387,14 +432,14 @@ export function DocumentsPanel() {
             <CircleStackIcon aria-hidden="true" />
             <span>
               <strong>Extract and index</strong>
-              <small>Future plan · not implemented</small>
+              <small>Backend PDF processing and Gemini embeddings</small>
             </span>
           </li>
           <li>
             <MagnifyingGlassIcon aria-hidden="true" />
             <span>
               <strong>Retrieve with citations</strong>
-              <small>Future plan · Assistant preview only</small>
+              <small>Grounded Assistant with validated sources</small>
             </span>
           </li>
         </ol>

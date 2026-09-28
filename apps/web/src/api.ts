@@ -5,11 +5,14 @@
 export type {
   AssistantChatRequest,
   AssistantChatResponse,
+  AssistantMode,
+  AssistantReasonCode,
   AssistantStatus,
   Course,
   CourseAssessment,
   CourseTone,
   CourseTopic,
+  DocumentProcessingResult,
   Exam,
   Expense,
   ExpenseCategory,
@@ -20,10 +23,23 @@ export type {
   TaskStatus,
 } from "@examate/contracts";
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly code: string,
+    readonly status: number,
+    readonly requestId?: string,
+  ) {
+    super(`${message}${requestId ? ` (Request ID: ${requestId})` : ""}`);
+    this.name = "ApiError";
+  }
+}
+
 import type {
   AssistantChatRequest,
   AssistantChatResponse,
   Course,
+  DocumentProcessingResult,
   Exam,
   Expense,
   ExpenseCategory,
@@ -58,6 +74,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as {
+        code?: string;
         message?: string | string[];
         requestId?: string;
       } | null;
@@ -65,8 +82,14 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
         ? body.message.join(", ")
         : body?.message;
       const id = response.headers.get("X-Request-ID") ?? body?.requestId;
-      throw new Error(
-        `${message || ([502, 503, 504].includes(response.status) ? "Service is unavailable. Please retry." : `Request failed (${response.status}).`)}${id ? ` (Request ID: ${id})` : ""}`,
+      throw new ApiError(
+        message ||
+          ([502, 503, 504].includes(response.status)
+            ? "Service is unavailable. Please retry."
+            : `Request failed (${response.status}).`),
+        body?.code || "REQUEST_FAILED",
+        response.status,
+        id,
       );
     }
     if (response.status === 204) return undefined as T;
@@ -165,6 +188,10 @@ export const api = {
     request<{ url: string; expiresIn: number }>(
       `/api/documents/${id}/download`,
     ),
+  processDocument: (id: string) =>
+    request<DocumentProcessingResult>(`/api/documents/${id}/process`, {
+      method: "POST",
+    }),
   deleteDocument: (id: string) =>
     request<void>(`/api/documents/${id}`, { method: "DELETE" }),
   health: () => request<HealthStatus>("/api/health"),

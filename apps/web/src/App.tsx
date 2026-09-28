@@ -13,12 +13,13 @@ import {
   DocumentArrowUpIcon,
 } from "@heroicons/react/24/outline";
 import { AssistantPanel } from "./AssistantPanel";
-import { api } from "./api";
+import { ApiError, api, type AssistantReasonCode } from "./api";
 import { PageSections } from "./PageSections";
 import { Sidebar } from "./Sidebar";
 import { useFocusTarget } from "./use-focus-target";
 import { useAssistant } from "./use-assistant";
 import { useCourses } from "./use-courses";
+import { useDocuments } from "./use-documents";
 import { useWorkspace } from "./use-workspace";
 
 const pages = [
@@ -94,6 +95,39 @@ const pages = [
       "ExaMate will connect your questions to the evidence in your documents.",
   },
 ];
+
+const assistantOutcomeMessage: Partial<Record<AssistantReasonCode, string>> = {
+  NO_RELEVANT_EVIDENCE:
+    "Không tìm thấy bằng chứng phù hợp trong phạm vi tài liệu đã chọn.",
+};
+
+const assistantFailureMessage: Record<string, string> = {
+  DOCUMENT_SELECTION_REQUIRED: "Hãy chọn một tài liệu trước khi tóm tắt.",
+  DOCUMENT_NOT_FOUND: "Không tìm thấy tài liệu đã chọn.",
+  DOCUMENT_SCOPE_MISMATCH: "Tài liệu đã chọn không thuộc môn học hiện tại.",
+  DOCUMENT_NOT_INDEXED: "Tài liệu chưa sẵn sàng. Hãy lập chỉ mục rồi thử lại.",
+  NO_USABLE_CONTENT:
+    "Tài liệu chưa có nội dung đủ dùng; file scan có thể cần OCR.",
+  DOCUMENT_TOO_LARGE: "Tài liệu vượt giới hạn xử lý an toàn cho thao tác này.",
+  AI_NOT_CONFIGURED: "AI chưa được cấu hình trên máy chủ.",
+  AI_TIMEOUT: "AI phản hồi quá lâu. Bản nháp vẫn được giữ để thử lại.",
+  AI_QUOTA: "Dịch vụ AI đã hết quota. Hãy thử lại sau.",
+  AI_AUTHENTICATION: "Thông tin xác thực AI không hợp lệ.",
+  AI_UNAVAILABLE: "Dịch vụ AI hiện không khả dụng. Hãy thử lại sau.",
+  AI_UPSTREAM: "AI trả về dữ liệu không hợp lệ hoặc tạm thời gặp sự cố.",
+};
+
+function assistantErrorMessage(error: unknown) {
+  if (!(error instanceof ApiError))
+    return error instanceof Error
+      ? error.message
+      : "Chưa gửi được câu hỏi. Bản nháp vẫn còn nguyên, thử lại nhé.";
+  const friendly = assistantFailureMessage[error.code];
+  if (!friendly) return error.message;
+  return error.requestId
+    ? `${friendly} Mã yêu cầu: ${error.requestId}`
+    : friendly;
+}
 type Page = (typeof pages)[number];
 
 interface AppRoute {
@@ -159,10 +193,43 @@ export default function App() {
   const [assistantOpen, setAssistantOpen] = useState(false);
   // The conversation lives here, above the panel, so hiding the panel or
   // changing page never takes the draft with it.
-  const assistant = useAssistant(async (question, pageContext) => {
-    const response = await api.askAssistant({ message: question, pageContext });
-    return { text: response.answer, citations: [] };
-  });
+  const assistant = useAssistant(
+    async (question, pageContext, mode, operation) => {
+      const { courseId, documentId, ...screenContext } = pageContext;
+      try {
+        const response = await api.askAssistant({
+          message: question,
+          mode,
+          operation,
+          pageContext: screenContext,
+          ...(courseId ? { courseId } : {}),
+          ...(documentId ? { documentId } : {}),
+        });
+        const translated = assistantOutcomeMessage[response.reasonCode];
+        const coverageWarning =
+          response.reasonCode === "PARTIAL_COVERAGE"
+            ? "Lưu ý: bản tóm tắt chỉ bao phủ phần nội dung đọc được; một số trang có thể cần OCR."
+            : "";
+        return {
+          text: [translated ?? response.answer, coverageWarning]
+            .filter(Boolean)
+            .join("\n\n"),
+          citations: response.citations.map((citation) => ({
+            id: citation.sourceId,
+            title: citation.title,
+            locator:
+              citation.page === null
+                ? `đoạn ${citation.chunkIndex + 1}`
+                : `tr. ${citation.page}`,
+            documentId: citation.documentId,
+            page: citation.page,
+          })),
+        };
+      } catch (error: unknown) {
+        throw new Error(assistantErrorMessage(error));
+      }
+    },
+  );
   const narrow = useNarrowScreen();
   const modal = assistantOpen && narrow;
   const modalOpen = useRef(false);
@@ -175,6 +242,7 @@ export default function App() {
   const heading = useRef<HTMLHeadingElement>(null);
   const menuToggle = useRef<HTMLButtonElement>(null);
   const workspace = useWorkspace();
+  const assistantDocuments = useDocuments();
   const coursesState = useCourses();
   const selectedCourse = route.courseSlug
     ? coursesState.courses.find((course) => course.slug === route.courseSlug)
@@ -384,7 +452,17 @@ export default function App() {
         modal={modal}
         pageId={page.id}
         pageName={page.name}
+        courseId={selectedCourse?.id}
         assistant={assistant}
+        documents={assistantDocuments.documents}
+        documentsLoading={assistantDocuments.loading}
+        onOpenCitation={async (citation) => {
+          if (!citation.documentId) return;
+          const { url } = await api.downloadDocument(citation.documentId);
+          const source = new URL(url, window.location.href);
+          if (citation.page) source.hash = `page=${citation.page}`;
+          window.open(source.toString(), "_blank", "noopener,noreferrer");
+        }}
         onClose={closeAssistant}
       />
       {/* Help and the AI launcher share one corner as a single stack, so

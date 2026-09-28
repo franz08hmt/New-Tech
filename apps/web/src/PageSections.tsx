@@ -215,8 +215,8 @@ function AssistantSection({
     <Panel title="Ask ExaMate" icon={<SparklesIcon />}>
       <p className="page-note">
         ExaMate AI sẽ trả lời dựa trên chính tài liệu môn học bạn đã tải lên,
-        kèm nguồn dẫn để bạn tự kiểm tra lại. Phần AI đang được Thắng kết nối,
-        nên hiện bạn mới chuẩn bị được câu hỏi.
+        kèm nguồn dẫn để bạn tự kiểm tra lại. Hãy lập chỉ mục tài liệu trước,
+        rồi chọn chế độ phù hợp trong khung Assistant.
       </p>
       <button
         type="button"
@@ -227,8 +227,8 @@ function AssistantSection({
         Show ExaMate AI panel
       </button>
       <p className="page-note">
-        Bạn vẫn quản lý công việc, lịch thi và tài liệu bình thường trong lúc
-        chờ.
+        Chat thông thường và Hỏi tài liệu là hai chế độ riêng; câu trả lời dựa
+        trên tài liệu chỉ dùng nguồn đã lập chỉ mục.
       </p>
     </Panel>
   );

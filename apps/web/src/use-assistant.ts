@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import type { AssistantMode, AssistantOperation } from "@examate/contracts";
 
 /*
  * The conversation behind the ExaMate AI panel.
@@ -16,10 +17,16 @@ import { useCallback, useRef, useState } from "react";
  */
 
 export interface AssistantCitation {
+  /** Stable backend source ID, when the transport provides one. */
+  id?: string;
   /** What to show: a document name, a page title. */
   title: string;
   /** Where inside it, if the backend can say: "tr. 3", "mục 2.1". */
   locator?: string;
+  /** Backend document ID used to request a short-lived source URL. */
+  documentId?: string;
+  /** One-based PDF page, when extraction produced page metadata. */
+  page?: number | null;
 }
 
 export interface AssistantMessage {
@@ -33,18 +40,22 @@ export interface AssistantMessage {
 export interface AssistantContext {
   pageId: string;
   pageName: string;
+  /** Narrows retrieval to the course currently being viewed. */
+  courseId?: string;
+  documentId?: string;
 }
 
 /**
  * Sends one question and resolves with the reply.
  *
- * The app passes none today, which is what keeps the panel an honest preview:
- * without a transport nothing can be sent and no answer can appear. When the
- * backend is ready this is the one function to write.
+ * Without a transport nothing can be sent and no answer can appear. App owns
+ * the one production transport that translates the HTTP citation contract.
  */
 export type AskTransport = (
   question: string,
   context: AssistantContext,
+  mode: AssistantMode,
+  operation: AssistantOperation,
 ) => Promise<{ text: string; citations: AssistantCitation[] }>;
 
 export type AssistantStatus = "unavailable" | "idle" | "sending" | "error";
@@ -54,16 +65,24 @@ export interface AssistantState {
   setDraft: (value: string) => void;
   messages: AssistantMessage[];
   status: AssistantStatus;
+  errorMessage: string;
   canSend: boolean;
-  send: (context: AssistantContext) => Promise<void>;
+  mode: AssistantMode;
+  setMode: (mode: AssistantMode) => void;
+  send: (
+    context: AssistantContext,
+    options?: { operation?: AssistantOperation; message?: string },
+  ) => Promise<void>;
 }
 
 export function useAssistant(transport?: AskTransport): AssistantState {
   const [draft, setDraft] = useState("");
+  const [mode, setModeState] = useState<AssistantMode>("documents");
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
   const [status, setStatus] = useState<AssistantStatus>(
     transport ? "idle" : "unavailable",
   );
+  const [errorMessage, setErrorMessage] = useState("");
   // A ref, not state: a double click lands both events before React has
   // re-rendered, so a state flag would still read "not sending" on the second.
   const inFlight = useRef(false);
@@ -73,13 +92,23 @@ export function useAssistant(transport?: AskTransport): AssistantState {
     Boolean(transport) && draft.trim().length > 0 && status !== "sending";
 
   const send = useCallback(
-    async (context: AssistantContext) => {
-      const question = draft.trim();
+    async (
+      context: AssistantContext,
+      options?: { operation?: AssistantOperation; message?: string },
+    ) => {
+      const question = (options?.message ?? draft).trim();
       if (!transport || !question || inFlight.current) return;
       inFlight.current = true;
+      const requestMode = mode;
       setStatus("sending");
+      setErrorMessage("");
       try {
-        const reply = await transport(question, context);
+        const reply = await transport(
+          question,
+          context,
+          requestMode,
+          options?.operation ?? "question",
+        );
         nextId.current += 2;
         setMessages((current) => [
           ...current,
@@ -98,16 +127,35 @@ export function useAssistant(transport?: AskTransport): AssistantState {
         ]);
         // Cleared only once the question has an answer. On failure the draft
         // stays exactly as typed, ready to send again.
-        setDraft("");
+        if (options?.message === undefined) setDraft("");
         setStatus("idle");
-      } catch {
+      } catch (error: unknown) {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Chưa gửi được câu hỏi. Bản nháp vẫn còn nguyên, thử lại nhé.",
+        );
         setStatus("error");
       } finally {
         inFlight.current = false;
       }
     },
-    [draft, transport],
+    [draft, mode, transport],
   );
 
-  return { draft, setDraft, messages, status, canSend, send };
+  const setMode = useCallback((nextMode: AssistantMode) => {
+    if (!inFlight.current) setModeState(nextMode);
+  }, []);
+
+  return {
+    draft,
+    setDraft,
+    messages,
+    status,
+    errorMessage,
+    canSend,
+    mode,
+    setMode,
+    send,
+  };
 }

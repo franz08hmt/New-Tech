@@ -5,8 +5,9 @@ import {
   SparklesIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
-import { useEffect, useRef } from "react";
-import type { AssistantState } from "./use-assistant";
+import { useEffect, useRef, useState } from "react";
+import type { AssistantCitation, AssistantState } from "./use-assistant";
+import type { StoredDocument } from "./api";
 
 interface AssistantPanelProps {
   open: boolean;
@@ -14,7 +15,11 @@ interface AssistantPanelProps {
   modal: boolean;
   pageId: string;
   pageName: string;
+  courseId?: string;
   assistant: AssistantState;
+  documents?: StoredDocument[];
+  documentsLoading?: boolean;
+  onOpenCitation?: (citation: AssistantCitation) => Promise<void>;
   onClose: () => void;
 }
 
@@ -55,12 +60,33 @@ export function AssistantPanel({
   modal,
   pageId,
   pageName,
+  courseId,
   assistant,
+  documents = [],
+  documentsLoading = false,
+  onOpenCitation,
   onClose,
 }: AssistantPanelProps) {
   const composer = useRef<HTMLTextAreaElement>(null);
+  const [openingCitation, setOpeningCitation] = useState<string | null>(null);
+  const [citationError, setCitationError] = useState("");
+  const [documentId, setDocumentId] = useState("");
   const prompts = promptsByPage[pageId] ?? fallbackPrompts;
   const preview = assistant.status === "unavailable";
+  const availableDocuments = documents.filter(
+    (item) =>
+      item.storage_status === "stored" &&
+      item.processing_status === "ready" &&
+      (!courseId || item.course_id === courseId),
+  );
+
+  useEffect(() => {
+    if (
+      documentId &&
+      !availableDocuments.some((item) => item.id === documentId)
+    )
+      setDocumentId("");
+  }, [availableDocuments, documentId]);
 
   // Opening lands in the composer: typing a question is what the launcher is
   // for. Keyed on `open` alone, so switching page behind an open panel does
@@ -68,6 +94,20 @@ export function AssistantPanel({
   useEffect(() => {
     if (open) composer.current?.focus();
   }, [open]);
+
+  async function openCitation(citation: AssistantCitation) {
+    if (!onOpenCitation || !citation.documentId || openingCitation) return;
+    const key = citation.id ?? citation.documentId;
+    setOpeningCitation(key);
+    setCitationError("");
+    try {
+      await onOpenCitation(citation);
+    } catch {
+      setCitationError("Chưa mở được tài liệu nguồn. Thử lại giúp mình nhé.");
+    } finally {
+      setOpeningCitation(null);
+    }
+  }
 
   return (
     <aside
@@ -114,10 +154,56 @@ export function AssistantPanel({
         )}
 
         {!preview && (
-          <p className="assistant-capability">
-            Bạn có thể hỏi Gemini bằng văn bản. RAG chưa kết nối nên câu trả lời
-            chưa dựa trên tài liệu bạn đã tải lên.
-          </p>
+          <>
+            <fieldset
+              className="assistant-mode"
+              disabled={assistant.status === "sending"}
+            >
+              <legend>Chế độ trả lời</legend>
+              <label>
+                <input
+                  type="radio"
+                  name="assistant-mode"
+                  value="general"
+                  checked={assistant.mode === "general"}
+                  onChange={() => assistant.setMode("general")}
+                />
+                Chat thông thường
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="assistant-mode"
+                  value="documents"
+                  checked={assistant.mode === "documents"}
+                  onChange={() => assistant.setMode("documents")}
+                />
+                Hỏi tài liệu
+              </label>
+            </fieldset>
+            <p className="assistant-capability">
+              {assistant.mode === "documents"
+                ? "Câu trả lời chỉ dựa trên các tài liệu đã lập chỉ mục và hiển thị nguồn đã được backend kiểm chứng."
+                : "Trả lời bằng kiến thức chung; không đọc hoặc suy đoán dữ liệu riêng trong ứng dụng."}
+            </p>
+            {open && assistant.mode === "documents" && (
+              <label className="assistant-document-picker">
+                Tài liệu
+                <select
+                  value={documentId}
+                  disabled={documentsLoading || assistant.status === "sending"}
+                  onChange={(event) => setDocumentId(event.target.value)}
+                >
+                  <option value="">Tất cả tài liệu đã lập chỉ mục</option>
+                  {availableDocuments.map((document) => (
+                    <option key={document.id} value={document.id}>
+                      {document.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </>
         )}
 
         {assistant.messages.length > 0 && (
@@ -130,10 +216,29 @@ export function AssistantPanel({
                 {message.citations.length > 0 && (
                   <ul className="assistant-citations" aria-label="Sources">
                     {message.citations.map((citation) => (
-                      <li key={`${citation.title}-${citation.locator ?? ""}`}>
+                      <li
+                        key={
+                          citation.id ??
+                          `${citation.title}-${citation.locator ?? ""}`
+                        }
+                      >
                         <BookOpenIcon aria-hidden="true" />
-                        {citation.title}
-                        {citation.locator && ` · ${citation.locator}`}
+                        {onOpenCitation && citation.documentId ? (
+                          <button
+                            type="button"
+                            disabled={openingCitation !== null}
+                            aria-label={`Open source ${citation.title}${citation.locator ? `, ${citation.locator}` : ""}`}
+                            onClick={() => void openCitation(citation)}
+                          >
+                            {citation.title}
+                            {citation.locator && ` · ${citation.locator}`}
+                          </button>
+                        ) : (
+                          <span>
+                            {citation.title}
+                            {citation.locator && ` · ${citation.locator}`}
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -141,6 +246,12 @@ export function AssistantPanel({
               </li>
             ))}
           </ol>
+        )}
+
+        {citationError && (
+          <p role="alert" className="assistant-citation-error">
+            {citationError}
+          </p>
         )}
 
         <section
@@ -193,7 +304,12 @@ export function AssistantPanel({
         className="assistant-composer"
         onSubmit={(event) => {
           event.preventDefault();
-          void assistant.send({ pageId, pageName });
+          void assistant.send({
+            pageId,
+            pageName,
+            ...(courseId ? { courseId } : {}),
+            ...(documentId ? { documentId } : {}),
+          });
         }}
       >
         <label htmlFor="assistant-question">Question for ExaMate</label>
@@ -209,7 +325,8 @@ export function AssistantPanel({
             make a screen reader read the whole history again. */}
         {assistant.status === "error" ? (
           <p role="alert" className="assistant-status">
-            Chưa gửi được câu hỏi. Bản nháp vẫn còn nguyên, thử lại nhé.
+            {assistant.errorMessage ||
+              "Chưa gửi được câu hỏi. Bản nháp vẫn còn nguyên, thử lại nhé."}
           </p>
         ) : (
           <p role="status" className="assistant-status">
@@ -220,6 +337,32 @@ export function AssistantPanel({
           <PaperAirplaneIcon aria-hidden="true" />
           Send question
         </button>
+        {assistant.mode === "documents" && (
+          <button
+            type="button"
+            disabled={
+              !documentId ||
+              assistant.status === "sending" ||
+              assistant.status === "unavailable"
+            }
+            onClick={() =>
+              void assistant.send(
+                {
+                  pageId,
+                  pageName,
+                  ...(courseId ? { courseId } : {}),
+                  documentId,
+                },
+                {
+                  operation: "summarize",
+                  message: "Tóm tắt tài liệu đã chọn.",
+                },
+              )
+            }
+          >
+            Tóm tắt tài liệu
+          </button>
+        )}
       </form>
     </aside>
   );

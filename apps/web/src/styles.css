@@ -2120,6 +2120,12 @@
     gap: 6px;
     color: #99473f;
   }
+  .document-index-quality {
+    margin-top: 4px;
+    color: var(--color-muted);
+    font-size: 8px;
+    line-height: 1.5;
+  }
   .document-state progress {
     width: min(180px, 100%);
     height: 6px;
@@ -2322,6 +2328,29 @@
     width: 12px;
     height: 12px;
   }
+  .assistant-citations button {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .assistant-citations button:hover:not(:disabled) {
+    color: #304c42;
+  }
+  .assistant-citations button:disabled {
+    cursor: wait;
+    opacity: 0.65;
+  }
+  .assistant-citation-error {
+    margin: 0;
+    color: #8c4a42;
+    font-size: 9.5px;
+  }
   .assistant-status {
     /* Reserves its line so the send button does not jump when a status
        appears or clears. */
@@ -2400,6 +2429,50 @@
     color: var(--color-muted);
     background: var(--color-ai-accent-soft);
     font-size: 11px;
+  }
+  .assistant-document-picker {
+    display: grid;
+    gap: 5px;
+    margin: 0 16px;
+    color: var(--color-muted);
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .assistant-document-picker select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #dce2d8;
+    border-radius: 8px;
+    background: #fff;
+  }
+  .assistant-mode {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .assistant-mode legend {
+    margin-bottom: 0.4rem;
+    color: var(--color-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .assistant-mode label {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid #dce2d8;
+    border-radius: 0.65rem;
+    cursor: pointer;
+  }
+  .assistant-mode:disabled label {
+    cursor: wait;
+    opacity: 0.7;
   }
   .assistant-intro {
     padding: 20px 0 16px;

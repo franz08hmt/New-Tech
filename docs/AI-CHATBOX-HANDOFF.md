@@ -2,7 +2,9 @@
 
 Ngày cập nhật: 25/09/2026 (Asia/Saigon) · Người làm FE: Tài (có hỗ trợ của Codex) · Người nhận: Thắng
 
-Tài liệu này thay cho mô hình dock/overlay/bottom-sheet trong `docs/ideas/responsive-ai-copilot.md`. Chat text hiện nối với Gemini qua API của Thắng. **RAG chưa triển khai**: chat không tìm trong tài liệu, không trả citation và không phải câu trả lời grounded theo workspace.
+> **Ghi chú trạng thái ngày 28/09/2026:** phần dưới là handoff lịch sử trước khi Thắng hoàn tất LLM+RAG/OCR. RAG hiện đã được tích hợp chọn lọc trên nhánh `feature/tai-rag-integration`; xem README và `docs/PROJECT-CONTEXT.md` để biết trạng thái hiện tại. Không dùng các mục “RAG chưa triển khai” bên dưới làm mô tả hiện trạng.
+
+Tài liệu này ban đầu thay cho mô hình dock/overlay/bottom-sheet trong `docs/ideas/responsive-ai-copilot.md`. Phần dưới ghi lại thiết kế và ranh giới FE tại thời điểm bàn giao, không phải mô tả đầy đủ tính năng hiện tại.
 
 ## 1. Ai giữ cái gì
 
