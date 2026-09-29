@@ -376,7 +376,8 @@ describe("AssistantService grounded orchestration", () => {
   });
 
   it.each([
-    ["non-JSON", "not json"],
+    ["non-JSON", "not json", "answer_not_json"],
+    ["JSON that is not an object", JSON.stringify(["S1"]), "answer_not_object"],
     [
       "extra property",
       JSON.stringify({
@@ -385,6 +386,7 @@ describe("AssistantService grounded orchestration", () => {
         citationIds: ["S1"],
         debug: "private",
       }),
+      "answer_shape_invalid",
     ],
     [
       "unknown source",
@@ -393,6 +395,7 @@ describe("AssistantService grounded orchestration", () => {
         answer: "Answer [S2]",
         citationIds: ["S2"],
       }),
+      "citation_not_in_evidence",
     ],
     [
       "missing inline marker",
@@ -401,6 +404,16 @@ describe("AssistantService grounded orchestration", () => {
         answer: "Answer without a marker",
         citationIds: ["S1"],
       }),
+      "source_marker_missing",
+    ],
+    [
+      "no citation IDs at all",
+      JSON.stringify({
+        answerable: true,
+        answer: "Answer [S1]",
+        citationIds: [],
+      }),
+      "citation_ids_missing",
     ],
     [
       "marker list mismatch",
@@ -409,6 +422,7 @@ describe("AssistantService grounded orchestration", () => {
         answer: "Answer [S1] [S2]",
         citationIds: ["S1"],
       }),
+      "source_marker_mismatch",
     ],
     [
       "malformed source marker",
@@ -417,6 +431,18 @@ describe("AssistantService grounded orchestration", () => {
         answer: "Answer [S1] but not [S0]",
         citationIds: ["S1"],
       }),
+      "source_marker_malformed",
+    ],
+    [
+      // Several sources inside one bracket are still one malformed marker,
+      // not a missing one: the model did try to cite.
+      "grouped source marker",
+      JSON.stringify({
+        answerable: true,
+        answer: "Answer [S1, S2]",
+        citationIds: ["S1", "S2"],
+      }),
+      "source_marker_malformed",
     ],
     [
       "duplicate IDs",
@@ -425,6 +451,7 @@ describe("AssistantService grounded orchestration", () => {
         answer: "Answer [S1]",
         citationIds: ["S1", "S1"],
       }),
+      "citation_ids_duplicate",
     ],
     [
       "unanswerable with citation",
@@ -433,13 +460,49 @@ describe("AssistantService grounded orchestration", () => {
         answer: "Unknown [S1]",
         citationIds: ["S1"],
       }),
+      "unanswerable_with_citations",
     ],
-  ])("rejects unsafe structured output: %s", async (_name, output) => {
+  ])(
+    "rejects unsafe structured output: %s",
+    async (_name, output, rejection) => {
+      const { service, generate } = fixture();
+      generate.mockResolvedValue(output);
+      // Still refused exactly as before; now it also says which check.
+      await expect(service.chat({ message: "Question" })).rejects.toMatchObject(
+        { kind: "upstream", rejection },
+      );
+    },
+  );
+
+  it("logs which check refused an answer, and never the answer itself", async () => {
     const { service, generate } = fixture();
-    generate.mockResolvedValue(output);
-    await expect(service.chat({ message: "Question" })).rejects.toMatchObject({
-      kind: "upstream",
+    generate.mockResolvedValue(
+      JSON.stringify({
+        answerable: true,
+        answer: "Secret course detail [S1, S2]",
+        citationIds: ["S1", "S2"],
+      }),
+    );
+    const lines: string[] = [];
+    const spy = vi
+      .spyOn(console, "log")
+      .mockImplementation((line: unknown) => void lines.push(String(line)));
+    try {
+      await expect(service.chat({ message: "Question" })).rejects.toThrow();
+    } finally {
+      spy.mockRestore();
+    }
+
+    const failed = lines
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .find((entry) => entry.event === "assistant.chat.failed");
+    expect(failed).toMatchObject({
+      reasonCode: "AI_UPSTREAM",
+      rejection: "source_marker_malformed",
+      mode: "documents",
+      operation: "question",
     });
+    expect(lines.join("\n")).not.toContain("Secret course detail");
   });
 
   it("allows the same validated source to support multiple statements", async () => {

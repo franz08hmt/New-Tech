@@ -110,6 +110,9 @@ export class AssistantService {
         mode,
         operation,
         reasonCode: this.failureReasonCode(error),
+        // Which validation refused the answer, when that is what failed.
+        rejection:
+          error instanceof AssistantError ? error.rejection : undefined,
         durationMs: Date.now() - startedAt,
       });
       throw error;
@@ -190,7 +193,7 @@ export class AssistantService {
         parsed.citationIds.length > 0 ||
         this.sourceMarkers(parsed.answer).length
       )
-        throw new AssistantError("upstream");
+        throw new AssistantError("upstream", "unanswerable_with_citations");
       const result = this.response(
         UNANSWERABLE,
         false,
@@ -338,7 +341,8 @@ export class AssistantService {
         responseJsonSchema: RESPONSE_SCHEMA,
       });
       const parsed = this.parseStructuredAnswer(raw);
-      if (!parsed.answerable) throw new AssistantError("upstream");
+      if (!parsed.answerable)
+        throw new AssistantError("upstream", "summary_section_unanswerable");
       const citations = this.validateCitations(parsed, rag);
       allCitations.push(...citations);
       sectionSummaries.push({
@@ -374,7 +378,8 @@ export class AssistantService {
         responseJsonSchema: RESPONSE_SCHEMA,
       });
       const parsed = this.parseStructuredAnswer(raw);
-      if (!parsed.answerable) throw new AssistantError("upstream");
+      if (!parsed.answerable)
+        throw new AssistantError("upstream", "summary_unanswerable");
       const syntheticRag: RagContext = {
         promptVersion: SUMMARY_PROMPT_VERSION,
         context: null,
@@ -431,10 +436,10 @@ export class AssistantService {
     try {
       value = JSON.parse(raw);
     } catch {
-      throw new AssistantError("upstream");
+      throw new AssistantError("upstream", "answer_not_json");
     }
     if (!value || typeof value !== "object" || Array.isArray(value))
-      throw new AssistantError("upstream");
+      throw new AssistantError("upstream", "answer_not_object");
     const record = value as Record<string, unknown>;
     if (
       Object.keys(record).sort().join(",") !==
@@ -449,10 +454,10 @@ export class AssistantService {
         (id) => typeof id !== "string" || !/^S[1-9][0-9]*$/.test(id),
       )
     )
-      throw new AssistantError("upstream");
+      throw new AssistantError("upstream", "answer_shape_invalid");
     const citationIds = record.citationIds as string[];
     if (new Set(citationIds).size !== citationIds.length)
-      throw new AssistantError("upstream");
+      throw new AssistantError("upstream", "citation_ids_duplicate");
     return {
       answerable: record.answerable,
       answer: record.answer.trim(),
@@ -461,23 +466,29 @@ export class AssistantService {
   }
 
   private validateCitations(parsed: StructuredAnswer, rag: RagContext) {
-    if (parsed.citationIds.length === 0) throw new AssistantError("upstream");
+    if (parsed.citationIds.length === 0)
+      throw new AssistantError("upstream", "citation_ids_missing");
     const markers = this.sourceMarkers(parsed.answer);
     const sourceLikeMarkers = [...parsed.answer.matchAll(/\[S[^\]]*\]/g)];
     const referenced = [...new Set(markers)];
+    // The same rules as ever, split only so the refusal can say which one.
+    // Malformed is checked before missing: "[S1, S2]" is an attempt to cite
+    // in the wrong form, not an answer that forgot to cite.
+    if (sourceLikeMarkers.length !== markers.length)
+      throw new AssistantError("upstream", "source_marker_malformed");
+    if (markers.length === 0)
+      throw new AssistantError("upstream", "source_marker_missing");
     if (
-      markers.length === 0 ||
-      sourceLikeMarkers.length !== markers.length ||
       referenced.some((id) => !parsed.citationIds.includes(id)) ||
       parsed.citationIds.some((id) => !referenced.includes(id))
     )
-      throw new AssistantError("upstream");
+      throw new AssistantError("upstream", "source_marker_mismatch");
     const available = new Map(
       rag.citations.map((item) => [item.sourceId, item]),
     );
     const citations = parsed.citationIds.map((id) => available.get(id));
     if (citations.some((citation) => !citation))
-      throw new AssistantError("upstream");
+      throw new AssistantError("upstream", "citation_not_in_evidence");
     return citations as RagCitation[];
   }
 
