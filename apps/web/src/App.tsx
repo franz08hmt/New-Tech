@@ -159,6 +159,15 @@ function currentRoute(): AppRoute {
   };
 }
 
+/** A signed inline link to a cited PDF, opened at the cited page if known. */
+async function citedSourceUrl(documentId: string, page?: number | null) {
+  const { url } = await api.downloadDocument(documentId, { inline: true });
+  const source = new URL(url, window.location.href);
+  // No page, no guess: the PDF opens at its start.
+  if (page) source.hash = `page=${page}`;
+  return source.toString();
+}
+
 /** Below this width the assistant becomes a modal bottom sheet. */
 const NARROW_SCREEN = "(max-width: 767px)";
 /**
@@ -463,6 +472,7 @@ export default function App() {
         open={assistantOpen}
         modal={modal}
         sheet={narrow}
+        roomForSource={!medium}
         expanded={assistantExpanded}
         onToggleExpanded={() => setAssistantExpanded((current) => !current)}
         pageId={page.id}
@@ -481,16 +491,20 @@ export default function App() {
           const tab = window.open("", "_blank");
           if (tab) tab.opener = null;
           try {
-            const { url } = await api.downloadDocument(citation.documentId);
-            const source = new URL(url, window.location.href);
-            if (citation.page) source.hash = `page=${citation.page}`;
-            if (!tab) return source.toString();
-            tab.location.replace(source.toString());
+            const source = await citedSourceUrl(
+              citation.documentId,
+              citation.page,
+            );
+            if (!tab) return source;
+            tab.location.replace(source);
           } catch (error: unknown) {
             tab?.close();
             throw error;
           }
         }}
+        loadSource={(citation) =>
+          citedSourceUrl(citation.documentId!, citation.page)
+        }
         onClose={closeAssistant}
       />
       {/* Help and the AI launcher share one corner as a single stack, so

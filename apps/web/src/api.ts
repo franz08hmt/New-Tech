@@ -184,9 +184,14 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ courseId }),
     }),
-  downloadDocument: (id: string) =>
+  /**
+   * A 60-second signed link to the PDF. By default it downloads the file under
+   * its name; `inline` asks for one the browser shows instead, for a preview
+   * or a reading tab. Keep the URL in memory only: its token is the access.
+   */
+  downloadDocument: (id: string, options: { inline?: boolean } = {}) =>
     request<{ url: string; expiresIn: number }>(
-      `/api/documents/${id}/download`,
+      `/api/documents/${id}/download${options.inline ? "?disposition=inline" : ""}`,
     ),
   processDocument: (id: string) =>
     request<DocumentProcessingResult>(`/api/documents/${id}/process`, {

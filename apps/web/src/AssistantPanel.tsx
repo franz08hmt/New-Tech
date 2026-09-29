@@ -9,6 +9,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useEffect, useRef, useState } from "react";
 import { AssistantMarkdown } from "./AssistantMarkdown";
+import { SourcePreview, useSourcePreview } from "./SourcePreview";
 import type { AssistantCitation, AssistantState } from "./use-assistant";
 import type { StoredDocument } from "./api";
 
@@ -27,6 +28,17 @@ function documentMentionedIn(
 function sourceLabel(citation: AssistantCitation) {
   return `Open source ${citation.title}${citation.locator ? `, ${citation.locator}` : ""}`;
 }
+
+/**
+ * Some browsers — Chrome on Android among them — cannot show a PDF inside a
+ * page and say so here. For them a preview would be a blank frame, so a
+ * citation keeps opening a tab as it always has. Unknown counts as able.
+ */
+function inlinePdfUnsupported() {
+  return navigator.pdfViewerEnabled === false;
+}
+
+const noSource = () => Promise.reject(new Error("No source loader"));
 
 function questionOperation(question: string) {
   if (
@@ -64,6 +76,13 @@ interface AssistantPanelProps {
    * the browser blocked that tab, so it can be offered as a link to click.
    */
   onOpenCitation?: (citation: AssistantCitation) => Promise<string | void>;
+  /** Resolves with a signed inline link to show the cited PDF in the panel. */
+  loadSource?: (citation: AssistantCitation) => Promise<string>;
+  /**
+   * Whether the screen is wide enough to read a source beside the
+   * conversation once expanded; otherwise it takes the conversation's place.
+   */
+  roomForSource?: boolean;
   onClose: () => void;
 }
 
@@ -112,6 +131,8 @@ export function AssistantPanel({
   documents = [],
   documentsLoading = false,
   onOpenCitation,
+  loadSource,
+  roomForSource = false,
   onClose,
 }: AssistantPanelProps) {
   const panel = useRef<HTMLElement>(null);
@@ -124,6 +145,30 @@ export function AssistantPanel({
   } | null>(null);
   const [selectionError, setSelectionError] = useState("");
   const [documentId, setDocumentId] = useState("");
+  const source = useSourcePreview(loadSource ?? noSource);
+  const closeSourceView = source.close;
+  const sourceHeading = useRef<HTMLHeadingElement>(null);
+  // The citation that opened the source, to hand focus back to on the way out.
+  const sourceOpener = useRef<HTMLElement | null>(null);
+  const restoreSourceFocus = useRef(false);
+  const [sourcePaneDismissed, setSourcePaneDismissed] = useState(false);
+  const split = expanded && !sheet && roomForSource;
+  const hasOpenableSources =
+    Boolean(loadSource) &&
+    assistant.messages.some((message) =>
+      message.citations.some((citation) => citation.documentId),
+    );
+  // Beside the conversation, the pane can wait empty for a source to be
+  // chosen. Anywhere narrower it appears only for a chosen source, in the
+  // conversation's place.
+  const showSource =
+    source.selection !== null ||
+    (split && hasOpenableSources && !sourcePaneDismissed);
+  const sourceScreen = source.selection !== null && !split;
+  const answerNumbers = new Map<string, number>();
+  for (const message of assistant.messages)
+    if (message.role === "assistant")
+      answerNumbers.set(message.id, answerNumbers.size + 1);
   const prompts = promptsByPage[pageId] ?? fallbackPrompts;
   const preview = assistant.status === "unavailable";
   const availableDocuments = documents.filter(
@@ -156,8 +201,61 @@ export function AssistantPanel({
   // from then on, so focus moves in rather than being stranded there.
   useEffect(() => {
     if (open && modal && !panel.current?.contains(document.activeElement))
-      composer.current?.focus();
+      (sourceScreen ? sourceHeading.current : composer.current)?.focus();
+    // Only the switch to modal matters here, not every change of view.
   }, [open, modal]);
+
+  // Reading a source is part of this visit; closing the assistant ends it.
+  useEffect(() => {
+    if (open) return;
+    closeSourceView();
+    sourceOpener.current = null;
+  }, [open, closeSourceView]);
+
+  // A newly chosen source is announced by moving focus to its title.
+  useEffect(() => {
+    if (source.selection) sourceHeading.current?.focus();
+  }, [source.selection]);
+
+  // Leaving the source puts focus back on the citation that opened it, once
+  // that citation is visible again.
+  useEffect(() => {
+    if (source.selection || !restoreSourceFocus.current) return;
+    restoreSourceFocus.current = false;
+    const target = sourceOpener.current;
+    sourceOpener.current = null;
+    (target?.isConnected ? target : composer.current)?.focus();
+  }, [source.selection]);
+
+  function showCitation(
+    citation: AssistantCitation,
+    messageId: string,
+    opener: HTMLElement,
+  ) {
+    if (!loadSource || inlinePdfUnsupported()) {
+      void openCitation(citation);
+      return;
+    }
+    sourceOpener.current = opener;
+    setSourcePaneDismissed(false);
+    setCitationError("");
+    setBlockedSource(null);
+    // A source needs room; the student can still collapse it again.
+    if (!expanded) onToggleExpanded();
+    source.show({
+      citation,
+      messageId,
+      answerNumber: answerNumbers.get(messageId) ?? 1,
+    });
+  }
+
+  function closeSource() {
+    restoreSourceFocus.current = true;
+    setSourcePaneDismissed(true);
+    setCitationError("");
+    setBlockedSource(null);
+    source.close();
+  }
 
   async function openCitation(citation: AssistantCitation) {
     if (!onOpenCitation || !citation.documentId || openingCitation) return;
@@ -178,11 +276,33 @@ export function AssistantPanel({
     }
   }
 
+  const tabNotice = (
+    <>
+      {citationError && (
+        <p role="alert" className="assistant-citation-error">
+          {citationError}
+        </p>
+      )}
+      {/* The browser blocked the tab even from a click, so the link goes to
+          the student: a click on a real link is never treated as a popup. */}
+      {blockedSource && (
+        <p role="status" className="assistant-blocked-source">
+          Trình duyệt đã chặn tab mới.{" "}
+          <a href={blockedSource.url} target="_blank" rel="noopener noreferrer">
+            {blockedSource.label}
+          </a>
+          . Link chỉ dùng được trong thời gian ngắn; nếu hết hạn, bấm lại vào
+          nguồn.
+        </p>
+      )}
+    </>
+  );
+
   return (
     <aside
       ref={panel}
       id="examate-ai-panel"
-      className={`assistant-panel ${sheet ? "is-sheet" : "is-window"}${expanded ? " is-expanded" : ""}`}
+      className={`assistant-panel ${sheet ? "is-sheet" : "is-window"}${expanded ? " is-expanded" : ""}${showSource ? (split ? " is-split" : " is-source-screen") : ""}`}
       aria-label="ExaMate AI"
       // An aside is complementary content beside the page. Once it covers the
       // page and holds focus — a sheet, or an expanded window on a tablet — it
@@ -190,6 +310,12 @@ export function AssistantPanel({
       role={modal ? "dialog" : undefined}
       aria-modal={modal ? true : undefined}
       hidden={!open}
+      onKeyDown={(event) => {
+        // Escape leaves the source first; the next one closes the assistant.
+        if (event.key !== "Escape" || !source.selection) return;
+        event.stopPropagation();
+        closeSource();
+      }}
     >
       <header className="assistant-panel-header">
         <span className="assistant-mark" aria-hidden="true">
@@ -223,7 +349,7 @@ export function AssistantPanel({
         </button>
       </header>
 
-      <div className="assistant-body">
+      <div className="assistant-body" hidden={sourceScreen}>
         {preview && (
           <section
             className="assistant-intro"
@@ -310,7 +436,10 @@ export function AssistantPanel({
         {assistant.messages.length > 0 && (
           <ol className="assistant-messages" aria-label="Conversation">
             {assistant.messages.map((message) => (
-              <li key={message.id} className={`is-${message.role}`}>
+              <li
+                key={message.id}
+                className={`is-${message.role}${source.selection?.messageId === message.id ? " is-source-answer" : ""}`}
+              >
                 {/* Never as HTML: a model's output is not trusted markup. A
                     reply's Markdown is rebuilt from React elements alone; what
                     the student typed is shown exactly as typed. */}
@@ -334,7 +463,18 @@ export function AssistantPanel({
                             type="button"
                             disabled={openingCitation !== null}
                             aria-label={sourceLabel(citation)}
-                            onClick={() => void openCitation(citation)}
+                            aria-current={
+                              source.selection?.citation === citation
+                                ? "true"
+                                : undefined
+                            }
+                            onClick={(event) =>
+                              showCitation(
+                                citation,
+                                message.id,
+                                event.currentTarget,
+                              )
+                            }
                           >
                             {citation.title}
                             {citation.locator && ` · ${citation.locator}`}
@@ -367,27 +507,7 @@ export function AssistantPanel({
           </ol>
         )}
 
-        {citationError && (
-          <p role="alert" className="assistant-citation-error">
-            {citationError}
-          </p>
-        )}
-        {/* The browser blocked the tab even from a click, so the link goes to
-            the student: a click on a real link is never treated as a popup. */}
-        {blockedSource && (
-          <p role="status" className="assistant-blocked-source">
-            Trình duyệt đã chặn tab mới.{" "}
-            <a
-              href={blockedSource.url}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {blockedSource.label}
-            </a>
-            . Link chỉ dùng được trong thời gian ngắn; nếu hết hạn, bấm lại vào
-            nguồn.
-          </p>
-        )}
+        {!source.selection && tabNotice}
 
         <section
           className="assistant-suggestions"
@@ -437,6 +557,7 @@ export function AssistantPanel({
 
       <form
         className="assistant-composer"
+        hidden={sourceScreen}
         onSubmit={(event) => {
           event.preventDefault();
           const mentionsPdf =
@@ -559,6 +680,22 @@ export function AssistantPanel({
           </>
         )}
       </form>
+
+      {showSource && (
+        <SourcePreview
+          selection={source.selection}
+          status={source.status}
+          layout={split ? "split" : "screen"}
+          headingRef={sourceHeading}
+          onClose={closeSource}
+          onReload={source.reload}
+          onOpenInTab={() => {
+            if (source.selection) void openCitation(source.selection.citation);
+          }}
+          openingInTab={openingCitation !== null}
+          tabNotice={source.selection ? tabNotice : undefined}
+        />
+      )}
     </aside>
   );
 }

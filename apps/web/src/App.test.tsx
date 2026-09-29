@@ -325,7 +325,7 @@ beforeEach(() => {
           },
         });
       }
-      if (url.startsWith("/api/documents/") && url.endsWith("/download")) {
+      if (url.startsWith("/api/documents/") && url.includes("/download")) {
         return Response.json({
           url: "https://storage.example.test/source.pdf?token=signed",
           expiresIn: 60,
@@ -2226,7 +2226,7 @@ describe("Academic workspace", () => {
           documentId: "doc-2",
           chunkId: "chunk-1",
           title: "ghi-chu-chung.pdf",
-          page: 3,
+          page: 3 as number | null,
           chunkIndex: 0,
         },
       ],
@@ -2255,6 +2255,17 @@ describe("Academic workspace", () => {
         close: vi.fn(),
       };
     }
+    function answerWithCitations(citations: (typeof citedAnswer)["citations"]) {
+      const existingFetch = globalThis.fetch;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: RequestInit) =>
+          url === "/api/assistant/chat" && init?.method === "POST"
+            ? Response.json({ ...citedAnswer, citations })
+            : existingFetch(url, init),
+        ),
+      );
+    }
     const chatBodies = () =>
       vi
         .mocked(fetch)
@@ -2276,6 +2287,32 @@ describe("Academic workspace", () => {
         expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(""),
       );
     }
+
+    it("keeps the Documents download as an ordinary attachment link", async () => {
+      window.history.replaceState(null, "", "/#documents");
+      vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(
+        () => {},
+      );
+      render(<App />);
+
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Download ghi-chu-chung.pdf",
+        }),
+      );
+
+      await waitFor(() =>
+        expect(fetch).toHaveBeenCalledWith(
+          "/api/documents/doc-2/download",
+          expect.anything(),
+        ),
+      );
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.some(([url]) => String(url).includes("disposition")),
+      ).toBe(false);
+    });
 
     it("leaves the selected document out of an ordinary chat request", async () => {
       render(<App />);
@@ -2378,13 +2415,8 @@ describe("Academic workspace", () => {
       );
     });
 
-    it("sends the same request and opens the same source when expanded", async () => {
+    it("sends the same request and shows the same source when expanded", async () => {
       answerWithCitation();
-      const tab = fakeTab();
-      vi.stubGlobal(
-        "open",
-        vi.fn(() => tab),
-      );
       render(<App />);
       await openWithDocument();
       await ask("Chương 2 nói gì?");
@@ -2404,14 +2436,296 @@ describe("Academic workspace", () => {
         name: "Open source ghi-chu-chung.pdf, tr. 3",
       });
       fireEvent.click(sources[sources.length - 1]);
+      expect(
+        await screen.findByTitle("ghi-chu-chung.pdf, trang 3"),
+      ).toHaveAttribute(
+        "src",
+        "https://storage.example.test/source.pdf?token=signed#page=3",
+      );
+    });
+
+    it("shows the cited page beside the answer, keeping the whole conversation", async () => {
+      answerWithCitation();
+      render(<App />);
+      await openWithDocument();
+      await ask("Chương 2 nói gì?");
+      fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+        target: { value: "Câu hỏi tiếp theo" },
+      });
+      const citation = screen.getByRole("button", {
+        name: "Open source ghi-chu-chung.pdf, tr. 3",
+      });
+
+      fireEvent.click(citation);
+
+      // Compact grows to make room, and on a wide screen the source sits
+      // beside the conversation rather than replacing it.
+      const panel = document.getElementById("examate-ai-panel")!;
+      expect(panel).toHaveClass("is-expanded", "is-split");
+      const source = screen.getByRole("region", { name: "ghi-chu-chung.pdf" });
+      expect(
+        within(source).getByRole("heading", {
+          level: 2,
+          name: "ghi-chu-chung.pdf",
+        }),
+      ).toHaveFocus();
+      expect(within(source).getByText(/Trang 3/)).toBeInTheDocument();
+      expect(
+        within(source).getByText(/Nguồn của câu trả lời 1/),
+      ).toBeInTheDocument();
+      expect(within(source).getByRole("status")).toHaveTextContent(
+        "Đang mở tài liệu nguồn…",
+      );
+      expect(
+        await within(source).findByTitle("ghi-chu-chung.pdf, trang 3"),
+      ).toHaveAttribute(
+        "src",
+        "https://storage.example.test/source.pdf?token=signed#page=3",
+      );
+      // The preview asks for the inline link; nothing is built client-side.
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.map(([url]) => String(url))
+          .filter((url) => url.includes("/download")),
+      ).toEqual(["/api/documents/doc-2/download?disposition=inline"]);
+      // The citation that is open says so.
+      expect(citation).toHaveAttribute("aria-current", "true");
+
+      expect(
+        screen.getByText("Chương 2 nói về độ phức tạp thuật toán."),
+      ).toBeVisible();
+      expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+        "Câu hỏi tiếp theo",
+      );
+      expect(screen.getByRole("radio", { name: "Hỏi tài liệu" })).toBeChecked();
+      expect(screen.getByLabelText("Tài liệu")).toHaveValue("doc-2");
+    });
+
+    it("opens a source without a page number at the start, guessing none", async () => {
+      answerWithCitations([
+        {
+          sourceId: "src-2",
+          documentId: "doc-1",
+          chunkId: "chunk-9",
+          title: "de-cuong-thuat-toan.pdf",
+          page: null,
+          chunkIndex: 4,
+        },
+      ]);
+      render(<App />);
+      await openWithDocument();
+      await ask("Đề cương gồm gì?");
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Open source de-cuong-thuat-toan.pdf, đoạn 5",
+        }),
+      );
+
+      const frame = await screen.findByTitle("de-cuong-thuat-toan.pdf");
+      expect(frame).toHaveAttribute(
+        "src",
+        "https://storage.example.test/source.pdf?token=signed",
+      );
+      expect(screen.getByText(/Không có số trang/)).toBeInTheDocument();
+    });
+
+    it("keeps the conversation through a failed source and asks for a new link on retry", async () => {
+      answerWithCitation();
+      const answering = globalThis.fetch;
+      let links = 0;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: RequestInit) => {
+          if (!url.includes("/download")) return answering(url, init);
+          links += 1;
+          return links === 1
+            ? Response.json({ message: "Storage is down" }, { status: 503 })
+            : Response.json({
+                url: `https://storage.example.test/source.pdf?token=t${links}`,
+                expiresIn: 60,
+              });
+        }),
+      );
+      render(<App />);
+      await openWithDocument();
+      await ask("Chương 2 nói gì?");
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Open source ghi-chu-chung.pdf, tr. 3",
+        }),
+      );
+
+      const source = screen.getByRole("region", { name: "ghi-chu-chung.pdf" });
+      expect(await within(source).findByRole("alert")).toHaveTextContent(
+        "Chưa mở được tài liệu nguồn.",
+      );
+      expect(
+        screen.getByText("Chương 2 nói về độ phức tạp thuật toán."),
+      ).toBeVisible();
+
+      fireEvent.click(within(source).getByRole("button", { name: "Thử lại" }));
+      expect(
+        await within(source).findByTitle("ghi-chu-chung.pdf, trang 3"),
+      ).toHaveAttribute(
+        "src",
+        "https://storage.example.test/source.pdf?token=t2#page=3",
+      );
+
+      // A signed link lasts a minute; reloading asks for a fresh one rather
+      // than reusing the one that may have expired.
+      fireEvent.click(
+        within(source).getByRole("button", { name: "Tải lại nguồn" }),
+      );
       await waitFor(() =>
-        expect(tab.location.replace).toHaveBeenCalledWith(
-          "https://storage.example.test/source.pdf?token=signed#page=3",
+        expect(
+          within(source).getByTitle("ghi-chu-chung.pdf, trang 3"),
+        ).toHaveAttribute(
+          "src",
+          "https://storage.example.test/source.pdf?token=t3#page=3",
         ),
       );
     });
 
-    it("opens the source tab inside the click, before its link arrives", async () => {
+    it("does not let a slow earlier source overwrite the one just chosen", async () => {
+      answerWithCitations([
+        citedAnswer.citations[0],
+        {
+          sourceId: "src-2",
+          documentId: "doc-1",
+          chunkId: "chunk-9",
+          title: "de-cuong-thuat-toan.pdf",
+          page: null,
+          chunkIndex: 4,
+        },
+      ]);
+      const answering = globalThis.fetch;
+      let releaseFirst: () => void = () => {};
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: RequestInit) => {
+          if (url.includes("/doc-2/download")) {
+            await new Promise<void>((resolve) => (releaseFirst = resolve));
+            return Response.json({
+              url: "https://storage.example.test/slow.pdf?token=old",
+              expiresIn: 60,
+            });
+          }
+          if (url.includes("/doc-1/download"))
+            return Response.json({
+              url: "https://storage.example.test/fast.pdf?token=new",
+              expiresIn: 60,
+            });
+          return answering(url, init);
+        }),
+      );
+      render(<App />);
+      await openWithDocument();
+      await ask("So sánh hai tài liệu");
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Open source ghi-chu-chung.pdf, tr. 3",
+        }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Open source de-cuong-thuat-toan.pdf, đoạn 5",
+        }),
+      );
+      expect(
+        await screen.findByTitle("de-cuong-thuat-toan.pdf"),
+      ).toHaveAttribute(
+        "src",
+        "https://storage.example.test/fast.pdf?token=new",
+      );
+
+      await act(async () => releaseFirst());
+      // The late answer for the first source is dropped.
+      expect(screen.getByTitle("de-cuong-thuat-toan.pdf")).toHaveAttribute(
+        "src",
+        "https://storage.example.test/fast.pdf?token=new",
+      );
+      expect(screen.queryByTitle("ghi-chu-chung.pdf, trang 3")).toBeNull();
+      expect(
+        screen.getByRole("heading", {
+          level: 2,
+          name: "de-cuong-thuat-toan.pdf",
+        }),
+      ).toBeInTheDocument();
+    });
+
+    it("goes back to the conversation on a phone and returns focus to the citation", async () => {
+      stubScreen((query) => query.includes("max-width"));
+      answerWithCitation();
+      render(<App />);
+      await openWithDocument();
+      await ask("Chương 2 nói gì?");
+      fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+        target: { value: "Bản nháp còn đây" },
+      });
+      const citation = screen.getByRole("button", {
+        name: "Open source ghi-chu-chung.pdf, tr. 3",
+      });
+      citation.focus();
+      fireEvent.click(citation);
+
+      // No room for two columns: the source takes the sheet's place, and the
+      // conversation waits hidden, not unmounted.
+      const panel = document.getElementById("examate-ai-panel")!;
+      expect(panel).toHaveClass("is-sheet", "is-source-screen");
+      expect(panel).not.toHaveClass("is-split");
+      expect(screen.getByLabelText("Question for ExaMate")).not.toBeVisible();
+      const back = screen.getByRole("button", { name: "Quay lại hội thoại" });
+      expect(back).toBeVisible();
+
+      fireEvent.click(back);
+      expect(
+        screen.queryByRole("region", { name: "ghi-chu-chung.pdf" }),
+      ).toBeNull();
+      await waitFor(() => expect(citation).toHaveFocus());
+      expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+        "Bản nháp còn đây",
+      );
+
+      // Escape closes the source first, and only then the assistant.
+      fireEvent.click(citation);
+      fireEvent.keyDown(
+        screen.getByRole("button", { name: "Quay lại hội thoại" }),
+        {
+          key: "Escape",
+        },
+      );
+      await waitFor(() => expect(citation).toHaveFocus());
+      expect(panel).toBeVisible();
+      fireEvent.keyDown(window, { key: "Escape" });
+      await waitFor(() => expect(panel).not.toBeVisible());
+    });
+
+    it("hides the source pane on a wide screen and hands focus back to the citation", async () => {
+      answerWithCitation();
+      render(<App />);
+      await openWithDocument();
+      await ask("Chương 2 nói gì?");
+      const citation = screen.getByRole("button", {
+        name: "Open source ghi-chu-chung.pdf, tr. 3",
+      });
+      fireEvent.click(citation);
+      const source = screen.getByRole("region", { name: "ghi-chu-chung.pdf" });
+
+      fireEvent.click(
+        within(source).getByRole("button", { name: "Ẩn vùng nguồn" }),
+      );
+
+      expect(
+        screen.queryByRole("region", { name: "ghi-chu-chung.pdf" }),
+      ).toBeNull();
+      await waitFor(() => expect(citation).toHaveFocus());
+      expect(citation).not.toHaveAttribute("aria-current");
+    });
+
+    it("opens the source tab inside the click, with the API's inline link", async () => {
       answerWithCitation();
       const tab = fakeTab();
       const open = vi.fn(() => tab);
@@ -2419,11 +2733,15 @@ describe("Academic workspace", () => {
       render(<App />);
       await openWithDocument();
       await ask("Chương 2 nói gì?");
-
       fireEvent.click(
         screen.getByRole("button", {
           name: "Open source ghi-chu-chung.pdf, tr. 3",
         }),
+      );
+      const source = screen.getByRole("region", { name: "ghi-chu-chung.pdf" });
+
+      fireEvent.click(
+        within(source).getByRole("button", { name: "Mở trong tab mới" }),
       );
       // Synchronously, within the click. Opened only after awaiting the
       // signed URL, the browser no longer treats it as the student's own
@@ -2436,6 +2754,16 @@ describe("Academic workspace", () => {
           "https://storage.example.test/source.pdf?token=signed#page=3",
         ),
       );
+      // Both the preview and the tab asked the API for an inline link.
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.map(([url]) => String(url))
+          .filter((url) => url.includes("/download")),
+      ).toEqual([
+        "/api/documents/doc-2/download?disposition=inline",
+        "/api/documents/doc-2/download?disposition=inline",
+      ]);
     });
 
     it("offers a direct link when the browser blocks the new tab anyway", async () => {
@@ -2447,14 +2775,20 @@ describe("Academic workspace", () => {
       render(<App />);
       await openWithDocument();
       await ask("Chương 2 nói gì?");
-
       fireEvent.click(
         screen.getByRole("button", {
           name: "Open source ghi-chu-chung.pdf, tr. 3",
         }),
       );
+      const source = screen.getByRole("region", { name: "ghi-chu-chung.pdf" });
+      // Only after the student asks for a tab.
+      expect(within(source).queryByRole("link")).toBeNull();
 
-      const link = await screen.findByRole("link", {
+      fireEvent.click(
+        within(source).getByRole("button", { name: "Mở trong tab mới" }),
+      );
+
+      const link = await within(source).findByRole("link", {
         name: "Open source ghi-chu-chung.pdf, tr. 3",
       });
       expect(link).toHaveAttribute(
@@ -2471,7 +2805,7 @@ describe("Academic workspace", () => {
       vi.stubGlobal(
         "fetch",
         vi.fn(async (url: string, init?: RequestInit) =>
-          url.endsWith("/download")
+          url.includes("/download")
             ? Response.json({ message: "Storage is down" }, { status: 503 })
             : answering(url, init),
         ),
@@ -2484,18 +2818,60 @@ describe("Academic workspace", () => {
       render(<App />);
       await openWithDocument();
       await ask("Chương 2 nói gì?");
-
       fireEvent.click(
         screen.getByRole("button", {
           name: "Open source ghi-chu-chung.pdf, tr. 3",
         }),
       );
+      const source = screen.getByRole("region", { name: "ghi-chu-chung.pdf" });
 
-      expect(await screen.findByRole("alert")).toHaveTextContent(
-        /Chưa mở được tài liệu nguồn/,
+      fireEvent.click(
+        within(source).getByRole("button", { name: "Mở trong tab mới" }),
       );
+
+      expect(
+        await screen.findByText(
+          /Chưa mở được tài liệu nguồn\. Thử lại giúp mình nhé\./,
+        ),
+      ).toBeInTheDocument();
       expect(tab.close).toHaveBeenCalled();
       expect(tab.location.replace).not.toHaveBeenCalled();
+    });
+
+    it("still opens a tab straight away where the browser cannot show PDFs in a page", async () => {
+      Object.defineProperty(navigator, "pdfViewerEnabled", {
+        value: false,
+        configurable: true,
+      });
+      try {
+        answerWithCitation();
+        const tab = fakeTab();
+        const open = vi.fn(() => tab);
+        vi.stubGlobal("open", open);
+        render(<App />);
+        await openWithDocument();
+        await ask("Chương 2 nói gì?");
+
+        fireEvent.click(
+          screen.getByRole("button", {
+            name: "Open source ghi-chu-chung.pdf, tr. 3",
+          }),
+        );
+
+        // The citation keeps the behaviour it had: a preview that would only
+        // show a blank frame is skipped.
+        expect(open).toHaveBeenCalledWith("", "_blank");
+        expect(
+          screen.queryByRole("region", { name: "ghi-chu-chung.pdf" }),
+        ).toBeNull();
+        await waitFor(() =>
+          expect(tab.location.replace).toHaveBeenCalledWith(
+            "https://storage.example.test/source.pdf?token=signed#page=3",
+          ),
+        );
+      } finally {
+        delete (navigator as { pdfViewerEnabled?: boolean }).pdfViewerEnabled;
+      }
     });
 
     it("keeps focus on the toggle and returns it to the launcher on Escape", async () => {
