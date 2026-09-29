@@ -8,6 +8,7 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { useEffect, useRef, useState } from "react";
+import { AssistantMarkdown } from "./AssistantMarkdown";
 import type { AssistantCitation, AssistantState } from "./use-assistant";
 import type { StoredDocument } from "./api";
 
@@ -310,9 +311,14 @@ export function AssistantPanel({
           <ol className="assistant-messages" aria-label="Conversation">
             {assistant.messages.map((message) => (
               <li key={message.id} className={`is-${message.role}`}>
-                {/* Rendered as text, never as HTML: a model's output is not
-                    trusted markup. */}
-                <p>{message.text}</p>
+                {/* Never as HTML: a model's output is not trusted markup. A
+                    reply's Markdown is rebuilt from React elements alone; what
+                    the student typed is shown exactly as typed. */}
+                {message.role === "assistant" ? (
+                  <AssistantMarkdown text={message.text} />
+                ) : (
+                  <p>{message.text}</p>
+                )}
                 {message.citations.length > 0 && (
                   <ul className="assistant-citations" aria-label="Sources">
                     {message.citations.map((citation) => (

@@ -2299,6 +2299,39 @@ describe("Academic workspace", () => {
       });
     });
 
+    it("formats a reply's Markdown but shows the student's question as typed", async () => {
+      const existingFetch = globalThis.fetch;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: RequestInit) =>
+          url === "/api/assistant/chat" && init?.method === "POST"
+            ? Response.json({
+                ...citedAnswer,
+                answer: "**Ý chính**\n\n- Độ phức tạp\n- Cây nhị phân",
+                citations: [],
+              })
+            : existingFetch(url, init),
+        ),
+      );
+      render(<App />);
+      await openWithDocument();
+      await ask("Viết **đậm** giúp mình");
+
+      const conversation = screen.getByRole("list", { name: "Conversation" });
+      // The two messages themselves, not the bullets inside the reply.
+      const [question, reply] = [...conversation.children] as HTMLElement[];
+      expect(within(reply).getByText("Ý chính").tagName).toBe("STRONG");
+      expect(
+        within(reply)
+          .getAllByRole("listitem")
+          .map((item) => item.textContent),
+      ).toEqual(["Độ phức tạp", "Cây nhị phân"]);
+      expect(reply).not.toHaveTextContent("**");
+      // What the student typed is not reinterpreted.
+      expect(question).toHaveTextContent("Viết **đậm** giúp mình");
+      expect(question.querySelector("strong")).toBeNull();
+    });
+
     it("expands and collapses from the header without losing the conversation", async () => {
       answerWithCitation();
       render(<App />);
