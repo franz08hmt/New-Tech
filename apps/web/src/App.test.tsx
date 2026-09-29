@@ -2201,7 +2201,7 @@ describe("Academic workspace", () => {
     // open that heading is inert behind it, so focus has to stay put.
     expect(composer).toHaveFocus();
   });
-  describe("expanding the assistant", () => {
+  describe("ExaMate AI panel", () => {
     /** A matchMedia whose answer is decided per query. */
     function stubScreen(matches: (query: string) => boolean) {
       vi.stubGlobal("matchMedia", (query: string) => ({
@@ -2268,6 +2268,28 @@ describe("Academic workspace", () => {
         expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(""),
       );
     }
+
+    it("leaves the selected document out of an ordinary chat request", async () => {
+      render(<App />);
+      await openWithDocument();
+      fireEvent.click(screen.getByRole("radio", { name: "Chat thông thường" }));
+      await ask("Xin chào");
+
+      // The backend refuses a document in general mode (400), so it must not
+      // travel with an ordinary question.
+      const [general] = chatBodies();
+      expect(general).toMatchObject({ mode: "general", operation: "question" });
+      expect(general).not.toHaveProperty("documentId");
+
+      // The choice is still there for when the student switches back.
+      fireEvent.click(screen.getByRole("radio", { name: "Hỏi tài liệu" }));
+      expect(screen.getByLabelText("Tài liệu")).toHaveValue("doc-2");
+      await ask("Tài liệu này nói gì?");
+      expect(chatBodies()[1]).toMatchObject({
+        mode: "documents",
+        documentId: "doc-2",
+      });
+    });
 
     it("expands and collapses from the header without losing the conversation", async () => {
       answerWithCitation();

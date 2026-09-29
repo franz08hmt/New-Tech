@@ -411,13 +411,18 @@ export function AssistantPanel({
             return;
           }
           setSelectionError("");
-          const resolvedDocumentId = mentionedDocument?.id || documentId;
-          const operation =
-            assistant.mode === "documents" && resolvedDocumentId
-              ? questionOperation(assistant.draft)
-              : "question";
+          // The picker keeps its choice across a switch to ordinary chat, so it
+          // is there on the way back — but only documents mode sends it. The
+          // backend refuses a document in general mode.
+          const resolvedDocumentId =
+            assistant.mode === "documents"
+              ? mentionedDocument?.id || documentId
+              : "";
+          const operation = resolvedDocumentId
+            ? questionOperation(assistant.draft)
+            : "question";
           if (mentionedDocument && mentionedDocument.id !== documentId)
-            setDocumentId(resolvedDocumentId);
+            setDocumentId(mentionedDocument.id);
           void assistant.send(
             {
               pageId,
