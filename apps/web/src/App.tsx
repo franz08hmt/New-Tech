@@ -473,10 +473,23 @@ export default function App() {
         documentsLoading={assistantDocuments.loading}
         onOpenCitation={async (citation) => {
           if (!citation.documentId) return;
-          const { url } = await api.downloadDocument(citation.documentId);
-          const source = new URL(url, window.location.href);
-          if (citation.page) source.hash = `page=${citation.page}`;
-          window.open(source.toString(), "_blank", "noopener,noreferrer");
+          // The tab opens now, still inside the click. Opened after awaiting
+          // the signed URL, the browser no longer counts it as the student's
+          // own action and blocks it as a popup. "noopener" would make
+          // window.open return null, leaving nothing to load the PDF into, so
+          // the tab is cut off from this page by hand instead.
+          const tab = window.open("", "_blank");
+          if (tab) tab.opener = null;
+          try {
+            const { url } = await api.downloadDocument(citation.documentId);
+            const source = new URL(url, window.location.href);
+            if (citation.page) source.hash = `page=${citation.page}`;
+            if (!tab) return source.toString();
+            tab.location.replace(source.toString());
+          } catch (error: unknown) {
+            tab?.close();
+            throw error;
+          }
         }}
         onClose={closeAssistant}
       />

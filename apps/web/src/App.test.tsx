@@ -2247,6 +2247,14 @@ describe("Academic workspace", () => {
         ),
       );
     }
+    /** Stands in for the blank tab `window.open("", "_blank")` returns. */
+    function fakeTab() {
+      return {
+        opener: window as Window | null,
+        location: { replace: vi.fn() },
+        close: vi.fn(),
+      };
+    }
     const chatBodies = () =>
       vi
         .mocked(fetch)
@@ -2339,8 +2347,11 @@ describe("Academic workspace", () => {
 
     it("sends the same request and opens the same source when expanded", async () => {
       answerWithCitation();
-      const open = vi.fn();
-      vi.stubGlobal("open", open);
+      const tab = fakeTab();
+      vi.stubGlobal(
+        "open",
+        vi.fn(() => tab),
+      );
       render(<App />);
       await openWithDocument();
       await ask("Chương 2 nói gì?");
@@ -2361,12 +2372,97 @@ describe("Academic workspace", () => {
       });
       fireEvent.click(sources[sources.length - 1]);
       await waitFor(() =>
-        expect(open).toHaveBeenCalledWith(
+        expect(tab.location.replace).toHaveBeenCalledWith(
           "https://storage.example.test/source.pdf?token=signed#page=3",
-          "_blank",
-          "noopener,noreferrer",
         ),
       );
+    });
+
+    it("opens the source tab inside the click, before its link arrives", async () => {
+      answerWithCitation();
+      const tab = fakeTab();
+      const open = vi.fn(() => tab);
+      vi.stubGlobal("open", open);
+      render(<App />);
+      await openWithDocument();
+      await ask("Chương 2 nói gì?");
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Open source ghi-chu-chung.pdf, tr. 3",
+        }),
+      );
+      // Synchronously, within the click. Opened only after awaiting the
+      // signed URL, the browser no longer treats it as the student's own
+      // action and blocks it as a popup.
+      expect(open).toHaveBeenCalledWith("", "_blank");
+      // Cut off from this page before anything is loaded into it.
+      expect(tab.opener).toBeNull();
+      await waitFor(() =>
+        expect(tab.location.replace).toHaveBeenCalledWith(
+          "https://storage.example.test/source.pdf?token=signed#page=3",
+        ),
+      );
+    });
+
+    it("offers a direct link when the browser blocks the new tab anyway", async () => {
+      answerWithCitation();
+      vi.stubGlobal(
+        "open",
+        vi.fn(() => null),
+      );
+      render(<App />);
+      await openWithDocument();
+      await ask("Chương 2 nói gì?");
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Open source ghi-chu-chung.pdf, tr. 3",
+        }),
+      );
+
+      const link = await screen.findByRole("link", {
+        name: "Open source ghi-chu-chung.pdf, tr. 3",
+      });
+      expect(link).toHaveAttribute(
+        "href",
+        "https://storage.example.test/source.pdf?token=signed#page=3",
+      );
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    });
+
+    it("closes the empty tab when the source link cannot be fetched", async () => {
+      answerWithCitation();
+      const answering = globalThis.fetch;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: RequestInit) =>
+          url.endsWith("/download")
+            ? Response.json({ message: "Storage is down" }, { status: 503 })
+            : answering(url, init),
+        ),
+      );
+      const tab = fakeTab();
+      vi.stubGlobal(
+        "open",
+        vi.fn(() => tab),
+      );
+      render(<App />);
+      await openWithDocument();
+      await ask("Chương 2 nói gì?");
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Open source ghi-chu-chung.pdf, tr. 3",
+        }),
+      );
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /Chưa mở được tài liệu nguồn/,
+      );
+      expect(tab.close).toHaveBeenCalled();
+      expect(tab.location.replace).not.toHaveBeenCalled();
     });
 
     it("keeps focus on the toggle and returns it to the launcher on Escape", async () => {

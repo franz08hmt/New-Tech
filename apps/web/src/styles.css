@@ -2399,6 +2399,19 @@
     color: #8c4a42;
     font-size: 9.5px;
   }
+  .assistant-blocked-source {
+    margin: 10px 18px 0;
+    color: #5d6b5c;
+    font-size: 10px;
+    line-height: 1.6;
+  }
+  .assistant-blocked-source a {
+    color: var(--color-ai-accent);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    overflow-wrap: anywhere;
+  }
   .assistant-status {
     /* Reserves its line so the send button does not jump when a status
        appears or clears. */

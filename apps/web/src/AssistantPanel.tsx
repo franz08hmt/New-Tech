@@ -22,6 +22,11 @@ function documentMentionedIn(
   return matches.length === 1 ? matches[0] : undefined;
 }
 
+/** The accessible name shared by a source's button and its fallback link. */
+function sourceLabel(citation: AssistantCitation) {
+  return `Open source ${citation.title}${citation.locator ? `, ${citation.locator}` : ""}`;
+}
+
 function questionOperation(question: string) {
   if (
     /thuộc\s+(?:khóa học|môn học|môn)\s+nào|(?:which|what)\s+course/iu.test(
@@ -53,7 +58,11 @@ interface AssistantPanelProps {
   assistant: AssistantState;
   documents?: StoredDocument[];
   documentsLoading?: boolean;
-  onOpenCitation?: (citation: AssistantCitation) => Promise<void>;
+  /**
+   * Opens the cited document in a new tab. Resolves with the source URL when
+   * the browser blocked that tab, so it can be offered as a link to click.
+   */
+  onOpenCitation?: (citation: AssistantCitation) => Promise<string | void>;
   onClose: () => void;
 }
 
@@ -108,6 +117,10 @@ export function AssistantPanel({
   const composer = useRef<HTMLTextAreaElement>(null);
   const [openingCitation, setOpeningCitation] = useState<string | null>(null);
   const [citationError, setCitationError] = useState("");
+  const [blockedSource, setBlockedSource] = useState<{
+    label: string;
+    url: string;
+  } | null>(null);
   const [selectionError, setSelectionError] = useState("");
   const [documentId, setDocumentId] = useState("");
   const prompts = promptsByPage[pageId] ?? fallbackPrompts;
@@ -150,8 +163,13 @@ export function AssistantPanel({
     const key = citation.id ?? citation.documentId;
     setOpeningCitation(key);
     setCitationError("");
+    setBlockedSource(null);
     try {
-      await onOpenCitation(citation);
+      // Called straight from the click, not after an await: the new tab has
+      // to open while the browser still counts this as the student's action.
+      const blockedUrl = await onOpenCitation(citation);
+      if (blockedUrl)
+        setBlockedSource({ label: sourceLabel(citation), url: blockedUrl });
     } catch {
       setCitationError("Chưa mở được tài liệu nguồn. Thử lại giúp mình nhé.");
     } finally {
@@ -309,7 +327,7 @@ export function AssistantPanel({
                           <button
                             type="button"
                             disabled={openingCitation !== null}
-                            aria-label={`Open source ${citation.title}${citation.locator ? `, ${citation.locator}` : ""}`}
+                            aria-label={sourceLabel(citation)}
                             onClick={() => void openCitation(citation)}
                           >
                             {citation.title}
@@ -346,6 +364,22 @@ export function AssistantPanel({
         {citationError && (
           <p role="alert" className="assistant-citation-error">
             {citationError}
+          </p>
+        )}
+        {/* The browser blocked the tab even from a click, so the link goes to
+            the student: a click on a real link is never treated as a popup. */}
+        {blockedSource && (
+          <p role="status" className="assistant-blocked-source">
+            Trình duyệt đã chặn tab mới.{" "}
+            <a
+              href={blockedSource.url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {blockedSource.label}
+            </a>
+            . Link chỉ dùng được trong thời gian ngắn; nếu hết hạn, bấm lại vào
+            nguồn.
           </p>
         )}
 
