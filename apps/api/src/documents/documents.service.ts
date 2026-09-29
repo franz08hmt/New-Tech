@@ -224,12 +224,16 @@ export class DocumentsService {
     }
   }
 
-  async download(id: string) {
+  async download(id: string, options: { inline?: boolean } = {}) {
     const document = await this.find(id);
     if (!document) throw new NotFoundException("Document not found");
     if (document.storage_status !== "stored")
       throw new ConflictException("Document is not available for download");
-    return this.storage.signedDownload(document.storage_key, document.name);
+    return this.storage.signedDownload(
+      document.storage_key,
+      document.name,
+      options,
+    );
   }
 
   /** Re-file a document under another subject, or under none. */

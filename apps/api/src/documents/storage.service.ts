@@ -118,7 +118,19 @@ export class StorageService {
     });
   }
 
-  async signedDownload(key: string, name: string) {
+  /**
+   * A 60-second signed URL for one object. By default it carries
+   * `download=<name>`, which makes Storage answer with Content-Disposition:
+   * attachment, so the browser saves the file under its real name. `inline`
+   * leaves that out, and the same PDF is shown in the browser instead — what
+   * a preview needs. The grant, the bucket check and the expiry are the same
+   * either way.
+   */
+  async signedDownload(
+    key: string,
+    name: string,
+    options: { inline?: boolean } = {},
+  ) {
     await this.assertPrivateBucket();
     const result = await this.request(
       `/object/sign/${this.config.bucket}/${key}`,
@@ -136,7 +148,7 @@ export class StorageService {
         "Storage returned an invalid download response",
       );
     const url = new URL(`${this.config.url}/storage/v1${result.signedURL}`);
-    url.searchParams.set("download", name);
+    if (!options.inline) url.searchParams.set("download", name);
     return { url: url.toString(), expiresIn: 60 };
   }
 }

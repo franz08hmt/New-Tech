@@ -275,6 +275,46 @@ test("HTTP Documents enforces multipart size, file count and missing file before
   assert.equal((await server.request("/documents", form)).status, 400);
   assert.equal(fixture.state.uploadCalls, 0);
 });
+test("HTTP Documents download is an attachment unless inline is asked for", async () => {
+  const document = await (await server.request("/documents", pdfForm())).json();
+
+  const attachment = await server.request(`/documents/${document.id}/download`);
+  assert.equal(attachment.status, 200);
+  const saved = await attachment.json();
+  assert.deepEqual(Object.keys(saved).sort(), ["expiresIn", "url"]);
+  assert.equal(saved.expiresIn, 60);
+  assert.equal(new URL(saved.url).searchParams.get("download"), "study.pdf");
+
+  const inline = await server.request(
+    `/documents/${document.id}/download?disposition=inline`,
+  );
+  assert.equal(inline.status, 200);
+  const preview = await inline.json();
+  assert.deepEqual(Object.keys(preview).sort(), ["expiresIn", "url"]);
+  assert.equal(preview.expiresIn, 60);
+  assert.equal(new URL(preview.url).searchParams.has("download"), false);
+  assert.deepEqual(
+    fixture.state.signedDownloads.map((call) => call.options.inline === true),
+    [false, true],
+  );
+});
+test("HTTP Documents refuses any disposition other than inline", async () => {
+  const document = await (await server.request("/documents", pdfForm())).json();
+  for (const query of [
+    "disposition=attachment",
+    "disposition=INLINE",
+    "disposition=",
+    "disposition=inline&disposition=inline",
+    "inline=true",
+  ]) {
+    const response = await server.request(
+      `/documents/${document.id}/download?${query}`,
+    );
+    assert.equal(response.status, 400, query);
+  }
+  // Refused before Storage was asked to sign anything.
+  assert.equal(fixture.state.signedDownloads.length, 0);
+});
 test("HTTP Documents rejects unknown fields, UUID and missing download", async () => {
   const form = pdfForm();
   form.body.append("extra", "invalid");

@@ -1,4 +1,4 @@
-import { IsOptional, IsUUID, ValidateIf } from "class-validator";
+import { IsIn, IsOptional, IsUUID, ValidateIf } from "class-validator";
 
 export class SetDocumentCourseDto {
   /**
@@ -16,4 +16,15 @@ export class UploadDocumentDto {
   @IsOptional()
   @IsUUID()
   courseId?: string;
+}
+
+export class DownloadDocumentQueryDto {
+  /**
+   * Only "inline" is accepted: a preview asks for it, and leaving it out keeps
+   * the ordinary download. Any other value, repeated values included, is a
+   * 400 rather than being quietly read as a download.
+   */
+  @IsOptional()
+  @IsIn(["inline"])
+  disposition?: "inline";
 }

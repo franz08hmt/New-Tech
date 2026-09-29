@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from "@nestjs/common";
@@ -16,6 +17,7 @@ import { DocumentsService, MAX_FILE_SIZE } from "./documents.service.js";
 import { DocumentIngestionService } from "./document-ingestion.service.js";
 import type { PdfFile } from "./documents.service.js";
 import {
+  DownloadDocumentQueryDto,
   SetDocumentCourseDto,
   UploadDocumentDto,
 } from "./set-document-course.dto.js";
@@ -54,8 +56,13 @@ export class DocumentsController {
     return this.ingestion.process(id);
   }
   @Get(":id/download")
-  download(@Param("id", new ParseUUIDPipe()) id: string) {
-    return this.documents.download(id);
+  download(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Query() query: DownloadDocumentQueryDto,
+  ) {
+    return this.documents.download(id, {
+      inline: query.disposition === "inline",
+    });
   }
   @Patch(":id/course")
   setCourse(

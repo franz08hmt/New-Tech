@@ -61,6 +61,35 @@ test("Storage HTTP adapter sends private bucket check, bytes, short signed URL a
   });
 });
 
+test("Storage signs an inline preview URL without the download parameter", async () => {
+  configure();
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url, init });
+    return Response.json(
+      url.includes("/bucket/")
+        ? { public: false }
+        : {
+            signedURL:
+              "/object/sign/test-bucket/documents/test.pdf?token=fixture",
+          },
+    );
+  };
+  const storage = new StorageService();
+  const preview = await storage.signedDownload(
+    "documents/test.pdf",
+    "study notes.pdf",
+    { inline: true },
+  );
+  const url = new URL(preview.url);
+  assert.equal(url.searchParams.has("download"), false);
+  assert.equal(url.searchParams.get("token"), "fixture");
+  assert.equal(preview.expiresIn, 60);
+  // Same private-bucket check and the same 60-second grant as a download.
+  assert.ok(calls[0].url.includes("/bucket/test-bucket"));
+  assert.deepEqual(JSON.parse(calls[1].init.body), { expiresIn: 60 });
+});
+
 test("Storage secret key uses apikey without sending it as a Bearer JWT", async () => {
   configure();
   process.env.SUPABASE_SECRET_KEY = "sb_secret_test_fixture";

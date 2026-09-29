@@ -117,6 +117,7 @@ export function fakeDependencies() {
     failHealth: false,
     uploadCalls: 0,
     removeCalls: 0,
+    signedDownloads: [],
   };
   const database = {
     async ping() {
@@ -205,9 +206,12 @@ export function fakeDependencies() {
       }
       objects.delete(key);
     },
-    async signedDownload(key) {
+    async signedDownload(key, name, options = {}) {
       if (!objects.has(key)) throw new Error("missing object");
-      return { url: "https://storage.example.test/signed-demo", expiresIn: 60 };
+      state.signedDownloads.push({ key, name, options });
+      const url = new URL("https://storage.example.test/signed-demo");
+      if (!options.inline) url.searchParams.set("download", name);
+      return { url: url.toString(), expiresIn: 60 };
     },
   };
   return { database, storage, state, tasks, documents, objects, courses };
