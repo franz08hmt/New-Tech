@@ -208,7 +208,14 @@ export interface AssistantPageContext {
   pageName: string;
 }
 
-export type AssistantMode = "general" | "documents";
+/**
+ * general: general knowledge, reads nothing from the workspace.
+ * documents: RAG over indexed PDF content, with [S…] citations.
+ * workspace: structured records from the database — tasks, exams, study
+ * plans, expenses, courses and document metadata — answered by fixed,
+ * read-only queries, never by a model.
+ */
+export type AssistantMode = "general" | "documents" | "workspace";
 export type AssistantOperation = "question" | "summarize" | "course_info";
 
 /** Request body of `POST /api/assistant/chat`. */
@@ -242,6 +249,54 @@ export interface AssistantMetadataSource {
   courseCode: string | null;
 }
 
+/** The kinds of workspace record an answer can rest on. */
+export type AssistantWorkspaceSourceKind =
+  "task" | "exam" | "study_plan" | "expense" | "document" | "course";
+
+/**
+ * One workspace record behind an answer.
+ *
+ * No URL travels here on purpose: the web app builds each link itself from
+ * `kind` and `id` (or a course's `slug`), so nothing the server — or a record's
+ * own text — says can become a link somewhere else. It is not a PDF citation
+ * and carries no page.
+ */
+export interface AssistantWorkspaceSource {
+  kind: AssistantWorkspaceSourceKind;
+  id: string;
+  /** Courses are addressed by slug in the app; set for kind "course" only. */
+  slug?: string;
+  label: string;
+  /** A short fact about the record: its date, status or amount. */
+  detail?: string;
+}
+
+/** Which fixed question a workspace answer was computed for. */
+export type AssistantWorkspaceIntent =
+  | "tasks_open"
+  | "tasks_overdue"
+  | "tasks_by_course_unsupported"
+  | "exams_upcoming"
+  | "study_plans_open"
+  | "study_plans_overdue"
+  | "expenses_total"
+  | "course_documents"
+  | "document_course"
+  | "courses_list"
+  | "course_required"
+  | "course_not_found"
+  | "course_ambiguous"
+  | "write_refused"
+  | "notes_unavailable"
+  | "unsupported";
+
+/**
+ * WORKSPACE_ANSWER: computed from records. WORKSPACE_UNSUPPORTED: the question
+ * is outside what the records can answer, and the reply says so instead.
+ */
+export type AssistantWorkspaceReasonCode =
+  "WORKSPACE_ANSWER" | "WORKSPACE_UNSUPPORTED";
+
 export type AssistantReasonCode =
   | "ANSWER_GENERATED"
   | "PARTIAL_COVERAGE"
@@ -274,6 +329,19 @@ export type AssistantChatResponse =
       mode: "documents";
       ragEnabled: false;
       metadataSource: AssistantMetadataSource;
+    })
+  | (AssistantResponseBase & {
+      reasonCode: AssistantWorkspaceReasonCode;
+      citations: [];
+      provider: "workspace";
+      model: "database";
+      mode: "workspace";
+      ragEnabled: false;
+      workspaceIntent: AssistantWorkspaceIntent;
+      workspaceSources: AssistantWorkspaceSource[];
+      /** The calendar day "today" meant, in Asia/Ho_Chi_Minh: "2026-09-29". */
+      asOf: string;
+      metadataSource?: never;
     });
 
 /** Response of `GET /api/assistant/status`. */

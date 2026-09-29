@@ -2,6 +2,7 @@ import {
   ArrowsPointingInIcon,
   ArrowsPointingOutIcon,
   BookOpenIcon,
+  CircleStackIcon,
   DocumentMagnifyingGlassIcon,
   PaperAirplaneIcon,
   SparklesIcon,
@@ -10,6 +11,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { AssistantMarkdown } from "./AssistantMarkdown";
 import { SourcePreview, useSourcePreview } from "./SourcePreview";
+import { workspaceKindLabel, workspaceSourceHref } from "./workspace-links";
 import type { AssistantCitation, AssistantState } from "./use-assistant";
 import type { StoredDocument } from "./api";
 
@@ -83,6 +85,8 @@ interface AssistantPanelProps {
    * conversation once expanded; otherwise it takes the conversation's place.
    */
   roomForSource?: boolean;
+  /** A real course name for the workspace examples, when there is one. */
+  workspaceCourse?: string;
   onClose: () => void;
 }
 
@@ -104,6 +108,25 @@ const promptsByPage: Record<string, string[]> = {
     "Which concepts should I revisit first?",
   ],
 };
+
+/**
+ * Questions workspace mode can answer, with a real course name when the
+ * workspace has one — an example that names no real course would only fail.
+ */
+function workspacePrompts(course?: string) {
+  return [
+    "Task nào chưa xong?",
+    "Task nào đã quá hạn?",
+    course
+      ? `Kỳ thi sắp tới của môn ${course} là khi nào?`
+      : "Kỳ thi sắp tới là khi nào?",
+    course
+      ? `Việc cần ôn nào của môn ${course} đã quá hạn?`
+      : "Việc cần ôn nào đã quá hạn?",
+    ...(course ? [`Tổng chi của môn ${course} là bao nhiêu?`] : []),
+    "Workspace có những môn học nào?",
+  ];
+}
 
 const fallbackPrompts = [
   "Summarize this workspace section.",
@@ -133,6 +156,7 @@ export function AssistantPanel({
   onOpenCitation,
   loadSource,
   roomForSource = false,
+  workspaceCourse,
   onClose,
 }: AssistantPanelProps) {
   const panel = useRef<HTMLElement>(null);
@@ -169,7 +193,10 @@ export function AssistantPanel({
   for (const message of assistant.messages)
     if (message.role === "assistant")
       answerNumbers.set(message.id, answerNumbers.size + 1);
-  const prompts = promptsByPage[pageId] ?? fallbackPrompts;
+  const prompts =
+    assistant.mode === "workspace"
+      ? workspacePrompts(workspaceCourse)
+      : (promptsByPage[pageId] ?? fallbackPrompts);
   const preview = assistant.status === "unavailable";
   const availableDocuments = documents.filter(
     (item) =>
@@ -391,11 +418,23 @@ export function AssistantPanel({
                 />
                 Hỏi tài liệu
               </label>
+              <label>
+                <input
+                  type="radio"
+                  name="assistant-mode"
+                  value="workspace"
+                  checked={assistant.mode === "workspace"}
+                  onChange={() => assistant.setMode("workspace")}
+                />
+                Hỏi workspace
+              </label>
             </fieldset>
             <p className="assistant-capability">
               {assistant.mode === "documents"
                 ? "Nội dung trả lời dựa trên tài liệu đã lập chỉ mục; thông tin môn học lấy từ metadata của workspace và được ghi nguồn riêng."
-                : "Trả lời bằng kiến thức chung; không đọc hoặc suy đoán dữ liệu riêng trong ứng dụng."}
+                : assistant.mode === "workspace"
+                  ? "Trả lời từ dữ liệu đang lưu trong workspace demo dùng chung: task, kỳ thi, kế hoạch ôn, khoản chi, môn học và thông tin tài liệu. Tính trực tiếp từ database, không qua AI; không đọc nội dung PDF hay ghi chú nhanh, và không thay đổi dữ liệu."
+                  : "Trả lời bằng kiến thức chung; không đọc hoặc suy đoán dữ liệu riêng trong ứng dụng."}
             </p>
             {open && assistant.mode === "documents" && (
               <label className="assistant-document-picker">
@@ -489,6 +528,27 @@ export function AssistantPanel({
                     ))}
                   </ul>
                 )}
+                {message.workspaceSources &&
+                  message.workspaceSources.length > 0 && (
+                    <ul
+                      className="assistant-workspace-sources"
+                      aria-label="Workspace sources"
+                    >
+                      {message.workspaceSources.map((source) => {
+                        const href = workspaceSourceHref(source);
+                        const text = `${workspaceKindLabel[source.kind] ?? "Record"}: ${source.label}`;
+                        return (
+                          <li key={`${source.kind}-${source.id}`}>
+                            <CircleStackIcon aria-hidden="true" />
+                            <span>
+                              {href ? <a href={href}>{text}</a> : text}
+                              {source.detail && <small>{source.detail}</small>}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 {message.metadataSource && (
                   <p className="assistant-metadata-source">
                     Nguồn: thông tin tài liệu trong workspace ·{" "}

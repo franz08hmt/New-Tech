@@ -4,7 +4,16 @@ import type {
 } from "@examate/contracts";
 
 export type { AssistantStatus };
-export type AssistantAnswer = AssistantChatResponse;
+/** What AssistantService answers: general chat and document RAG. */
+export type AssistantAnswer = Exclude<
+  AssistantChatResponse,
+  { mode: "workspace" }
+>;
+/** What the read-only workspace assistant answers; no model involved. */
+export type WorkspaceAnswer = Extract<
+  AssistantChatResponse,
+  { mode: "workspace" }
+>;
 
 export interface AssistantGeneration {
   systemInstruction: string;

@@ -115,6 +115,10 @@ const assistantFailureMessage: Record<string, string> = {
   AI_AUTHENTICATION: "Thông tin xác thực AI không hợp lệ.",
   AI_UNAVAILABLE: "Dịch vụ AI hiện không khả dụng. Hãy thử lại sau.",
   AI_UPSTREAM: "AI trả về dữ liệu không hợp lệ hoặc tạm thời gặp sự cố.",
+  DATABASE_UNAVAILABLE:
+    "Chưa đọc được dữ liệu workspace vì cơ sở dữ liệu đang gián đoạn. Bản nháp vẫn được giữ để thử lại.",
+  WORKSPACE_QUESTION_ONLY:
+    "Chế độ Hỏi workspace chỉ nhận câu hỏi, không nhận tài liệu hay thao tác tóm tắt.",
 };
 
 function assistantErrorMessage(error: unknown) {
@@ -219,6 +223,14 @@ export default function App() {
           ...(courseId ? { courseId } : {}),
           ...(documentId ? { documentId } : {}),
         });
+        // Workspace answers come from records, not a model: shown as sent,
+        // with their record links instead of PDF citations.
+        if (response.mode === "workspace")
+          return {
+            text: response.answer,
+            citations: [],
+            workspaceSources: response.workspaceSources,
+          };
         const translated = assistantOutcomeMessage[response.reasonCode];
         const coverageWarning =
           response.reasonCode === "PARTIAL_COVERAGE"
@@ -243,6 +255,17 @@ export default function App() {
           })),
         };
       } catch (error: unknown) {
+        // Workspace answers depend on nothing but this server, so when it
+        // cannot be reached say so plainly rather than in the API client's
+        // generic English. The two older modes keep their messages as they were.
+        const unreachable =
+          !(error instanceof ApiError) ||
+          (error.code === "REQUEST_FAILED" &&
+            [502, 503, 504].includes(error.status));
+        if (mode === "workspace" && unreachable)
+          throw new Error(
+            "Chưa kết nối được máy chủ ExaMate để đọc dữ liệu workspace. Bản nháp vẫn được giữ để thử lại.",
+          );
         throw new Error(assistantErrorMessage(error));
       }
     },
@@ -473,6 +496,7 @@ export default function App() {
         modal={modal}
         sheet={narrow}
         roomForSource={!medium}
+        workspaceCourse={selectedCourse?.name ?? coursesState.courses[0]?.name}
         expanded={assistantExpanded}
         onToggleExpanded={() => setAssistantExpanded((current) => !current)}
         pageId={page.id}

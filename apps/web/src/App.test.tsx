@@ -2288,6 +2288,238 @@ describe("Academic workspace", () => {
       );
     }
 
+    const TASK_ID = "00000000-0000-4000-8000-000000000001";
+    const EXAM_ID = "00000000-0000-4000-8000-000000000011";
+    const PLAN_ID = "00000000-0000-4000-8000-000000000021";
+    const EXPENSE_ID = "00000000-0000-4000-8000-000000000031";
+    const DOC_ID = "00000000-0000-4000-8000-000000000041";
+    const workspaceAnswer = {
+      answer:
+        "Có 1 task chưa xong trong danh sách chung (task không gắn với môn học nào):\n- Viết báo cáo tiến độ — Chưa bắt đầu · hạn 28/09/2026\n\nTính theo ngày 29/09/2026 (giờ Việt Nam), từ dữ liệu đang lưu trong workspace demo dùng chung — không qua AI.",
+      answerable: true,
+      reasonCode: "WORKSPACE_ANSWER",
+      citations: [],
+      provider: "workspace",
+      model: "database",
+      mode: "workspace",
+      ragEnabled: false,
+      promptVersion: "workspace-v1",
+      workspaceIntent: "tasks_open",
+      asOf: "2026-09-29",
+      workspaceSources: [
+        {
+          kind: "task",
+          id: TASK_ID,
+          label: "Viết báo cáo tiến độ",
+          detail: "Chưa bắt đầu · hạn 28/09/2026",
+        },
+        { kind: "exam", id: EXAM_ID, label: "Cuối kỳ", detail: "Sắp tới" },
+        { kind: "study_plan", id: PLAN_ID, label: "Ôn chương 3" },
+        { kind: "expense", id: EXPENSE_ID, label: "Giáo trình" },
+        { kind: "document", id: DOC_ID, label: "de-cuong-thuat-toan.pdf" },
+        {
+          kind: "course",
+          id: "11111111-1111-4111-8111-111111111111",
+          slug: "cs-201",
+          label: "Công nghệ phần mềm (CS 201)",
+        },
+      ],
+    };
+    function answerFromWorkspace(response: object = workspaceAnswer) {
+      const existingFetch = globalThis.fetch;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: RequestInit) =>
+          url === "/api/assistant/chat" && init?.method === "POST"
+            ? Response.json(response)
+            : existingFetch(url, init),
+        ),
+      );
+    }
+
+    it("answers a workspace question from the records, with a link to each one", async () => {
+      answerFromWorkspace();
+      render(<App />);
+      await openWithDocument();
+      fireEvent.click(screen.getByRole("radio", { name: "Hỏi workspace" }));
+      // Documents-only controls step aside; the mode says what it reads.
+      expect(screen.queryByLabelText("Tài liệu")).toBeNull();
+      expect(screen.getByText(/không đọc nội dung PDF/)).toBeInTheDocument();
+
+      await ask("Task nào chưa xong?");
+
+      const [body] = chatBodies();
+      expect(body).toEqual({
+        message: "Task nào chưa xong?",
+        mode: "workspace",
+        operation: "question",
+        pageContext: { pageId: "dashboard", pageName: "Dashboard" },
+      });
+      expect(
+        await screen.findByText(/Có 1 task chưa xong trong danh sách chung/),
+      ).toBeInTheDocument();
+
+      const sources = screen.getByRole("list", { name: "Workspace sources" });
+      const links = within(sources)
+        .getAllByRole("link")
+        .map((link) => [link.textContent, link.getAttribute("href")]);
+      expect(links).toEqual([
+        ["Task: Viết báo cáo tiến độ", `#tasks/${TASK_ID}`],
+        ["Exam: Cuối kỳ", `#exams/${EXAM_ID}`],
+        ["Study plan: Ôn chương 3", `#study-plan/${PLAN_ID}`],
+        ["Expense: Giáo trình", `#finances/${EXPENSE_ID}`],
+        ["Document: de-cuong-thuat-toan.pdf", `#documents/${DOC_ID}`],
+        ["Course: Công nghệ phần mềm (CS 201)", "#courses/cs-201"],
+      ]);
+      expect(
+        within(sources).getByText("Chưa bắt đầu · hạn 28/09/2026"),
+      ).toBeInTheDocument();
+      // A record is not a PDF citation: no page, no preview button.
+      expect(screen.queryByRole("list", { name: "Sources" })).toBeNull();
+      expect(screen.queryByRole("button", { name: /Open source/ })).toBeNull();
+    });
+
+    it("does not turn a source into a link unless it is a real record id", async () => {
+      answerFromWorkspace({
+        ...workspaceAnswer,
+        workspaceSources: [
+          { kind: "task", id: "javascript:alert(1)", label: "Bẫy liên kết" },
+          { kind: "course", id: TASK_ID, slug: "../../evil", label: "Khóa lạ" },
+        ],
+      });
+      render(<App />);
+      fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+      fireEvent.click(screen.getByRole("radio", { name: "Hỏi workspace" }));
+      await ask("Task nào chưa xong?");
+
+      const sources = await screen.findByRole("list", {
+        name: "Workspace sources",
+      });
+      expect(within(sources).queryAllByRole("link")).toEqual([]);
+      expect(
+        within(sources).getByText("Task: Bẫy liên kết"),
+      ).toBeInTheDocument();
+    });
+
+    it("says the workspace data could not be read and keeps the draft", async () => {
+      const existingFetch = globalThis.fetch;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: RequestInit) =>
+          url === "/api/assistant/chat" && init?.method === "POST"
+            ? Response.json(
+                {
+                  statusCode: 503,
+                  code: "DATABASE_UNAVAILABLE",
+                  message: "Database is unavailable. Please retry.",
+                  requestId: "req-db-1",
+                },
+                { status: 503 },
+              )
+            : existingFetch(url, init),
+        ),
+      );
+      render(<App />);
+      fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+      fireEvent.click(screen.getByRole("radio", { name: "Hỏi workspace" }));
+      fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+        target: { value: "Kỳ thi sắp tới?" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /Chưa đọc được dữ liệu workspace/,
+      );
+      expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+        "Kỳ thi sắp tới?",
+      );
+    });
+
+    it.each([
+      [
+        "a gateway error with no body",
+        async () => new Response("", { status: 502 }),
+      ],
+      [
+        "no connection at all",
+        async () => {
+          throw new TypeError("Failed to fetch");
+        },
+      ],
+    ])(
+      "explains in Vietnamese when the server cannot be reached (%s), keeping the draft",
+      async (_name, failChat) => {
+        const existingFetch = globalThis.fetch;
+        vi.stubGlobal(
+          "fetch",
+          vi.fn(async (url: string, init?: RequestInit) =>
+            url === "/api/assistant/chat" && init?.method === "POST"
+              ? failChat()
+              : existingFetch(url, init),
+          ),
+        );
+        render(<App />);
+        fireEvent.click(
+          screen.getByRole("button", { name: "Open ExaMate AI" }),
+        );
+        fireEvent.click(screen.getByRole("radio", { name: "Hỏi workspace" }));
+        fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+          target: { value: "Task nào đã quá hạn?" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
+
+        expect(await screen.findByRole("alert")).toHaveTextContent(
+          /Chưa kết nối được máy chủ ExaMate/,
+        );
+        expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+          "Task nào đã quá hạn?",
+        );
+      },
+    );
+
+    it("keeps the conversation and the chosen document across a trip through workspace mode", async () => {
+      answerWithCitation();
+      render(<App />);
+      await openWithDocument();
+      await ask("Chương 2 nói gì?");
+
+      answerFromWorkspace();
+      fireEvent.click(screen.getByRole("radio", { name: "Hỏi workspace" }));
+      fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+        target: { value: "Task nào chưa xong?" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
+      await screen.findByRole("list", { name: "Workspace sources" });
+
+      fireEvent.click(screen.getByRole("radio", { name: "Hỏi tài liệu" }));
+      expect(screen.getByLabelText("Tài liệu")).toHaveValue("doc-2");
+      expect(
+        screen.getByText("Chương 2 nói về độ phức tạp thuật toán."),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Có 1 task chưa xong trong danh sách chung/),
+      ).toBeInTheDocument();
+      // The PDF citation from before still opens its preview.
+      expect(
+        screen.getByRole("button", {
+          name: "Open source ghi-chu-chung.pdf, tr. 3",
+        }),
+      ).toBeInTheDocument();
+    });
+
+    it("offers workspace questions to try, and fills the draft with one", async () => {
+      render(<App />);
+      fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+      fireEvent.click(screen.getByRole("radio", { name: "Hỏi workspace" }));
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Task nào đã quá hạn?" }),
+      );
+      expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+        "Task nào đã quá hạn?",
+      );
+    });
+
     it("keeps the Documents download as an ordinary attachment link", async () => {
       window.history.replaceState(null, "", "/#documents");
       vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(

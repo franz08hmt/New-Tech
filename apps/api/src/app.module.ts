@@ -4,6 +4,8 @@ import { AssistantService } from "./assistant/assistant.service.js";
 import { GeminiService } from "./assistant/gemini.service.js";
 import { GeminiEmbeddingService } from "./assistant/gemini-embedding.service.js";
 import { RagRetrievalService } from "./assistant/rag-retrieval.service.js";
+import { WorkspaceAssistantService } from "./assistant/workspace-assistant.service.js";
+import { WorkspaceRecordsService } from "./assistant/workspace-records.service.js";
 import { DatabaseService } from "./database/database.service.js";
 import { HealthController } from "./health/health.controller.js";
 import { TasksController } from "./tasks/tasks.controller.js";
@@ -50,6 +52,8 @@ import { ExpensesService } from "./expenses/expenses.service.js";
     GeminiService,
     GeminiEmbeddingService,
     RagRetrievalService,
+    WorkspaceRecordsService,
+    WorkspaceAssistantService,
   ],
 })
 export class AppModule {}

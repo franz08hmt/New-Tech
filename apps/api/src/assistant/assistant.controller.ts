@@ -9,11 +9,15 @@ import {
 import { AssistantChatDto } from "./assistant-chat.dto.js";
 import { AssistantExceptionFilter } from "./assistant-exception.filter.js";
 import { AssistantService } from "./assistant.service.js";
+import { WorkspaceAssistantService } from "./workspace-assistant.service.js";
 
 @Controller("assistant")
 @UseFilters(AssistantExceptionFilter)
 export class AssistantController {
-  constructor(private readonly assistant: AssistantService) {}
+  constructor(
+    private readonly assistant: AssistantService,
+    private readonly workspace: WorkspaceAssistantService,
+  ) {}
 
   @Get("status")
   status() {
@@ -23,6 +27,9 @@ export class AssistantController {
   @Post("chat")
   @HttpCode(200)
   chat(@Body() input: AssistantChatDto) {
+    // Workspace questions are answered from records by their own read-only
+    // service; general chat and document RAG stay exactly as they were.
+    if (input.mode === "workspace") return this.workspace.chat(input);
     return this.assistant.chat(input);
   }
 }

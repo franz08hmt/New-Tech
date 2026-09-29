@@ -5,6 +5,7 @@ import { AssistantChatDto } from "./assistant-chat.dto.js";
 import { AssistantController } from "./assistant.controller.js";
 import { AssistantService } from "./assistant.service.js";
 import type { AssistantProvider, AssistantStatus } from "./assistant.types.js";
+import type { WorkspaceAssistantService } from "./workspace-assistant.service.js";
 
 function fixture(status: AssistantStatus) {
   const provider: AssistantProvider = {
@@ -36,7 +37,18 @@ function fixture(status: AssistantStatus) {
     }),
   };
   const service = new AssistantService(provider, retrieval as never);
-  return { service, controller: new AssistantController(service) };
+  const workspace = {
+    chat: vi.fn().mockResolvedValue({ mode: "workspace" }),
+  };
+  return {
+    service,
+    provider,
+    workspace,
+    controller: new AssistantController(
+      service,
+      workspace as unknown as WorkspaceAssistantService,
+    ),
+  };
 }
 
 const common = {
@@ -123,5 +135,46 @@ describe("AssistantController", () => {
         { type: "body", metatype: AssistantChatDto },
       ),
     ).rejects.toThrow();
+    await expect(
+      pipe.transform(
+        { message: "Task nào chưa xong?", mode: "workspace" },
+        { type: "body", metatype: AssistantChatDto },
+      ),
+    ).resolves.toMatchObject({ mode: "workspace" });
+  });
+
+  it("answers workspace questions from the workspace service, never the model", async () => {
+    const { service, provider, workspace, controller } = fixture({
+      ...common,
+      status: "ready",
+      model: "gemini-2.5-flash",
+    });
+    const chat = vi.spyOn(service, "chat");
+    const input = {
+      message: "Task nào chưa xong?",
+      mode: "workspace" as const,
+    };
+
+    await expect(controller.chat(input)).resolves.toEqual({
+      mode: "workspace",
+    });
+    expect(workspace.chat).toHaveBeenCalledWith(input);
+    expect(chat).not.toHaveBeenCalled();
+    expect(provider.generate).not.toHaveBeenCalled();
+  });
+
+  it("keeps general and document questions on the existing service", async () => {
+    const { service, workspace, controller } = fixture({
+      ...common,
+      status: "ready",
+      model: "gemini-2.5-flash",
+    });
+    const chat = vi.spyOn(service, "chat");
+    await controller.chat({ message: "Study tips?", mode: "general" });
+    await controller.chat({ message: "What is due?", mode: "documents" });
+    await controller.chat({ message: "Legacy request" });
+
+    expect(chat).toHaveBeenCalledTimes(3);
+    expect(workspace.chat).not.toHaveBeenCalled();
   });
 });

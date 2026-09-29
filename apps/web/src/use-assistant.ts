@@ -3,6 +3,7 @@ import type {
   AssistantMetadataSource,
   AssistantMode,
   AssistantOperation,
+  AssistantWorkspaceSource,
 } from "@examate/contracts";
 
 /*
@@ -39,6 +40,8 @@ export interface AssistantMessage {
   text: string;
   citations: AssistantCitation[];
   metadataSource?: AssistantMetadataSource;
+  /** Workspace records the answer rests on; never PDF citations. */
+  workspaceSources?: AssistantWorkspaceSource[];
 }
 
 /** What the student was looking at when they asked. */
@@ -65,6 +68,7 @@ export type AskTransport = (
   text: string;
   citations: AssistantCitation[];
   metadataSource?: AssistantMetadataSource;
+  workspaceSources?: AssistantWorkspaceSource[];
 }>;
 
 export type AssistantStatus = "unavailable" | "idle" | "sending" | "error";
@@ -134,6 +138,9 @@ export function useAssistant(transport?: AskTransport): AssistantState {
             citations: reply.citations,
             ...(reply.metadataSource
               ? { metadataSource: reply.metadataSource }
+              : {}),
+            ...(reply.workspaceSources
+              ? { workspaceSources: reply.workspaceSources }
               : {}),
           },
         ]);

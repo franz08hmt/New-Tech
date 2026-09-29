@@ -44,7 +44,7 @@ export class AssistantChatDto implements AssistantChatRequest {
   message!: string;
 
   @IsOptional()
-  @IsIn(["general", "documents"] satisfies AssistantMode[])
+  @IsIn(["general", "documents", "workspace"] satisfies AssistantMode[])
   mode?: AssistantMode;
 
   @IsOptional()
