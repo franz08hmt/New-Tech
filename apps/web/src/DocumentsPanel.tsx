@@ -243,8 +243,10 @@ export function DocumentsPanel() {
       const { url } = await api.downloadDocument(item.id);
       const anchor = document.createElement("a");
       anchor.href = url;
+      // The link asks Storage to send the file as an attachment, so the browser
+      // saves it and the page stays where it is. No new tab: one opened after
+      // an await can be refused by a popup blocker.
       anchor.rel = "noopener noreferrer";
-      anchor.target = "_blank";
       anchor.click();
     } catch (caught) {
       setError(message(caught));

@@ -2686,6 +2686,31 @@ describe("Academic workspace", () => {
       );
     });
 
+    it("downloads in place instead of opening a tab the popup blocker can refuse", async () => {
+      window.history.replaceState(null, "", "/#documents");
+      const click = vi
+        .spyOn(HTMLAnchorElement.prototype, "click")
+        .mockImplementation(() => {});
+      render(<App />);
+
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Download ghi-chu-chung.pdf",
+        }),
+      );
+
+      await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
+      // The link is an attachment: the browser saves it without leaving the
+      // page. A target="_blank" on top of that is opened after an await, which
+      // a popup blocker may refuse once the click's permission has lapsed.
+      const link = click.mock.contexts[0] as HTMLAnchorElement;
+      expect(link.getAttribute("href")).toBe(
+        "https://storage.example.test/source.pdf?token=signed",
+      );
+      expect(link.target).not.toBe("_blank");
+      click.mockRestore();
+    });
+
     it("keeps the Documents download as an ordinary attachment link", async () => {
       window.history.replaceState(null, "", "/#documents");
       vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(
