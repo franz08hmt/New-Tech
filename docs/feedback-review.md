@@ -42,6 +42,13 @@ State thuộc từng component answer trong panel luôn được giữ mounted; 
 đổi trang, expand/collapse và source view giữ draft trong tab. Reload vẫn mất
 hội thoại theo thiết kế cũ, không có localStorage chat mới.
 
+UUID dùng native randomUUID nếu có, hoặc UUID v4 từ getRandomValues khi mở app
+bằng HTTP thường. Nếu nguồn random không dùng được, câu trả lời chat vẫn giữ;
+feedback thông báo chưa thể tạo mã, không dùng Math.random làm UUID database.
+Lỗi HTTP 400/409 giữ nội dung và hiện hướng dẫn riêng, không có nút thử lại cùng
+payload. 400 cần nhóm kiểm tra dữ liệu; 409 báo xung đột mà không tự nhận bản
+đang gửi đã được lưu. Lỗi 503/mất mạng vẫn thử lại cùng key/payload.
+
 UNIQUE `submission_id` và `answer_id`, INSERT `ON CONFLICT DO NOTHING` rồi SELECT
 tham số hóa bảo vệ concurrency. Hash SHA-256 server tính trên payload canonical
 (object keys sắp xếp, thứ tự array được giữ): cùng key/payload trả receipt cũ;

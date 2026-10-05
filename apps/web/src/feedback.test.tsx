@@ -13,7 +13,7 @@ import type { AssistantChatResponse } from "@examate/contracts";
 import { useEffect } from "react";
 import { AssistantPanel } from "./AssistantPanel";
 import { useAssistant } from "./use-assistant";
-import { api } from "./api";
+import { api, ApiError } from "./api";
 import { AssistantFeedback } from "./AssistantFeedback";
 
 const response: AssistantChatResponse = {
@@ -78,7 +78,187 @@ const receipt = {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
+
+const uuidV4 =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+for (const mode of ["general", "documents", "workspace"] as const) {
+  it(`preserves successful ${mode} answers without crypto.randomUUID`, async () => {
+    const nativeCrypto = globalThis.crypto;
+    const getRandomValues = vi.fn((bytes: Uint8Array<ArrayBuffer>) =>
+      nativeCrypto.getRandomValues(bytes),
+    );
+    vi.stubGlobal("crypto", { getRandomValues });
+    const raw: AssistantChatResponse =
+      mode === "workspace"
+        ? response
+        : {
+            ...(mode === "general"
+              ? { mode: "general" as const, ragEnabled: false as const }
+              : { mode: "documents" as const, ragEnabled: true as const }),
+            provider: "google",
+            model: "fixture",
+            promptVersion: "fixture",
+            answer: "Valid fixture answer",
+            answerable: true,
+            reasonCode: "ANSWER_GENERATED",
+            citations: [],
+          };
+    const { result } = renderHook(() =>
+      useAssistant(async () => ({
+        text: raw.answer,
+        citations: [],
+        response: raw,
+      })),
+    );
+    act(() => {
+      result.current.setMode(mode);
+      result.current.setDraft("HTTP fixture question");
+    });
+    await act(async () => {
+      await result.current.send(scope);
+    });
+    expect(result.current.messages).toHaveLength(2);
+    expect(result.current.messages[1].text).toBe(raw.answer);
+    expect(result.current.status).toBe("idle");
+    expect(result.current.messages[1].feedback?.answerId).toMatch(uuidV4);
+    expect(getRandomValues).toHaveBeenCalledTimes(1);
+  });
+}
+it("a random source failure cannot discard a successful chat answer", async () => {
+  vi.stubGlobal("crypto", {
+    getRandomValues: () => {
+      throw new Error("Fixture random source unavailable");
+    },
+  });
+  const { result } = renderHook(() =>
+    useAssistant(async () => ({
+      text: response.answer,
+      citations: [],
+      response,
+    })),
+  );
+  act(() => result.current.setDraft("Keep this answer"));
+  await act(async () => {
+    await result.current.send(scope);
+  });
+  expect(result.current.messages).toHaveLength(2);
+  expect(result.current.status).toBe("idle");
+  expect(result.current.messages[1].feedback).toBeUndefined();
+  expect(result.current.messages[1].feedbackUnavailable).toBe(true);
+});
+it("a restricted native UUID implementation falls back without losing the answer", async () => {
+  const nativeCrypto = globalThis.crypto;
+  vi.stubGlobal("crypto", {
+    randomUUID: () => {
+      throw new Error("Native UUID restricted");
+    },
+    getRandomValues: (bytes: Uint8Array<ArrayBuffer>) =>
+      nativeCrypto.getRandomValues(bytes),
+  });
+  const { result } = renderHook(() =>
+    useAssistant(async () => ({
+      text: response.answer,
+      citations: [],
+      response,
+    })),
+  );
+  act(() => result.current.setDraft("Restricted native fixture"));
+  await act(async () => {
+    await result.current.send(scope);
+  });
+  expect(result.current.messages).toHaveLength(2);
+  expect(result.current.messages[1].feedback?.answerId).toMatch(uuidV4);
+});
+it("failure to create a submission UUID keeps the note and does not call the API", () => {
+  vi.stubGlobal("crypto", {
+    getRandomValues: () => {
+      throw new Error("Fixture random source unavailable");
+    },
+  });
+  const submit = vi.spyOn(api, "submitAssistantFeedback");
+  render(
+    <AssistantFeedback
+      number={1}
+      feedback={{
+        answerId: receipt.id,
+        snapshot: {
+          schemaVersion: 1,
+          request: {
+            mode: "workspace",
+            operation: "question",
+            question: "Fixture",
+          },
+          response,
+        },
+      }}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /Hữu ích/ }));
+  fireEvent.change(screen.getByLabelText(/Ghi chú/), {
+    target: { value: "Keep note without randomness" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: /Gửi phản hồi/ }));
+  expect(screen.getByRole("alert")).toHaveTextContent(/chưa tạo được mã gửi/i);
+  expect(screen.getByLabelText(/Ghi chú/)).toHaveValue(
+    "Keep note without randomness",
+  );
+  expect(submit).not.toHaveBeenCalled();
+});
+it("feedback submission and retry use a stable fallback UUID without crypto.randomUUID", async () => {
+  const nativeCrypto = globalThis.crypto;
+  const getRandomValues = vi.fn((bytes: Uint8Array<ArrayBuffer>) =>
+    nativeCrypto.getRandomValues(bytes),
+  );
+  vi.stubGlobal("crypto", { getRandomValues });
+  const submit = vi
+    .spyOn(api, "submitAssistantFeedback")
+    .mockRejectedValueOnce(
+      new ApiError("Fixture unavailable", "FEEDBACK_STORAGE_UNAVAILABLE", 503),
+    )
+    .mockResolvedValue(receipt);
+  render(<Harness />);
+  await ask();
+  fireEvent.click(screen.getByRole("button", { name: /Hữu ích.*1/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Gửi phản hồi/ }));
+  await screen.findByText(/Chưa lưu được phản hồi/);
+  const first = submit.mock.calls[0][0];
+  expect(first.answerId).toMatch(uuidV4);
+  expect(first.submissionId).toMatch(uuidV4);
+  expect(first.submissionId).not.toBe(first.answerId);
+  fireEvent.click(screen.getByRole("button", { name: /Thử lại/ }));
+  await screen.findByText(/Đã lưu phản hồi/);
+  expect(submit.mock.calls[1][0]).toEqual(first);
+  expect(getRandomValues).toHaveBeenCalledTimes(2);
+});
+for (const status of [400, 409])
+  it(`feedback ${status} retains the selection without offering an impossible retry`, async () => {
+    const submit = vi
+      .spyOn(api, "submitAssistantFeedback")
+      .mockRejectedValue(
+        new ApiError("Private fixture details", "FIXTURE_REJECTED", status),
+      );
+    render(<Harness />);
+    await ask();
+    fireEvent.click(screen.getByRole("button", { name: /Chưa đúng.*1/ }));
+    fireEvent.click(screen.getByLabelText("Thiếu ý"));
+    fireEvent.change(screen.getByLabelText(/Ghi chú/), {
+      target: { value: "Retained note" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Gửi phản hồi/ }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      status === 400 ? /không hợp lệ/i : /đã có phản hồi/i,
+    );
+    expect(alert).not.toHaveTextContent("Private fixture details");
+    expect(screen.getByLabelText(/Ghi chú/)).toHaveValue("Retained note");
+    expect(
+      screen.queryByRole("button", { name: /Thử lại|Gửi phản hồi/ }),
+    ).toBeNull();
+    expect(screen.queryByText(/Đã lưu phản hồi/)).toBeNull();
+    expect(submit).toHaveBeenCalledTimes(1);
+  });
 
 it("feedback note limit counts Unicode characters and form submits through its accessible controls", async () => {
   const submit = vi

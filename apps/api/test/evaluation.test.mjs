@@ -3,7 +3,8 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
-import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
+import { testArtifacts } from "./test-artifacts.mjs";
 import {
   evaluateLiveResult,
   makeEvaluationPdf,
@@ -438,11 +439,10 @@ test("v3 preflight blocks unready/mismatched index and preserves unknown coverag
     "CORPUS_EMBEDDING_MISMATCH",
   );
 });
-test("v3 offline runner makes zero network calls and saves honest fixture statuses", async () => {
+test("v3 offline runner makes zero network calls and saves honest fixture statuses", async (t) => {
   const { main } = await import("../scripts/evaluate-rag.mjs");
-  const { randomUUID } = await import("node:crypto");
   const { readFile } = await import("node:fs/promises");
-  const directory = `artifacts/evaluation-test-${randomUUID()}`;
+  const directory = resolve(testArtifacts(t), "offline-run");
   const original = globalThis.fetch;
   let calls = 0;
   globalThis.fetch = async () => {
@@ -462,10 +462,7 @@ test("v3 offline runner makes zero network calls and saves honest fixture status
     );
     assert.equal(calls, 0);
     const report = JSON.parse(
-      await readFile(
-        new URL(`../../../${directory}/report.json`, import.meta.url),
-        "utf8",
-      ),
+      await readFile(resolve(directory, "report.json"), "utf8"),
     );
     assert.equal(report.mode, "offline_fixture");
     assert.equal(report.summary.counts.PASS, 0);
@@ -664,29 +661,26 @@ test("synthetic corpus generator emits text that the production extractor reads"
   assert.match(pages[1].text, /Page two evidence/);
 });
 
-test("evaluation CLI is a no-network dry run unless execution is explicit", () => {
-  const result = spawnSync(process.execPath, [runner], { encoding: "utf8" });
+test("evaluation CLI is a no-network dry run unless execution is explicit", (t) => {
+  const output = resolve(testArtifacts(t), "dry-run");
+  const result = spawnSync(process.execPath, [runner, "--output", output], {
+    encoding: "utf8",
+  });
   assert.equal(result.status, 0);
   assert.match(result.stdout, /No HTTP request was made/);
   assert.match(result.stdout, /9 live cases/);
 });
 
-test("dry-run checkpoint, final report and process agree without semantic PASS", () => {
-  const output = `artifacts/phase5-dry-test-${randomUUID()}`;
+test("dry-run checkpoint, final report and process agree without semantic PASS", (t) => {
+  const output = resolve(testArtifacts(t), "dry-run");
   const result = spawnSync(process.execPath, [runner, "--output", output], {
     encoding: "utf8",
   });
   const checkpoint = JSON.parse(
-    readFileSync(
-      new URL(`../../../${output}/checkpoint-24.json`, import.meta.url),
-      "utf8",
-    ),
+    readFileSync(resolve(output, "checkpoint-24.json"), "utf8"),
   );
   const report = JSON.parse(
-    readFileSync(
-      new URL(`../../../${output}/report.json`, import.meta.url),
-      "utf8",
-    ),
+    readFileSync(resolve(output, "report.json"), "utf8"),
   );
   assert.equal(result.status, 0);
   assert.equal(checkpoint.exitCode, result.status);

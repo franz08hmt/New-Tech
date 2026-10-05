@@ -581,6 +581,13 @@ export function AssistantPanel({
                     number={Math.floor(index / 2) + 1}
                   />
                 )}
+                {message.role === "assistant" &&
+                  message.feedbackUnavailable && (
+                    <p role="status">
+                      Câu trả lời vẫn được giữ. Trình duyệt chưa tạo được mã
+                      phản hồi nên chưa thể gửi đánh giá cho câu trả lời này.
+                    </p>
+                  )}
               </li>
             ))}
           </ol>

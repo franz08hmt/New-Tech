@@ -1,7 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { readFile, access } from "node:fs/promises";
+import { readFile, access, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { spawnSync } from "node:child_process";
+import { testArtifacts } from "./test-artifacts.mjs";
 import {
   exportFeedback,
   candidateFromFeedback,
@@ -48,9 +52,9 @@ test("export requires explicit bounded selection before database access", () => 
   ])
     assert.throws(() => parseExportOptions(args));
 });
-test("export reads only selected IDs, creates private artifact and never overwrites", async () => {
+test("export reads only selected IDs, creates private artifact and never overwrites", async (t) => {
   const r = row(),
-    output = `artifacts/feedback-export-test-${randomUUID()}.json`;
+    output = resolve(testArtifacts(t), "candidate.json");
   let reads = 0;
   const database = {
     async query(sql, values) {
@@ -67,9 +71,7 @@ test("export reads only selected IDs, creates private artifact and never overwri
   };
   try {
     await exportFeedback({ ids: [r.id], output }, database);
-    const artifact = JSON.parse(
-      await readFile(new URL(`../../../${output}`, import.meta.url), "utf8"),
-    );
+    const artifact = JSON.parse(await readFile(output, "utf8"));
     assert.equal(artifact.schemaVersion, 1);
     assert.equal(artifact.candidates[0].feedbackId, r.id);
     await assert.rejects(
@@ -77,13 +79,77 @@ test("export reads only selected IDs, creates private artifact and never overwri
       /already exists/,
     );
     assert.equal(reads, 1);
-    assert.match(
-      await readFile(new URL(`../../../${output}`, import.meta.url), "utf8"),
-      /Synthetic answer/,
-    );
+    assert.match(await readFile(output, "utf8"), /Synthetic answer/);
   } finally {
     globalThis.fetch = providerBefore;
   }
+});
+
+test("CLI rejects an unreviewed candidate input before network and ignores adjacent candidates", async (t) => {
+  const directory = testArtifacts(t),
+    candidateFile = resolve(directory, "feedback-candidate.json"),
+    marker = resolve(directory, "network-attempted.txt"),
+    guard = resolve(directory, "network-guard.mjs");
+  await writeFile(
+    candidateFile,
+    JSON.stringify({
+      schemaVersion: 1,
+      kind: "assistant_feedback_candidates",
+      candidates: [candidateFromFeedback(row("unhelpful"))],
+    }),
+  );
+  await writeFile(
+    guard,
+    `import { writeFileSync } from "node:fs"; globalThis.fetch = () => { writeFileSync(${JSON.stringify(marker)}, "network attempted"); throw new Error("Network forbidden in candidate test"); };`,
+  );
+  const runner = fileURLToPath(
+    new URL("../scripts/evaluate-rag.mjs", import.meta.url),
+  );
+  const invalidOutput = resolve(directory, "rejected-run");
+  const rejected = spawnSync(
+    process.execPath,
+    [
+      "--import",
+      pathToFileURL(guard).href,
+      runner,
+      "--execute",
+      "--cases",
+      candidateFile,
+      "--output",
+      invalidOutput,
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(rejected.status, 1);
+  assert.match(rejected.stderr, /Unsupported evaluation schema\/revision/);
+  await assert.rejects(access(marker));
+  await assert.rejects(access(invalidOutput));
+  const output = resolve(directory, "official-run");
+  const official = spawnSync(
+    process.execPath,
+    [
+      "--import",
+      pathToFileURL(guard).href,
+      runner,
+      "--only",
+      "E01",
+      "--output",
+      output,
+    ],
+    { encoding: "utf8" },
+  );
+  assert.equal(official.status, 0);
+  const report = JSON.parse(
+    await readFile(resolve(output, "report.json"), "utf8"),
+  );
+  assert.deepEqual(
+    report.results.map((r) => r.caseId),
+    ["E01"],
+  );
+  assert.equal(report.results[0].assessment.status, "NOT_ATTEMPTED");
+  assert.equal(report.summary.counts.PASS, 0);
+  assert.equal(Object.hasOwn(report, "candidates"), false);
+  await assert.rejects(access(marker));
 });
 test("export rejects output outside artifacts before SELECT", async () => {
   let reads = 0;

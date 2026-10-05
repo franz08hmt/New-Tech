@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { createUuid } from "./create-uuid";
 import type {
   AssistantMetadataSource,
   AssistantMode,
@@ -45,6 +46,7 @@ export interface AssistantMessage {
   /** Workspace records the answer rests on; never PDF citations. */
   workspaceSources?: AssistantWorkspaceSource[];
   feedback?: { answerId: string; snapshot: AssistantFeedbackSnapshot };
+  feedbackUnavailable?: boolean;
 }
 
 /** What the student was looking at when they asked. */
@@ -128,28 +130,30 @@ export function useAssistant(transport?: AskTransport): AssistantState {
           requestMode,
           requestOperation,
         );
-        const feedback = reply.response
-          ? {
-              answerId: crypto.randomUUID(),
-              snapshot: JSON.parse(
-                JSON.stringify({
-                  schemaVersion: 1,
-                  request: {
-                    mode: requestMode,
-                    operation: requestOperation,
-                    question,
-                    ...(requestContext.courseId
-                      ? { courseId: requestContext.courseId }
-                      : {}),
-                    ...(requestContext.documentId
-                      ? { documentId: requestContext.documentId }
-                      : {}),
-                  },
-                  response: reply.response,
-                }),
-              ) as AssistantFeedbackSnapshot,
-            }
-          : undefined;
+        const answerId = reply.response ? createUuid() : undefined;
+        const feedback =
+          reply.response && answerId
+            ? {
+                answerId,
+                snapshot: JSON.parse(
+                  JSON.stringify({
+                    schemaVersion: 1,
+                    request: {
+                      mode: requestMode,
+                      operation: requestOperation,
+                      question,
+                      ...(requestContext.courseId
+                        ? { courseId: requestContext.courseId }
+                        : {}),
+                      ...(requestContext.documentId
+                        ? { documentId: requestContext.documentId }
+                        : {}),
+                    },
+                    response: reply.response,
+                  }),
+                ) as AssistantFeedbackSnapshot,
+              }
+            : undefined;
         nextId.current += 2;
         setMessages((current) => [
           ...current,
@@ -165,6 +169,9 @@ export function useAssistant(transport?: AskTransport): AssistantState {
             text: reply.text,
             citations: reply.citations,
             ...(feedback ? { feedback } : {}),
+            ...(reply.response && !answerId
+              ? { feedbackUnavailable: true }
+              : {}),
             ...(reply.metadataSource
               ? { metadataSource: reply.metadataSource }
               : {}),

@@ -5,7 +5,8 @@ import type {
   CreateAssistantFeedbackRequest,
 } from "@examate/contracts";
 import type { AssistantMessage } from "./use-assistant";
-import { api } from "./api";
+import { api, ApiError } from "./api";
+import { createUuid } from "./create-uuid";
 
 const reasons: [AssistantFeedbackReason, string][] = [
   ["wrong_source", "Sai nguồn"],
@@ -25,16 +26,21 @@ export function AssistantFeedback({
   const [rating, setRating] = useState<AssistantFeedbackRating | null>(null);
   const [selected, setSelected] = useState<AssistantFeedbackReason[]>([]);
   const [comment, setComment] = useState("");
-  const [status, setStatus] = useState<"draft" | "saving" | "saved" | "error">(
-    "draft",
-  );
+  const [status, setStatus] = useState<
+    "draft" | "saving" | "saved" | "error" | "rejected" | "conflict"
+  >("draft");
   const [validation, setValidation] = useState("");
   const submission = useRef<CreateAssistantFeedbackRequest | null>(null);
   const inFlight = useRef(false);
   const locked = status !== "draft";
   const name = `câu trả lời ${number}`;
   async function send() {
-    if (!rating || inFlight.current || status === "saved") return;
+    if (
+      !rating ||
+      inFlight.current ||
+      ["saved", "rejected", "conflict"].includes(status)
+    )
+      return;
     if (!submission.current) {
       if (rating === "unhelpful" && !selected.length) {
         setValidation("Chọn ít nhất một lý do trước khi gửi.");
@@ -63,9 +69,16 @@ export function AssistantFeedback({
         );
         return;
       }
+      const submissionId = createUuid();
+      if (!submissionId) {
+        setValidation(
+          "Trình duyệt chưa tạo được mã gửi phản hồi. Nội dung vẫn còn; hãy kiểm tra trình duyệt trước khi gửi lại.",
+        );
+        return;
+      }
       submission.current = {
         answerId: feedback.answerId,
-        submissionId: crypto.randomUUID(),
+        submissionId,
         rating,
         reasons: rating === "unhelpful" ? [...selected] : [],
         ...(comment ? { comment } : {}),
@@ -86,8 +99,14 @@ export function AssistantFeedback({
       )
         throw new Error("Invalid acknowledgement");
       setStatus("saved");
-    } catch {
-      setStatus("error");
+    } catch (error) {
+      setStatus(
+        error instanceof ApiError && error.status === 400
+          ? "rejected"
+          : error instanceof ApiError && error.status === 409
+            ? "conflict"
+            : "error",
+      );
     } finally {
       inFlight.current = false;
     }
@@ -174,17 +193,33 @@ export function AssistantFeedback({
               Nội dung lần gửi được giữ nguyên để tránh lưu trùng.
             </p>
           )}
-          <button
-            type="submit"
-            disabled={status === "saving"}
-            aria-label={`${status === "error" ? "Thử lại" : "Gửi phản hồi"} — ${name}`}
-          >
-            {status === "saving"
-              ? "Đang lưu…"
-              : status === "error"
-                ? "Thử lại"
-                : "Gửi phản hồi"}
-          </button>
+          {status === "rejected" && (
+            <p role="alert">
+              Chưa lưu phản hồi vì dữ liệu gửi không hợp lệ. Nội dung đã chọn
+              vẫn còn. Nhóm cần kiểm tra dữ liệu trước khi gửi lại; gửi lại cùng
+              nội dung sẽ không giải quyết lỗi.
+            </p>
+          )}
+          {status === "conflict" && (
+            <p role="alert">
+              Máy chủ đã có phản hồi cho câu trả lời hoặc khóa gửi này với nội
+              dung khác. Nội dung bạn chọn vẫn còn; bản đang gửi chưa được xác
+              nhận lưu. Không thể ghi đè bằng cách thử lại.
+            </p>
+          )}
+          {status !== "rejected" && status !== "conflict" && (
+            <button
+              type="submit"
+              disabled={status === "saving"}
+              aria-label={`${status === "error" ? "Thử lại" : "Gửi phản hồi"} — ${name}`}
+            >
+              {status === "saving"
+                ? "Đang lưu…"
+                : status === "error"
+                  ? "Thử lại"
+                  : "Gửi phản hồi"}
+            </button>
+          )}
         </form>
       )}
       {status === "saving" && <p role="status">Đang lưu phản hồi…</p>}
