@@ -35,9 +35,11 @@ const WRITE_OPENING =
   /^(?:hay |giup (?:toi|minh|em) |lam on |vui long |please )?(?:tao|them|xoa|sua|cap nhat|danh dau|doi ten|create|add|delete|remove|update|edit|mark|rename)\b/;
 const WRITE_ANYWHERE = /\b(?:danh dau|xoa|xoa bo|create|delete|remove)\b/;
 const NOTES = /\b(?:ghi chu|quick notes?|sticky notes?|notes?)\b/;
-// Checked before exams: "ôn thi" is revising, not sitting the exam.
+// Checked before exams: "ôn thi" is revising, not sitting the exam. Never
+// "on" alone: "ôn" loses its accent to become the English "on", as in
+// "exams on Friday", so only phrases that can only mean revising count.
 const STUDY_PLANS =
-  /\b(?:on tap|can on|viec can on|ke hoach on|ke hoach|study plans?|lich on|on thi|on)\b/;
+  /\b(?:on tap|can on|viec can on|viec on|on lai|on thi|on chuong|lich on|ke hoach on|ke hoach|study plans?|revision|revise)\b/;
 // Never "thi" alone: without accents it is also "thì", one of the most common
 // words in Vietnamese.
 const EXAMS =
@@ -52,13 +54,19 @@ const COURSES =
   /\b(?:mon hoc nao|nhung mon|cac mon|danh sach mon|bao nhieu mon|courses?|mon nao)\b/;
 const OVERDUE =
   /\b(?:qua han|tre han|tre|tre hen|overdue|het han|da qua han)\b/;
+// Asking for what is finished, not what is left. Phrased so "chưa xong" and
+// "chưa hoàn thành" — not yet done — never match.
+const DONE =
+  /\b(?:da hoan thanh|hoan thanh roi|da xong|xong roi|da lam xong|completed|done|finished)\b/;
 
 export function classifyQuestion(question: string): {
   topic: WorkspaceTopic;
   overdue: boolean;
+  done: boolean;
 } {
   const text = normalize(question);
   const overdue = OVERDUE.test(text);
+  const done = DONE.test(text);
   const topic: WorkspaceTopic =
     WRITE_OPENING.test(text) || WRITE_ANYWHERE.test(text)
       ? "write"
@@ -77,7 +85,7 @@ export function classifyQuestion(question: string): {
                   : COURSES.test(text)
                     ? "courses"
                     : "unknown";
-  return { topic, overdue };
+  return { topic, overdue, done };
 }
 
 /** "môn …" in the question: a course is being named, known or not. */

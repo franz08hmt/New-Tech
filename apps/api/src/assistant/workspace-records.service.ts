@@ -69,10 +69,35 @@ export interface DocumentRow {
   course_code: string | null;
 }
 
-/** Enough for every answer; an answer that would need more says so. */
+/**
+ * How many matching rows an answer reads. The filter runs in the query, before
+ * the limit, so non-matching rows can never crowd out one that matters; one
+ * extra row is read to tell "exactly this many" from "at least this many".
+ */
 export const ROW_LIMIT = 200;
 /** Spending is summed row by row, so a total is refused past this many. */
 export const EXPENSE_LIMIT = 1000;
+
+/** Rows that matched, and whether more matched than were read. */
+export interface Bounded<T> {
+  rows: T[];
+  truncated: boolean;
+}
+
+function bounded<T>(rows: T[]): Bounded<T> {
+  return {
+    rows: rows.slice(0, ROW_LIMIT),
+    truncated: rows.length > ROW_LIMIT,
+  };
+}
+
+/** Which tasks: still to do (optionally due before a day), or done. */
+export type TaskFilter =
+  { state: "open"; dueBefore?: string } | { state: "done" };
+
+/** Which study items: still open (optionally due before a day), or completed. */
+export type StudyPlanFilter =
+  { state: "open"; dueBefore?: string } | { state: "completed" };
 
 @Injectable()
 export class WorkspaceRecordsService {
@@ -88,36 +113,69 @@ export class WorkspaceRecordsService {
     return result.rows;
   }
 
-  async tasks() {
+  async tasks(filter: TaskFilter) {
+    // The status condition is one of two fixed strings, never input.
+    const status =
+      filter.state === "done" ? "status = 'done'" : "status <> 'done'";
     const result = await this.database.query<TaskRow>(
       `SELECT id, title, status, to_char(due_date, 'YYYY-MM-DD') AS due_date
        FROM tasks
+       WHERE ${status}
+         AND ($1::date IS NULL OR due_date < $1::date)
        ORDER BY due_date NULLS LAST, created_at
-       LIMIT ${ROW_LIMIT}`,
+       LIMIT ${ROW_LIMIT + 1}`,
+      [filter.state === "open" ? (filter.dueBefore ?? null) : null],
     );
-    return result.rows;
+    return bounded(result.rows);
   }
 
-  /** Every exam of one course, or of all courses when none is given. */
-  async exams(courseId: string | null) {
-    const result = await this.database.query<ExamRow>(
-      `SELECT e.id, e.topic,
+  /**
+   * One course's exams, or every course's: those not yet started at `now`
+   * (Vietnamese wall-clock time), and separately the latest one that has.
+   */
+  async exams(courseId: string | null, now: { date: string; time: string }) {
+    const columns = `e.id, e.topic,
               to_char(e.exam_date, 'YYYY-MM-DD') AS exam_date,
               to_char(e.exam_time, 'HH24:MI') AS exam_time,
               e.room, e.course_id,
-              c.name AS course_name, c.code AS course_code
+              c.name AS course_name, c.code AS course_code`;
+    const upcoming = await this.database.query<ExamRow>(
+      `SELECT ${columns}
        FROM exams e
        JOIN courses c ON c.id = e.course_id
-       WHERE $1::uuid IS NULL OR e.course_id = $1::uuid
+       WHERE ($1::uuid IS NULL OR e.course_id = $1::uuid)
+         AND (e.exam_date > $2::date
+              OR (e.exam_date = $2::date AND e.exam_time >= $3::time))
        ORDER BY e.exam_date, e.exam_time
-       LIMIT ${ROW_LIMIT}`,
-      [courseId],
+       LIMIT ${ROW_LIMIT + 1}`,
+      [courseId, now.date, now.time],
     );
-    return result.rows;
+    const past = await this.database.query<ExamRow>(
+      `SELECT ${columns}
+       FROM exams e
+       JOIN courses c ON c.id = e.course_id
+       WHERE ($1::uuid IS NULL OR e.course_id = $1::uuid)
+         AND (e.exam_date < $2::date
+              OR (e.exam_date = $2::date AND e.exam_time < $3::time))
+       ORDER BY e.exam_date DESC, e.exam_time DESC
+       LIMIT 1`,
+      [courseId, now.date, now.time],
+    );
+    return {
+      upcoming: bounded(upcoming.rows),
+      latestPast: past.rows[0] ?? null,
+    };
   }
 
-  /** Every study item, done or not, so "done" is decided in one place. */
-  async studyPlans(courseId: string | null) {
+  async studyPlans(courseId: string | null, filter: StudyPlanFilter) {
+    const completed =
+      filter.state === "completed"
+        ? "p.completed_at IS NOT NULL"
+        : "p.completed_at IS NULL";
+    const order =
+      filter.state === "completed"
+        ? "p.completed_at DESC"
+        : "p.due_date NULLS LAST, p.created_at";
     const result = await this.database.query<StudyPlanRow>(
       `SELECT p.id, p.title,
               to_char(p.due_date, 'YYYY-MM-DD') AS due_date,
@@ -126,12 +184,14 @@ export class WorkspaceRecordsService {
               c.name AS course_name, c.code AS course_code
        FROM study_plans p
        JOIN courses c ON c.id = p.course_id
-       WHERE $1::uuid IS NULL OR p.course_id = $1::uuid
-       ORDER BY p.due_date NULLS LAST, p.created_at
-       LIMIT ${ROW_LIMIT}`,
-      [courseId],
+       WHERE ($1::uuid IS NULL OR p.course_id = $1::uuid)
+         AND ${completed}
+         AND ($2::date IS NULL OR p.due_date < $2::date)
+       ORDER BY ${order}
+       LIMIT ${ROW_LIMIT + 1}`,
+      [courseId, filter.state === "open" ? (filter.dueBefore ?? null) : null],
     );
-    return result.rows;
+    return bounded(result.rows);
   }
 
   /** One course's spending; spending tied to no course is never included. */
@@ -167,8 +227,8 @@ export class WorkspaceRecordsService {
        LEFT JOIN courses c ON c.id = d.course_id
        WHERE d.storage_status <> 'deleting'
        ORDER BY d.name
-       LIMIT ${ROW_LIMIT}`,
+       LIMIT ${ROW_LIMIT + 1}`,
     );
-    return result.rows;
+    return bounded(result.rows);
   }
 }

@@ -323,6 +323,16 @@ export default function App() {
     setAssistantOpen(false);
   }
 
+  // Following a workspace source from a modal sheet: the sheet covers the
+  // whole page, so it steps aside to let the record be seen. Focus is left to
+  // the router, which moves it to the page the link opened — not back to the
+  // launcher. Beside the page (non-modal) the window simply stays open.
+  function followWorkspaceSource() {
+    if (!modalOpen.current) return;
+    restoreFocus.current = false;
+    setAssistantOpen(false);
+  }
+
   // Focus goes back once the panel has actually closed, not in the same breath
   // as closing it: while a modal sheet is still up the page behind is inert,
   // and focusing something inert simply fails.
@@ -378,7 +388,15 @@ export default function App() {
       setMenu(false);
       setSearch("");
       if (modalOpen.current || next.page.id === "assistant") return;
-      requestAnimationFrame(() => heading.current?.focus());
+      // A link to one record ("#tasks/<id>") scrolls to that record once its
+      // list has loaded. A plain focus() would scroll back to the heading at
+      // the top and push the record out of sight, so with a record in the
+      // route the heading is focused where it is.
+      requestAnimationFrame(() =>
+        heading.current?.focus(
+          next.focusId ? { preventScroll: true } : undefined,
+        ),
+      );
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
@@ -497,6 +515,7 @@ export default function App() {
         sheet={narrow}
         roomForSource={!medium}
         workspaceCourse={selectedCourse?.name ?? coursesState.courses[0]?.name}
+        onFollowWorkspaceSource={followWorkspaceSource}
         expanded={assistantExpanded}
         onToggleExpanded={() => setAssistantExpanded((current) => !current)}
         pageId={page.id}

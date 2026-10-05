@@ -192,18 +192,32 @@ const documents: DocumentRow[] = [
 function fixture(
   overrides: Partial<Record<keyof WorkspaceRecordsService, unknown>> = {},
 ) {
+  const bounded = <T>(rows: T[]) => ({ rows, truncated: false });
   const records = {
     courses: vi.fn(async () => courses),
-    tasks: vi.fn(async () => tasks),
-    exams: vi.fn(async (courseId: string | null) =>
-      exams.filter((exam) => !courseId || exam.course_id === courseId),
+    tasks: vi.fn(async (_filter: unknown) => bounded(tasks)),
+    exams: vi.fn(
+      async (courseId: string | null, now: { date: string; time: string }) => {
+        const own = exams.filter(
+          (exam) => !courseId || exam.course_id === courseId,
+        );
+        const started = own.filter(
+          (exam) =>
+            exam.exam_date < now.date ||
+            (exam.exam_date === now.date && exam.exam_time < now.time),
+        );
+        return {
+          upcoming: bounded(own),
+          latestPast: started[started.length - 1] ?? null,
+        };
+      },
     ),
-    studyPlans: vi.fn(async (courseId: string | null) =>
-      plans.filter((plan) => !courseId || plan.course_id === courseId),
+    studyPlans: vi.fn(async (courseId: string | null, _filter: unknown) =>
+      bounded(plans.filter((plan) => !courseId || plan.course_id === courseId)),
     ),
     courseExpenses: vi.fn(async () => expenses),
     unassignedExpenseCount: vi.fn(async () => 1),
-    documents: vi.fn(async () => documents),
+    documents: vi.fn(async () => bounded(documents)),
     ...overrides,
   };
   const service = new WorkspaceAssistantService(
@@ -282,7 +296,10 @@ describe("WorkspaceAssistantService", () => {
     const { ask, records } = fixture();
     const answer = await ask("Kỳ thi sắp tới?", { courseId: C2 });
 
-    expect(records.exams).toHaveBeenCalledWith(C2);
+    expect(records.exams).toHaveBeenCalledWith(C2, {
+      date: "2026-09-29",
+      time: "00:30",
+    });
     expect(sourceIds(answer)).toEqual([id(14)]);
     expect(answer.answer).toContain("Giải tích");
   });
@@ -339,8 +356,79 @@ describe("WorkspaceAssistantService", () => {
     );
   });
 
+  it("lists finished tasks when asked for finished ones, and only those", async () => {
+    const { ask, records } = fixture();
+    const answer = await ask("Task nào đã hoàn thành?");
+
+    expect(answer).toMatchObject({
+      answerable: true,
+      workspaceIntent: "tasks_done",
+    });
+    expect(sourceIds(answer)).toEqual([id(3)]);
+    expect(answer.answer).not.toMatch(/chưa xong/);
+    expect(records.tasks).toHaveBeenCalledWith({ state: "done" });
+  });
+
+  it("lists completed study items when asked, and only those", async () => {
+    const { ask, records } = fixture();
+    const answer = await ask("Việc ôn nào của môn CS 201 đã xong?");
+
+    expect(answer.workspaceIntent).toBe("study_plans_done");
+    expect(sourceIds(answer)).toEqual([id(22)]);
+    expect(records.studyPlans).toHaveBeenCalledWith(C1, { state: "completed" });
+  });
+
+  it("asks the database for exactly the rows it needs", async () => {
+    const { ask, records } = fixture();
+    await ask("Task nào chưa xong?");
+    await ask("Task nào đã quá hạn?");
+    await ask("Việc cần ôn nào của môn CS 201 đã quá hạn?");
+
+    expect(records.tasks).toHaveBeenNthCalledWith(1, { state: "open" });
+    expect(records.tasks).toHaveBeenNthCalledWith(2, {
+      state: "open",
+      dueBefore: "2026-09-29",
+    });
+    expect(records.studyPlans).toHaveBeenCalledWith(C1, {
+      state: "open",
+      dueBefore: "2026-09-29",
+    });
+  });
+
+  it("does not state a count or an absence it could not check", async () => {
+    const many = Array.from({ length: 200 }, (_, n) => ({
+      id: id(1000 + n),
+      title: `Việc ${n}`,
+      status: "todo" as const,
+      due_date: null,
+    }));
+    const { ask } = fixture({
+      tasks: vi.fn(async () => ({ rows: many, truncated: true })),
+    });
+    const answer = await ask("Task nào chưa xong?");
+
+    expect(answer.answer).toMatch(/ít nhất 200 task/);
+    expect(answer.answer).toMatch(/chưa đầy đủ/);
+    expect(answer.answer).not.toMatch(/Có 200 task/);
+  });
+
+  it("does not claim no exam is coming when it could not read them all", async () => {
+    const { ask } = fixture({
+      exams: vi.fn(async () => ({
+        upcoming: { rows: [], truncated: true },
+        latestPast: null,
+      })),
+    });
+    const answer = await ask("Kỳ thi sắp tới của môn CS 201 là khi nào?");
+
+    expect(answer.answer).not.toMatch(/Không có kỳ thi sắp tới/);
+    expect(answer.answer).toMatch(/chưa đầy đủ/);
+  });
+
   it("answers honestly from an empty list", async () => {
-    const { ask } = fixture({ tasks: vi.fn(async () => []) });
+    const { ask } = fixture({
+      tasks: vi.fn(async () => ({ rows: [], truncated: false })),
+    });
     const answer = await ask("Task nào chưa xong?");
 
     expect(answer).toMatchObject({ answerable: true, workspaceSources: [] });

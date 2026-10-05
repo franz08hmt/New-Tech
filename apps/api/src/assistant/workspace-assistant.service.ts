@@ -20,8 +20,11 @@ import {
 } from "./workspace-format.js";
 import {
   EXPENSE_LIMIT,
+  ROW_LIMIT,
   WorkspaceRecordsService,
   type CourseRow,
+  type StudyPlanFilter,
+  type TaskFilter,
 } from "./workspace-records.service.js";
 
 /*
@@ -81,6 +84,18 @@ function bullets(lines: string[], total: number) {
   const shown = lines.slice(0, SHOWN).map((line) => `- ${line}`);
   if (total > SHOWN) shown.push(`- … và ${total - SHOWN} mục khác.`);
   return shown.join("\n");
+}
+
+/**
+ * Said whenever more rows matched than were read, so that no count and no
+ * "there are none" is ever stated beyond what was actually checked.
+ */
+function partialNote(page: string) {
+  return `Danh sách chưa đầy đủ: có hơn ${ROW_LIMIT} bản ghi phù hợp và mình chỉ đọc ${ROW_LIMIT} bản ghi đầu tiên. Xem đầy đủ ở trang ${page}.`;
+}
+
+function count(n: number, truncated: boolean) {
+  return truncated ? `ít nhất ${n}` : `${n}`;
 }
 
 function limits(
@@ -158,7 +173,7 @@ export class WorkspaceAssistantService {
   }
 
   private async answer(input: AssistantChatDto, clock: Clock): Promise<Draft> {
-    const { topic, overdue } = classifyQuestion(input.message);
+    const { topic, overdue, done } = classifyQuestion(input.message);
 
     // Checked before anything is read: there is no write path to reach.
     if (topic === "write")
@@ -171,9 +186,10 @@ export class WorkspaceAssistantService {
         "notes_unavailable",
         "Ghi chú nhanh (Quick notes) chỉ được lưu trong trình duyệt của bạn; máy chủ không đọc được chúng, nên mình không trả lời về nội dung ghi chú. Bạn có thể xem trực tiếp ở Dashboard.",
       );
-    if (topic === "tasks") return this.tasks(input, overdue, clock);
+    if (topic === "tasks") return this.tasks(input, overdue, done, clock);
     if (topic === "exams") return this.exams(input, clock);
-    if (topic === "study_plans") return this.studyPlans(input, overdue, clock);
+    if (topic === "study_plans")
+      return this.studyPlans(input, overdue, done, clock);
     if (topic === "expenses") return this.expenses(input);
     if (topic === "documents") return this.documents(input);
     if (topic === "courses") return this.courses();
@@ -218,6 +234,7 @@ export class WorkspaceAssistantService {
   private async tasks(
     input: AssistantChatDto,
     overdue: boolean,
+    done: boolean,
     clock: Clock,
   ): Promise<Draft> {
     // Tasks have no course in the schema. Naming one is refused rather than
@@ -232,17 +249,30 @@ export class WorkspaceAssistantService {
         "Task trong workspace là một danh sách chung và không được gắn với môn học nào, nên mình không thể nói task nào thuộc một môn mà không đoán. Bạn có thể hỏi “Task nào chưa xong?” để xem cả danh sách, hoặc hỏi việc cần ôn của môn đó trong kế hoạch ôn tập.",
       );
 
-    const tasks = (await this.records.tasks()).filter(
-      (task) =>
-        task.status !== "done" &&
-        (!overdue || (task.due_date !== null && task.due_date < clock.date)),
+    // Filtered in the query, so non-matching rows never use up the limit, and
+    // checked again here so the answer is right even if a query returns more
+    // than it was asked for.
+    const filter: TaskFilter = done
+      ? { state: "done" }
+      : overdue
+        ? { state: "open", dueBefore: clock.date }
+        : { state: "open" };
+    const found = await this.records.tasks(filter);
+    const tasks = found.rows.filter((task) =>
+      done
+        ? task.status === "done"
+        : task.status !== "done" &&
+          (!overdue || (task.due_date !== null && task.due_date < clock.date)),
     );
-    const intent = overdue ? "tasks_overdue" : "tasks_open";
-    if (tasks.length === 0)
+    const intent = done
+      ? "tasks_done"
+      : overdue
+        ? "tasks_overdue"
+        : "tasks_open";
+    const what = done ? "đã xong" : overdue ? "đã quá hạn" : "chưa xong";
+    if (tasks.length === 0 && !found.truncated)
       return {
-        answer: overdue
-          ? "Không có task nào quá hạn trong danh sách chung của workspace."
-          : "Không có task nào chưa xong trong danh sách chung của workspace.",
+        answer: `Không có task nào ${what} trong danh sách chung của workspace.`,
         answerable: true,
         workspaceIntent: intent,
         workspaceSources: [],
@@ -253,15 +283,18 @@ export class WorkspaceAssistantService {
         TASK_STATUS[task.status],
         task.due_date ? `hạn ${formatDay(task.due_date)}` : "chưa có hạn",
       ].join(" · ");
-    const shown = tasks.slice(0, SHOWN);
-    return {
-      answer: `${overdue ? `Có ${tasks.length} task đã quá hạn` : `Có ${tasks.length} task chưa xong`} trong danh sách chung (task không gắn với môn học nào):\n${bullets(
+    const parts = [
+      `Có ${count(tasks.length, found.truncated)} task ${what} trong danh sách chung (task không gắn với môn học nào):\n${bullets(
         tasks.map((task) => `${oneLine(task.title)} — ${detail(task)}`),
         tasks.length,
       )}`,
+    ];
+    if (found.truncated) parts.push(partialNote("Tasks"));
+    return {
+      answer: parts.join("\n\n"),
       answerable: true,
       workspaceIntent: intent,
-      workspaceSources: shown.map((task) => ({
+      workspaceSources: tasks.slice(0, SHOWN).map((task) => ({
         kind: "task",
         id: task.id,
         label: oneLine(task.title),
@@ -273,27 +306,33 @@ export class WorkspaceAssistantService {
   private async exams(input: AssistantChatDto, clock: Clock): Promise<Draft> {
     const scope = await this.course(input, null);
     if (scope.stop) return scope.stop;
-    const exams = await this.records.exams(scope.course?.id ?? null);
-    // An exam is upcoming until the minute it starts, in Vietnamese time.
-    const started = (exam: (typeof exams)[number]) =>
+    const found = await this.records.exams(scope.course?.id ?? null, clock);
+    type Exam = (typeof found.upcoming.rows)[number];
+    // An exam is upcoming until the minute it starts, in Vietnamese time —
+    // decided in the query, and checked again here.
+    const started = (exam: Exam) =>
       exam.exam_date < clock.date ||
       (exam.exam_date === clock.date && exam.exam_time < clock.time);
-    const upcoming = exams.filter((exam) => !started(exam));
-    const past = exams.filter(started);
-    const latestPast = past[past.length - 1];
+    const upcoming = found.upcoming.rows.filter((exam) => !started(exam));
+    const latestPast =
+      found.latestPast && started(found.latestPast) ? found.latestPast : null;
+    const truncated = found.upcoming.truncated;
     const where = scope.course
       ? ` của môn ${courseLabel(scope.course)}${scope.fromPage ? " (môn đang mở)" : ""}`
       : " trong workspace";
-    const when = (exam: (typeof exams)[number]) =>
+    const when = (exam: Exam) =>
       `${formatDay(exam.exam_date)} ${exam.exam_time} · ${oneLine(exam.room)}`;
-    const line = (exam: (typeof exams)[number]) =>
+    const line = (exam: Exam) =>
       `${oneLine(exam.topic)}${scope.course ? "" : ` — ${courseLabel({ name: exam.course_name, code: exam.course_code })}`} — ${when(exam)}`;
 
     const parts = [
       upcoming.length
-        ? `Kỳ thi sắp tới${where}:\n${bullets(upcoming.map(line), upcoming.length)}`
-        : `Không có kỳ thi sắp tới nào${where}.`,
+        ? `${truncated ? `Có ít nhất ${upcoming.length} kỳ thi sắp tới` : "Kỳ thi sắp tới"}${where}:\n${bullets(upcoming.map(line), upcoming.length)}`
+        : truncated
+          ? `Mình chưa đọc được đầy đủ các kỳ thi sắp tới${where}.`
+          : `Không có kỳ thi sắp tới nào${where}.`,
     ];
+    if (truncated) parts.push(partialNote("Exams"));
     if (latestPast) parts.push(`Kỳ thi gần nhất đã qua: ${line(latestPast)}.`);
 
     return {
@@ -324,27 +363,43 @@ export class WorkspaceAssistantService {
   private async studyPlans(
     input: AssistantChatDto,
     overdue: boolean,
+    done: boolean,
     clock: Clock,
   ): Promise<Draft> {
     const scope = await this.course(input, null);
     if (scope.stop) return scope.stop;
-    // Done is done: a completed item is never open, and so never overdue.
-    const plans = (
-      await this.records.studyPlans(scope.course?.id ?? null)
-    ).filter(
-      (plan) =>
-        !plan.completed &&
-        (!overdue || (plan.due_date !== null && plan.due_date < clock.date)),
+    const filter: StudyPlanFilter = done
+      ? { state: "completed" }
+      : overdue
+        ? { state: "open", dueBefore: clock.date }
+        : { state: "open" };
+    const found = await this.records.studyPlans(
+      scope.course?.id ?? null,
+      filter,
     );
-    const intent = overdue ? "study_plans_overdue" : "study_plans_open";
+    // Done is done: a completed item is never open, and so never overdue.
+    const plans = found.rows.filter((plan) =>
+      done
+        ? plan.completed
+        : !plan.completed &&
+          (!overdue || (plan.due_date !== null && plan.due_date < clock.date)),
+    );
+    const intent = done
+      ? "study_plans_done"
+      : overdue
+        ? "study_plans_overdue"
+        : "study_plans_open";
+    const what = done
+      ? "đã hoàn thành"
+      : overdue
+        ? "đã quá hạn"
+        : "chưa hoàn thành";
     const where = scope.course
       ? ` của môn ${courseLabel(scope.course)}${scope.fromPage ? " (môn đang mở)" : ""}`
       : "";
-    if (plans.length === 0)
+    if (plans.length === 0 && !found.truncated)
       return {
-        answer: overdue
-          ? `Không có việc cần ôn nào quá hạn${where}.`
-          : `Không còn việc cần ôn nào chưa hoàn thành${where}.`,
+        answer: `Không có việc cần ôn nào ${what}${where}.`,
         answerable: true,
         workspaceIntent: intent,
         workspaceSources: [],
@@ -359,11 +414,15 @@ export class WorkspaceAssistantService {
       ]
         .filter(Boolean)
         .join(" · ");
-    return {
-      answer: `${overdue ? `Có ${plans.length} việc cần ôn đã quá hạn` : `Có ${plans.length} việc cần ôn chưa hoàn thành`}${where}:\n${bullets(
+    const parts = [
+      `Có ${count(plans.length, found.truncated)} việc cần ôn ${what}${where}:\n${bullets(
         plans.map((plan) => `${oneLine(plan.title)} — ${detail(plan)}`),
         plans.length,
       )}`,
+    ];
+    if (found.truncated) parts.push(partialNote("Study plan"));
+    return {
+      answer: parts.join("\n\n"),
       answerable: true,
       workspaceIntent: intent,
       workspaceSources: plans.slice(0, SHOWN).map((plan) => ({
@@ -429,7 +488,8 @@ export class WorkspaceAssistantService {
   }
 
   private async documents(input: AssistantChatDto): Promise<Draft> {
-    const documents = await this.records.documents();
+    const found = await this.records.documents();
+    const documents = found.rows;
     const named = matchDocument(input.message, documents);
     if (named) {
       const sources: AssistantWorkspaceSource[] = [
@@ -471,7 +531,7 @@ export class WorkspaceAssistantService {
       (document) => document.course_id === course.id,
     );
     const where = `môn ${courseLabel(course)}${scope.fromPage ? " (môn đang mở)" : ""}`;
-    if (filed.length === 0)
+    if (filed.length === 0 && !found.truncated)
       return {
         answer: `Chưa có tài liệu nào được gắn với ${where}.`,
         answerable: true,
@@ -483,7 +543,7 @@ export class WorkspaceAssistantService {
         ? "đã lập chỉ mục"
         : "chưa lập chỉ mục";
     return {
-      answer: `Có ${filed.length} tài liệu được gắn với ${where} (theo thông tin đã lưu, không phải nội dung PDF):\n${bullets(
+      answer: `${found.truncated ? partialNote("Documents") + "\n\n" : ""}Có ${count(filed.length, found.truncated)} tài liệu được gắn với ${where} (theo thông tin đã lưu, không phải nội dung PDF):\n${bullets(
         filed.map(
           (document) => `${oneLine(document.name)} — ${indexed(document)}`,
         ),

@@ -87,6 +87,8 @@ interface AssistantPanelProps {
   roomForSource?: boolean;
   /** A real course name for the workspace examples, when there is one. */
   workspaceCourse?: string;
+  /** A workspace source link was followed; the page is about to change. */
+  onFollowWorkspaceSource?: () => void;
   onClose: () => void;
 }
 
@@ -157,6 +159,7 @@ export function AssistantPanel({
   loadSource,
   roomForSource = false,
   workspaceCourse,
+  onFollowWorkspaceSource,
   onClose,
 }: AssistantPanelProps) {
   const panel = useRef<HTMLElement>(null);
@@ -541,7 +544,16 @@ export function AssistantPanel({
                           <li key={`${source.kind}-${source.id}`}>
                             <CircleStackIcon aria-hidden="true" />
                             <span>
-                              {href ? <a href={href}>{text}</a> : text}
+                              {href ? (
+                                <a
+                                  href={href}
+                                  onClick={onFollowWorkspaceSource}
+                                >
+                                  {text}
+                                </a>
+                              ) : (
+                                text
+                              )}
                               {source.detail && <small>{source.detail}</small>}
                             </span>
                           </li>

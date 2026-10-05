@@ -2379,6 +2379,105 @@ describe("Academic workspace", () => {
       expect(screen.queryByRole("button", { name: /Open source/ })).toBeNull();
     });
 
+    it("on a phone, following a workspace source puts the record in view", async () => {
+      stubScreen((query) => query.includes("max-width"));
+      answerFromWorkspace();
+      render(<App />);
+      const launcher = screen.getByRole("button", { name: "Open ExaMate AI" });
+      fireEvent.click(launcher);
+      fireEvent.click(screen.getByRole("radio", { name: "Hỏi workspace" }));
+      await ask("Task nào chưa xong?");
+      const panel = document.getElementById("examate-ai-panel")!;
+
+      fireEvent.click(
+        screen.getByRole("link", { name: "Task: Viết báo cáo tiến độ" }),
+      );
+
+      // The sheet covered the whole screen; it steps aside so the record the
+      // student asked to see is actually visible, and the page is usable.
+      await waitFor(() => expect(panel).not.toBeVisible());
+      expect(document.querySelector(".desktop-shell")).not.toHaveAttribute(
+        "inert",
+      );
+      expect(document.body.style.overflow).toBe("");
+      await waitFor(() =>
+        expect(window.location.hash).toBe(`#tasks/${TASK_ID}`),
+      );
+      // Focus goes to the page that opened, not back to the launcher.
+      await waitFor(() =>
+        expect(screen.getByRole("heading", { level: 1 })).toHaveFocus(),
+      );
+
+      // The conversation is still there when the student comes back to it.
+      fireEvent.click(launcher);
+      expect(
+        screen.getByText(/Có 1 task chưa xong trong danh sách chung/),
+      ).toBeInTheDocument();
+    });
+
+    it("on a wide screen, following a workspace source keeps the window open beside the page", async () => {
+      answerFromWorkspace();
+      render(<App />);
+      fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+      fireEvent.click(screen.getByRole("radio", { name: "Hỏi workspace" }));
+      await ask("Task nào chưa xong?");
+
+      fireEvent.click(
+        screen.getByRole("link", { name: "Task: Viết báo cáo tiến độ" }),
+      );
+
+      await waitFor(() =>
+        expect(window.location.hash).toBe(`#tasks/${TASK_ID}`),
+      );
+      expect(document.getElementById("examate-ai-panel")).toBeVisible();
+    });
+
+    it("moves focus to the page heading without scrolling away from a linked record", async () => {
+      render(<App />);
+      const focus = vi.spyOn(HTMLElement.prototype, "focus");
+
+      window.history.replaceState(null, "", `/#tasks/${TASK_ID}`);
+      fireEvent(window, new HashChangeEvent("hashchange"));
+      await new Promise((resolve) =>
+        requestAnimationFrame(() => resolve(null)),
+      );
+
+      // Focus lands on the heading, but the page must stay where the record
+      // is: a plain focus() scrolls to the top and pushes the record away.
+      const onHeading = focus.mock.instances
+        .map((element, index) => ({
+          element,
+          options: focus.mock.calls[index][0],
+        }))
+        .filter(({ element }) => (element as HTMLElement).tagName === "H1");
+      expect(onHeading.length).toBeGreaterThan(0);
+      for (const { options } of onHeading)
+        expect(options).toMatchObject({ preventScroll: true });
+      focus.mockRestore();
+    });
+
+    it("still scrolls to the top for an ordinary page change", async () => {
+      render(<App />);
+      const focus = vi.spyOn(HTMLElement.prototype, "focus");
+
+      window.history.replaceState(null, "", "/#exams");
+      fireEvent(window, new HashChangeEvent("hashchange"));
+      await new Promise((resolve) =>
+        requestAnimationFrame(() => resolve(null)),
+      );
+
+      const onHeading = focus.mock.instances
+        .map((element, index) => ({
+          element,
+          options: focus.mock.calls[index][0],
+        }))
+        .filter(({ element }) => (element as HTMLElement).tagName === "H1");
+      expect(onHeading.length).toBeGreaterThan(0);
+      for (const { options } of onHeading)
+        expect(options?.preventScroll).not.toBe(true);
+      focus.mockRestore();
+    });
+
     it("does not turn a source into a link unless it is a real record id", async () => {
       answerFromWorkspace({
         ...workspaceAnswer,

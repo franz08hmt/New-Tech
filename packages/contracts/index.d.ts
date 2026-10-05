@@ -275,10 +275,12 @@ export interface AssistantWorkspaceSource {
 export type AssistantWorkspaceIntent =
   | "tasks_open"
   | "tasks_overdue"
+  | "tasks_done"
   | "tasks_by_course_unsupported"
   | "exams_upcoming"
   | "study_plans_open"
   | "study_plans_overdue"
+  | "study_plans_done"
   | "expenses_total"
   | "course_documents"
   | "document_course"

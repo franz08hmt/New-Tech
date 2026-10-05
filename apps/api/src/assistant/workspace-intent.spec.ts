@@ -29,6 +29,26 @@ describe("workspace intent", () => {
     expect(classifyQuestion(question).topic).toBe(topic);
   });
 
+  it.each([
+    // English "on" is not "ôn": these are not about revising.
+    ["Which exams are on Friday?", "exams"],
+    ["Are there any tasks on the list?", "tasks"],
+    ["Ôn lại chương 2 xong chưa?", "study_plans"],
+  ])("does not mistake English 'on' for revising: %s", (question, topic) => {
+    expect(classifyQuestion(question).topic).toBe(topic);
+  });
+
+  it.each([
+    ["Task nào đã hoàn thành?", true],
+    ["Task nào đã xong rồi?", true],
+    ["Which tasks are done?", true],
+    ["Task nào chưa hoàn thành?", false],
+    ["Task nào chưa xong?", false],
+    ["Việc ôn nào đã xong?", true],
+  ])("tells finished from unfinished: %s", (question, done) => {
+    expect(classifyQuestion(question).done).toBe(done);
+  });
+
   it("does not take a question about done work as a request to change it", () => {
     expect(classifyQuestion("Task nào đã hoàn thành?").topic).toBe("tasks");
     expect(classifyQuestion("Đánh dấu task demo là xong").topic).toBe("write");
