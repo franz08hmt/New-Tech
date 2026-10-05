@@ -34,9 +34,12 @@ export function PageSections({
   coursesState,
   workspace,
   onOpenAssistant,
+  focusId,
 }: {
   pageId: string;
   courseSlug?: string;
+  /** The one record a link pointed at, so a page can reveal it. */
+  focusId?: string;
   coursesState: CoursesState;
   workspace: Workspace;
   onOpenAssistant: (opener: HTMLElement) => void;
@@ -108,7 +111,7 @@ export function PageSections({
     );
   }
   if (pageId === "documents") return <DocumentsPanel />;
-  if (pageId === "finances") return <BudgetPanel />;
+  if (pageId === "finances") return <BudgetPanel focusId={focusId} />;
   if (pageId === "assistant")
     return <AssistantSection onOpen={onOpenAssistant} />;
   return null;

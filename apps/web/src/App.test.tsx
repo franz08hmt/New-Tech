@@ -1311,6 +1311,73 @@ describe("Academic workspace", () => {
       screen.queryByText("C\u00e0 ph\u00ea ng\u1ed3i h\u1ecdc nh\u00f3m"),
     ).not.toBeInTheDocument();
   });
+  describe("following a link to one expense", () => {
+    const august = {
+      ...expenseFixtures[2],
+      id: "exp-aug",
+      description: "Sách giáo trình học kỳ trước",
+      spent_on: "2026-08-20",
+    };
+    function withExpenses(rows: object[]) {
+      const existingFetch = globalThis.fetch;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: RequestInit) =>
+          url === "/api/expenses" && init?.method !== "POST"
+            ? Response.json(rows)
+            : existingFetch(url, init),
+        ),
+      );
+    }
+
+    it("opens a wider period when the expense is outside this month, so its row exists", async () => {
+      withExpenses([...expenseFixtures, august]);
+      window.history.replaceState(null, "", "/#finances/exp-aug");
+      render(<App />);
+
+      expect(
+        await screen.findByText("Sách giáo trình học kỳ trước"),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: "Tất cả" })).toBeChecked();
+      expect(
+        document.querySelector('[data-focus-id="exp-aug"]'),
+      ).not.toBeNull();
+    });
+
+    it("leaves the period alone when the expense is already in it", async () => {
+      withExpenses([...expenseFixtures, august]);
+      window.history.replaceState(null, "", "/#finances/exp-3");
+      render(<App />);
+
+      await screen.findByText("Lệ phí thi lại học phần");
+      expect(screen.getByRole("radio", { name: "Tháng này" })).toBeChecked();
+    });
+
+    it("keeps this month as the default when no expense is linked", async () => {
+      withExpenses([...expenseFixtures, august]);
+      window.history.replaceState(null, "", "/#finances");
+      render(<App />);
+
+      await screen.findByText("Lệ phí thi lại học phần");
+      expect(screen.getByRole("radio", { name: "Tháng này" })).toBeChecked();
+      expect(
+        screen.queryByText("Sách giáo trình học kỳ trước"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("can show every expense on request", async () => {
+      withExpenses([...expenseFixtures, august]);
+      window.history.replaceState(null, "", "/#finances");
+      render(<App />);
+      await screen.findByText("Lệ phí thi lại học phần");
+
+      fireEvent.click(screen.getByRole("radio", { name: "Tất cả" }));
+
+      expect(
+        screen.getByText("Sách giáo trình học kỳ trước"),
+      ).toBeInTheDocument();
+    });
+  });
   it("totals spending per course and keeps unassigned spending visible", async () => {
     window.history.replaceState(null, "", "/#finances");
     render(<App />);

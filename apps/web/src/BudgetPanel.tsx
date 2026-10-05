@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ArrowPathIcon,
   ArrowUpRightIcon,
@@ -20,7 +20,7 @@ import { revealClass, useReveal } from "./use-reveal";
 import type { Expense, ExpenseCategory } from "./api";
 
 const money = new Intl.NumberFormat("vi-VN");
-const PERIODS: Period[] = ["day", "week", "month"];
+const PERIODS: Period[] = ["day", "week", "month", "all"];
 
 function formatDate(date: string) {
   const [year, month, day] = date.split("-");
@@ -74,7 +74,7 @@ function DeleteExpense({
   );
 }
 
-export function BudgetPanel() {
+export function BudgetPanel({ focusId }: { focusId?: string }) {
   const { ref, revealed } = useReveal<HTMLDivElement>();
   const store = useExpenses();
   const courses = useCourses();
@@ -83,6 +83,27 @@ export function BudgetPanel() {
 
   const today = new Date();
   const visible = inPeriod(store.expenses, period, today);
+
+  // A link to one expense ("#finances/<id>") has to land on a row that exists.
+  // The page opens on "this month", so a link to older spending would scroll
+  // to nothing. Once the list has loaded, the period widens — only as far as
+  // needed, only once per link — until it holds that expense.
+  const widenedFor = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!focusId || widenedFor.current === focusId || store.loading) return;
+    const target = store.expenses.find((item) => item.id === focusId);
+    if (!target) return;
+    widenedFor.current = focusId;
+    const now = new Date();
+    const needed = PERIODS.find(
+      (value) =>
+        value !== "all" &&
+        inPeriod([target], value, now).length > 0 &&
+        PERIODS.indexOf(value) >= PERIODS.indexOf(period),
+    );
+    const next: Period = needed ?? "all";
+    if (PERIODS.indexOf(next) > PERIODS.indexOf(period)) setPeriod(next);
+  }, [focusId, store.expenses, store.loading, period]);
   const total = visible.reduce((sum, item) => sum + item.amount, 0);
   const byCourse = spendByCourse(visible);
   const largest = byCourse[0]?.total ?? 0;

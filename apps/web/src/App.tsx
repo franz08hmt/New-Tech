@@ -499,6 +499,7 @@ export default function App() {
               coursesState={coursesState}
               workspace={workspace}
               onOpenAssistant={openAssistant}
+              focusId={route.focusId}
             />
             <footer className="page-footer">
               <span>Make a little progress, every day.</span>

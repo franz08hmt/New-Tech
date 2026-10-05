@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type Expense, type ExpenseCategory } from "./api";
 
-export type Period = "day" | "week" | "month";
+export type Period = "day" | "week" | "month" | "all";
 
 export interface ExpensesState {
   expenses: Expense[];
@@ -33,6 +33,7 @@ export const PERIOD_LABELS: Record<Period, string> = {
   day: "Hôm nay",
   week: "Tuần này",
   month: "Tháng này",
+  all: "Tất cả",
 };
 
 /**
@@ -47,6 +48,7 @@ export const PERIOD_LABELS: Record<Period, string> = {
  * date comparison while sidestepping timezones entirely.
  */
 export function periodStart(period: Period, today: Date): string {
+  if (period === "all") return "0000-01-01";
   const year = today.getFullYear();
   const month = today.getMonth();
   const day = today.getDate();
@@ -68,7 +70,9 @@ export function inPeriod(
   today: Date,
 ): Expense[] {
   const start = periodStart(period, today);
-  const end = toKey(today);
+  // "All" has no end either: a spend dated later than today (planned, or
+  // entered with a typo) still belongs to "everything".
+  const end = period === "all" ? "9999-12-31" : toKey(today);
   return expenses.filter(
     (item) => item.spent_on >= start && item.spent_on <= end,
   );
