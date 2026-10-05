@@ -418,7 +418,8 @@ export async function main(values = process.argv.slice(2)) {
   const save = async (results) => {
     report.results = results;
     report.summary = reportSummary(results);
-    report.exitCode = reportExitCode(results);
+    // Dry-run exit measures input validation, never semantic quality.
+    report.exitCode = report.mode === "dry_run" ? 0 : reportExitCode(results);
     await writeFile(
       resolve(
         directory,
@@ -459,6 +460,8 @@ export async function main(values = process.argv.slice(2)) {
     });
     await save(applyHumanReviews(previous, reviews, definition));
   } else if (!options.execute && !options.offline) {
+    report.validation = "successful";
+    report.semanticEvaluation = "not_executed";
     await save(
       selected.map((c) => ({
         caseId: c.id,
@@ -471,7 +474,6 @@ export async function main(values = process.argv.slice(2)) {
         },
       })),
     );
-    report.exitCode = 0;
     process.stdout.write(
       `Dry run only: ${definition.cases.filter((c) => c.mode === "live").length} live cases. No HTTP request was made and no Gemini quota was used.\n`,
     );

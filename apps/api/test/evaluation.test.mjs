@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import {
   evaluateLiveResult,
   makeEvaluationPdf,
@@ -667,6 +669,26 @@ test("evaluation CLI is a no-network dry run unless execution is explicit", () =
   assert.equal(result.status, 0);
   assert.match(result.stdout, /No HTTP request was made/);
   assert.match(result.stdout, /9 live cases/);
+});
+
+test("dry-run checkpoint, final report and process agree without semantic PASS", () => {
+  const output = `artifacts/phase5-dry-test-${randomUUID()}`;
+  const result = spawnSync(process.execPath, [runner, "--output", output], {
+    encoding: "utf8",
+  });
+  const checkpoint = JSON.parse(
+    readFileSync(`${output}/checkpoint-24.json`, "utf8"),
+  );
+  const report = JSON.parse(readFileSync(`${output}/report.json`, "utf8"));
+  assert.equal(result.status, 0);
+  assert.equal(checkpoint.exitCode, result.status);
+  assert.equal(report.exitCode, result.status);
+  assert.ok(
+    report.results.every(
+      (r) => !r.attempted && r.assessment.status === "NOT_ATTEMPTED",
+    ),
+  );
+  assert.deepEqual(checkpoint.results, report.results);
 });
 
 test("evaluation CLI rejects a mismatched corpus revision before HTTP", () => {
