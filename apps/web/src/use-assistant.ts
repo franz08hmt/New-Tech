@@ -4,6 +4,8 @@ import type {
   AssistantMode,
   AssistantOperation,
   AssistantWorkspaceSource,
+  AssistantChatResponse,
+  AssistantFeedbackSnapshot,
 } from "@examate/contracts";
 
 /*
@@ -42,6 +44,7 @@ export interface AssistantMessage {
   metadataSource?: AssistantMetadataSource;
   /** Workspace records the answer rests on; never PDF citations. */
   workspaceSources?: AssistantWorkspaceSource[];
+  feedback?: { answerId: string; snapshot: AssistantFeedbackSnapshot };
 }
 
 /** What the student was looking at when they asked. */
@@ -69,6 +72,7 @@ export type AskTransport = (
   citations: AssistantCitation[];
   metadataSource?: AssistantMetadataSource;
   workspaceSources?: AssistantWorkspaceSource[];
+  response?: AssistantChatResponse;
 }>;
 
 export type AssistantStatus = "unavailable" | "idle" | "sending" | "error";
@@ -113,15 +117,39 @@ export function useAssistant(transport?: AskTransport): AssistantState {
       if (!transport || !question || inFlight.current) return;
       inFlight.current = true;
       const requestMode = mode;
+      const requestOperation = options?.operation ?? "question";
+      const requestContext = { ...context };
       setStatus("sending");
       setErrorMessage("");
       try {
         const reply = await transport(
           question,
-          context,
+          requestContext,
           requestMode,
-          options?.operation ?? "question",
+          requestOperation,
         );
+        const feedback = reply.response
+          ? {
+              answerId: crypto.randomUUID(),
+              snapshot: JSON.parse(
+                JSON.stringify({
+                  schemaVersion: 1,
+                  request: {
+                    mode: requestMode,
+                    operation: requestOperation,
+                    question,
+                    ...(requestContext.courseId
+                      ? { courseId: requestContext.courseId }
+                      : {}),
+                    ...(requestContext.documentId
+                      ? { documentId: requestContext.documentId }
+                      : {}),
+                  },
+                  response: reply.response,
+                }),
+              ) as AssistantFeedbackSnapshot,
+            }
+          : undefined;
         nextId.current += 2;
         setMessages((current) => [
           ...current,
@@ -136,6 +164,7 @@ export function useAssistant(transport?: AskTransport): AssistantState {
             role: "assistant",
             text: reply.text,
             citations: reply.citations,
+            ...(feedback ? { feedback } : {}),
             ...(reply.metadataSource
               ? { metadataSource: reply.metadataSource }
               : {}),

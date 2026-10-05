@@ -677,9 +677,17 @@ test("dry-run checkpoint, final report and process agree without semantic PASS",
     encoding: "utf8",
   });
   const checkpoint = JSON.parse(
-    readFileSync(`${output}/checkpoint-24.json`, "utf8"),
+    readFileSync(
+      new URL(`../../../${output}/checkpoint-24.json`, import.meta.url),
+      "utf8",
+    ),
   );
-  const report = JSON.parse(readFileSync(`${output}/report.json`, "utf8"));
+  const report = JSON.parse(
+    readFileSync(
+      new URL(`../../../${output}/report.json`, import.meta.url),
+      "utf8",
+    ),
+  );
   assert.equal(result.status, 0);
   assert.equal(checkpoint.exitCode, result.status);
   assert.equal(report.exitCode, result.status);

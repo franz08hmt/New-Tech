@@ -227,6 +227,7 @@ export default function App() {
         // with their record links instead of PDF citations.
         if (response.mode === "workspace")
           return {
+            response,
             text: response.answer,
             citations: [],
             workspaceSources: response.workspaceSources,
@@ -237,6 +238,7 @@ export default function App() {
             ? "Lưu ý: bản tóm tắt chỉ bao phủ phần nội dung đọc được; một số trang có thể cần OCR."
             : "";
         return {
+          response,
           text: [translated ?? response.answer, coverageWarning]
             .filter(Boolean)
             .join("\n\n"),

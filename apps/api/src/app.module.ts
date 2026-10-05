@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { FeedbackController } from "./feedback/feedback.controller.js";
+import { FeedbackService } from "./feedback/feedback.service.js";
 import { AssistantController } from "./assistant/assistant.controller.js";
 import { AssistantService } from "./assistant/assistant.service.js";
 import { GeminiService } from "./assistant/gemini.service.js";
@@ -27,6 +29,7 @@ import { ExpensesService } from "./expenses/expenses.service.js";
 
 @Module({
   controllers: [
+    FeedbackController,
     HealthController,
     TasksController,
     AssistantController,
@@ -37,6 +40,7 @@ import { ExpensesService } from "./expenses/expenses.service.js";
     ExpensesController,
   ],
   providers: [
+    FeedbackService,
     DatabaseService,
     TasksService,
     DocumentsService,

@@ -353,3 +353,41 @@ export type AssistantStatus = {
   ragEnabled: true;
   credentialsExposedToClient: false;
 } & ({ status: "ready"; model: string } | { status: "not_configured" });
+
+/** User signals require source review; they are never evaluation verdicts. */
+export type AssistantFeedbackRating = "helpful" | "unhelpful";
+export type AssistantFeedbackReason =
+  | "wrong_source"
+  | "missing_detail"
+  | "document_not_found"
+  | "incorrect_content"
+  | "other";
+
+/** Only this turn, reported by the client, not authenticated server evidence. */
+export interface AssistantFeedbackSnapshot {
+  schemaVersion: 1;
+  request: {
+    mode: AssistantMode;
+    operation: AssistantOperation;
+    question: string;
+    courseId?: string;
+    documentId?: string;
+  };
+  response: AssistantChatResponse;
+}
+
+/** Limits: note 1000, question 4000, answer 32000 characters;
+ * canonical UTF-8 snapshot <=81920 bytes, <=40 sources. No truncation. */
+export interface CreateAssistantFeedbackRequest {
+  answerId: string;
+  submissionId: string;
+  rating: AssistantFeedbackRating;
+  reasons: AssistantFeedbackReason[];
+  comment?: string;
+  snapshot: AssistantFeedbackSnapshot;
+}
+export interface AssistantFeedbackReceipt {
+  id: string;
+  rating: AssistantFeedbackRating;
+  createdAt: string;
+}

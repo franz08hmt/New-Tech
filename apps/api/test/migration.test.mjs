@@ -22,9 +22,34 @@ const expectedMigrationNames = [
   "008_rag_foundation.sql",
   "009_document_index_quality.sql",
   "010_document_ocr_coverage.sql",
+  "011_assistant_feedback.sql",
 ];
 
 const saved = { ...process.env };
+test("feedback migration keeps private, immutable review provenance and bounded snapshots", async () => {
+  const migration = (await loadMigrations()).find(
+    (m) => m.name === "011_assistant_feedback.sql",
+  );
+  const sql = migration.sql;
+  for (const pattern of [
+    /answer_id UUID NOT NULL UNIQUE/,
+    /submission_id UUID NOT NULL UNIQUE/,
+    /char_length\(comment\) <= 1000/,
+    /octet_length\(snapshot::TEXT\) <= 81920/,
+    /UNREVIEWED/,
+    /client_reported/,
+    /ENABLE ROW LEVEL SECURITY/,
+    /REVOKE ALL ON assistant_feedback FROM PUBLIC/,
+    /'anon', 'authenticated'/,
+    /array_positions\(reasons, 'other'\)/,
+    /COALESCE/,
+  ])
+    assert.match(sql, pattern);
+  assert.doesNotMatch(
+    sql,
+    /REFERENCES|ON DELETE CASCADE|INSERT INTO ai_evaluations/,
+  );
+});
 afterEach(() => {
   mock.restoreAll();
   for (const key of Object.keys(process.env))

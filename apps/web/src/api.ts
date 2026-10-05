@@ -36,6 +36,8 @@ export class ApiError extends Error {
 }
 
 import type {
+  CreateAssistantFeedbackRequest,
+  AssistantFeedbackReceipt,
   AssistantChatRequest,
   AssistantChatResponse,
   Course,
@@ -100,6 +102,11 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  submitAssistantFeedback: (input: CreateAssistantFeedbackRequest) =>
+    request<AssistantFeedbackReceipt>("/api/assistant/feedback", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   askAssistant: (input: AssistantChatRequest) =>
     request<AssistantChatResponse>("/api/assistant/chat", {
       method: "POST",

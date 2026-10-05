@@ -10,6 +10,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useEffect, useRef, useState } from "react";
 import { AssistantMarkdown } from "./AssistantMarkdown";
+import { AssistantFeedback } from "./AssistantFeedback";
 import { SourcePreview, useSourcePreview } from "./SourcePreview";
 import { workspaceKindLabel, workspaceSourceHref } from "./workspace-links";
 import type { AssistantCitation, AssistantState } from "./use-assistant";
@@ -477,7 +478,7 @@ export function AssistantPanel({
 
         {assistant.messages.length > 0 && (
           <ol className="assistant-messages" aria-label="Conversation">
-            {assistant.messages.map((message) => (
+            {assistant.messages.map((message, index) => (
               <li
                 key={message.id}
                 className={`is-${message.role}${source.selection?.messageId === message.id ? " is-source-answer" : ""}`}
@@ -573,6 +574,12 @@ export function AssistantPanel({
                       "Chưa gắn môn học"
                     )}
                   </p>
+                )}
+                {message.role === "assistant" && message.feedback && (
+                  <AssistantFeedback
+                    feedback={message.feedback}
+                    number={Math.floor(index / 2) + 1}
+                  />
                 )}
               </li>
             ))}
