@@ -8,6 +8,9 @@ import { GeminiService } from "../dist/assistant/gemini.service.js";
 import { DocumentIngestionService } from "../dist/documents/document-ingestion.service.js";
 import { RagRetrievalService } from "../dist/assistant/rag-retrieval.service.js";
 import { configureApp } from "../dist/common/http.js";
+import { AuthService } from "../dist/auth/auth.service.js";
+import { AuthStore } from "../dist/auth/auth-store.js";
+import { AUTH_ADAPTER, AUTH_CONFIG } from "../dist/auth/auth-config.js";
 
 export async function httpApp(
   database,
@@ -15,8 +18,27 @@ export async function httpApp(
   assistantProvider,
   ingestionProvider,
   retrievalProvider,
+  authProviders,
 ) {
   let builder = Test.createTestingModule({ imports: [AppModule] });
+  // Domain regression tests inject a trusted Auth service, never a runtime bypass.
+  if (!authProviders)
+    builder = builder.overrideProvider(AuthService).useValue({
+      authenticate: async () => ({
+        userId: "11111111-1111-4111-8111-111111111111",
+        workspaceId: "22222222-2222-4222-8222-222222222222",
+        role: "member",
+      }),
+    });
+  else {
+    builder = builder
+      .overrideProvider(AUTH_CONFIG)
+      .useValue(() => authProviders.config)
+      .overrideProvider(AUTH_ADAPTER)
+      .useValue(authProviders.adapter)
+      .overrideProvider(AuthStore)
+      .useValue(authProviders.store);
+  }
   if (database)
     builder = builder.overrideProvider(DatabaseService).useValue(database);
   if (storage)

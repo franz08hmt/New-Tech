@@ -1,4 +1,11 @@
-import { useRef, useState, type PointerEvent, type ReactNode } from "react";
+import {
+  useContext,
+  useRef,
+  useState,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
+import { NotesStorageContext } from "./NotesStorageContext";
 import {
   CalendarDaysIcon,
   ChevronLeftIcon,
@@ -219,10 +226,10 @@ function noteId() {
  * Reads whatever is in storage, including the older string[] format that
  * earlier builds wrote, so an existing user does not lose their notes.
  */
-function loadNotes(): Note[] {
+function loadNotes(storageKey: string | null): Note[] {
   try {
     const saved: unknown = JSON.parse(
-      localStorage.getItem("examate-notes") || "null",
+      (storageKey ? localStorage.getItem(storageKey) : null) || "null",
     );
     if (Array.isArray(saved)) {
       const restored = saved
@@ -290,7 +297,8 @@ interface RemovedNote {
 }
 
 export function NotesPanel() {
-  const [notes, setNotes] = useState<Note[]>(loadNotes);
+  const storageKey = useContext(NotesStorageContext);
+  const [notes, setNotes] = useState<Note[]>(() => loadNotes(storageKey));
   const [warning, setWarning] = useState("");
   const [removed, setRemoved] = useState<RemovedNote | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -300,7 +308,11 @@ export function NotesPanel() {
   function save(next: Note[]) {
     setNotes(next);
     try {
-      localStorage.setItem("examate-notes", JSON.stringify(next));
+      if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next));
+      else
+        setWarning(
+          "Ghi chú hiện chỉ giữ trong tab; chưa được lưu cho tài khoản.",
+        );
     } catch {
       setWarning("Ghi chú sẽ chỉ còn đến khi bạn đóng trang này thôi.");
     }

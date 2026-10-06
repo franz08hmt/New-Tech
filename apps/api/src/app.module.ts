@@ -1,4 +1,11 @@
 import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
+import { AuthController } from "./auth/auth.controller.js";
+import { AuthService } from "./auth/auth.service.js";
+import { AuthStore } from "./auth/auth-store.js";
+import { AUTH_ADAPTER, AUTH_CONFIG, authConfig } from "./auth/auth-config.js";
+import { SupabaseAuthAdapter } from "./auth/supabase-auth.adapter.js";
+import { PilotAuthGuard } from "./auth/auth.guard.js";
 import { FeedbackController } from "./feedback/feedback.controller.js";
 import { FeedbackService } from "./feedback/feedback.service.js";
 import { AssistantController } from "./assistant/assistant.controller.js";
@@ -29,6 +36,7 @@ import { ExpensesService } from "./expenses/expenses.service.js";
 
 @Module({
   controllers: [
+    AuthController,
     FeedbackController,
     HealthController,
     TasksController,
@@ -40,6 +48,11 @@ import { ExpensesService } from "./expenses/expenses.service.js";
     ExpensesController,
   ],
   providers: [
+    AuthService,
+    AuthStore,
+    { provide: AUTH_CONFIG, useValue: authConfig },
+    { provide: AUTH_ADAPTER, useClass: SupabaseAuthAdapter },
+    { provide: APP_GUARD, useClass: PilotAuthGuard },
     FeedbackService,
     DatabaseService,
     TasksService,

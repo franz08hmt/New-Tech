@@ -34,6 +34,12 @@ export class ApiError extends Error {
     this.name = "ApiError";
   }
 }
+import { pilotHeaders, notifyPilotDenied } from "./pilot-client";
+import type {
+  PilotSessionResponse,
+  PilotLoginRequest,
+  PilotLogoutResponse,
+} from "@examate/contracts";
 
 import type {
   CreateAssistantFeedbackRequest,
@@ -52,6 +58,7 @@ import type {
   TaskStatus,
 } from "@examate/contracts";
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const authHeaders = pilotHeaders(path, init?.method);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60000);
   try {
@@ -59,12 +66,14 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     try {
       response = await fetch(path, {
         ...init,
+        credentials: "same-origin",
         signal: controller.signal,
         headers: {
           ...(init?.body && !(init.body instanceof FormData)
             ? { "Content-Type": "application/json" }
             : {}),
           ...init?.headers,
+          ...authHeaders,
         },
       });
     } catch {
@@ -84,6 +93,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
         ? body.message.join(", ")
         : body?.message;
       const id = response.headers.get("X-Request-ID") ?? body?.requestId;
+      if (!path.startsWith("/api/auth/")) notifyPilotDenied(body?.code ?? "");
       throw new ApiError(
         message ||
           ([502, 503, 504].includes(response.status)
@@ -102,6 +112,17 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  pilotSession: () => request<PilotSessionResponse>("/api/auth/session"),
+  pilotLogin: (input: PilotLoginRequest) =>
+    request<PilotSessionResponse>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  pilotLogout: () =>
+    request<PilotLogoutResponse>("/api/auth/logout", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
   submitAssistantFeedback: (input: CreateAssistantFeedbackRequest) =>
     request<AssistantFeedbackReceipt>("/api/assistant/feedback", {
       method: "POST",

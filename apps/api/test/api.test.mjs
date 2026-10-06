@@ -118,10 +118,10 @@ test("HTTP Tasks accepts null optional data but rejects invalid status and UUID"
     404,
   );
 });
-test("HTTP health reports database only, 503 on failure, then recovers", async () => {
+test("HTTP health exposes only readiness, 503 on failure, then recovers", async () => {
   let response = await server.request("/health");
   assert.equal(response.status, 200);
-  assert.equal((await response.json()).storage, "not_checked");
+  assert.deepEqual(await response.json(), { status: "ok" });
   fixture.state.failHealth = true;
   response = await server.request("/health");
   assert.equal(response.status, 503);

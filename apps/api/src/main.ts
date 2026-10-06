@@ -15,7 +15,11 @@ async function bootstrap() {
   configureApp(app, config.origins);
   await app.listen(
     config.port,
-    process.env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1",
+    // Insecure development cookies are only served on loopback, independent of NODE_ENV.
+    process.env.PUBLIC_ORIGIN?.startsWith("http:") ||
+      process.env.NODE_ENV !== "production"
+      ? "127.0.0.1"
+      : "0.0.0.0",
   );
 }
 

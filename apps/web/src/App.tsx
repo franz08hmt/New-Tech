@@ -21,6 +21,7 @@ import { useAssistant } from "./use-assistant";
 import { useCourses } from "./use-courses";
 import { useDocuments } from "./use-documents";
 import { useWorkspace } from "./use-workspace";
+import { PilotAccess } from "./PilotAccess";
 
 const pages = [
   {
@@ -205,6 +206,13 @@ function useScreenMatches(query: string) {
 }
 
 export default function App() {
+  return (
+    <PilotAccess>
+      <WorkspaceApp />
+    </PilotAccess>
+  );
+}
+export function WorkspaceApp() {
   const [route, setRoute] = useState(currentRoute);
   useFocusTarget(route.focusId);
   const [menu, setMenu] = useState(false);

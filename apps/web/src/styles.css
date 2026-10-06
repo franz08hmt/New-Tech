@@ -3540,3 +3540,53 @@
     background: #8c9d8b;
   }
 }
+/* Pilot access gate, using the existing typography and color tokens. */
+.pilot-access {
+  max-width: 28rem;
+  margin: 10vh auto;
+  padding: 24px;
+}
+.pilot-access > svg {
+  width: 32px;
+  height: 32px;
+}
+.pilot-access form {
+  display: grid;
+  gap: 12px;
+  margin-block: 20px;
+}
+.pilot-access input,
+.pilot-access button,
+.pilot-session-bar button {
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  max-width: 100%;
+}
+.pilot-access button:focus-visible,
+.pilot-access input:focus-visible,
+.pilot-session-bar button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+.pilot-session-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 24px;
+}
+.pilot-session-bar svg {
+  width: 20px;
+  height: 20px;
+}
+.pilot-session-bar button {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+.pilot-legacy-notice {
+  padding: 12px 24px;
+  margin: 0;
+}

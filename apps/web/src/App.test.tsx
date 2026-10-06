@@ -8,7 +8,16 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import App from "./App";
+import { WorkspaceApp } from "./App";
+import { configurePilotClient } from "./pilot-client";
+import { NotesStorageContext } from "./NotesStorageContext";
+function App() {
+  return (
+    <NotesStorageContext.Provider value="examate-notes:test-user:test-workspace">
+      <WorkspaceApp />
+    </NotesStorageContext.Provider>
+  );
+}
 import { moveNote } from "./AcademicPanels";
 
 const task = {
@@ -272,6 +281,7 @@ function createdRow(
   };
 }
 beforeEach(() => {
+  configurePilotClient("a".repeat(43), true);
   // The exam list separates upcoming from past, so the clock is pinned:
   // otherwise these tests would start failing on their own once the fixture
   // dates slipped into the past.
@@ -1902,7 +1912,7 @@ describe("Academic workspace", () => {
   });
   it("reorders notes with the arrow keys and remembers the new order", async () => {
     localStorage.setItem(
-      "examate-notes",
+      "examate-notes:test-user:test-workspace",
       JSON.stringify([
         { id: "n1", text: "\u0110\u1ea7u ti\u00ean", tone: 0 },
         { id: "n2", text: "Th\u1ee9 hai", tone: 1 },
@@ -1917,7 +1927,9 @@ describe("Academic workspace", () => {
     fireEvent.keyDown(handle, { key: "ArrowRight" });
 
     await waitFor(() => {
-      const saved = JSON.parse(localStorage.getItem("examate-notes")!) as {
+      const saved = JSON.parse(
+        localStorage.getItem("examate-notes:test-user:test-workspace")!,
+      ) as {
         id: string;
       }[];
       expect(saved.map((note) => note.id)).toEqual(["n2", "n1", "n3"]);
@@ -1932,7 +1944,7 @@ describe("Academic workspace", () => {
   });
   it("refuses to move the first note further back or the last one further on", async () => {
     localStorage.setItem(
-      "examate-notes",
+      "examate-notes:test-user:test-workspace",
       JSON.stringify([
         { id: "n1", text: "\u0110\u1ea7u ti\u00ean", tone: 0 },
         { id: "n2", text: "Th\u1ee9 hai", tone: 1 },
@@ -1952,7 +1964,7 @@ describe("Academic workspace", () => {
     );
 
     // Neither edge wraps around, and neither writes anything.
-    expect(localStorage.getItem("examate-notes")).toBe(
+    expect(localStorage.getItem("examate-notes:test-user:test-workspace")).toBe(
       JSON.stringify([
         { id: "n1", text: "\u0110\u1ea7u ti\u00ean", tone: 0 },
         { id: "n2", text: "Th\u1ee9 hai", tone: 1 },
@@ -1972,9 +1984,11 @@ describe("Academic workspace", () => {
       },
     });
     await waitFor(() =>
-      expect(JSON.parse(localStorage.getItem("examate-notes")!)[0].text).toBe(
-        "S\u1eeda \u0111\u01b0\u1ee3c b\u00ecnh th\u01b0\u1eddng",
-      ),
+      expect(
+        JSON.parse(
+          localStorage.getItem("examate-notes:test-user:test-workspace")!,
+        )[0].text,
+      ).toBe("S\u1eeda \u0111\u01b0\u1ee3c b\u00ecnh th\u01b0\u1eddng"),
     );
   });
   it("replaces the header Ask AI button with one floating launcher", () => {
@@ -3425,9 +3439,11 @@ describe("Academic workspace", () => {
       target: { value: "Discuss citations" },
     });
     await waitFor(() =>
-      expect(JSON.parse(localStorage.getItem("examate-notes")!)[0].text).toBe(
-        "Discuss citations",
-      ),
+      expect(
+        JSON.parse(
+          localStorage.getItem("examate-notes:test-user:test-workspace")!,
+        )[0].text,
+      ).toBe("Discuss citations"),
     );
   });
   it("deletes a quick note and drops it from storage", async () => {
@@ -3436,18 +3452,24 @@ describe("Academic workspace", () => {
       target: { value: "Bỏ tờ này đi" },
     });
     await waitFor(() =>
-      expect(JSON.parse(localStorage.getItem("examate-notes")!)[0].text).toBe(
-        "Bỏ tờ này đi",
-      ),
+      expect(
+        JSON.parse(
+          localStorage.getItem("examate-notes:test-user:test-workspace")!,
+        )[0].text,
+      ).toBe("Bỏ tờ này đi"),
     );
-    const before = JSON.parse(localStorage.getItem("examate-notes")!).length;
+    const before = JSON.parse(
+      localStorage.getItem("examate-notes:test-user:test-workspace")!,
+    ).length;
 
     fireEvent.click(
       screen.getByRole("button", { name: /Delete note 1: Bỏ tờ này đi/ }),
     );
 
     await waitFor(() => {
-      const saved = JSON.parse(localStorage.getItem("examate-notes")!);
+      const saved = JSON.parse(
+        localStorage.getItem("examate-notes:test-user:test-workspace")!,
+      );
       expect(saved).toHaveLength(before - 1);
       expect(
         saved.some((note: { text: string }) => note.text === "Bỏ tờ này đi"),
@@ -3460,9 +3482,11 @@ describe("Academic workspace", () => {
       target: { value: "Đừng mất tôi" },
     });
     await waitFor(() =>
-      expect(JSON.parse(localStorage.getItem("examate-notes")!)[0].text).toBe(
-        "Đừng mất tôi",
-      ),
+      expect(
+        JSON.parse(
+          localStorage.getItem("examate-notes:test-user:test-workspace")!,
+        )[0].text,
+      ).toBe("Đừng mất tôi"),
     );
 
     fireEvent.click(
@@ -3471,13 +3495,15 @@ describe("Academic workspace", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Hoàn tác/ }));
 
     await waitFor(() => {
-      const saved = JSON.parse(localStorage.getItem("examate-notes")!);
+      const saved = JSON.parse(
+        localStorage.getItem("examate-notes:test-user:test-workspace")!,
+      );
       expect(saved[0].text).toBe("Đừng mất tôi");
     });
   });
   it("keeps notes saved by an earlier build that stored plain strings", async () => {
     localStorage.setItem(
-      "examate-notes",
+      "examate-notes:test-user:test-workspace",
       JSON.stringify(["Ghi chú kiểu cũ", "Tờ thứ hai"]),
     );
     render(<App />);

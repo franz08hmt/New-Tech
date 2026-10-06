@@ -5,9 +5,11 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { afterEach, expect, it, vi } from "vitest";
-import App from "./App";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { WorkspaceApp as App } from "./App";
+import { configurePilotClient } from "./pilot-client";
 import { api, request } from "./api";
+beforeEach(() => configurePilotClient("a".repeat(43), true));
 
 afterEach(() => {
   cleanup();

@@ -198,8 +198,6 @@ export interface Expense {
 /** Response of `GET /api/health`. */
 export interface HealthStatus {
   status: "ok" | "degraded";
-  database: "connected" | "unavailable";
-  databaseLatencyMs?: number;
 }
 
 /** Untrusted screen metadata attached to a single Assistant request. */
@@ -215,6 +213,33 @@ export interface AssistantPageContext {
  * plans, expenses, courses and document metadata — answered by fixed,
  * read-only queries, never by a model.
  */
+export type PilotRole = "manager" | "member" | "viewer";
+export interface PilotPrincipal {
+  userId: string;
+  workspaceId: string;
+  role: PilotRole;
+}
+export interface PilotLoginRequest {
+  email: string;
+  password: string;
+}
+export type PilotSessionResponse =
+  | {
+      status: "anonymous" | "no_access" | "refresh_required";
+      csrfToken: string;
+    }
+  | {
+      status: "authenticated";
+      csrfToken: string;
+      principal: PilotPrincipal;
+      expiresAt: string;
+      accessExpiresAt: string;
+    };
+export interface PilotLogoutResponse {
+  status: "signed_out";
+  upstreamRevoked: boolean;
+}
+
 export type AssistantMode = "general" | "documents" | "workspace";
 export type AssistantOperation = "question" | "summarize" | "course_info";
 
