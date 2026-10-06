@@ -24,6 +24,7 @@ const expectedMigrationNames = [
   "010_document_ocr_coverage.sql",
   "011_assistant_feedback.sql",
   "012_pilot_access.sql",
+  "013_pilot_auth_limits.sql",
 ];
 
 const saved = { ...process.env };

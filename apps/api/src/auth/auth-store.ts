@@ -2,6 +2,12 @@ import { Injectable } from "@nestjs/common";
 import { DatabaseService } from "../database/database.service.js";
 import type { EncryptedTokens } from "./session-crypto.js";
 import type { PilotRole } from "@examate/contracts";
+import type { DatabaseTransaction } from "../database/database.service.js";
+export class AuthLimitReached extends Error {
+  constructor(readonly resetAt: string) {
+    super("AUTH_LIMIT_REACHED");
+  }
+}
 export interface SessionRow {
   cookie_hash: string;
   kind: "prelogin" | "authenticated";
@@ -17,6 +23,61 @@ export interface SessionRow {
 @Injectable()
 export class AuthStore {
   constructor(private readonly db: DatabaseService) {}
+  async markRefreshStarted(hash: string, version: number) {
+    // Independent autocommit BEFORE provider dispatch, while the parent holds FOR UPDATE.
+    return (
+      (
+        await this.db.query(
+          "INSERT INTO pilot_refresh_attempts (cookie_hash,version) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING cookie_hash",
+          [hash, version],
+        )
+      ).rows.length === 1
+    );
+  }
+  async admission(
+    keys: Array<{ key: string; limit: number }>,
+    windowSeconds: number,
+  ) {
+    try {
+      await this.db.transaction(async (tx) => {
+        for (const entry of [...keys].sort((a, b) =>
+          a.key.localeCompare(b.key),
+        )) {
+          const result = await tx.query(
+            `WITH bucket AS (SELECT to_timestamp(floor(extract(epoch FROM NOW())/$3::int)*$3::int) AS start)
+       INSERT INTO pilot_auth_limits (key,window_started,hits) SELECT $1,start,1 FROM bucket
+       ON CONFLICT (key,window_started) DO UPDATE SET hits=pilot_auth_limits.hits+1
+       WHERE pilot_auth_limits.hits<$2 RETURNING key`,
+            [entry.key, entry.limit, windowSeconds],
+          );
+          if (!result.rows.length) {
+            const reset = await tx.query<{ reset_at: Date }>(
+              "SELECT to_timestamp((floor(extract(epoch FROM NOW())/$1::int)+1)*$1::int) AS reset_at",
+              [windowSeconds],
+            );
+            throw new AuthLimitReached(reset.rows[0].reset_at.toISOString());
+          }
+        }
+      });
+      return { allowed: true as const };
+    } catch (error) {
+      if (error instanceof AuthLimitReached)
+        return { allowed: false as const, resetAt: error.resetAt };
+      throw error;
+    }
+  }
+  async lockedSession<T>(
+    hash: string,
+    work: (row: SessionRow | undefined, tx: DatabaseTransaction) => Promise<T>,
+  ): Promise<T> {
+    return this.db.transaction(async (tx) => {
+      const result = await tx.query<SessionRow>(
+        "SELECT * FROM pilot_sessions WHERE cookie_hash=$1 FOR UPDATE",
+        [hash],
+      );
+      return work(result.rows[0], tx);
+    });
+  }
   async find(hash: string): Promise<SessionRow | undefined> {
     return (
       await this.db.query<SessionRow>(

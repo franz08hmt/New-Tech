@@ -11,6 +11,9 @@ import App from "./App";
 import { PilotAccess } from "./PilotAccess";
 import { api } from "./api";
 import { configurePilotClient } from "./pilot-client";
+import { useContext } from "react";
+import { NotesStorageContext } from "./NotesStorageContext";
+import { NotesPanel } from "./AcademicPanels";
 
 afterEach(() => {
   cleanup();
@@ -198,4 +201,191 @@ it("legacy notes stay hidden and workspace access without membership is denied",
   await screen.findByText(/chưa được cấp quyền workspace/);
   expect(screen.queryByText("Unauthorized fixture")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Thử đăng xuất" })).toBeEnabled();
+});
+it("notes receive a stable principal/workspace namespace, never the legacy shared key", async () => {
+  function NotesProbe() {
+    return (
+      <p data-testid="notes-key">
+        {useContext(NotesStorageContext) ?? "unscoped"}
+      </p>
+    );
+  }
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => Response.json(granted)),
+  );
+  render(
+    <PilotAccess>
+      <NotesProbe />
+    </PilotAccess>,
+  );
+  await waitFor(() =>
+    expect(screen.getByTestId("notes-key")).toHaveTextContent(
+      `examate-notes:${principal.workspaceId}:${principal.userId}`,
+    ),
+  );
+});
+it("bootstrap refreshes an expired access token through CSRF POST without replaying a workspace write", async () => {
+  const fetcher = vi.fn(async (url: string, _init?: RequestInit) =>
+    Response.json(
+      url === "/api/auth/session"
+        ? { status: "refresh_required", csrfToken: "a".repeat(43) }
+        : granted,
+    ),
+  );
+  vi.stubGlobal("fetch", fetcher);
+  render(
+    <PilotAccess>
+      <p>Refreshed fixture</p>
+    </PilotAccess>,
+  );
+  await screen.findByText("Refreshed fixture");
+  expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+    "/api/auth/session",
+    "/api/auth/refresh",
+  ]);
+  expect(fetcher.mock.calls[1][1]).toMatchObject({
+    method: "POST",
+    headers: { "X-CSRF-Token": "a".repeat(43) },
+  });
+});
+it("logout from another tab locks and removes the old principal immediately", async () => {
+  const channels: Array<{
+    onmessage: ((event: { data: unknown }) => void) | null;
+  }> = [];
+  class Channel {
+    onmessage = null;
+    constructor() {
+      channels.push(this);
+    }
+    postMessage() {}
+    close() {}
+  }
+  vi.stubGlobal("BroadcastChannel", Channel);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => Response.json(granted)),
+  );
+  render(
+    <PilotAccess>
+      <label>
+        Tab draft
+        <input defaultValue="Private draft" />
+      </label>
+    </PilotAccess>,
+  );
+  await screen.findByLabelText("Tab draft");
+  expect(channels).toHaveLength(1);
+  await act(async () => {
+    channels[0].onmessage?.({ data: { type: "logout" } });
+  });
+  expect(screen.queryByLabelText("Tab draft")).not.toBeInTheDocument();
+  expect(screen.getByText(/Phiên đã đăng xuất ở tab khác/)).toBeVisible();
+});
+it("tab logout still synchronizes through event-only storage when BroadcastChannel is unavailable", async () => {
+  vi.stubGlobal("BroadcastChannel", undefined);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => Response.json(granted)),
+  );
+  render(
+    <PilotAccess>
+      <label>
+        Fallback draft
+        <input defaultValue="Private fixture" />
+      </label>
+    </PilotAccess>,
+  );
+  await screen.findByLabelText("Fallback draft");
+  await act(async () => {
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: "examate-pilot-event",
+        newValue: JSON.stringify({ type: "logout" }),
+      }),
+    );
+  });
+  expect(screen.queryByLabelText("Fallback draft")).not.toBeInTheDocument();
+});
+it("notes survive reload for the same principal and stay separate from another principal and legacy notes", async () => {
+  const key = `examate-notes:${principal.workspaceId}:${principal.userId}`,
+    otherUser = "33333333-3333-4333-8333-333333333333";
+  localStorage.setItem("examate-notes", JSON.stringify(["Legacy fixture"]));
+  localStorage.setItem(key, JSON.stringify(["Account A fixture"]));
+  let value = granted;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => Response.json(value)),
+  );
+  let view = render(
+    <PilotAccess>
+      <NotesPanel />
+    </PilotAccess>,
+  );
+  const note = await screen.findByDisplayValue("Account A fixture");
+  fireEvent.change(note, { target: { value: "Account A edited" } });
+  expect(localStorage.getItem(key)).toContain("Account A edited");
+  view.unmount();
+  view = render(
+    <PilotAccess>
+      <NotesPanel />
+    </PilotAccess>,
+  );
+  await screen.findByDisplayValue("Account A edited");
+  view.unmount();
+  value = { ...granted, principal: { ...principal, userId: otherUser } };
+  render(
+    <PilotAccess>
+      <NotesPanel />
+    </PilotAccess>,
+  );
+  await screen.findByText("Workspace được cấp quyền");
+  expect(
+    screen.queryByDisplayValue("Account A edited"),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByDisplayValue("Legacy fixture")).not.toBeInTheDocument();
+  expect(localStorage.getItem("examate-notes")).toContain("Legacy fixture");
+});
+it("malformed session or Auth outage locks workspace and never loads protected children", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({
+        ...granted,
+        principal: { ...principal, userId: "forged" },
+      }),
+    ),
+  );
+  render(
+    <PilotAccess>
+      <p>Protected malformed fixture</p>
+    </PilotAccess>,
+  );
+  await screen.findByRole("alert");
+  expect(
+    screen.queryByText("Protected malformed fixture"),
+  ).not.toBeInTheDocument();
+});
+it("focus re-verifies membership and locks the workspace when access is revoked", async () => {
+  let value: unknown = granted;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => Response.json(value)),
+  );
+  render(
+    <PilotAccess>
+      <label>
+        Focus draft
+        <input defaultValue="Keep me" />
+      </label>
+    </PilotAccess>,
+  );
+  await screen.findByLabelText("Focus draft");
+  value = { status: "no_access", csrfToken: "a".repeat(43) };
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"));
+  });
+  await screen.findByText(/chưa được cấp quyền workspace/);
+  expect(screen.getByLabelText("Focus draft")).toHaveValue("Keep me");
+  expect(screen.getByLabelText("Focus draft")).not.toBeVisible();
 });

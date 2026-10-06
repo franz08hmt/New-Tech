@@ -47,7 +47,7 @@ export function openTokens(
     if (encrypted.version !== config.keyVersion) throw new Error();
     const iv = Buffer.from(encrypted.iv, "base64"),
       tag = Buffer.from(encrypted.tag, "base64");
-    if (iv.length !== 12 || tag.length !== 16 || encrypted.data.length > 40_000)
+    if (iv.length !== 12 || tag.length !== 16 || encrypted.data.length > 65_536)
       throw new Error();
     const decipher = createDecipheriv("aes-256-gcm", config.encryptionKey, iv);
     decipher.setAAD(Buffer.from(`${sessionHash}:${encrypted.version}`));

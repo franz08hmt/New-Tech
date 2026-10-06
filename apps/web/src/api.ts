@@ -29,6 +29,7 @@ export class ApiError extends Error {
     readonly code: string,
     readonly status: number,
     readonly requestId?: string,
+    readonly retryAt?: string,
   ) {
     super(`${message}${requestId ? ` (Request ID: ${requestId})` : ""}`);
     this.name = "ApiError";
@@ -88,6 +89,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
         code?: string;
         message?: string | string[];
         requestId?: string;
+        retryAt?: string;
       } | null;
       const message = Array.isArray(body?.message)
         ? body.message.join(", ")
@@ -102,6 +104,10 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
         body?.code || "REQUEST_FAILED",
         response.status,
         id,
+        typeof body?.retryAt === "string" &&
+          Number.isFinite(Date.parse(body.retryAt))
+          ? body.retryAt
+          : undefined,
       );
     }
     if (response.status === 204) return undefined as T;
@@ -120,6 +126,11 @@ export const api = {
     }),
   pilotLogout: () =>
     request<PilotLogoutResponse>("/api/auth/logout", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  pilotRefresh: () =>
+    request<PilotSessionResponse>("/api/auth/refresh", {
       method: "POST",
       body: JSON.stringify({}),
     }),

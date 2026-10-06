@@ -487,3 +487,352 @@ test("pilot login rejects a missing pre-login CSRF token", async () => {
     await server.app.close();
   }
 });
+test("refresh serializes two expired-token requests and commits only one rotation", async () =>
+  pilot(async (p) => {
+    await p.login();
+    const row = [...p.fixture.rows.values()].find(
+        (r) => r.kind === "authenticated",
+      ),
+      old = openTokens(row.tokens, row.cookie_hash, p.fixture.config);
+    row.tokens = sealTokens(
+      { ...old, expiresAt: Date.now() - 1000 },
+      row.cookie_hash,
+      p.fixture.config,
+    );
+    const responses = await Promise.all([
+      p.request("/auth/refresh", {}),
+      p.request("/auth/refresh", {}),
+    ]);
+    assert.deepEqual(
+      responses.map((r) => r.status),
+      [200, 200],
+    );
+    assert.equal(p.fixture.state.refreshCalls, 1);
+    assert.equal(row.version, 1);
+    assert.ok(
+      openTokens(row.tokens, row.cookie_hash, p.fixture.config).expiresAt >
+        Date.now(),
+    );
+  }));
+test("uncertain refresh revokes local session and never replays old refresh token", async () =>
+  pilot(async (p) => {
+    await p.login();
+    const row = [...p.fixture.rows.values()].find(
+        (r) => r.kind === "authenticated",
+      ),
+      old = openTokens(row.tokens, row.cookie_hash, p.fixture.config);
+    row.tokens = sealTokens(
+      { ...old, expiresAt: Date.now() - 1000 },
+      row.cookie_hash,
+      p.fixture.config,
+    );
+    p.fixture.state.refreshFail = true;
+    const response = await p.request("/auth/refresh", {});
+    assert.equal(response.status, 503);
+    assert.ok(row.revoked_at);
+    assert.equal((await p.request("/auth/refresh", {})).status, 401);
+    assert.equal(p.fixture.state.refreshCalls, 1);
+    assert.doesNotMatch(await response.text(), /sensitive|synthetic-refresh/);
+  }));
+test("durable login throttle admits two attempts then rejects before calling Auth, ignoring spoofed XFF", async () =>
+  pilot(async (p) => {
+    p.fixture.config.loginLimits = {
+      email: 2,
+      ip: 2,
+      global: 10,
+      bootstrap: 20,
+      windowSeconds: 60,
+    };
+    p.fixture.adapter.login = async () => {
+      p.fixture.state.loginCalls++;
+      const { authInvalid } =
+        await import("../dist/auth/supabase-auth.adapter.js");
+      return authInvalid();
+    };
+    assert.equal((await p.login()).status, 401);
+    assert.equal((await p.login()).status, 401);
+    const response = await p.request(
+      "/auth/login",
+      { email: "other@example.test", password: "fixture" },
+      { "X-Forwarded-For": "198.51.100.10" },
+    );
+    assert.equal(response.status, 429);
+    assert.equal((await response.json()).code, "LOGIN_RATE_LIMITED");
+    assert.equal(p.fixture.state.loginCalls, 2);
+  }));
+test("refresh intent survives uncertain DB commit: second request cannot dispatch the old token", async () =>
+  pilot(async (p) => {
+    await p.login();
+    const row = [...p.fixture.rows.values()].find(
+        (r) => r.kind === "authenticated",
+      ),
+      old = openTokens(row.tokens, row.cookie_hash, p.fixture.config);
+    row.tokens = sealTokens(
+      { ...old, expiresAt: Date.now() - 1000 },
+      row.cookie_hash,
+      p.fixture.config,
+    );
+    p.fixture.state.commitFail = true;
+    assert.equal((await p.request("/auth/refresh", {})).status, 503);
+    assert.equal(row.version, 0);
+    assert.equal(p.fixture.state.refreshCalls, 1);
+    p.fixture.state.commitFail = false;
+    assert.equal((await p.request("/auth/refresh", {})).status, 503);
+    assert.equal(p.fixture.state.refreshCalls, 1);
+    assert.ok(row.revoked_at);
+  }));
+test("bootstrap throttle limits pre-session row creation and missing CSRF/expiry deny refresh before provider", async () =>
+  pilot(async (p) => {
+    p.fixture.config.loginLimits.bootstrap = 1;
+    const before = p.fixture.rows.size;
+    const blocked = await p.server.request("/auth/session");
+    assert.equal(blocked.status, 429);
+    assert.equal(p.fixture.rows.size, before);
+    await p.login();
+    assert.equal(
+      (await p.request("/auth/refresh", {}, { "X-CSRF-Token": "" })).status,
+      403,
+    );
+    const row = [...p.fixture.rows.values()].find(
+      (r) => r.kind === "authenticated",
+    );
+    row.idle_expires_at = new Date(Date.now() - 1);
+    assert.equal((await p.request("/auth/refresh", {})).status, 401);
+    assert.equal(p.fixture.state.refreshCalls, 0);
+  }));
+test("AuthStore refresh holds a parameterized row lock; admission is atomic and reset comes from DB", async () => {
+  const events = [],
+    db = {
+      query: async (sql, params) => {
+        events.push({ sql, params });
+        return { rows: [{ cookie_hash: "synthetic" }] };
+      },
+      transaction: async (work) => {
+        events.push({ sql: "BEGIN" });
+        const result = await work({
+          query: async (sql, params) => {
+            events.push({ sql, params });
+            if (sql.includes("INSERT INTO pilot_auth_limits"))
+              return { rows: [] };
+            if (sql.startsWith("SELECT to_timestamp"))
+              return { rows: [{ reset_at: new Date("2026-10-06T00:15:00Z") }] };
+            return { rows: [{ cookie_hash: "synthetic" }] };
+          },
+        });
+        events.push({ sql: "COMMIT" });
+        return result;
+      },
+    };
+  const store = new AuthStore(db);
+  await store.lockedSession("bound-hash", async (row) => {
+    assert.equal(row.cookie_hash, "synthetic");
+    await store.markRefreshStarted("bound-hash", 0);
+  });
+  assert.match(events[1].sql, /cookie_hash=\$1 FOR UPDATE/);
+  assert.deepEqual(events[1].params, ["bound-hash"]);
+  assert.match(events[2].sql, /ON CONFLICT DO NOTHING/);
+  // A thrown limit is rolled back by DatabaseService.transaction in production.
+  const limit = await store.admission(
+    [{ key: "untrusted-fixture-key", limit: 1 }],
+    60,
+  );
+  assert.deepEqual(limit, {
+    allowed: false,
+    resetAt: "2026-10-06T00:15:00.000Z",
+  });
+  assert.ok(
+    events.some((e) => e.sql.includes("WHERE pilot_auth_limits.hits<$2")),
+  );
+  assert.ok(events.every((e) => !e.sql.includes("untrusted-fixture-key")));
+  const sql = readFileSync(
+    new URL(
+      "../../../infra/postgres/migrations/013_pilot_auth_limits.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(sql, /PRIMARY KEY\(cookie_hash,version\)/);
+  assert.match(sql, /pilot_refresh_attempts ENABLE ROW LEVEL SECURITY/);
+  assert.doesNotMatch(sql, /INSERT INTO|ON DELETE CASCADE/);
+});
+test("parallel login admission and a new AuthService keep the same durable counter budget", async () =>
+  pilot(async (p) => {
+    p.fixture.config.loginLimits = {
+      email: 1,
+      ip: 1,
+      global: 1,
+      bootstrap: 10,
+      windowSeconds: 900,
+    };
+    p.fixture.adapter.login = async () => {
+      p.fixture.state.loginCalls++;
+      const { authInvalid } =
+        await import("../dist/auth/supabase-auth.adapter.js");
+      return authInvalid();
+    };
+    const responses = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        p.request("/auth/login", {
+          email: "fixture@example.test",
+          password: "fixture",
+        }),
+      ),
+    );
+    assert.deepEqual(
+      responses.map((r) => r.status).sort(),
+      [401, 429, 429, 429, 429],
+    );
+    assert.equal(p.fixture.state.loginCalls, 1);
+    const restarted = new AuthService(
+      () => p.fixture.config,
+      p.fixture.store,
+      p.fixture.adapter,
+    );
+    await assert.rejects(
+      restarted.login(
+        {
+          method: "POST",
+          path: "/api/auth/login",
+          headers: {
+            cookie: p.cookie,
+            origin: p.fixture.config.origin,
+            "x-csrf-token": p.csrf,
+          },
+          socket: { remoteAddress: "127.0.0.1" },
+        },
+        { setHeader() {} },
+        "fixture@example.test",
+        "fixture",
+      ),
+      (e) => e.getStatus() === 429,
+    );
+    assert.equal(p.fixture.state.loginCalls, 1);
+  }));
+test("database-session permission failures never fall back to auth_user, even with successful Auth cache", async () =>
+  pilot(async (p) => {
+    p.fixture.config.cacheMs = 30000;
+    await p.login();
+    p.fixture.store.authSessionActive = async () => {
+      throw Error("sensitive-permission-denied");
+    };
+    const response = await p.request("/tasks");
+    assert.equal(response.status, 503);
+    assert.doesNotMatch(await response.text(), /sensitive|permission/);
+  }));
+test("cookie HTTPS attributes, duplicate cookies and absolute expiry are enforced", async () =>
+  pilot(async (p) => {
+    p.fixture.config.secure = true;
+    p.fixture.config.origin = "https://pilot.example.test";
+    const response = await p.server.request("/auth/session");
+    assert.match(
+      response.headers.get("set-cookie"),
+      /^__Host-examate_session=.*; Path=\/; HttpOnly; SameSite=Lax; Max-Age=600; Secure$/,
+    );
+    assert.doesNotMatch(response.headers.get("set-cookie"), /Domain=/);
+    p.fixture.config.secure = false;
+    p.fixture.config.origin = "http://localhost:5173";
+    await p.login();
+    assert.equal(
+      (
+        await p.server.request("/tasks", {
+          headers: { Cookie: p.cookie + "; " + p.cookie },
+        })
+      ).status,
+      401,
+    );
+    const row = [...p.fixture.rows.values()].find(
+      (r) => r.kind === "authenticated",
+    );
+    row.expires_at = new Date(Date.now() - 1);
+    assert.equal((await p.request("/tasks")).status, 401);
+  }));
+test("Auth logs and response never contain credentials, email or CSRF tokens", async (t) => {
+  const lines = [];
+  t.mock.method(console, "log", (line) => lines.push(line));
+  await pilot(async (p) => {
+    await p.login();
+    await p.request("/tasks");
+    await p.request("/auth/logout", {});
+  });
+  assert.ok(lines.length > 0);
+  assert.doesNotMatch(
+    lines.join("\n"),
+    /synthetic-(access|refresh|password)|fixture@example|X-CSRF|csrfToken|Set-Cookie|Bearer|apikey/i,
+  );
+});
+test("adapter caps and cancels oversized Auth response bodies before consuming all bytes", async (t) => {
+  const f = authFixture();
+  let reads = 0,
+    cancelled = false;
+  const body = new ReadableStream({
+    pull(controller) {
+      reads++;
+      controller.enqueue(new Uint8Array(32768));
+      if (reads === 10) controller.close();
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  t.mock.method(globalThis, "fetch", async () => new Response(body));
+  const adapter = new SupabaseAuthAdapter(() => f.config);
+  await assert.rejects(
+    adapter.verify("synthetic"),
+    (e) => e.getStatus() === 503,
+  );
+  assert.equal(cancelled, true);
+  assert.ok(reads < 10);
+});
+test("encrypted token envelope accepts both maximum 16000-character Auth tokens", () => {
+  const f = authFixture(),
+    tokens = {
+      accessToken: "a".repeat(16000),
+      refreshToken: "b".repeat(16000),
+      expiresAt: Date.now() + 1000,
+    },
+    hash = tokenHash("fixture");
+  const encrypted = sealTokens(tokens, hash, f.config);
+  assert.ok(Buffer.byteLength(JSON.stringify(encrypted)) < 65536);
+  assert.deepEqual(openTokens(encrypted, hash, f.config), tokens);
+});
+test("direct requests to all 25 business routes require a session before any provider/Storage action", async () =>
+  pilot(async (p) => {
+    const id = "11111111-1111-4111-8111-111111111111",
+      routes = [
+        ["GET", "/tasks"],
+        ["POST", "/tasks"],
+        ["PATCH", "/tasks/" + id + "/status"],
+        ["GET", "/courses"],
+        ["GET", "/courses/fixture"],
+        ["GET", "/exams"],
+        ["POST", "/exams"],
+        ["PATCH", "/exams/" + id],
+        ["DELETE", "/exams/" + id],
+        ["GET", "/study-plans"],
+        ["POST", "/study-plans"],
+        ["PATCH", "/study-plans/" + id + "/completion"],
+        ["DELETE", "/study-plans/" + id],
+        ["GET", "/expenses"],
+        ["POST", "/expenses"],
+        ["DELETE", "/expenses/" + id],
+        ["GET", "/documents"],
+        ["POST", "/documents"],
+        ["POST", "/documents/" + id + "/process"],
+        ["GET", "/documents/" + id + "/download"],
+        ["PATCH", "/documents/" + id + "/course"],
+        ["DELETE", "/documents/" + id],
+        ["GET", "/assistant/status"],
+        ["POST", "/assistant/chat"],
+        ["POST", "/assistant/feedback"],
+      ];
+    for (const [method, path] of routes) {
+      const response = await p.server.request(path, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        ...(!["GET", "DELETE"].includes(method) ? { body: "{}" } : {}),
+      });
+      assert.equal(response.status, 401, method + " " + path);
+    }
+    assert.equal(p.fixture.state.loginCalls, 0);
+    assert.equal(p.fixture.state.verifyCalls, 0);
+  }));

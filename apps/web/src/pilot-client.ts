@@ -21,6 +21,7 @@ export function pilotHeaders(
     "/api/auth/session",
     "/api/auth/login",
     "/api/auth/logout",
+    "/api/auth/refresh",
   ].includes(path);
   if (!active && !authRoute && path !== "/api/health")
     throw new Error("Phiên workspace đang khóa. Đăng nhập để tiếp tục.");

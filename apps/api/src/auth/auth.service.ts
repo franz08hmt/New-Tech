@@ -3,8 +3,9 @@ import {
   Inject,
   Injectable,
   UnauthorizedException,
+  HttpException,
 } from "@nestjs/common";
-import { timingSafeEqual } from "node:crypto";
+import { timingSafeEqual, createHmac } from "node:crypto";
 import type { PilotSessionResponse, PilotPrincipal } from "@examate/contracts";
 import {
   AUTH_ADAPTER,
@@ -55,6 +56,42 @@ export class AuthService {
     private readonly store: AuthStore,
     @Inject(AUTH_ADAPTER) private readonly adapter: AuthAdapter,
   ) {}
+  private async admission(req: AuthRequest, email?: string) {
+    const c = this.config(),
+      limits = c.loginLimits;
+    const key = (value: string) =>
+      createHmac("sha256", c.encryptionKey)
+        .update("examate-auth-admission-v1:" + value)
+        .digest("hex");
+    const ip = req.socket?.remoteAddress ?? "unknown"; // Never trust arbitrary X-Forwarded-For.
+    const keys =
+      email === undefined
+        ? [{ key: key("bootstrap:" + ip), limit: limits.bootstrap }]
+        : [
+            {
+              key: key("email:" + email.trim().toLowerCase()),
+              limit: limits.email,
+            },
+            { key: key("ip:" + ip), limit: limits.ip },
+            { key: key("global-login"), limit: limits.global },
+          ];
+    let result;
+    try {
+      result = await this.store.admission(keys, limits.windowSeconds);
+    } catch {
+      return authUnavailable();
+    }
+    if (!result.allowed)
+      throw new HttpException(
+        {
+          code: "LOGIN_RATE_LIMITED",
+          message:
+            "Đã có nhiều lần thử đăng nhập. Hãy chờ tới thời điểm được thông báo rồi thử lại.",
+          retryAt: result.resetAt,
+        },
+        429,
+      );
+  }
   cookieName() {
     return this.config().secure
       ? "__Host-examate_session"
@@ -221,6 +258,7 @@ export class AuthService {
       this.config();
       const cookie = this.cookie(req);
       if (!cookie) {
+        await this.admission(req);
         const raw = randomToken(),
           row: SessionRow = {
             cookie_hash: tokenHash(raw),
@@ -268,6 +306,7 @@ export class AuthService {
         this.setCookie(res, "", 0);
         throw e;
       }
+      if (e instanceof HttpException && e.getStatus() === 429) throw e;
       return authUnavailable();
     }
   }
@@ -289,6 +328,7 @@ export class AuthService {
     const previous = await this.local(req);
     this.csrf(req, previous);
     if (previous.kind !== "prelogin") return authInvalid();
+    await this.admission(req, email);
     let tokens, identity;
     try {
       tokens = await this.adapter.login(email, password);
@@ -330,6 +370,77 @@ export class AuthService {
     this.setCookie(res, raw, 28800);
     req.headers.cookie = `${this.cookieName()}=${raw}`;
     return this.session(req, res);
+  }
+  async refresh(
+    req: AuthRequest,
+    res: AuthResponse,
+  ): Promise<PilotSessionResponse> {
+    try {
+      const initial = await this.local(req);
+      this.csrf(req, initial);
+      if (initial.kind !== "authenticated") return authRequired();
+      const result = await this.store.lockedSession(
+        initial.cookie_hash,
+        async (value, tx) => {
+          const row = this.checkLocal(value);
+          this.csrf(req, row);
+          if (!row.user_id || !row.tokens || !row.auth_session_id)
+            return authInvalid();
+          const old = openTokens(row.tokens, row.cookie_hash, this.config());
+          if (old.expiresAt > Date.now() + 60_000) return { failed: false }; // A waiting request sees the committed rotation.
+          if (
+            !(await this.store.markRefreshStarted(row.cookie_hash, row.version))
+          ) {
+            await tx.query(
+              "UPDATE pilot_sessions SET revoked_at=NOW() WHERE cookie_hash=$1",
+              [row.cookie_hash],
+            );
+            return { failed: true };
+          }
+          let tokens, identity;
+          try {
+            tokens = await this.adapter.refresh(old.refreshToken);
+            identity = await this.adapter.verify(tokens.accessToken);
+            if (
+              identity.userId !== row.user_id ||
+              identity.sessionId !== row.auth_session_id
+            )
+              return authInvalid();
+            if (this.config().sessionVerification === "database") {
+              const active = await tx.query(
+                "SELECT id FROM auth.sessions WHERE id=$1 AND user_id=$2 AND (not_after IS NULL OR not_after>NOW())",
+                [identity.sessionId, identity.userId],
+              );
+              if (active.rows.length !== 1) return authInvalid();
+            }
+          } catch {
+            // Commit the local revocation, rather than rolling it back with a provider error.
+            await tx.query(
+              "UPDATE pilot_sessions SET revoked_at=NOW() WHERE cookie_hash=$1",
+              [row.cookie_hash],
+            );
+            return { failed: true };
+          }
+          await tx.query(
+            "UPDATE pilot_sessions SET tokens=$2::jsonb,version=version+1 WHERE cookie_hash=$1 AND revoked_at IS NULL",
+            [
+              row.cookie_hash,
+              JSON.stringify(
+                sealTokens(tokens, row.cookie_hash, this.config()),
+              ),
+            ],
+          );
+          return { failed: false };
+        },
+      );
+      this.cache.clear();
+      if (result.failed) return authUnavailable();
+      return await this.session(req, res);
+    } catch (e) {
+      if (e instanceof ForbiddenException || e instanceof UnauthorizedException)
+        throw e;
+      return authUnavailable();
+    }
   }
   async logout(req: AuthRequest, res: AuthResponse) {
     try {

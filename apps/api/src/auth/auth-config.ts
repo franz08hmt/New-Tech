@@ -15,6 +15,13 @@ export interface AuthSettings {
   cacheMs: number;
   timeoutMs: number;
   sessionVerification: "database" | "auth_user";
+  loginLimits: {
+    email: number;
+    ip: number;
+    global: number;
+    bootstrap: number;
+    windowSeconds: number;
+  };
 }
 export type AuthConfig = () => AuthSettings;
 export function authUnavailable(): never {
@@ -47,8 +54,21 @@ export function authConfig(): AuthSettings {
     const encryptionKey = Buffer.from(rawKey, "base64");
     const keyVersion = process.env.SESSION_KEY_VERSION ?? "v1";
     const cacheMs = Number(process.env.AUTH_VERIFY_CACHE_SECONDS ?? 30) * 1000;
+    const poolSize = Number(process.env.DATABASE_POOL_MAX ?? 5);
     const sessionVerification =
       process.env.AUTH_SESSION_VERIFICATION ?? "database";
+    const limit = (name: string, fallback: number, max: number) => {
+      const n = Number(process.env[name] ?? fallback);
+      if (!Number.isInteger(n) || n < 1 || n > max) throw new Error();
+      return n;
+    };
+    const loginLimits = {
+      email: limit("AUTH_LOGIN_EMAIL_LIMIT", 5, 100),
+      ip: limit("AUTH_LOGIN_IP_LIMIT", 20, 1000),
+      global: limit("AUTH_LOGIN_GLOBAL_LIMIT", 100, 10000),
+      bootstrap: limit("AUTH_BOOTSTRAP_IP_LIMIT", 60, 1000),
+      windowSeconds: limit("AUTH_LOGIN_WINDOW_SECONDS", 900, 3600),
+    };
     let publicKey = apiKey.startsWith("sb_publishable_");
     if (!publicKey)
       try {
@@ -69,6 +89,9 @@ export function authConfig(): AuthSettings {
       !Number.isInteger(cacheMs) ||
       cacheMs < 0 ||
       cacheMs > 30_000 ||
+      !Number.isInteger(poolSize) ||
+      poolSize < 2 ||
+      poolSize > 20 ||
       !["database", "auth_user"].includes(sessionVerification)
     )
       throw new Error();
@@ -84,6 +107,7 @@ export function authConfig(): AuthSettings {
       timeoutMs: 5000,
       sessionVerification:
         sessionVerification as AuthSettings["sessionVerification"],
+      loginLimits,
     };
   } catch {
     return authUnavailable();

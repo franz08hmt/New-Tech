@@ -8,12 +8,13 @@ import {
   Res,
 } from "@nestjs/common";
 import { IsEmail, IsString, MaxLength, MinLength } from "class-validator";
+import type { PilotLoginRequest } from "@examate/contracts";
 import {
   AuthService,
   type AuthRequest,
   type AuthResponse,
 } from "./auth.service.js";
-export class LoginDto {
+export class LoginDto implements PilotLoginRequest {
   @IsEmail() @MaxLength(254) email: string;
   @IsString() @MinLength(1) @MaxLength(1024) password: string;
 }
@@ -40,5 +41,12 @@ export class AuthController {
     @Body() _body: EmptyAuthDto,
   ) {
     return this.auth.logout(req, res);
+  }
+  @Post("refresh") @HttpCode(200) refresh(
+    @Req() req: AuthRequest,
+    @Res({ passthrough: true }) res: AuthResponse,
+    @Body() _body: EmptyAuthDto,
+  ) {
+    return this.auth.refresh(req, res);
   }
 }

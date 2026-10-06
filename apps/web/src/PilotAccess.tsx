@@ -4,6 +4,7 @@ import {
   LockClosedIcon,
 } from "@heroicons/react/24/outline";
 import { usePilotSession } from "./use-pilot-session";
+import { NotesStorageContext } from "./NotesStorageContext";
 export function PilotAccess({ children }: { children: ReactNode }) {
   const session = usePilotSession();
   const [email, setEmail] = useState(""),
@@ -106,7 +107,11 @@ export function PilotAccess({ children }: { children: ReactNode }) {
               hữu. Nhóm chưa gán chúng cho tài khoản nào.
             </p>
           )}
-          {children}
+          <NotesStorageContext.Provider
+            value={`examate-notes:${session.principal.workspaceId}:${session.principal.userId}`}
+          >
+            {children}
+          </NotesStorageContext.Provider>
         </div>
       )}
     </>

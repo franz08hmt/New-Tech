@@ -214,6 +214,24 @@ export interface AssistantPageContext {
  * read-only queries, never by a model.
  */
 export type PilotRole = "manager" | "member" | "viewer";
+export interface PilotRequestHeaders {
+  "X-CSRF-Token": string;
+}
+export type PilotAuthErrorCode =
+  | "AUTH_REQUIRED"
+  | "AUTH_INVALID"
+  | "SESSION_EXPIRED"
+  | "SESSION_REFRESH_REQUIRED"
+  | "CSRF_INVALID"
+  | "WORKSPACE_ACCESS_DENIED"
+  | "AUTH_UNAVAILABLE"
+  | "LOGIN_RATE_LIMITED";
+export interface PilotAuthErrorResponse {
+  code: PilotAuthErrorCode;
+  message: string;
+  retryAt?: string;
+  requestId?: string;
+}
 export interface PilotPrincipal {
   userId: string;
   workspaceId: string;

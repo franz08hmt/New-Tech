@@ -14,6 +14,7 @@ export interface VerifiedIdentity {
 }
 export interface AuthAdapter {
   login(email: string, password: string): Promise<SessionTokens>;
+  refresh(token: string): Promise<SessionTokens>;
   verify(token: string): Promise<VerifiedIdentity>;
   logout(token: string): Promise<void>;
 }
@@ -56,9 +57,25 @@ export class SupabaseAuthAdapter implements AuthAdapter {
         return authUnavailable();
       }
       if (response.status === 204) return null;
-      const text = await response.text();
-      if (text.length > 64_000) return authUnavailable();
-      return JSON.parse(text);
+      if (!response.body) return authUnavailable();
+      const reader = response.body.getReader(),
+        chunks: Uint8Array[] = [];
+      let size = 0;
+      try {
+        while (true) {
+          const item = await reader.read();
+          if (item.done) break;
+          size += item.value.byteLength;
+          if (size > 64000) {
+            await reader.cancel();
+            return authUnavailable();
+          }
+          chunks.push(item.value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      return JSON.parse(Buffer.concat(chunks).toString("utf8"));
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
       log("info", "auth.provider.failed", {
@@ -75,9 +92,33 @@ export class SupabaseAuthAdapter implements AuthAdapter {
     });
     if (
       typeof response?.access_token !== "string" ||
+      !response.access_token ||
       response.access_token.length > 16_000 ||
       typeof response.refresh_token !== "string" ||
+      !response.refresh_token ||
       response.refresh_token.length > 16_000 ||
+      !Number.isInteger(response.expires_in) ||
+      response.expires_in <= 0 ||
+      response.expires_in > 86400
+    )
+      return authUnavailable();
+    return {
+      accessToken: response.access_token,
+      refreshToken: response.refresh_token,
+      expiresAt: Date.now() + response.expires_in * 1000,
+    };
+  }
+  async refresh(token: string): Promise<SessionTokens> {
+    const response = await this.request("/token?grant_type=refresh_token", {
+      refresh_token: token,
+    });
+    if (
+      typeof response?.access_token !== "string" ||
+      !response.access_token ||
+      response.access_token.length > 16000 ||
+      typeof response.refresh_token !== "string" ||
+      !response.refresh_token ||
+      response.refresh_token.length > 16000 ||
       !Number.isInteger(response.expires_in) ||
       response.expires_in <= 0 ||
       response.expires_in > 86400
