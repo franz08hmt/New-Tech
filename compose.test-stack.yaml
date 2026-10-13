@@ -1,0 +1,29 @@
+# B0d verification only: combine compose.yaml + compose.local-db.yaml + this file.
+# Requires test:database to prepare the disposable runtime role first.
+services:
+  api:
+    environment:
+      DATABASE_URL: postgresql://examate_b0d_runtime_fixture:local-runtime-fixture-only@db:5432/examate_test
+      DATABASE_SSL: "false"
+      DATABASE_CA_CERT_PATH: ""
+      MIGRATION_DATABASE_URL: ""
+      TEST_DATABASE_URL: ""
+      GEMINI_API_KEY: ""
+      SUPABASE_PUBLISHABLE_KEY: ""
+      SUPABASE_ANON_KEY: ""
+      PILOT_WORKSPACE_ID: ""
+      SESSION_ENCRYPTION_KEY: ""
+    volumes: !reset []
+  web:
+    networks:
+      ingress: {}
+  db:
+    networks:
+      pilot:
+        ipv4_address: 172.30.250.30
+      ingress: {}
+networks:
+  pilot:
+    internal: true
+  ingress:
+    driver: bridge
