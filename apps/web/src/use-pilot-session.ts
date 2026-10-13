@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PilotPrincipal, PilotSessionResponse } from "@examate/contracts";
 import { api, ApiError } from "./api";
 import { configurePilotClient, notifyPilotDenied } from "./pilot-client";
+import { invalidatePilotSession } from "./pilot-session-transport";
 export type AccessState =
   | "verifying"
   | "anonymous"
@@ -68,6 +69,7 @@ export function usePilotSession() {
   const apply = useRef<(value: PilotSessionResponse) => void>(() => {}),
     refresh = useRef<() => Promise<void>>(async () => {});
   const denied = useCallback((code: string) => {
+    invalidatePilotSession();
     epoch.current++;
     setState(
       code === "WORKSPACE_ACCESS_DENIED"
@@ -172,6 +174,7 @@ export function usePilotSession() {
     const onEvent = (value: unknown) => {
       const type = (value as { type?: unknown } | null)?.type;
       if (type !== "logout" && type !== "session_changed") return;
+      invalidatePilotSession();
       epoch.current++;
       csrf.current = undefined;
       setPrincipal(undefined);

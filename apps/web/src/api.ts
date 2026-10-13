@@ -36,6 +36,10 @@ export class ApiError extends Error {
   }
 }
 import { pilotHeaders, notifyPilotDenied } from "./pilot-client";
+import {
+  readPilotSession,
+  changePilotSession,
+} from "./pilot-session-transport";
 import type {
   PilotSessionResponse,
   PilotLoginRequest,
@@ -118,22 +122,29 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  pilotSession: () => request<PilotSessionResponse>("/api/auth/session"),
+  pilotSession: () =>
+    readPilotSession(() => request<PilotSessionResponse>("/api/auth/session")),
   pilotLogin: (input: PilotLoginRequest) =>
-    request<PilotSessionResponse>("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
+    changePilotSession(() =>
+      request<PilotSessionResponse>("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    ),
   pilotLogout: () =>
-    request<PilotLogoutResponse>("/api/auth/logout", {
-      method: "POST",
-      body: JSON.stringify({}),
-    }),
+    changePilotSession(() =>
+      request<PilotLogoutResponse>("/api/auth/logout", {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+    ),
   pilotRefresh: () =>
-    request<PilotSessionResponse>("/api/auth/refresh", {
-      method: "POST",
-      body: JSON.stringify({}),
-    }),
+    changePilotSession(() =>
+      request<PilotSessionResponse>("/api/auth/refresh", {
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+    ),
   submitAssistantFeedback: (input: CreateAssistantFeedbackRequest) =>
     request<AssistantFeedbackReceipt>("/api/assistant/feedback", {
       method: "POST",
