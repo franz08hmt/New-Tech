@@ -11,6 +11,8 @@ services:
       NODE_ENV: production
       PORT: 3000
       HOST: 0.0.0.0
+      PUBLIC_ORIGIN: ${DOCKER_PUBLIC_ORIGIN:-http://127.0.0.1:8080}
+      ALLOWED_ORIGINS: ${DOCKER_PUBLIC_ORIGIN:-http://127.0.0.1:8080}
     volumes:
       - ./secrets:/run/secrets:ro
     init: true

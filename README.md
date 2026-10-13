@@ -86,35 +86,58 @@ npm run dev:api
 npm run dev:web
 ```
 
-Mở http://localhost:5173. Sau khi Auth pilot được cấu hình và workspace có membership hợp lệ, đăng nhập rồi dùng các trang `#tasks`, `#documents` hoặc `#assistant`. API http://localhost:3000/api. Vite proxy `/api` đến 3000; nếu đổi API PORT phải sửa proxy tương ứng. Để hỏi tài liệu: upload PDF, bấm **Index** trên tài liệu, đợi trạng thái **Searchable content ready**, rồi mở Assistant và chọn **Hỏi tài liệu**. Chỉ tài liệu đã lập chỉ mục được truy xuất; nếu không có bằng chứng phù hợp, Assistant cần báo không tìm thấy thay vì đoán. Nếu thiếu migration/config/grants hoặc membership, API phải fail closed; không tắt Auth để “cho chạy”.
+Origin dev Tài chọn là **http://127.0.0.1:5173**. Nếu đã có `.env`, chỉnh các
+giá trị công khai sau bằng editor; không copy đè cả file hoặc đổi secrets:
 
-```powershell
-curl.exe -i http://localhost:3000/api/health
+```dotenv
+HOST=127.0.0.1
+PORT=3000
+PUBLIC_ORIGIN=http://127.0.0.1:5173
+ALLOWED_ORIGINS=http://127.0.0.1:5173
 ```
 
-200 nghĩa là DB trả SELECT 1; `storage: not_checked`. 503 báo DB không khả dụng. API fail startup nếu thiếu config; không fallback DB local. Logs ở terminal API là JSON timestamp/level/requestId/method/path/status/duration và sự kiện nghiệp vụ. Dừng bằng Ctrl+C; shutdown đóng pg pool.
+Khởi động lại API sau khi chỉnh. Template/default không tự ghi đè `.env` cũ.
+Vite cố định host 127.0.0.1, port 5173 và `strictPort`: nếu port bận sẽ lỗi,
+không tự đổi origin sang 5174. `HOST` chỉ nhận IP literal, mặc định loopback
+trong cả dev/production; không suy ra địa chỉ bind từ `PUBLIC_ORIGIN` hoặc
+cookie Secure. Muốn nghe mọi interface phải đặt `HOST=0.0.0.0` tường minh và
+tự kiểm soát network/firewall; không dùng cấu hình đó cho dev trực tiếp.
+
+Mở http://127.0.0.1:5173. Sau khi Auth pilot được cấu hình và workspace có membership hợp lệ, đăng nhập rồi dùng các trang `#tasks`, `#documents` hoặc `#assistant`. API http://127.0.0.1:3000/api. Vite proxy `/api` đến 127.0.0.1:3000; nếu đổi API PORT phải sửa proxy tương ứng. Không mở web bằng hostname `localhost` vì đó là origin khác. Để hỏi tài liệu: upload PDF, bấm **Index** trên tài liệu, đợi trạng thái **Searchable content ready**, rồi mở Assistant và chọn **Hỏi tài liệu**. Chỉ tài liệu đã lập chỉ mục được truy xuất; nếu không có bằng chứng phù hợp, Assistant cần báo không tìm thấy thay vì đoán. Nếu thiếu migration/config/grants hoặc membership, API phải fail closed; không tắt Auth để “cho chạy”.
+
+```powershell
+curl.exe -i http://127.0.0.1:3000/api/health
+```
+
+200 trả `{ "status": "ok" }`, nghĩa là DB trả SELECT 1; không kiểm Storage hoặc Gemini. 503 báo DB không khả dụng. API fail startup nếu thiếu config; không fallback DB local. Logs ở terminal API là JSON timestamp/level/requestId/method/path/status/duration và sự kiện nghiệp vụ. Dừng bằng Ctrl+C; shutdown đóng pg pool.
 
 ## Docker với Supabase bên ngoài
 
+**B0d 3b chưa nghiệm thu:** lần kiểm 13/10/2026 Docker engine chưa chạy.
+Các lệnh build/up dưới đây là hướng dẫn cho lần kiểm tiếp theo, không phải
+bằng chứng stack đã chạy. Không chạy migration 012/013 lên cloud để thử Docker.
+Compose dùng origin riêng `DOCKER_PUBLIC_ORIGIN=http://127.0.0.1:8080`; nó
+ghi đè PUBLIC_ORIGIN/ALLOWED_ORIGINS của container API, không đổi origin Vite.
+
 ```powershell
 docker info
-docker compose --env-file .env.example config --quiet
+docker compose --env-file .env.example config --no-env-resolution --quiet
 docker compose build
 # Nếu CA đang là đường dẫn dev, đổi DATABASE_CA_CERT_PATH trong env
 # sang /run/secrets/prod-supabase.cer cho runtime Docker.
-docker compose run --rm api node apps/api/scripts/migrate.mjs
 docker compose up -d
 docker compose ps
-curl.exe -i http://localhost:8080/api/health
+curl.exe -i http://127.0.0.1:8080/api/health
+curl.exe -i http://127.0.0.1:8080/api/auth/session
 docker compose logs --tail 100 api
 docker compose down
 ```
 
-Mở http://localhost:8080. Main Compose chỉ có web/Nginx + API; database/Storage ở Supabase. Không depends_on DB local hoặc URL hardcode. Host port chỉ bind localhost; API không publish port. `env_file` thiếu vẫn cho phép kiểm tra Compose, nhưng API sẽ fail config khi startup. `--env-file .env.example config --quiet` chỉ kiểm tra YAML, **không** cấp credential để chạy.
+Mở http://127.0.0.1:8080. Main Compose chỉ có web/Nginx + API; database/Storage ở Supabase. Host port chỉ bind loopback; API không publish port. API dùng HOST=0.0.0.0 trong network container. `env_file` thiếu vẫn cho phép kiểm tra Compose, nhưng API sẽ fail config khi startup. Lệnh config chỉ kiểm tra cấu hình Compose, **không** cấp credential hoặc chứng minh Nginx kết nối API. Khi DB/Storage đã cấu hình mà Auth chưa có đủ config, health có thể 200 và auth/session phải 503 AUTH_UNAVAILABLE; không điền key giả hoặc tắt Auth.
 
 Docker không nhúng secrets trong image/build args. `secrets/` mount read-only. Nginx nhận tối đa 11 MiB request (10 MiB PDF + multipart); backend chặn file >10 MiB trước khi giữ toàn bộ file quá lớn. Proxy giữ đúng prefix `/api`; hash navigation và SPA fallback giữ nguyên. Web khởi động kể cả DB chưa sẵn sàng để hiển thị lỗi/retry. `down` không xóa dữ liệu Supabase; không dùng tùy chọn xóa volumes cho demo.
 
-Các lệnh npm/docker tương tự trên Ubuntu; dùng `curl` thay `curl.exe`. Chưa có VM/URL được phép deploy và chưa có lớp bảo vệ endpoint, nên hiện dùng local reproducible setup theo phương án Homework 4B, không tuyên bố đã deploy.
+Các lệnh npm/docker tương tự trên Ubuntu; dùng `curl` thay `curl.exe`. Chưa có VM/URL được phép deploy; Auth gate không thay thế phân quyền/scope/budget pilot, nên không tuyên bố đã deploy hoặc public được dữ liệu thật.
 
 ## Tests và kiểm tra chất lượng
 
@@ -130,6 +153,10 @@ powershell -ExecutionPolicy Bypass -File scripts/verify.ps1
 Script cuối ghi output vào `artifacts/` (ignore Git). Kiểm tra số **skipped**, không chỉ exit code. API test build Nest bằng TypeScript trước rồi test HTTP trên compiled JS để giữ decorator metadata; Vitest giữ unit Assistant riêng. HTTP tests override DB/Storage bằng mock; adapter tests mock fetch. Frontend tests mock HTTP; không chứng minh browser đã gọi Supabase thật.
 
 DB test riêng (Docker engine phải chạy):
+
+**Chưa nghiệm thu B0d 3b:** harness hiện còn cần Auth schema fixture cho
+migration 012 và kiểm non-owner/row lock/race; không coi các lệnh bên dưới là
+đã pass. Không dùng DATABASE_URL/Supabase dùng chung làm TEST_DATABASE_URL.
 
 ```powershell
 docker compose -f compose.local-db.yaml up -d

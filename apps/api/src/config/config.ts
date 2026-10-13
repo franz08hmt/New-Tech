@@ -258,9 +258,7 @@ export function appConfig() {
   const nodeEnv = process.env.NODE_ENV ?? "development";
   if (!["development", "test", "production"].includes(nodeEnv))
     throw new Error("Invalid NODE_ENV");
-  const origins = (
-    process.env.ALLOWED_ORIGINS ?? "http://localhost:5173,http://localhost:8080"
-  )
+  const origins = (process.env.ALLOWED_ORIGINS ?? "http://127.0.0.1:5173")
     .split(",")
     .filter(Boolean);
   for (const origin of origins) {
