@@ -24,7 +24,19 @@ export function httpRuntimeConfig() {
     throw new ConfigurationError(
       "Invalid configuration: HOST must be an IP literal",
     );
-  return { host };
+  const trustedProxyIp = process.env.TRUSTED_PROXY_IP || undefined;
+  if (
+    trustedProxyIp !== undefined &&
+    (isIP(trustedProxyIp) !== 4 ||
+      trustedProxyIp === "0.0.0.0" ||
+      trustedProxyIp === "255.255.255.255" ||
+      Number(trustedProxyIp.split(".")[0]) === 0 ||
+      Number(trustedProxyIp.split(".")[0]) >= 224)
+  )
+    throw new ConfigurationError(
+      "Invalid configuration: TRUSTED_PROXY_IP must be one unicast IPv4 literal",
+    );
+  return { host, trustedProxyIp };
 }
 export function geminiConfig() {
   const rawKey = process.env.GEMINI_API_KEY?.trim();

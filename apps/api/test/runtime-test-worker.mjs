@@ -42,9 +42,12 @@ Server.prototype.listen = function (...args) {
 };
 try {
   let config;
-  if (mode === "bind" || mode === "config") {
+  if (mode === "bind" || mode === "config" || mode === "startup-config") {
     const runtime = await import("../dist/config/config.js");
-    config = runtime.httpRuntimeConfig();
+    config =
+      mode === "startup-config"
+        ? runtime.appConfig()
+        : runtime.httpRuntimeConfig();
   }
   const { fakeDependencies, httpApp } = await import("./helpers.mjs");
   const { authFixture } = await import("./auth-fixture.mjs");
@@ -118,21 +121,57 @@ try {
         if (message.type === "close") {
           await server.app.close();
           process.disconnect();
-        } else if (message.type === "bootstrap") {
-          const headers =
-            message.xff === undefined ? {} : { "X-Forwarded-For": message.xff };
-          const response = await server.request("/auth/session", {
-            headers,
-            signal: AbortSignal.timeout(5000),
-          });
+        } else if (message.type === "fixture-settings") {
+          if (message.secure !== undefined)
+            fixture.config.secure = message.secure;
+          if (message.origin !== undefined)
+            fixture.config.origin = message.origin;
+          if (message.bootstrapLimit !== undefined)
+            fixture.config.loginLimits.bootstrap = message.bootstrapLimit;
+          if (message.ipLimit !== undefined)
+            fixture.config.loginLimits.ip = message.ipLimit;
+          process.send({ type: "fixture-settings" });
+        } else if (message.type === "bootstrap" || message.type === "login") {
+          const admissionBefore = admissions.length;
+          const headers = {
+            ...message.headers,
+            ...(message.xff === undefined
+              ? {}
+              : { "X-Forwarded-For": message.xff }),
+          };
+          if (message.type === "login") {
+            headers["Content-Type"] = "application/json";
+            headers.Cookie = message.cookie;
+            headers.Origin = message.origin ?? fixture.config.origin;
+            headers["X-CSRF-Token"] = message.csrf;
+          }
+          const response = await server.request(
+            message.type === "login" ? "/auth/login" : "/auth/session",
+            {
+              headers,
+              ...(message.type === "login"
+                ? {
+                    method: "POST",
+                    body: JSON.stringify({
+                      email: message.email ?? "fixture@example.test",
+                      password: "synthetic-password",
+                    }),
+                  }
+                : {}),
+              signal: AbortSignal.timeout(5000),
+            },
+          );
           process.send({
             type: "response",
             status: response.status,
             body: await response.json(),
             observed: observed.at(-1),
             keys: admissions.at(-1),
+            newAdmissions: admissions.slice(admissionBefore),
             counters: [...fixture.counters.entries()],
             rows: fixture.rows.size,
+            setCookie: response.headers.get("set-cookie"),
+            loginCalls: fixture.state.loginCalls,
           });
         }
       });

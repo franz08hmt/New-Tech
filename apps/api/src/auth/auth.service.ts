@@ -6,6 +6,7 @@ import {
   HttpException,
 } from "@nestjs/common";
 import { timingSafeEqual, createHmac } from "node:crypto";
+import { normalizeIp } from "../common/client-ip.js";
 import type { PilotSessionResponse, PilotPrincipal } from "@examate/contracts";
 import {
   AUTH_ADAPTER,
@@ -30,6 +31,7 @@ export interface AuthRequest {
   method: string;
   path: string;
   socket?: { remoteAddress?: string };
+  readonly ip?: string;
   principal?: PilotPrincipal;
 }
 export interface AuthResponse {
@@ -63,7 +65,12 @@ export class AuthService {
       createHmac("sha256", c.encryptionKey)
         .update("examate-auth-admission-v1:" + value)
         .digest("hex");
-    const ip = req.socket?.remoteAddress ?? "unknown"; // Never trust arbitrary X-Forwarded-For.
+    // req.ip is Express-derived under the explicit trust policy, not a header.
+    // A malformed forwarded identity falls back to the socket bucket.
+    const ip =
+      normalizeIp(req.ip) ??
+      normalizeIp(req.socket?.remoteAddress) ??
+      "unknown";
     const keys =
       email === undefined
         ? [{ key: key("bootstrap:" + ip), limit: limits.bootstrap }]

@@ -94,6 +94,7 @@ HOST=127.0.0.1
 PORT=3000
 PUBLIC_ORIGIN=http://127.0.0.1:5173
 ALLOWED_ORIGINS=http://127.0.0.1:5173
+TRUSTED_PROXY_IP=
 ```
 
 Khởi động lại API sau khi chỉnh. Template/default không tự ghi đè `.env` cũ.
@@ -136,6 +137,18 @@ docker compose down
 Mở http://127.0.0.1:8080. Main Compose chỉ có web/Nginx + API; database/Storage ở Supabase. Host port chỉ bind loopback; API không publish port. API dùng HOST=0.0.0.0 trong network container. `env_file` thiếu vẫn cho phép kiểm tra Compose, nhưng API sẽ fail config khi startup. Lệnh config chỉ kiểm tra cấu hình Compose, **không** cấp credential hoặc chứng minh Nginx kết nối API. Khi DB/Storage đã cấu hình mà Auth chưa có đủ config, health có thể 200 và auth/session phải 503 AUTH_UNAVAILABLE; không điền key giả hoặc tắt Auth.
 
 Docker không nhúng secrets trong image/build args. `secrets/` mount read-only. Nginx nhận tối đa 11 MiB request (10 MiB PDF + multipart); backend chặn file >10 MiB trước khi giữ toàn bộ file quá lớn. Proxy giữ đúng prefix `/api`; hash navigation và SPA fallback giữ nguyên. Web khởi động kể cả DB chưa sẵn sàng để hiển thị lỗi/retry. `down` không xóa dữ liệu Supabase; không dùng tùy chọn xóa volumes cho demo.
+
+**Proxy trust:** chạy dev trực tiếp/Vite thì để TRUSTED_PROXY_IP trống. Compose
+đặt Nginx/web tại 172.30.250.10, API tại 172.30.250.20 trên bridge
+172.30.250.0/24; chỉ socket peer Nginx tại hop gần nhất được tin. Nginx ghi đè
+X-Forwarded-For bằng remote_addr, không nối header client. IP được validate và
+chuẩn hoá trước khi tạo admission bucket; header sai dùng bucket socket. Cookie
+Secure và Origin/CSRF vẫn dựa trên PUBLIC_ORIGIN, không theo forwarded headers.
+Một IP chỉ nhận diện network peer, không chứng minh đó là process Nginx: phải
+giữ quyền sở hữu network/address, không bật real_ip rewriting tuỳ tiện hoặc
+publish API ra host. Không dùng CIDR, `true`, số hop hay IP wildcard làm trust.
+Subnet có thể trùng mạng máy; chưa kiểm Docker/NAT thật. Nếu trùng, đổi subnet,
+cả hai địa chỉ và TRUSTED_PROXY_IP đồng bộ rồi kiểm lại 3b, không mở rộng trust.
 
 Các lệnh npm/docker tương tự trên Ubuntu; dùng `curl` thay `curl.exe`. Chưa có VM/URL được phép deploy; Auth gate không thay thế phân quyền/scope/budget pilot, nên không tuyên bố đã deploy hoặc public được dữ liệu thật.
 

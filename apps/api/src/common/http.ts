@@ -8,6 +8,8 @@ import {
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { errorCode, log, requestContext } from "./log.js";
+import { httpRuntimeConfig } from "../config/config.js";
+import { normalizeIp } from "./client-ip.js";
 
 @Catch()
 class ApiExceptionFilter implements ExceptionFilter {
@@ -27,6 +29,19 @@ class ApiExceptionFilter implements ExceptionFilter {
   }
 }
 export function configureApp(app: INestApplication, origins: string[] = []) {
+  const { trustedProxyIp } = httpRuntimeConfig();
+  // Exact socket peer AND closest hop only, never a subnet or numeric hop count.
+  // https://expressjs.com/en/guide/behind-proxies/
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .set(
+      "trust proxy",
+      trustedProxyIp
+        ? (address: string, hop: number) =>
+            hop === 0 && normalizeIp(address) === trustedProxyIp
+        : false,
+    );
   app.setGlobalPrefix("api");
   app.use(
     (
