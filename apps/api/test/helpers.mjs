@@ -19,6 +19,7 @@ export async function httpApp(
   ingestionProvider,
   retrievalProvider,
   authProviders,
+  listenOptions = { host: "127.0.0.1", port: 0 },
 ) {
   let builder = Test.createTestingModule({ imports: [AppModule] });
   // Domain regression tests inject a trusted Auth service, never a runtime bypass.
@@ -58,7 +59,7 @@ export async function httpApp(
   const module = await builder.compile();
   const app = module.createNestApplication({ logger: false });
   configureApp(app);
-  await app.listen(0, "127.0.0.1");
+  await app.listen(listenOptions.port, listenOptions.host);
   const base = await app.getUrl();
   return {
     app,

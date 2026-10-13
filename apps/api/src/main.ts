@@ -13,14 +13,7 @@ async function bootstrap() {
   const config = appConfig();
   const app = await NestFactory.create(AppModule);
   configureApp(app, config.origins);
-  await app.listen(
-    config.port,
-    // Insecure development cookies are only served on loopback, independent of NODE_ENV.
-    process.env.PUBLIC_ORIGIN?.startsWith("http:") ||
-      process.env.NODE_ENV !== "production"
-      ? "127.0.0.1"
-      : "0.0.0.0",
-  );
+  await app.listen(config.port, config.host);
 }
 
 void bootstrap().catch((error: unknown) => {

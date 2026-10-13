@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { X509Certificate } from "node:crypto";
 import { isAbsolute, resolve } from "node:path";
 import { loadEnvFile } from "node:process";
+import { isIP } from "node:net";
 import { fileURLToPath } from "node:url";
 
 export const projectRoot = fileURLToPath(
@@ -16,6 +17,15 @@ export function loadEnvironment() {
   }
 }
 export class ConfigurationError extends Error {}
+export function httpRuntimeConfig() {
+  // Binding is explicit and independent of PUBLIC_ORIGIN/cookie security.
+  const host = process.env.HOST ?? "127.0.0.1";
+  if (!isIP(host))
+    throw new ConfigurationError(
+      "Invalid configuration: HOST must be an IP literal",
+    );
+  return { host };
+}
 export function geminiConfig() {
   const rawKey = process.env.GEMINI_API_KEY?.trim();
   const apiKey = rawKey && !rawKey.includes("REPLACE_") ? rawKey : undefined;
@@ -205,6 +215,7 @@ export function databaseConfig(connectionString = required("DATABASE_URL")) {
   };
 }
 export function appConfig() {
+  const runtime = httpRuntimeConfig();
   const database = databaseConfig();
   const rawUrl = required("SUPABASE_URL");
   let url: URL;
@@ -260,6 +271,7 @@ export function appConfig() {
     }
   }
   return {
+    ...runtime,
     database,
     gemini: geminiConfig(),
     embedding: geminiEmbeddingConfig(),
