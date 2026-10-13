@@ -15,6 +15,12 @@ membership/scope dữ liệu và hạn mức sử dụng AI chưa hoàn tất. A
 grants và đăng nhập Supabase thật chưa được nghiệm thu. Gate đã kiểm trên browser
 ở 320–1440px; luồng workspace sau đăng nhập Supabase thật vẫn chưa nghiệm thu.
 Xem [báo cáo Đợt 1 — session và access gate](docs/PHASE-1-SESSION-ACCESS-REPORT.md).
+Chuẩn bị nghiệm thu Auth thật: [runbook B1](docs/PILOT-B1-RUNBOOK.md) và
+[báo cáo B1a](docs/PHASE-4-B1A-REPORT.md). Có CLI `pilot:preflight` chỉ đọc và
+`pilot:membership` mặc định dry-run; khi cấp quyền dùng `npm --silent` để npm
+không echo UUID/project ref trong arguments. B1a chưa tạo user, backup,
+migrate hay ghi membership cloud. Runtime `postgres`/bypass RLS và viewer còn
+ghi được cho tới B2: chỉ dùng dữ liệu demo.
 Vì vậy chỉ thử với dữ liệu demo, không public ứng dụng hoặc đưa dữ
 liệu/API key thật cho người dùng khác.
 
