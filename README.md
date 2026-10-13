@@ -114,12 +114,14 @@ curl.exe -i http://127.0.0.1:3000/api/health
 
 ## Docker với Supabase bên ngoài
 
-Xem [báo cáo B0d 3a và phần 3b còn chờ](docs/PHASE-3-RUNTIME-DB-REPORT.md)
+Xem [báo cáo B0d 3a/3b](docs/PHASE-3-RUNTIME-DB-REPORT.md)
 để phân biệt kiểm HTTP/process local với nghiệm thu Docker/DB thật.
 
-**B0d 3b chưa nghiệm thu:** lần kiểm 13/10/2026 Docker engine chưa chạy.
-Các lệnh build/up dưới đây là hướng dẫn cho lần kiểm tiếp theo, không phải
-bằng chứng stack đã chạy. Không chạy migration 012/013 lên cloud để thử Docker.
+**B0d 3b đã kiểm trên DB disposable ngày 13/10/2026:** build/up Nginx/API,
+proxy XFF, cổng API và SQL integration đã pass; không phải nghiệm thu Supabase
+Auth/Storage thật. Main Compose bên dưới dùng cấu hình Supabase của `.env`;
+muốn kiểm mà không nối cloud, dùng test-stack ở mục kế tiếp. Không chạy
+migration 012/013 lên cloud để thử Docker.
 Compose dùng origin riêng `DOCKER_PUBLIC_ORIGIN=http://127.0.0.1:8080`; nó
 ghi đè PUBLIC_ORIGIN/ALLOWED_ORIGINS của container API, không đổi origin Vite.
 
@@ -150,8 +152,35 @@ Secure và Origin/CSRF vẫn dựa trên PUBLIC_ORIGIN, không theo forwarded he
 Một IP chỉ nhận diện network peer, không chứng minh đó là process Nginx: phải
 giữ quyền sở hữu network/address, không bật real_ip rewriting tuỳ tiện hoặc
 publish API ra host. Không dùng CIDR, `true`, số hop hay IP wildcard làm trust.
-Subnet có thể trùng mạng máy; chưa kiểm Docker/NAT thật. Nếu trùng, đổi subnet,
-cả hai địa chỉ và TRUSTED_PROXY_IP đồng bộ rồi kiểm lại 3b, không mở rộng trust.
+Đã kiểm Docker/NAT thật trên máy Tài: req.ip là gateway, socket peer đúng .10,
+header giả 1.2.3.4 bị thay. Trước mỗi máy/lần chạy, kiểm `docker network ls`,
+IPAM subnet và route/ipconfig. Nếu 172.30.250.0/24 trùng mạng hiện có, dừng báo
+lại; không tự đổi subnet hoặc mở rộng trust.
+
+### Stack kiểm B0d không nối cloud
+
+Chạy DB test bên dưới trước để tạo runtime role fixture. Bản override
+`compose.test-stack.yaml` nối API vào DB disposable, giữ API chỉ trên network
+internal, tắt Auth/Gemini config. Web/DB có ingress để publish cổng loopback;
+API không có ingress hoặc published port. Storage config có sẵn trong `.env`
+chỉ dùng để validate startup, không bị gọi và không được in ra; không dùng key giả.
+
+```powershell
+docker compose --env-file .env.example -p examate-b0d-20261013 -f compose.yaml -f compose.local-db.yaml -f compose.test-stack.yaml build
+docker compose --env-file .env.example -p examate-b0d-20261013 -f compose.yaml -f compose.local-db.yaml -f compose.test-stack.yaml up -d --wait
+docker compose -p examate-b0d-20261013 -f compose.yaml -f compose.local-db.yaml -f compose.test-stack.yaml ps
+curl.exe -i http://127.0.0.1:8080/api/health
+curl.exe -i http://127.0.0.1:8080/api/auth/session
+# Phải không kết nối được cổng API trực tiếp:
+curl.exe --max-time 3 http://127.0.0.1:3000/api/health
+docker compose -p examate-b0d-20261013 -f compose.yaml -f compose.local-db.yaml -f compose.test-stack.yaml down
+docker compose -p examate-b0d-20261013 -f compose.local-db.yaml down
+```
+
+Kết quả đúng: health 200, session 503 AUTH_UNAVAILABLE; API chỉ có 3000/tcp
+internal. Không gọi upload/AI để “test cloud” từ stack này. Test credentials và
+policy fixture không đem sang Supabase/production. `down` không dùng `-v`, giữ
+volume disposable của project riêng; không xóa volume/stack khác.
 
 Các lệnh npm/docker tương tự trên Ubuntu; dùng `curl` thay `curl.exe`. Chưa có VM/URL được phép deploy; Auth gate không thay thế phân quyền/scope/budget pilot, nên không tuyên bố đã deploy hoặc public được dữ liệu thật.
 
@@ -170,22 +199,29 @@ Script cuối ghi output vào `artifacts/` (ignore Git). Kiểm tra số **skipp
 
 DB test riêng (Docker engine phải chạy):
 
-**Chưa nghiệm thu B0d 3b:** harness hiện còn cần Auth schema fixture cho
-migration 012 và kiểm non-owner/row lock/race; không coi các lệnh bên dưới là
-đã pass. Không dùng DATABASE_URL/Supabase dùng chung làm TEST_DATABASE_URL.
+Đã chạy thật 10 test, skipped 0. Harness tạo auth.users/auth.sessions tối thiểu
+chỉ cho FK/SQL; không phải Supabase Auth. Guard phải pass trước mọi Pool,
+migration/grant/cleanup: chỉ localhost hoặc 127.0.0.1, tên DB kết thúc `_test`,
+không URL query override và khác DATABASE_URL cả process env lẫn `.env`.
+Thiếu TEST_DATABASE_URL thì fail, không skip. Không dùng DB nhóm làm test target.
 
 ```powershell
-docker compose -f compose.local-db.yaml up -d
+docker compose -p examate-b0d-20261013 -f compose.local-db.yaml up -d --wait
 # Chỉ dùng DB test riêng; không reset/truncate database người dùng.
 $env:TEST_DATABASE_URL = 'postgresql://examate_test:local-test-only@127.0.0.1:55432/examate_test'
-$env:DATABASE_SSL = 'false'
 npm run test:database
 Remove-Item Env:TEST_DATABASE_URL
-Remove-Item Env:DATABASE_SSL
-docker compose -f compose.local-db.yaml down
+# Nếu tiếp tục kiểm full test-stack, để DB chạy; down khi đã xong:
+docker compose -p examate-b0d-20261013 -f compose.local-db.yaml down
 ```
 
-Test migration hai lần, tạo task/document qua HTTP, đóng/mở lại API và kiểm tra record, cleanup đúng UUID đã tạo. Storage của test này vẫn mock. PostgreSQL local **không thay thế Supabase Storage**. CA cloud đang set trong .env không được dùng khi DATABASE_SSL=false.
+Harness tự dùng TLS=false cho target local, không load `.env` vào process và
+restore biến env sau test. Kiểm migrations hai lần/checksum, role LOGIN
+NOBYPASSRLS không owner, quyền bị từ chối/RLS default-deny, session/refresh lock,
+admission song song và restart pool. Case HTTP Tasks/Documents legacy dùng owner
+chỉ để kiểm persistence; Auth/Storage vẫn mocked, không phải bằng chứng quyền
+runtime nghiệp vụ. Cleanup chỉ đúng UUID/hash của lượt chạy. Fixture backend
+policies chỉ cấp cho role test, không phải policy tenant của B2.
 
 ## API contract
 

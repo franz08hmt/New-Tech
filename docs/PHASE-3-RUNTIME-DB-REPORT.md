@@ -1,12 +1,19 @@
-# Đợt 3 — B0d: bind/origin/proxy; DB còn chờ Docker
+# Đợt 3 — B0d: bind/origin/proxy và Docker/DB disposable
 
 Ngày 13/10/2026; repo `D:\New-Tech\Final-Project`, nhánh
 `feature/tai-rag-integration`, bắt đầu từ `f114346`.
 Tài đã chọn origin dev **http://127.0.0.1:5173**.
 
-## 1. Kết luận nghiệm thu theo phạm vi
+**Trạng thái mới nhất:** 3b đã kiểm thật, 688 test ở bốn gates và 10 DB
+integration pass; stack đã dọn. Mục 8 là bàn giao hiện tại; mục 1–7 giữ
+snapshot/lịch sử 3a, không thay thế kết quả mới.
+
+## 1. Snapshot 3a — trước khi tiếp tục Docker/DB
 
 **Hoàn thành 3a ở mức code và HTTP/process cô lập. Chưa hoàn thành B0d toàn bộ.**
+
+Đây là snapshot lịch sử tại `3598b24`. Kết quả 3b mới và kết luận hiện tại ở
+mục 8 bên dưới; không dùng tình trạng Docker bị chặn này làm trạng thái mới nhất.
 Docker info đầu và cuối đợt đều exit 1: không kết nối được pipe
 `dockerDesktopLinuxEngine`. Theo yêu cầu, dừng sau 3a; **không thực hiện 3b**.
 
@@ -214,7 +221,194 @@ Docker hoặc máy khác. Dockerfile vẫn nhánh 24, không đổi trong đợt
 Auth fixture phục vụ test SQL/HTTP **không phải Supabase Auth thật**. Không làm
 B1/B2, không grant/provision/migrate cloud; dừng bàn giao 3a.
 
-## Nguồn kỹ thuật
+## 8. Tiếp tục 3b — Docker và DB đã kiểm thật
+
+Ngày 13/10/2026, bắt đầu từ `3598b24`. Docker info exit 0:
+**ServerVersion 29.6.2, OSType linux**. B0d 3b đã đạt các phép kiểm local được
+giao. Không có nghiệm thu Supabase Auth, tenant authorization, Storage cloud,
+AI live, B1/B2 hoặc public deployment trong kết luận này.
+
+### 8.1. Preflight và baseline
+
+- Git đúng nhánh/HEAD; chỉ có prompt untracked đã tồn tại, không stage.
+- Baseline bốn gates đã chạy lại, logs cho thấy 644 pass: API Vitest 197,
+  API node:test 269, web 178, 0 fail/skip. Output baseline từng exit không được
+  lấy hết từ session nền; kết quả gate cuối được thu đủ exit code riêng.
+- Docker networks trước chạy: bridge 172.17/16, sop 172.18/16,
+  individual_project 172.19/16, coursemate-ai 172.20/16, examate-ai 172.21/16.
+  Windows có Wi-Fi 192.168.1/24 và WSL 172.17.128/20. Không chồng
+  **172.30.250/24**; không coi default route 0/0 là subnet đã cấp. Không đổi subnet 3a.
+- Chỉ tạo project `examate-b0d-20261013`, volume test-postgres-data theo project.
+  Không dùng volume/container khác; không chạy vào Supabase.
+
+### 8.2. Build và lỗi thật được xử lý
+
+`docker compose -p examate-b0d-20261013 build` lần đầu exit 1: Dockerfile thiếu
+workspace `packages/contracts`, build web báo TS2307. Sửa duy nhất phần COPY
+contracts vào build của API/web và runtime API; không đổi model, app logic,
+lockfile hoặc Node ngoài nhánh 24. Lần build sau exit 0 cho cả hai image.
+Container API chạy **Node v24.21.0**; máy host vẫn v24.13.0.
+
+Lượt stack đầu healthy nhưng curl 8080 thất bại: override dùng internal-only
+network khiến publish host không hoạt động. Sửa **test override**, không sửa
+3a: API chỉ nối pilot internal; web/DB thêm ingress để host truy cập loopback.
+Ingress do Docker cấp 172.23/16; network pilot vẫn 172.30.250/24. Không cho API
+egress cloud. Đây là lỗi setup kiểm thử đã đo, không giấu hoặc gọi là pass.
+
+### 8.3. Proof Nginx, origin và API port
+
+Stack build/up thật với Compose base + local-db + compose.test-stack.yaml;
+thêm overlay diagnostic tạm không commit. `up -d --wait` exit 0;
+`nginx -t` trong container exit 0.
+
+```text
+web  127.0.0.1:8080->80/tcp
+db   127.0.0.1:55432->5432/tcp
+api  3000/tcp (HostConfig.PortBindings = {})
+```
+
+Gửi `X-Forwarded-For: 1.2.3.4` qua 8080, diagnostic metadata-only ghi:
+
+```json
+{
+  "event": "TEMP_PROXY_PROOF",
+  "ip": "172.23.0.1",
+  "socket": "172.30.250.10",
+  "forwarded": "172.23.0.1",
+  "status": 503
+}
+```
+
+IP client là gateway ingress thật, không phải header giả; socket peer đúng
+Nginx .10. Diagnostic không log cookie/key/token/response body và đã xoá sau
+kiểm. API chỉ gắn network pilot; inspect xác nhận pilot Internal=true.
+
+| Request thực                                            | Kết quả                                       |
+| ------------------------------------------------------- | --------------------------------------------- |
+| GET 8080/api/health                                     | HTTP 200, `{status:ok}`                       |
+| GET 8080/api/auth/session, giả XFF                      | HTTP 503, AUTH_UNAVAILABLE, không Auth config |
+| POST 8080/api/auth/login, Origin attacker và không CSRF | HTTP 403, CSRF_INVALID                        |
+| curl 127.0.0.1:3000/api/health                          | exit 7, không kết nối được                    |
+
+POST trên chứng minh request bị chặn; vì thiếu CSRF cùng lúc, không gọi đó là
+phép chứng minh Origin-only với Auth cấu hình thật. Những phép kiểm độc lập
+Origin/CSRF có sẵn trong Auth/3a vẫn pass. Không điền fake Auth key để vượt gate.
+
+Trong kiểm, API dùng DB local và role `examate_b0d_runtime_fixture`:
+current_database examate_test; rolsuper/rolbypassrls/rolcreatedb/rolcreaterole
+đều false. Storage config **có sẵn** được giữ riêng để startup validation,
+không gọi Storage và không in giá trị. Auth/Gemini keys bị loại bỏ, API không
+có network egress. File env riêng có key đã xoá sau down.
+
+### 8.4. DB guard và integration
+
+Guard được test viết trước: RED exit 1 vì module chưa tồn tại, sau implement
+44/44 unit pass. Không khẳng định từng case đã RED riêng. Guard chạy trước
+mọi Pool/migration/grant/cleanup: exact localhost/127.0.0.1, PostgreSQL,
+database *_test, không query/socket/fragment override; so sánh DATABASE_URL
+process và `.env` độc lập, canonical alias/default port/encoded DB name,
+không coi đổi credentials là target khác. Không load `.env` vào process,
+error không có URI/credentials. Thiếu TEST_DATABASE_URL fail, không skip.
+
+DB test cũ đã chạy vào **container riêng** và RED với 3F000, thiếu schema auth
+ở migration 012. Thêm schema fixture chỉ trong test harness, không sửa 001–013:
+auth.users chỉ id; auth.sessions chỉ id/user_id/not_after. Schema/role được
+gắn marker test; không sửa auth schema/role có marker khác.
+
+Runtime role là LOGIN riêng, NOINHERIT/NOBYPASSRLS/NOSUPERUSER/NOCREATEDB/
+NOCREATEROLE, không owner. Grant USAGE schema, SELECT auth.sessions ba cột,
+read workspaces/membership, SELECT/INSERT/UPDATE sessions/limits và
+SELECT/INSERT refresh intent. Không đọc auth.users/schema_migrations, không
+DDL/SET ROLE owner, không write workspaces hoặc DELETE counters.
+
+RLS vẫn bật. Fixture policies chỉ cho **backend test role**, không PUBLIC,
+không phải tenant policy B2. Có probe RLS không policy: SELECT 0 row, INSERT
+42501 dù được SQL grant. Không dùng owner/BYPASS để giả kiểm runtime; riêng
+case legacy HTTP Tasks/Documents owner chỉ là domain persistence regression.
+
+`npm run test:database` cuối **exit 0, 10 pass, skipped/cancelled/fail 0**:
+
+1. 13 migrations chạy hai lần; ledger checksum và applied_at không đổi;
+   checksum đối chiếu source normalize CRLF như runner.
+2. Runtime role/owner/RLS flags và quyền bị từ chối đúng 42501.
+3. RLS default-deny trên probe của chính lượt test.
+4. Session/membership/auth-session đọc và revoke dưới runtime role.
+5. Prelogin replacement một transaction, reuse bị từ chối.
+6. Row lock có wait_event_type Lock thật trong pg_stat_activity; callback
+   thứ hai chưa vào, sau release thấy version mới. Refresh intent độc lập
+   commit khi session lock vẫn giữ; duplicate intent bị từ chối.
+7. 20 admission calls Promise.all: đúng 3 allowed, 17 denied, hits=3.
+8. Multi-key admission rollback counter trước khi bucket sau đã đầy.
+9. Đóng/mở pool thực: session, intent, counter còn nguyên.
+10. Task/document qua HTTP persisted sau restart API, download/delete thực
+    trên DB; Auth/Storage mocked, không tuyên bố live Storage/Authorization.
+
+Cleanup chỉ UUID/hash của run và bảng probe tên random đã tạo. Không truncate,
+drop/reset DB; role/policies/seed minh hoạ còn trong volume test riêng. Log
+database.query_failed của các case denial/limit là lỗi **cố ý được assert**,
+không phải unexpected fail. SQL/runtime algorithms không sửa để test xanh.
+
+### 8.5. Gates, artifacts và commit
+
+| Lệnh cuối                   | Exit              | Pass / skipped                                      |
+| --------------------------- | ----------------- | --------------------------------------------------- |
+| npm run typecheck           | 0                 | —                                                   |
+| npm test                    | 0                 | 688 / 0: API Vitest 197, API node:test 313, web 178 |
+| npm run build               | 0                 | —                                                   |
+| npm run format:check        | 0                 | —                                                   |
+| npm run test:database       | 0                 | 10 / 0                                              |
+| docker compose build        | 0 sau COPY fix    | Hai image                                           |
+| docker compose up -d --wait | 0 sau ingress fix | Ba service                                          |
+| nginx -t                    | 0                 | Syntax/config successful                            |
+
+Artifacts ignored: `artifacts/phase3b-runtime-db-20261013/`, gồm build-before/
+after, docker-info/network/subnets/routes, DB RED/final, guard RED/green,
+health/auth/origin/port proof, API diagnostic log, container runtime role,
+gates baseline/final, nginx config test và down logs. Không commit artifacts.
+
+| Commit  | Phần                                            |
+| ------- | ----------------------------------------------- |
+| 59b581f | Include contracts workspace trong Docker images |
+| 9e928a1 | Guard target DB và 44 unit regression           |
+| beda3c5 | DB integration/fixture role, 10 live SQL tests  |
+| c7d4baa | Test-stack override chặn API egress             |
+
+Commit docs cuối chứa phần bàn giao/README này; xem git log. Chưa push/merge.
+Lockfile vẫn SHA-256 DC399813C704AB8DDB77DAD8C31B79CA942670B6C049CDBF54B7E8B6DA994B26.
+Không thay migration, app runtime 3a, contracts, .env thật hoặc settings.
+
+### 8.6. Dọn dẹp và tự chạy lại
+
+Đã chạy **cả hai down**, exit 0, không `-v`:
+
+```powershell
+docker compose --env-file .env.example -p examate-b0d-20261013 -f compose.yaml -f compose.local-db.yaml -f compose.test-stack.yaml -f artifacts/phase3b-runtime-db-20261013/compose-check.yaml down
+docker compose -p examate-b0d-20261013 -f compose.local-db.yaml down
+```
+
+Lệnh thứ hai dọn default network đã tạo khi bắt đầu chỉ up DB. Sau down:
+không còn container của project test, không listener 3000/8080/55432; SOP
+frontend/backend vẫn chạy. Giữ đúng volume
+`examate-b0d-20261013_test-postgres-data`, không xoá volume khác. Diagnostic,
+overlay diagnostic, private-runtime.env và generator tạm đã xoá; các down
+command có overlay là **lịch sử**, file đó không còn để dùng.
+
+Chạy lại theo README: Docker info + kiểm subnet/ports; up DB qua local-db file
+với project riêng; TEST_DATABASE_URL loopback đúng container; test:database;
+build/up ba Compose file **tracked** (base/local-db/test-stack); curl/ps;
+down ba file rồi down local-db file, không volumes flag. Proof XFF cần
+diagnostic tạm riêng, không bật runtime bypass hoặc commit log/header dump.
+
+Host Node vẫn 24.13.0 dưới engines một số tooling; Docker Node 24.21.0 đáp ứng
+nhánh 24. Fixture Auth/SQL không phải Supabase Auth; RLS test role không phải
+tenant isolation hay evidence viewer/member/manager của B2. Không public
+pilot hoặc tự provision/migrate cloud chỉ vì B0d local đã pass.
+
+### Nguồn tham chiếu 3a/3b
+
+- [PostgreSQL RLS](https://www.postgresql.org/docs/16/ddl-rowsecurity.html): default-deny và khác biệt owner/BYPASSRLS.
+- [PostgreSQL row locks](https://www.postgresql.org/docs/16/explicit-locking.html#LOCKING-ROWS): FOR UPDATE chờ transaction giữ khóa.
+- [Compose merge/reset](https://docs.docker.com/reference/compose-file/merge/#reset-value): override/reset cấu hình test mà không nới bản 3a.
 
 - [Express proxy trust](https://expressjs.com/en/guide/behind-proxies/): trust phải khớp hop thật, không tin forwarded header tuỳ tiện.
 - [Nginx proxy_set_header](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_set_header): ghi đè header tại proxy.
