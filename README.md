@@ -114,6 +114,9 @@ curl.exe -i http://127.0.0.1:3000/api/health
 
 ## Docker với Supabase bên ngoài
 
+Xem [báo cáo B0d 3a và phần 3b còn chờ](docs/PHASE-3-RUNTIME-DB-REPORT.md)
+để phân biệt kiểm HTTP/process local với nghiệm thu Docker/DB thật.
+
 **B0d 3b chưa nghiệm thu:** lần kiểm 13/10/2026 Docker engine chưa chạy.
 Các lệnh build/up dưới đây là hướng dẫn cho lần kiểm tiếp theo, không phải
 bằng chứng stack đã chạy. Không chạy migration 012/013 lên cloud để thử Docker.
