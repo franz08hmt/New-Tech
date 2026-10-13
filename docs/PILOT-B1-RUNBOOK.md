@@ -4,6 +4,22 @@
 B1a chỉ chuẩn bị CLI, kiểm trên DB disposable và đọc cấu hình local. Không tạo
 user, migrate, backup hay cấp membership trên Supabase trong đợt chuẩn bị.
 
+## Đường đi nhanh — Tài tự làm, không giao agent ghi cloud
+
+1. App chỉ local `http://127.0.0.1:5173`; xác nhận đúng Supabase và quyền quản trị.
+2. Dashboard tạo 4 user demo (auto-confirm), cất password/UUID trong password manager.
+3. Tạo key/workspace vào file ignored (mục ii), điền `.env` bằng editor local.
+4. Chạy `npm run pilot:preflight`; thiếu 012/013 trước migrate là dự kiến, lỗi khác phải dừng.
+5. Backup public bằng image đúng major + TLS verify-full (iv); `pg_restore --list` phải đọc được.
+6. Chỉ khi được duyệt: dừng API, chạy `npm run db:migrate`, preflight lại phải exit 0.
+7. Dry-run rồi apply membership 3 user (vi); account no-membership để trống.
+8. Khởi động API/web, Tài tự gõ password và chạy checklist browser (vii).
+9. Nếu cần rollback: dừng API, dùng CLI dry-run trước, apply chỉ với ref khớp (v).
+10. Rollback xoá dữ liệu pilot/login; app data cũ giữ nguyên, Storage không bị xoá.
+
+Không hosting/domain/HTTPS cho app; giữ TLS cho Supabase. TTS/STT do Thắng
+phụ trách, không sửa AssistantPanel khi chưa phối hợp.
+
 ## Giới hạn và điều kiện dừng
 
 - Chỉ dùng dữ liệu demo. B1 chưa cách ly dữ liệu theo người dùng/workspace.
@@ -14,7 +30,7 @@ user, migrate, backup hay cấp membership trên Supabase trong đợt chuẩn b
 - Tài cần quyền quản trị đúng project, được nhóm duyệt cửa sổ thay đổi và có
   quyền DB phù hợp. Agent không tự thực hiện các bước ghi bên dưới.
 - Dừng nếu target khác project đã duyệt, checksum lệch, ledger không đọc được,
-  TLS không xác minh được, backup/restore thử thất bại hoặc grants không đủ.
+  TLS không xác minh được, dump không đọc được hoặc grants không đủ.
   Không nới Origin/CSRF/RLS, không sửa migration đã chạy để vượt kiểm tra.
 - Không gửi password, key, connection URI, UUID user thật hay project ref đầy
   đủ vào chat/log/ảnh. Tắt transcript/terminal recording khi nhập định danh.
@@ -138,21 +154,23 @@ $pilotBackupDir = Join-Path (Get-Location).Path 'artifacts'
 $pilotCertDir = Join-Path (Get-Location).Path 'secrets'
 $pilotBackupName = 'pilot-before-012-013.dump'
 if (Test-Path (Join-Path $pilotBackupDir $pilotBackupName)) { throw 'Backup đã tồn tại; chọn tên mới, không ghi đè' }
-docker run --rm --env-file artifacts/pilot-backup.env --mount "type=bind,source=$pilotBackupDir,target=/backup" --mount "type=bind,source=$pilotCertDir,target=/certs,readonly" $pilotPgImage pg_dump --format=custom "--file=/backup/$pilotBackupName"
+docker run --rm --env-file artifacts/pilot-backup.env --mount "type=bind,source=$pilotBackupDir,target=/backup" --mount "type=bind,source=$pilotCertDir,target=/certs,readonly" $pilotPgImage pg_dump --schema=public --format=custom "--file=/backup/$pilotBackupName"
 if ($LASTEXITCODE -ne 0) { throw 'Backup chưa đạt; không migrate' }
 docker run --rm --mount "type=bind,source=$pilotBackupDir,target=/backup,readonly" $pilotPgImage pg_restore --list "/backup/$pilotBackupName"
 if ($LASTEXITCODE -ne 0) { throw 'Archive chưa đọc được; không migrate' }
 ```
 
 Không `--verbose` hoặc in archive list vào báo cáo công khai vì có tên object.
-`pg_restore --list` chỉ kiểm archive đọc được, **chưa chứng minh restore được**.
-Trước migrate phải restore thử trên DB local biệt lập tương thích Supabase,
-đối chiếu ledger/counts và chốt người chịu trách nhiệm phục hồi. Fixture
-`auth.users(id)` của test không đủ để restore toàn bộ Supabase Auth.
-
-Dump chỉ một database, không bao gồm role/global objects hay binary file
-**Storage**. Cần bảo vệ/backup Storage riêng và cất encryption key độc lập.
-Dump có thể chứa dữ liệu nhạy cảm (Auth/session), không commit/chia sẻ cho agent.
+`pg_restore --list` chỉ kiểm archive đọc được, không phải nghiệm thu restore.
+**Không yêu cầu restore thử toàn bộ Supabase nữa:** rollback cho 012/013 dùng
+script mục v đã kiểm DB disposable; dump public là bảo hiểm thêm cho dữ liệu app.
+`--schema=public` gồm schema và dữ liệu public, không phải `--schema-only`.
+Không dump schema auth/storage, roles/global objects hoặc binary **Storage**.
+Public vẫn có dữ liệu app và token session đã mã hoá nếu pilot đã chạy; dump
+vẫn nhạy cảm, không commit/chia sẻ cho agent. Public có FK tới auth nên không
+gọi dump này là backup Supabase đầy đủ/tự restore độc lập được.
+Migration 012/013 không tạo/sửa Storage. Nếu cần bảo vệ file Storage riêng,
+đó là kế hoạch khác; cất encryption key độc lập với dump.
 [PostgreSQL pg_dump](https://www.postgresql.org/docs/16/app-pgdump.html).
 
 ## v. Migration 012/013 và verify — Tài chạy sau backup đạt
@@ -169,14 +187,44 @@ pending. Nếu còn file khác, dừng và duyệt phạm vi lại. Không sửa
 ledger để chữa checksum. Chạy lại runner phải báo already applied và không
 thay đổi dữ liệu. Preflight sau đó phải đạt các điều kiện ở mục iii, exit 0.
 
-Rollback không phải xóa tay bảng Auth: giữ maintenance, dừng API, chụp/log
-request IDs đã lược định danh, đánh giá traffic ghi sau backup. Người quản trị
-phục hồi từ dump đã thử thành công theo kế hoạch đã duyệt (ưu tiên target
-biệt lập để đối chiếu trước). Restore toàn DB làm mất thay đổi sau backup và
-có thể tác động schema Auth managed; cần chủ project xác nhận, không tự chạy
-`pg_restore --clean` lên cloud. Nếu backup/grants/schema/restore không chắc,
-dừng và phối hợp quản trị/Supabase thay vì rollback mù. Sau restore kiểm
-checksum/preflight/Auth rồi mới cho traffic trở lại. Storage không tự rollback.
+### Rollback hẹp 012/013 — Tài chỉ chạy khi được duyệt
+
+Dừng API trước. Đây là **xoá dữ liệu pilot**: workspaces, memberships, sessions,
+login limits và refresh intents. Không phục hồi session/membership sau rollback;
+các user Dashboard và dữ liệu app 001–011 được giữ nguyên. Nếu đã có dữ liệu
+pilot cần giữ, dừng và quyết định bảo quản riêng trước `--apply`.
+
+```powershell
+npm --silent run pilot:rollback-012-013
+# Đọc đủ 5 object và rowCount. Chỉ Tài apply khi đúng kế hoạch:
+$pilotProjectRef = Read-Host 'Project ref đích đã đối chiếu riêng'
+npm --silent run pilot:rollback-012-013 -- --apply "--confirm-project=$pilotProjectRef"
+Remove-Variable pilotProjectRef
+```
+
+CLI mặc định chỉ đọc/rollback transaction, output đúng 5 tên public và số dòng
+(string để giữ chính xác count lớn), hai tên ledger; ref che bớt. Dùng maintenance
+URL như membership, không dùng một URL do người gọi tự đặt để xác nhận project.
+Apply kiểm checksum 012/013, không có migration sau 013/không nhận ra, đủ 5
+bảng, không FK/view/function hoặc phụ thuộc catalogue bên ngoài. Có phụ thuộc
+thì dừng, **không tự xoá phụ thuộc/CASCADE để vượt guard**.
+
+Một transaction khoá cùng migration runner, khoá tables/ledger, `DROP` 5 bảng
+không CASCADE rồi DELETE đúng hai dòng ledger. Index/constraint/row type và
+trigger FK nội bộ thuộc các bảng đó được PostgreSQL tự gỡ (kể cả trigger FK
+nội bộ trên auth.users), không xoá Auth table/user/session provider hay Storage.
+Guard không phát hiện mọi SQL string trong function/app ngoài catalogue;
+vì vậy phải dừng API và phối hợp Thắng trước rollback.
+
+Nếu script báo **outcome unknown**: không retry/migrate mù. Giữ API tắt, người
+quản trị kiểm riêng ledger và sự tồn tại 5 bảng. Nếu còn đủ 012/013 + 5 bảng,
+transaction chưa có bằng chứng commit; nếu ledger còn 001–011 và 5 bảng mất,
+rollback đã hoàn tất. Trạng thái lẫn lộn/guard fail → dừng và review cùng nhóm.
+Sau rollback thành công, preflight phải exit 1 do 012/013 thiếu (không phải lỗi
+Auth mới). Muốn quay lại B1: được duyệt mới `npm run db:migrate`, preflight exit
+0, cấp lại membership; tất cả người dùng đăng nhập lại. Ledger/checksum source
+giữ nguyên, không sửa migration hay UPDATE checksum. Dump public là phương án
+bảo hiểm app-data riêng khi thật sự cần, không tự `pg_restore --clean` cloud.
 
 ## vi. Cấp ba membership — mặc định dry-run
 
