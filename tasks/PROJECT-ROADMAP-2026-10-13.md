@@ -7,6 +7,13 @@ ghi nhận sửa session race và gate 320–1440px; login Supabase thật còn 
 Tài xác nhận: pilot cho nhóm và vài người được mời; thầy không bắt buộc một
 công nghệ cụ thể. Hạn final chưa được cung cấp; không ước lượng lịch nộp.
 
+**Phạm vi Tài chốt từ B1a-fix:** app chỉ chạy local tại
+`http://127.0.0.1:5173`, dùng Supabase chung; không hosting, triển khai công
+khai, domain hay thiết lập HTTPS cho app. Giữ TLS cho kết nối Supabase.
+N4a/N4b do Thắng phụ trách; Tài không sửa TTS/STT hoặc AssistantPanel khi chưa
+báo trước. B1a đã review đạt phần chuẩn bị (745 test, DB 24/24); Auth thật B1
+vẫn chờ nghiệm thu theo [runbook](../docs/PILOT-B1-RUNBOOK.md).
+
 ## 1. Sản phẩm final nên chứng minh điều gì?
 
 Một sinh viên đăng nhập, chọn môn/tài liệu, hỏi và hỏi tiếp có ngữ cảnh, kiểm
@@ -18,7 +25,7 @@ Gói final khuyến nghị sau khi sửa nền:
 1. Hội thoại có ngữ cảnh, RAG có bằng chứng đánh giá.
 2. Một luồng luyện tập có nguồn: tạo bộ câu hỏi ngắn hoặc flashcards.
 3. PWA dùng được trên điện thoại, có hành vi mất mạng rõ ràng.
-4. TTS để nghe câu trả lời; STT là bước tiếp theo nếu còn thời gian.
+4. TTS/STT do Thắng phụ trách, tích hợp qua text câu trả lời đã verify.
 
 Multi-model và WASM là hướng mở rộng sau khi có baseline để so sánh.
 Native mobile chưa cần cho pilot này; chỉ cân nhắc khi có nhu cầu thiết bị
@@ -27,7 +34,8 @@ mà web/PWA không đáp ứng. Không chọn công nghệ chỉ để tăng s�
 ## 2. Quy tắc cho mọi đợt triển khai
 
 - Từng lát có spec/acceptance, test hành vi, runtime verification, báo cáo và
-  commit riêng trên nhánh phát triển đã xác minh; không tự push/merge.
+  commit riêng trên nhánh phát triển đã xác minh. Được push không force lên
+  origin/feature/tai-rag-integration khi Tài giao; không merge main.
 - Kiểm working tree trước làm; giữ README/prompt/WIP của người khác, stage
   đúng file của lát đó. Không thêm attribution Claude, không sửa settings.
 - Giữ React/Vite/Nest/npm workspaces, hash routing, contracts `.d.ts` chỉ chứa
@@ -49,7 +57,7 @@ mà web/PWA không đáp ứng. Không chọn công nghệ chỉ để tăng s�
 - Dừng sau mỗi đợt và bàn giao. Một đợt hoàn tất có thể nghiệm thu độc lập;
   chưa đạt tiêu chí thì xử lý đợt đó trước mở rộng tiếp.
 
-## 3. Giai đoạn nền — phải hoàn tất trước pilot ngoài nhóm
+## 3. Giai đoạn nền — cho pilot local với người được mời
 
 ### B0a. Sửa race khởi tạo session
 
@@ -101,7 +109,7 @@ coi severity registry là bằng chứng app đã bị khai thác. **Nhiều lá
 
 Tách bind address container khỏi secure-cookie origin; giữ proxy FE/API cùng
 origin. Chốt localhost hoặc 127.0.0.1 cho dev, PUBLIC_ORIGIN khớp URL thật.
-Kiểm origin 5173 local và origin Docker/HTTPS thật; giải quyết IP
+Kiểm origin 5173 local và origin Docker 8080 riêng; giải quyết IP
 throttle sau proxy bằng thiết kế trust rõ ràng, không tin mọi X-Forwarded-For.
 
 Chuẩn bị DB disposable cho toàn bộ migrations; schema Auth fixture chỉ dùng
@@ -120,7 +128,8 @@ Quản lý cấp workspace UUID, accounts manager/member/viewer/no-membership,
 publishable key, encryption key qua cấu hình local an toàn; target/backup,
 migration role và grants được xác nhận. Áp 012/013 qua runner khi được giao
 riêng; không xin gửi password/key vào chat. Kiểm auth.sessions grants hoặc
-phương án đã được quản lý lựa chọn và chứng minh revoke/expiry trên deployed Auth.
+phương án đã được quản lý lựa chọn và chứng minh revoke/expiry trên Supabase
+Auth thật trong app local. Không triển khai hosting để nghiệm thu B1.
 
 **Xong khi:** login/reload/refresh/logout/revoke/đổi account/đa tab hoạt động;
 no-membership/outage fail closed, draft cùng user giữ đúng, user khác không
@@ -151,23 +160,24 @@ kiểm trực tiếp qua HTTP; không provider/Storage call sau reject; DB non-o
 thực enforce quyền; pooled context không rò giữa requests. Phần chưa scoped
 không được mở ra ngoài trong lúc làm dở. **L, bắt buộc chia lát M.**
 
-### B3. Hạn mức AI và quan sát chi phí — tiếp tục Chặng 3 pilot
+### B3. Giới hạn lượt AI và fan-out cho pilot local
 
 **Giá trị:** quota/chi phí có giới hạn ngay cả khi nhiều người gọi cùng lúc.
 
-Thêm module riêng và migration riêng cho reservation/usage per user/workspace.
-Đếm mọi provider dispatch: chat, query embedding, indexing batches, OCR từng
-trang, các nhóm summary và synthesis. Cap concurrency, token/context, pages,
-batches và operation duration. User bị từ chối vẫn xem được dữ liệu/answer cũ.
+1. Cap lượt thao tác AI/user/ngày, lưu admission/counter bền trên PostgreSQL,
+   kiểm đồng thời/restart và reset ngày có timezone xác định. Chốt cách tính
+   một lượt và ngưỡng với Tài/Thắng trước live; reject trước provider, không
+   tự retry/replay request khi kết quả chưa rõ. Phân biệt local limit với
+   AI_QUOTA upstream; user vẫn đọc được dữ liệu/câu trả lời cũ.
+2. Cap fan-out summary/index: giới hạn trang/chunk/batch/provider dispatch
+   và duration cho mỗi thao tác, gồm OCR nếu bật. Không lách cap user bằng
+   một request tạo nhiều lời gọi. Ghi usage metadata tối thiểu nếu có, không
+   log key/token/prompt/PDF. Không dựng billing/dashboard tài chính trong B3.
 
-Thu usage metadata khi provider có trả; khi timeout/unknown commit giữ trạng
-thái conservative. Phân biệt local limit và AI_QUOTA upstream; estimate theo
-price revision/model, không gọi là hóa đơn chính thức. Mức ngân sách được
-Tài/Thắng chọn trước chạy live; quota Google phải kiểm ở project/AI Studio.
-
-**Xong khi:** concurrent requests/restart không vượt reservation; reject không
-gọi provider; summary/index không vượt cap thông qua fan-out; có view usage
-nhỏ và lỗi tiếng Việt rõ ràng; không log key/token/prompt/PDF. **3 lát M.**
+**Xong khi:** concurrency không vượt cap lượt; summary/index không vượt cap
+fan-out; reject không gọi provider, lỗi tiếng Việt rõ. **1–2 lát M**, có thể
+gộp nếu vẫn review/kiểm chứng độc lập được. Không gọi cap là hóa đơn hay bảo
+đảm hết mọi chi phí; quota provider vẫn kiểm ở project/AI Studio.
 
 ### B4. Nghiệm thu FE/BE xuyên suốt và chất lượng RAG
 
@@ -190,7 +200,7 @@ chọn; nếu sync request không đủ, tách job/status trên PostgreSQL, khô
 
 **Xong khi:** demo login→CRUD→upload→index→RAG→nguồn/PDF→feedback→reload→logout
 qua API thật; các critical acceptance case có review và không blocker chưa
-giải thích. Android/iOS/375px/desktop, keyboard, download/source và console
+giải thích. Android qua adb reverse/375px/desktop, keyboard, download/source và console
 có bằng chứng riêng. Không dùng 562 test để thay các kiểm tra này. **Nhiều lát M.**
 
 ## 4. Các nâng cấp New Technologies sau nền
@@ -246,11 +256,17 @@ web hiện đại. PWA và WASM giải quyết hai vấn đề khác nhau: insta
 so với thực thi module tính toán. PWA không làm Gemini trở thành AI offline.
 
 **Lát 1 — mobile:** kiểm form, bottom sheet, PDF fallback, keyboard/safe-area,
-upload/chọn môn, Back/deep links trên Android và iOS; sửa đúng lỗi đo được,
+upload/chọn môn, Back/deep links trên Android thật; sửa đúng lỗi đo được,
 giữ palette/font và layout hiện tại.
 
-**Lát 2 — install:** manifest/name/icons/scope/start_url/standalone, HTTPS,
-install guidance theo capability, không ép prompt. Browser không hỗ trợ vẫn
+**Lát 2 — install local:** manifest/name/icons/scope/start_url/standalone trên
+loopback (secure context), hướng dẫn cài theo capability, không ép prompt.
+Không thêm hosting/domain/HTTPS cho app. Android kết nối USB, Tài tự bật USB
+debugging và duyệt thiết bị: `adb reverse tcp:5173 tcp:5173`, mở
+`http://127.0.0.1:5173` trên Chrome Android để origin vẫn khớp PUBLIC_ORIGIN.
+Kết thúc kiểm: `adb reverse --remove tcp:5173`. Chỉ loopback trên điện thoại
+được forward, không đổi Vite bind thành 0.0.0.0 hay mở cổng LAN để tiện thử.
+Browser không hỗ trợ vẫn
 dùng web thường. Không viết lại bằng React Native để có icon trên home screen.
 
 **Lát 3 — lifecycle/offline:** service worker cache **app shell/public assets**
@@ -261,42 +277,25 @@ Offline giai đoạn đầu là mở shell và thông báo mất mạng; dữ li
 offline cần thiết kế quyền/caching/retention riêng nếu sau này chọn làm.
 
 **Xong khi:** cài/mở/reopen/update thật; airplane mode có UI đúng; logout/account
-swap không thấy dữ liệu account trước qua cache/Back; HTTPS/deep link ổn.
-Chrome Android và Safari iOS được kiểm riêng; không gọi mô phỏng 375px là test
-điện thoại thật. **3 lát M; nên chọn làm điểm nhấn final.**
+swap không thấy dữ liệu account trước qua cache/Back; loopback/deep link ổn.
+Desktop và Chrome Android được kiểm riêng; không gọi mô phỏng 375px là test
+điện thoại thật. **iOS:** adb reverse không áp dụng; 127.0.0.1 trên iPhone không
+trỏ máy Windows. Trong phạm vi local-only này chưa cam kết nghiệm thu PWA/Safari
+iOS thật, không tự mở tunnel/HTTPS/hosting để vượt giới hạn. **3 lát M.**
 
-### N4a. TTS — đọc câu trả lời
+### N4a. TTS — do Thắng phụ trách
 
-**Giá trị:** học khi không tiện đọc, hỗ trợ tiếp cận; scope đầu tiên nhỏ.
+Tài không triển khai/sửa file TTS. Điểm tích hợp duy nhất: cung cấp plain text
+câu trả lời đã qua validator/verify, không đọc token/URL/markup hoặc citation
+chưa xác minh. Muốn thay AssistantPanel phải báo trước và phối hợp với Thắng;
+không đổi pipeline RAG để phục vụ TTS. Thắng chịu trách nhiệm spec/kiểm thử giọng.
 
-Dùng adapter browser SpeechSynthesis sau feature detect: chọn voice/ngôn ngữ,
-Read aloud/Pause/Resume/Stop; không tự phát. Đọc plain text đã render/verify,
-chuyển citation thành nhãn dễ nghe, không đọc markup/URL/token. Chỉ một answer
-đọc tại một thời điểm; cancel khi logout/đổi account; giữ trạng thái khi panel
-expand nếu phù hợp. voices tải trễ và thiếu voice tiếng Việt phải có fallback
-thật, không hứa giọng Việt trên mọi thiết bị.
+### N4b. STT — do Thắng phụ trách
 
-**Xong khi:** câu dài, voice load muộn, unsupported, pause/stop, bàn phím và
-screen reader cùng tồn tại; kiểm Android/iOS/desktop thật. Nếu chuyển cloud TTS,
-tạo phase riêng cho provider/budget/privacy, không thêm ngầm. **Cỡ M.**
-
-### N4b. STT — nói để nhập câu hỏi
-
-**Giá trị:** hỏi tài liệu nhanh trên điện thoại; text input vẫn là fallback.
-
-Browser SpeechRecognition là lựa chọn thử capability đầu tiên, không coi là
-hỗ trợ đa browser chắc chắn. Mic bắt đầu từ thao tác người dùng, thông báo
-audio có thể được browser gửi tới dịch vụ nhận dạng. Hiển thị listening,
-interim/final transcript; cho sửa và bấm Send riêng, không tự gửi transcript.
-Stop/cancel khi đóng/đổi account; xử lý deny/no-speech/network/unavailable.
-
-Nếu cần STT cross-browser ổn định, làm lát server riêng: bounded duration/
-size/type audio, same-origin Auth/CSRF, provider allowlist và usage cap. Mặc
-định không lưu audio; quyết định provider/quyền riêng tư trước triển khai.
-
-**Xong khi:** 10 câu Việt đã định nghĩa được đánh giá nhận dạng tên môn/từ
-chuyên ngành; microphone denied vẫn gõ được; không gửi câu hỏi ngoài ý muốn;
-giải thích rõ browser/provider support. **M browser, L nếu server; sau TTS.**
+Tài không triển khai/sửa file STT. Giữ text input và luồng gửi câu hỏi hiện có;
+Thắng bàn giao transcript để người dùng kiểm/sửa rồi Send chủ đích. Output
+Assistant để tích hợp vẫn là text câu trả lời đã verify, không bypass Auth,
+CSRF, scope, quota hay validator. Phối hợp trước khi sửa AssistantPanel.
 
 ### N5. So sánh và hỗ trợ nhiều model có kiểm soát
 
@@ -350,22 +349,13 @@ lát đầu. Đây là mở rộng từ workspace read-only, không sửa ngầm
 ## 5. Trình tự và điều kiện đi tiếp
 
 ```text
-B0 ổn định -> B1 Auth thật -> B2 quyền/scope -> B3 AI cap -> B4 nghiệm thu
-                                                           |
-                                                           v
-                                               N1 hội thoại có ngữ cảnh
-                                                           |
-                                                           v
-                                                 N2 luyện tập có nguồn
-                                                           |
-                                                           v
-                                                N3 PWA -> N4a TTS -> N4b STT
-
-N5 multi-model và N6 WASM: nghiên cứu sau baseline, chỉ chọn khi đủ nguồn lực.
+B0 đã ổn định -> B1 -> B2 -> B3 -> B4 -> N1 -> N3 -> N2 -> N5
+N6 WASM: tùy chọn, chỉ chọn sau profiling/baseline và đủ nguồn lực.
+N4a/N4b: Thắng phụ trách, phối hợp điểm tích hợp riêng; không phải lát của Tài.
 ```
 
 Nếu phải thu gọn final, ưu tiên B0–B4, N1 và N3; thêm một lát N2/N4a đã nghiệm
-thu. Không dồn toàn bộ roadmap vào một prompt implementation. Có thể tạo một
+thu (N4a do Thắng phụ trách). Không dồn toàn bộ roadmap vào một prompt implementation. Có thể tạo một
 prompt nền/rules rồi giao từng lát riêng theo kết quả đợt trước.
 
 Mỗi đợt có output: commit phạm vi rõ, test/gates, bằng chứng UI/DB/provider tương
@@ -384,4 +374,5 @@ viewer bị chặn write, local AI cap và bảng đánh giá; không chỉ quay
 - [Gemini — pricing](https://ai.google.dev/gemini-api/docs/pricing): giá/tier thay đổi; lưu revision và kiểm tại thời điểm chọn model, không hứa mọi tính năng AI miễn phí.
 
 Các nguồn trên giải thích khả năng công nghệ, không phải bằng chứng tính năng
-đã tồn tại hay đã được kiểm trên ExaMate. Roadmap chưa triển khai/commit/push.
+đã tồn tại hay đã được kiểm trên ExaMate. Roadmap đã cập nhật phạm vi local-only;
+trạng thái từng lát lấy từ báo cáo thực tế, không xem kế hoạch là tính năng đã có.
