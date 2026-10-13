@@ -129,13 +129,17 @@ async function inspectRollback(client, source) {
   return { objects, ledgerEntries: [...entries] };
 }
 
-export async function runPilotRollback(client, input) {
+export async function runPilotRollback(
+  client,
+  input,
+  { loadSource = loadMigrations } = {},
+) {
   const options = { apply: false, ...input };
   validate(options); // MUST precede every database query (including BEGIN).
   let started = false,
     committing = false;
   try {
-    const source = await loadMigrations();
+    const source = await loadSource();
     await client.query(options.apply ? "BEGIN" : "BEGIN READ ONLY");
     started = true;
     await client.query("SET LOCAL lock_timeout='5s'");
