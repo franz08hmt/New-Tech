@@ -3542,32 +3542,113 @@
 }
 /* Pilot access gate, using the existing typography and color tokens. */
 .pilot-access {
-  max-width: 28rem;
-  margin: 10vh auto;
+  width: min(28rem, calc(100% - 32px));
+  margin: clamp(16px, 8vh, 64px) auto;
   padding: 24px;
+  border: 1px solid var(--color-line);
+  border-radius: 16px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
 }
-.pilot-access > svg {
-  width: 32px;
-  height: 32px;
+.pilot-access-header {
+  display: grid;
+  gap: 12px;
+}
+.pilot-access-header p {
+  margin: 0;
+  color: var(--color-muted);
+}
+.pilot-access-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--color-ai-accent-soft);
+  color: var(--color-ai-accent);
+}
+.pilot-access svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.pilot-access-icon svg {
+  width: 24px;
+  height: 24px;
+}
+.pilot-access-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+.pilot-access h1 {
+  margin: 0;
+  font-size: clamp(24px, 5vw, 28px);
+  font-weight: 600;
+  line-height: 1.25;
+}
+.pilot-access-status {
+  margin: 20px 0;
+  padding: 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface);
 }
 .pilot-access form {
   display: grid;
-  gap: 12px;
+  gap: 8px;
   margin-block: 20px;
+}
+.pilot-access label {
+  font-weight: 500;
 }
 .pilot-access input,
 .pilot-access button,
 .pilot-session-bar button {
   min-height: 44px;
   padding: 10px 14px;
-  border: 1px solid currentColor;
+  border: 1px solid var(--color-muted);
   border-radius: 8px;
   max-width: 100%;
 }
+.pilot-access input {
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 8px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+.pilot-access button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+.pilot-access .pilot-sign-in {
+  width: 100%;
+  margin-top: 8px;
+  border-color: var(--color-ai-accent);
+  background: var(--color-ai-accent);
+  color: var(--color-paper);
+  font-weight: 600;
+}
+.pilot-access button[aria-disabled="true"] {
+  cursor: wait;
+  opacity: 0.65;
+}
+.pilot-access-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.pilot-access h1:focus-visible,
 .pilot-access button:focus-visible,
 .pilot-access input:focus-visible,
 .pilot-session-bar button:focus-visible {
-  outline: 2px solid currentColor;
+  outline: 2px solid var(--color-ai-accent);
   outline-offset: 3px;
 }
 .pilot-session-bar {
@@ -3576,6 +3657,8 @@
   justify-content: space-between;
   gap: 12px;
   padding: 8px 24px;
+  background: var(--color-paper);
+  border-bottom: 1px solid var(--color-line);
 }
 .pilot-session-bar svg {
   width: 20px;

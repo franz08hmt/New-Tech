@@ -10,7 +10,7 @@ import {
 } from "@testing-library/react";
 import type { PilotSessionResponse } from "@examate/contracts";
 import { PilotAccess } from "./PilotAccess";
-import { configurePilotClient } from "./pilot-client";
+import { configurePilotClient, notifyPilotDenied } from "./pilot-client";
 
 const csrfA = "a".repeat(43);
 const csrfB = "b".repeat(43);
@@ -136,10 +136,10 @@ async function submitLogin() {
   fireEvent.change(await screen.findByLabelText("Email"), {
     target: { value: "invited@example.test" },
   });
-  fireEvent.change(screen.getByLabelText("Mật khẩu"), {
+  fireEvent.change(screen.getByLabelText("Password"), {
     target: { value: "synthetic-password" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 }
 
 it("cold StrictMode bootstrap sends only one cookie-producing session request", async () => {
@@ -148,7 +148,7 @@ it("cold StrictMode bootstrap sends only one cookie-producing session request", 
   await waitFor(() => expect(boundary!.sessions.length).toBeGreaterThan(0));
   expect(boundary.sessions).toHaveLength(1);
   await settleSession(boundary.sessions[0], anonymous(), csrfA);
-  expect(screen.getByRole("button", { name: "Đăng nhập" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
 });
 
 it("login succeeds when cold bootstrap responses would otherwise arrive in reverse order", async () => {
@@ -160,7 +160,7 @@ it("login succeeds when cold bootstrap responses would otherwise arrive in rever
   // Newest JSON activates the form first, then the earlier response applies
   // its cookie. Discarding stale JSON alone cannot protect the browser cookie.
   await settleSession(requests.at(-1)!, anonymous(csrfB), csrfB);
-  await screen.findByRole("button", { name: "Đăng nhập" });
+  await screen.findByRole("button", { name: "Sign in" });
   for (const stale of requests.slice(0, -1))
     await settleSession(stale, anonymous(csrfA), csrfA);
   await submitLogin();
@@ -207,7 +207,7 @@ it("regression: failed bootstrap releases pending work so retry can establish a 
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Chưa xác minh được phiên",
   );
-  fireEvent.click(screen.getByRole("button", { name: "Kiểm tra lại phiên" }));
+  fireEvent.click(screen.getByRole("button", { name: "Check session" }));
   await waitFor(() => expect(boundary!.sessions).toHaveLength(2));
   await settleSession(boundary.sessions[1], anonymous(csrfB), csrfB);
   await submitLogin();
@@ -237,13 +237,11 @@ it.each(["logout", "session_changed"])(
     expect(
       screen.queryByText("Protected race fixture"),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Kiểm tra lại phiên" }),
-    ).toBeEnabled();
-    fireEvent.click(screen.getByRole("button", { name: "Kiểm tra lại phiên" }));
+    expect(screen.getByRole("button", { name: "Check session" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Check session" }));
     await waitFor(() => expect(boundary!.sessions).toHaveLength(3));
     await settleSession(boundary.sessions[2], anonymous(csrfB), csrfB);
-    expect(screen.getByRole("button", { name: "Đăng nhập" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
     expect(
       screen.queryByText("Protected race fixture"),
     ).not.toBeInTheDocument();
@@ -269,13 +267,33 @@ it.each(["logout", "session_changed"])(
       );
     });
     // User checks again before the pre-event response has arrived.
-    fireEvent.click(screen.getByRole("button", { name: "Kiểm tra lại phiên" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check session" }));
     await settleSession(boundary.sessions[1], authenticated());
     expect(
       screen.queryByText("Protected race fixture"),
     ).not.toBeInTheDocument();
     await waitFor(() => expect(boundary!.sessions).toHaveLength(3));
     await settleSession(boundary.sessions[2], anonymous(csrfB), csrfB);
-    expect(screen.getByRole("button", { name: "Đăng nhập" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
   },
 );
+
+it("regression: denied workspace access invalidates an older pending verification before retry", async () => {
+  boundary = browserBoundary();
+  vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+  gate();
+  await settleSession(boundary.sessions[0], authenticated(), csrfA);
+  const content = await screen.findByText("Protected race fixture");
+  await act(async () => window.dispatchEvent(new Event("focus")));
+  await act(async () => notifyPilotDenied("WORKSPACE_ACCESS_DENIED"));
+  fireEvent.click(screen.getByRole("button", { name: "Check session" }));
+  await settleSession(boundary.sessions[1], authenticated());
+  expect(content).not.toBeVisible();
+  await waitFor(() => expect(boundary!.sessions).toHaveLength(3));
+  await settleSession(boundary.sessions[2], {
+    status: "no_access",
+    csrfToken: csrfB,
+  });
+  expect(content).not.toBeVisible();
+  expect(screen.getByText(/chưa được cấp quyền workspace/)).toBeVisible();
+});

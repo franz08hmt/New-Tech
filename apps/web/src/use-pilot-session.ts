@@ -242,6 +242,23 @@ export function usePilotSession() {
       }
     } catch (error) {
       if (alive.current && generation === epoch.current) {
+        if (
+          error instanceof ApiError &&
+          [
+            "AUTH_REQUIRED",
+            "SESSION_EXPIRED",
+            "SESSION_REFRESH_REQUIRED",
+            "CSRF_INVALID",
+          ].includes(error.code)
+        ) {
+          setState("expired");
+          setMessage(
+            error.code === "CSRF_INVALID"
+              ? "Phiên gửi yêu cầu đã đổi. Bấm Check session để xác minh lại, rồi đăng nhập nhé."
+              : "Phiên đăng nhập đã hết hạn. Bấm Check session để xác minh lại, rồi thử đăng nhập nhé.",
+          );
+          return;
+        }
         if (error instanceof ApiError && error.code === "AUTH_UNAVAILABLE")
           setState("unavailable");
         setMessage(
@@ -249,9 +266,7 @@ export function usePilotSession() {
             ? "Email hoặc mật khẩu chưa đúng, hoặc tài khoản chưa được xác nhận."
             : error instanceof ApiError && error.code === "LOGIN_RATE_LIMITED"
               ? `Đã có nhiều lần thử đăng nhập. ${error.retryAt ? "Có thể thử lại sau " + new Date(error.retryAt).toLocaleString("vi-VN") + "." : "Chờ một lúc rồi thử lại."}`
-              : error instanceof ApiError && error.code === "CSRF_INVALID"
-                ? "Phiên gửi yêu cầu đã đổi. Kiểm tra lại trạng thái đăng nhập."
-                : "Chưa đăng nhập được. Dịch vụ xác thực hoặc cơ sở dữ liệu có thể đang gián đoạn.",
+              : "Chưa đăng nhập được. Dịch vụ xác thực hoặc cơ sở dữ liệu có thể đang gián đoạn.",
         );
       }
     } finally {

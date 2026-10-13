@@ -49,9 +49,7 @@ it("production App stays locked and sends no workspace request before login", as
   vi.stubGlobal("fetch", fetcher);
   render(<App />);
   await waitFor(() =>
-    expect(
-      screen.getByRole("button", { name: "Đăng nhập" }),
-    ).toBeInTheDocument(),
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument(),
   );
   expect(fetcher.mock.calls.every(([url]) => url === "/api/auth/session")).toBe(
     true,
@@ -108,13 +106,13 @@ it("login uses cookie credentials and CSRF; invalid credentials retain a usable 
   fireEvent.change(await screen.findByLabelText("Email"), {
     target: { value: "fixture@example.test" },
   });
-  fireEvent.change(screen.getByLabelText("Mật khẩu"), {
+  fireEvent.change(screen.getByLabelText("Password"), {
     target: { value: "synthetic-password" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
   await screen.findByText(/Email hoặc mật khẩu chưa đúng/);
-  expect(screen.getByRole("button", { name: "Đăng nhập" })).toBeEnabled();
-  expect(screen.getByLabelText("Mật khẩu")).toHaveValue("");
+  expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
+  expect(screen.getByLabelText("Password")).toHaveValue("");
   const call = fetcher.mock.calls.find(([url]) => url === "/api/auth/login")!;
   const init = call[1] as RequestInit;
   expect(init.credentials).toBe("same-origin");
@@ -156,11 +154,11 @@ it("Auth outage locks UI without losing draft; retry logout retains CSRF and con
   expect(screen.getByLabelText("Draft")).toHaveValue("Keep this draft");
   expect(screen.getByLabelText("Draft")).not.toBeVisible();
   outage = true;
-  fireEvent.click(screen.getByRole("button", { name: "Thử đăng xuất" }));
+  fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
   await screen.findByText(/Chưa xác nhận được đăng xuất/);
   expect(screen.queryByText("Đã đăng xuất.")).not.toBeInTheDocument();
   outage = false;
-  fireEvent.click(screen.getByRole("button", { name: "Thử đăng xuất" }));
+  fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
   await screen.findByText("Đã đăng xuất.");
   expect(
     fetcher.mock.calls.filter(([url]) => url === "/api/auth/logout"),
@@ -200,7 +198,7 @@ it("legacy notes stay hidden and workspace access without membership is denied",
   );
   await screen.findByText(/chưa được cấp quyền workspace/);
   expect(screen.queryByText("Unauthorized fixture")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Thử đăng xuất" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Sign out" })).toBeEnabled();
 });
 it("notes receive a stable principal/workspace namespace, never the legacy shared key", async () => {
   function NotesProbe() {
@@ -339,7 +337,7 @@ it("notes survive reload for the same principal and stay separate from another p
       <NotesPanel />
     </PilotAccess>,
   );
-  await screen.findByText("Workspace được cấp quyền");
+  await screen.findByText("Workspace access");
   expect(
     screen.queryByDisplayValue("Account A edited"),
   ).not.toBeInTheDocument();
