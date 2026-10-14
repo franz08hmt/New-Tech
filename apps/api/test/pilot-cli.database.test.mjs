@@ -220,6 +220,7 @@ test("preflight checks ledger, role and auth privileges entirely inside a read-o
     assert.equal(report.checksumsMatch, true);
     assert.equal(report.stage012Applied, true);
     assert.equal(report.stage013Applied, true);
+    assert.equal(report.stage014Applied, true);
     assert.deepEqual(report.target, { maskedProjectRef });
     assert.deepEqual(report.auth, authSummary);
     assert.equal(report.migrations.length, sourceMigrationCount);
@@ -254,7 +255,7 @@ test("preflight checks ledger, role and auth privileges entirely inside a read-o
 test("preflight flags missing migrations and mismatched checksums without writing the ledger", async () => {
   const client = await pool.connect();
   try {
-    for (const variant of ["missing", "checksum"]) {
+    for (const variant of ["missing", "checksum", "missing014"]) {
       const filtered = {
         async query(sql, values) {
           const result = await client.query(sql, values);
@@ -262,8 +263,13 @@ test("preflight flags missing migrations and mismatched checksums without writin
             return {
               ...result,
               rows:
-                variant === "missing"
-                  ? result.rows.filter((row) => !row.name.startsWith("001_"))
+                variant === "missing" || variant === "missing014"
+                  ? result.rows.filter(
+                      (row) =>
+                        !row.name.startsWith(
+                          variant === "missing014" ? "014_" : "001_",
+                        ),
+                    )
                   : result.rows.map((row) =>
                       row.name.startsWith("012_")
                         ? { ...row, checksum: "synthetic-mismatch" }
@@ -277,9 +283,10 @@ test("preflight flags missing migrations and mismatched checksums without writin
         target: { projectRef, maskedProjectRef },
         authSummary: { authConfigValid: true },
       });
-      if (variant === "missing")
+      if (variant === "missing" || variant === "missing014")
         assert.equal(report.allSourceMigrationsApplied, false);
       else assert.equal(report.checksumsMatch, false);
+      if (variant === "missing014") assert.equal(report.stage014Applied, false);
     }
     assert.equal(
       (

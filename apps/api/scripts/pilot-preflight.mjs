@@ -104,6 +104,9 @@ export async function runPilotPreflight(client, { target, authSummary }) {
       stage013Applied: migrations.some(
         (m) => m.name.startsWith("013_") && m.applied,
       ),
+      stage014Applied: migrations.some(
+        (m) => m.name === "014_workspace_scope.sql" && m.applied,
+      ),
       role: {
         isPostgres: role.name === "postgres",
         nameMasked: `${role.name.slice(0, 2)}…${role.name.slice(-2)}`,
@@ -175,6 +178,7 @@ async function main() {
         !report.allSourceMigrationsApplied ||
         !report.stage012Applied ||
         !report.stage013Applied ||
+        !report.stage014Applied ||
         !report.auth.publicOriginMatchesDev ||
         !report.auth.databaseSessionVerification ||
         !report.role.authUsage ||
