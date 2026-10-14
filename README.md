@@ -7,7 +7,7 @@ Workspace học tập dùng React + NestJS + PostgreSQL/Supabase Storage. Hiện
 **Trạng thái Supabase và giới hạn an toàn:** lần kiểm tra chỉ đọc được ghi trong
 [báo cáo khảo sát pilot](docs/pilot-stage-0-report.md) xác nhận migration
 `001`–`011` trên project đã kiểm tra. Migration `012` (workspace/session) và
-`013` (giới hạn thử đăng nhập/refresh) hiện mới có trong repository, **chưa áp
+`013` (giới hạn thử đăng nhập/refresh) và `014` (nền workspace nghiệp vụ) hiện mới có trong repository, **chưa áp
 dụng thật**. Không chạy migration trên project dùng chung cho tới khi Thắng/Tài
 xác nhận đúng target, quyền DB và kế hoạch cấp workspace/user. Đăng nhập trong
 code chưa thay thế phân quyền theo từng workspace/bản ghi: phase triển khai
@@ -19,8 +19,10 @@ Chuẩn bị nghiệm thu Auth thật: [runbook B1](docs/PILOT-B1-RUNBOOK.md) v�
 [báo cáo B1a](docs/PHASE-4-B1A-REPORT.md). Có CLI `pilot:preflight` chỉ đọc và
 `pilot:membership` mặc định dry-run; khi cấp quyền dùng `npm --silent` để npm
 không echo UUID/project ref trong arguments. B1a chưa tạo user, backup,
-migrate hay ghi membership cloud. Runtime `postgres`/bypass RLS và viewer còn
-ghi được cho tới B2: chỉ dùng dữ liệu demo.
+migrate hay ghi membership cloud. B2 lát 1–2 đã scope API Tasks/Courses và chặn
+viewer tạo/sửa task; các module khác vẫn chưa scope đọc và chưa hoàn tất role
+matrix. Runtime `postgres`/bypass RLS chưa được thay bằng role B2: chỉ dùng dữ
+liệu demo. Xem [báo cáo B2 lát 1–2](docs/PHASE-5-B2-SCOPE-REPORT.md).
 Vì vậy chỉ thử với dữ liệu demo, không public ứng dụng hoặc đưa dữ
 liệu/API key thật cho người dùng khác.
 
@@ -48,8 +50,10 @@ Browser React ── /api JSON hoặc multipart ──> NestJS
 Tasks/Documents/Assistant đi qua NestJS. Không có database hay Gemini key trong
 frontend. Download API cấp signed URL 60 giây sau khi kiểm tra metadata; browser
 tải binary bằng URL đó. Health chỉ kiểm tra PostgreSQL. Code hiện có login/session
-gate, CSRF và giới hạn admission cho các lần đăng nhập; tuy nhiên **chưa có
-scope nghiệp vụ theo workspace/bản ghi hoặc giới hạn ngân sách/lượt gọi AI**.
+gate, CSRF và giới hạn admission cho các lần đăng nhập. API `/api/tasks` và
+`/api/courses` đã lọc theo workspace của principal đã verify; viewer không ghi
+task. **Scope toàn ứng dụng và giới hạn ngân sách/lượt gọi AI chưa hoàn tất**:
+workspace-records/Assistant vẫn có thể đọc task/course qua đường chưa scope.
 Nếu provision thành viên trước khi hoàn tất các phần đó, họ vẫn có thể thao tác
 trên dữ liệu nghiệp vụ dùng chung; không coi login là cách ly dữ liệu. Chỉ dùng
 dữ liệu mẫu, không public API cho dữ liệu thật. Courses/Exams/study plans/Finances
@@ -60,7 +64,7 @@ không được mã hóa.
 
 - Node đáp ứng engines trong lockfile: dùng Node **24.15+ thuộc nhánh 24** (Dockerfile dùng node:24-alpine); npm 11.6.2 theo packageManager. Mốc môi trường ghi trong báo cáo gần nhất là Node 24.13.0/npm 11.6.2: đã chạy gates nhưng Node vẫn thấp hơn mức khuyến nghị; chưa kiểm chứng runtime Node 24.15+.
 - Supabase project do nhóm quản lý, connection PostgreSQL và secret key (hoặc legacy service_role JWT) cho Storage.
-- Pilot Auth cần thêm `PUBLIC_ORIGIN`, `SUPABASE_PUBLISHABLE_KEY`, `PILOT_WORKSPACE_ID` và `SESSION_ENCRYPTION_KEY` trong `.env` server-side; không dùng Storage secret làm Auth key, không commit `.env`, không gửi secrets qua chat. Tạo workspace/user, cấp membership và quyền DB là bước quản trị riêng; hiện chưa có seed hay màn hình đăng ký/quản trị.
+- Pilot Auth cần thêm `PUBLIC_ORIGIN`, `SUPABASE_PUBLISHABLE_KEY`, `PILOT_WORKSPACE_ID` và `SESSION_ENCRYPTION_KEY` trong `.env` server-side; không dùng Storage secret làm Auth key, không commit `.env`, không gửi secrets qua chat. Tạo user, cấp membership và quyền DB là bước quản trị riêng, không có màn hình đăng ký/quản trị. Migration 014 có thể tạo workspace cho seed trên DB local mới khi có `PILOT_WORKSPACE_ID` hợp lệ; đây không phải cấp membership hay bật Auth tự động.
 - Docker Desktop Linux engine + Compose mới nếu chạy containers; có CLI chưa đủ, `docker info` phải thành công.
 
 Không nâng cấp toàn bộ dependencies. `npm ci` dùng package-lock v3.
@@ -78,10 +82,20 @@ Copy-Item .env.example .env
 Chỉnh `.env` bằng editor local theo [SUPABASE-SETUP.md](docs/SUPABASE-SETUP.md): lấy URI đúng project, percent-encode password, cấu hình TLS/CA; điền SUPABASE_SECRET_KEY server-only (hoặc service_role JWT fallback) và tạo bucket private giới hạn PDF 10 MiB. Bổ sung cấu hình Auth pilot từ `.env.example` theo checklist phía trên. Không paste secrets vào chat, shell history hoặc `VITE_*`.
 
 **Trước khi migrate:** xác nhận lại Supabase URL/database đích và lịch sử trong
-`schema_migrations`. Trạng thái gần nhất được ghi nhận là `001`–`011`; `012`–`013`
+`schema_migrations`. Trạng thái gần nhất được ghi nhận là `001`–`011`; `012`–`014`
 chưa chạy thật và cần quyền/grants cùng workspace/user đã được nhóm duyệt. Chỉ
 chạy migration khi người quản lý project đồng ý và đã chuẩn bị các điều kiện đó.
 Không dùng project production/dùng chung để thử migration hoặc tự tạo/grant quyền.
+
+Runner trên nhánh này chạy **mọi migration pending, gồm 014**. Nếu B1 cloud chưa
+nghiệm thu, không dùng lệnh bên dưới như một thao tác “chỉ 012/013”; đọc checkpoint
+trong [runbook B1](docs/PILOT-B1-RUNBOOK.md) trước. Sau B1, 014 dùng lại đúng một
+workspace có ID khớp `PILOT_WORKSPACE_ID`; lệch ID hoặc nhiều workspace thì dừng.
+DB local mới đã có seed ở 001/003–006 nên cần UUID workspace hợp lệ trước migrate:
+runner truyền bằng tham số `set_config(..., true)` trong transaction, không đổi
+checksum SQL. Không có workspace/setting thì 014 từ chối và rollback chính 014,
+không rollback những migration trước đã commit. DB nghiệp vụ thực sự trống thì
+không cần workspace. Sau khi áp 014, CLI rollback 012/013 phải từ chối.
 
 Khi chạy trực tiếp React, NestJS và Supabase Cloud, không cần Docker. Đường dẫn CA được resolve từ repository root: `DATABASE_CA_CERT_PATH=secrets/prod-supabase.cer.crt`.
 
@@ -205,7 +219,8 @@ Script cuối ghi output vào `artifacts/` (ignore Git). Kiểm tra số **skipp
 
 DB test riêng (Docker engine phải chạy):
 
-Đã chạy thật 10 test, skipped 0. Harness tạo auth.users/auth.sessions tối thiểu
+Số lượng và kết quả đầy đủ mới nhất ở [báo cáo B2](docs/PHASE-5-B2-SCOPE-REPORT.md).
+Harness tạo auth.users/auth.sessions tối thiểu
 chỉ cho FK/SQL; không phải Supabase Auth. Guard phải pass trước mọi Pool,
 migration/grant/cleanup: chỉ localhost hoặc 127.0.0.1, tên DB kết thúc `_test`,
 không URL query override và khác DATABASE_URL cả process env lẫn `.env`.
@@ -224,10 +239,14 @@ docker compose -p examate-b0d-20261013 -f compose.local-db.yaml down
 Harness tự dùng TLS=false cho target local, không load `.env` vào process và
 restore biến env sau test. Kiểm migrations hai lần/checksum, role LOGIN
 NOBYPASSRLS không owner, quyền bị từ chối/RLS default-deny, session/refresh lock,
-admission song song và restart pool. Case HTTP Tasks/Documents legacy dùng owner
+admission song song và restart pool. Case HTTP Tasks/Documents dùng owner
 chỉ để kiểm persistence; Auth/Storage vẫn mocked, không phải bằng chứng quyền
 runtime nghiệp vụ. Cleanup chỉ đúng UUID/hash của lượt chạy. Fixture backend
 policies chỉ cấp cho role test, không phải policy tenant của B2.
+Các suite workspace mới tạo/drop đúng DB `_test` riêng bằng tên ngẫu nhiên,
+kiểm backfill 014, composite FK và service SQL với hai workspace. Harness tự cấp
+setting seed fixture, không cần đọc UUID/password từ `.env`; role local cần quyền
+CREATE DATABASE cho các fixture này. Không gọi owner-domain tests là tenant RLS.
 
 ## API contract
 

@@ -47,7 +47,7 @@ mà web/PWA không đáp ứng. Không chọn công nghệ chỉ để tăng s�
 - Giữ baseline của Thắng: retrieval/chunking/embedding/OCR/validator. Bổ sung
   scope/admission ở boundary; mỗi thay đổi thuật toán/model/prompt phải được
   benchmark riêng, có version và lý do. Không bỏ citation check để test xanh.
-- Không sửa migration đã có. Migration kế tiếp hiện là 014, nhưng kiểm lại
+- Không sửa migration đã có. B2 lát 1–2 bổ sung 014; migration kế tiếp hiện là 015, nhưng kiểm lại
   Git/runner/history trước đặt số. Không tự áp vào Supabase dùng chung.
 - Không thêm dependency npm trong đợt ổn định. PoC WASM/native/provider mới
   phải nêu package/license/chi phí/phạm vi trước khi được chọn để triển khai.
@@ -143,6 +143,13 @@ Chốt role matrix hiện có: viewer read-only; member tạo/sửa theo quyền
 manager thực hiện thao tác quản lý/xóa. Không cần public CRUD membership/admin UI.
 
 Tách thành các lát:
+
+**Checkpoint Đợt 5:** nền 014 và scope API Tasks/Courses đã triển khai, xem
+[báo cáo](../docs/PHASE-5-B2-SCOPE-REPORT.md). Chưa áp cloud, chưa tạo
+`examate_app`/tenant RLS; các lát 3–5 và B1 thật vẫn chưa nghiệm thu. Chỉ bổ sung
+workspace từ principal vào INSERT của năm module còn lại để tương thích NOT NULL;
+đọc/lookup/update/delete/role của các module đó chưa scope. Workspace-records
+còn đường đọc task/course chưa scope, nên chưa cách ly toàn app.
 
 1. Migration foundation/scope/backfill đã được duyệt, FK/indexes và role ít
    quyền; preserve/null-course/dữ liệu hiện có. Kiểm integrity/count/backup.

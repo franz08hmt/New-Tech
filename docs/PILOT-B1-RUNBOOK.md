@@ -4,6 +4,13 @@
 B1a chỉ chuẩn bị CLI, kiểm trên DB disposable và đọc cấu hình local. Không tạo
 user, migrate, backup hay cấp membership trên Supabase trong đợt chuẩn bị.
 
+**Checkpoint sau B2 lát 1–2:** quy trình chỉ áp 012/013 dưới đây thuộc source
+đã review tại `68ccd9f` (tối đa 013), không phải lệnh migrate của nhánh mới có 014. Nếu B1 chưa xong, giữ nguyên điều kiện dừng; nhóm duyệt dùng checkpoint
+B1 đã review trong checkout riêng hoặc duyệt kế hoạch chuyển tiếp trước khi
+ghi cloud. Không lọc/bỏ 014 bằng sửa runner hay sửa ledger. Sau B1, làm theo
+mục “014 sau B1” bên dưới. Đợt B2 hiện tại chỉ kiểm DB disposable, không chứng
+minh B1/Supabase Auth thật đã nghiệm thu.
+
 ## Đường đi nhanh — Tài tự làm, không giao agent ghi cloud
 
 1. App chỉ local `http://127.0.0.1:5173`; xác nhận đúng Supabase và quyền quản trị.
@@ -24,7 +31,8 @@ phụ trách, không sửa AssistantPanel khi chưa phối hợp.
 
 - Chỉ dùng dữ liệu demo. B1 chưa cách ly dữ liệu theo người dùng/workspace.
   Runtime Supabase hiện vẫn dùng `postgres`/bypass RLS cho tới B2; preflight sẽ
-  báo role thực tế, không tự đổi role. **Viewer vẫn có thể ghi cho tới B2**.
+  báo role thực tế, không tự đổi role. B2 lát 1–2 chặn viewer ghi task; các
+  module còn lại vẫn chưa hoàn tất quyền/scope, không coi viewer read-only toàn app.
 - Không public API/web, không mời người dùng đưa tài liệu thật vào. Auth thành
   công không có nghĩa role matrix, tenant RLS hay ngân sách AI đã hoàn tất.
 - Tài cần quyền quản trị đúng project, được nhóm duyệt cửa sổ thay đổi và có
@@ -273,6 +281,33 @@ Remove-Variable pilotUserId,pilotProjectRef
 Revoke membership khác với Dashboard **Sign out user**. Không thêm tính năng
 tạo user/password vào CLI để tiện demo. CLI dùng transaction và SQL placeholders;
 ref xác nhận phải khớp endpoint thực sự, không khớp một URL tùy ý do người gọi đặt.
+
+## 014 sau B1 — chỉ khi quản trị viên duyệt cửa sổ thay đổi riêng
+
+1. B1 đã tạo workspace đúng `PILOT_WORKSPACE_ID`, cấp membership và nghiệm thu
+   Auth thật. Kiểm source/ledger/checksum, đúng project và đúng một workspace;
+   xác nhận dữ liệu nhóm hiện hữu đều thuộc workspace đó. Không dùng tên chủ
+   task/nickname để đoán workspace. Preflight hiện đọc toàn source nên thiếu
+   014 sẽ làm `allSourceMigrationsApplied:false` trước bước này, đó không phải
+   bằng chứng Auth hỏng; các kết quả chưa đạt khác vẫn phải xử lý trước.
+2. Tài/Thắng duyệt backup public mới, dùng mục iv với **tên dump mới** để không
+   ghi đè bản trước 012/013; giữ Storage/keys riêng. Dừng API và mọi writes.
+3. Với source có 014 và env UUID đúng, `npm run db:migrate` dùng lại workspace
+   duy nhất đó. Setting lệch hoặc >=2 workspace bị từ chối; không sửa migration
+   cũ/ledger để vượt kiểm. Bootstrap 0 workspace + setting chỉ dành cho dữ liệu
+   seed đã được xác nhận, không thay thế quy trình B1 trên Supabase dùng chung.
+4. Kiểm đủ 14 ledger/checksum, counts/IDs/quan hệ từng bảng, document/expense
+   course NULL giữ nguyên; tất cả row có workspace đã duyệt. Chạy lại runner
+   phải already applied. Chỉ khởi động binary tương thích 014 sau verify.
+5. CLI rollback 012/013 **không được dùng sau 014**: workspace đã có phụ thuộc
+   nghiệp vụ, guard phải từ chối. Không có down migration 014 trong đợt này.
+   Nếu có lỗi, giữ API đóng, phối hợp quản trị viên forward-fix hoặc kế hoạch
+   phục hồi public đã review; không tự drop/CASCADE/xóa ledger hay chạy binary
+   cũ chưa scope để khôi phục dịch vụ. Các migration trước 014 đã commit không
+   bị rollback tự động nếu riêng 014 thất bại.
+
+Chưa hoàn tất scope Exams/Plans/Expenses/Documents/RAG/workspace-records/Feedback
+và tenant RLS. Chỉ dữ liệu demo local; không mời pilot đưa dữ liệu thật vào.
 
 ## vii. Browser acceptance — password do Tài tự gõ
 
