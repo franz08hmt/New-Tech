@@ -565,12 +565,26 @@ export async function main(values = process.argv.slice(2)) {
         );
     } catch (error) {
       if (error.index) report.index = error.index;
+      const authRequired = error.code === "LIVE_EVALUATION_AUTH_REQUIRED";
       report.preflight = {
         status: "BLOCKED",
-        reason: /^[A-Z_]{3,80}$/.test(error.message)
-          ? error.message
-          : "PREFLIGHT_DEPENDENCY_OR_CONFIGURATION",
+        reason: authRequired
+          ? "LIVE_EVALUATION_AUTH_REQUIRED"
+          : /^[A-Z_]{3,80}$/.test(error.message)
+            ? error.message
+            : "PREFLIGHT_DEPENDENCY_OR_CONFIGURATION",
       };
+      if (authRequired) {
+        report.preflight.message =
+          "Chưa có principal workspace cho runner live; chờ đợt tích hợp Auth.";
+        report.actualProviderBudget = {
+          embeddingAttempts: 0,
+          generationAttempts: 0,
+          summarizationAttempts: 0,
+          providerRetries: 0,
+        };
+        process.stdout.write(`${report.preflight.message}\n`);
+      }
       await save(
         selected.map((c) => ({
           caseId: c.id,

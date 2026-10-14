@@ -9,6 +9,14 @@ export async function createLiveHarness(
   mapping,
   { maxProviderCalls = 20 } = {},
 ) {
+  // The old maintenance runner has no verified workspace principal. Fail
+  // closed before configuration/secrets, runtime imports or any side effect.
+  throw Object.assign(
+    new Error(
+      "Chưa có principal workspace cho runner live; chờ đợt tích hợp Auth.",
+    ),
+    { code: "LIVE_EVALUATION_AUTH_REQUIRED" },
+  );
   const { loadEnvironment, ragConfig, geminiConfig, geminiEmbeddingConfig } =
     await import("../dist/config/config.js");
   loadEnvironment();

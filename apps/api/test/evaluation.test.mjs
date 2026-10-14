@@ -4,6 +4,8 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { randomUUID } from "node:crypto";
+import { syncBuiltinESMExports } from "node:module";
 import { testArtifacts } from "./test-artifacts.mjs";
 import {
   evaluateLiveResult,
@@ -570,6 +572,162 @@ const citation = {
 const runner = fileURLToPath(
   new URL("../scripts/evaluate-rag.mjs", import.meta.url),
 );
+
+async function guardedLiveFixture(t) {
+  const savedEnvironment = { ...process.env };
+  Object.assign(process.env, {
+    DATABASE_URL:
+      "postgresql://evaluation_fixture:evaluation_fixture@127.0.0.1:5432/evaluation_fixture_test",
+    DATABASE_SSL: "false",
+    SUPABASE_URL: "https://evaluation-fixture.supabase.test",
+    SUPABASE_SECRET_KEY: "sb_secret_evaluation_synthetic_only",
+    SUPABASE_STORAGE_BUCKET: "evaluation-fixture",
+    GEMINI_API_KEY: "evaluation_synthetic_key_only",
+    NODE_ENV: "test",
+  });
+  const calls = {
+    loadEnvironment: 0,
+    databaseQuery: 0,
+    poolConnect: 0,
+    storage: 0,
+    embedding: 0,
+    generation: 0,
+    fetch: 0,
+  };
+  // Stub the built-in named import too: RED must NEVER load the real .env.
+  t.mock.method(process, "loadEnvFile", () => {
+    calls.loadEnvironment++;
+  });
+  syncBuiltinESMExports();
+  const { DatabaseService } =
+    await import("../dist/database/database.service.js");
+  const { StorageService } =
+    await import("../dist/documents/storage.service.js");
+  const { GeminiEmbeddingService } =
+    await import("../dist/assistant/gemini-embedding.service.js");
+  const { GeminiService } = await import("../dist/assistant/gemini.service.js");
+  const { Pool } = await import("pg");
+  const forbidden = (key) => async () => {
+    calls[key]++;
+    throw new Error("Forbidden live evaluation boundary");
+  };
+  t.mock.method(DatabaseService.prototype, "query", forbidden("databaseQuery"));
+  t.mock.method(Pool.prototype, "connect", forbidden("poolConnect"));
+  for (const method of ["upload", "remove", "downloadBuffer", "signedDownload"])
+    t.mock.method(StorageService.prototype, method, forbidden("storage"));
+  for (const method of ["embedQuery", "embedDocuments"])
+    t.mock.method(
+      GeminiEmbeddingService.prototype,
+      method,
+      forbidden("embedding"),
+    );
+  t.mock.method(GeminiService.prototype, "generate", forbidden("generation"));
+  t.mock.method(globalThis, "fetch", forbidden("fetch"));
+  const definition = JSON.parse(
+    readFileSync(
+      new URL("../../../docs/evaluation-cases.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  const mapping = {
+    corpusRevision: definition.corpusRevision,
+    documents: Object.fromEntries(
+      definition.documents.map((file) => [file, randomUUID()]),
+    ),
+    courseId: randomUUID(),
+  };
+  t.after(() => {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+    for (const key of Object.keys(process.env))
+      if (!(key in savedEnvironment)) delete process.env[key];
+    Object.assign(process.env, savedEnvironment);
+  });
+  return { calls, definition, mapping };
+}
+
+test("v3 live harness fails closed before environment, DB, Storage or provider access", async (t) => {
+  const { calls, definition, mapping } = await guardedLiveFixture(t);
+  const { createLiveHarness } =
+    await import("../scripts/rag-evaluation-harness.mjs");
+  let rejection;
+  try {
+    await createLiveHarness(definition, mapping);
+  } catch (error) {
+    rejection = error;
+  }
+  assert.ok(
+    Object.values(calls).every((count) => count === 0),
+    "live harness must stop before any environment or external access",
+  );
+  assert.equal(rejection?.code, "LIVE_EVALUATION_AUTH_REQUIRED");
+  assert.equal(
+    rejection?.message,
+    "Chưa có principal workspace cho runner live; chờ đợt tích hợp Auth.",
+  );
+});
+
+for (const transport of ["internal", "http"]) {
+  test(`v3 --execute ${transport} reports BLOCKED with zero budget and no attempts`, async (t) => {
+    const { calls, definition, mapping } = await guardedLiveFixture(t);
+    const { main } = await import("../scripts/evaluate-rag.mjs");
+    const { writeFile, readFile } = await import("node:fs/promises");
+    const directory = testArtifacts(t);
+    const mappingPath = resolve(directory, "mapping.json");
+    const output = resolve(directory, `blocked-${transport}`);
+    await writeFile(mappingPath, JSON.stringify(mapping));
+    let stdout = "";
+    t.mock.method(process.stdout, "write", (chunk) => {
+      stdout += chunk;
+      return true;
+    });
+    const exit = await main([
+      "--execute",
+      "--transport",
+      transport,
+      "--only",
+      "E01",
+      "--corpus-revision",
+      definition.corpusRevision,
+      "--mapping",
+      mappingPath,
+      "--output",
+      output,
+    ]);
+    assert.equal(exit, 3);
+    const report = JSON.parse(
+      await readFile(resolve(output, "report.json"), "utf8"),
+    );
+    assert.ok(
+      Object.values(calls).every((count) => count === 0),
+      "CLI must stop before environment/DB/Storage/provider/HTTP access",
+    );
+    assert.equal(report.preflight.status, "BLOCKED");
+    assert.equal(report.preflight.reason, "LIVE_EVALUATION_AUTH_REQUIRED");
+    assert.equal(
+      report.preflight.message,
+      "Chưa có principal workspace cho runner live; chờ đợt tích hợp Auth.",
+    );
+    assert.ok(
+      stdout.includes(report.preflight.message),
+      "CLI displays the actionable Vietnamese boundary message",
+    );
+    assert.ok(
+      report.results.length === 1 &&
+        report.results.every(
+          (item) =>
+            !item.attempted && item.assessment.status === "NOT_ATTEMPTED",
+        ),
+    );
+    assert.ok(
+      typeof report.actualProviderBudget === "object" &&
+        Object.values(report.actualProviderBudget).every(
+          (value) => value === 0,
+        ),
+      "blocked provider budget must be explicitly zero, never unknown",
+    );
+  });
+}
 
 test("evaluation gates valid grounded responses but still requires human review", () => {
   const result = evaluateLiveResult(caseDefinition, {
