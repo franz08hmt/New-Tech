@@ -1,8 +1,11 @@
 # Implementation Plan: Tài tiếp quản Homework 3A
 
-## Kế hoạch đang thực hiện — Đợt 6 (2026-10-14)
+## Kế hoạch Đợt 6 — hoàn tất phạm vi local (2026-10-14)
 
 Nhánh `feature/tai-rag-integration`, baseline `6586b5c`. Phần bên dưới là lịch sử.
+Kết quả: 954 test thường và 152 test DB pass, skipped 0; bốn gate exit 0.
+Xem [báo cáo Đợt 6](../docs/PHASE-6-REPORT.md) cho RED/mutation/browser,
+commits, cleanup và giới hạn chưa áp cloud. Push sau commit docs, không merge main.
 
 1. A1: rollback 014 dry-run/confirm/checksum/dependency guards; SQL giữ row,
    khôi phục FK gốc. Verify: schema snapshot 013 bằng sau rollback, chain

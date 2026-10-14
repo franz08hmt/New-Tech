@@ -19,10 +19,13 @@ Chuẩn bị nghiệm thu Auth thật: [runbook B1](docs/PILOT-B1-RUNBOOK.md) v�
 [báo cáo B1a](docs/PHASE-4-B1A-REPORT.md). Có CLI `pilot:preflight` chỉ đọc và
 `pilot:membership` mặc định dry-run; khi cấp quyền dùng `npm --silent` để npm
 không echo UUID/project ref trong arguments. B1a chưa tạo user, backup,
-migrate hay ghi membership cloud. B2 lát 1–2 đã scope API Tasks/Courses và chặn
-viewer tạo/sửa task; các module khác vẫn chưa scope đọc và chưa hoàn tất role
-matrix. Runtime `postgres`/bypass RLS chưa được thay bằng role B2: chỉ dùng dữ
-liệu demo. Xem [báo cáo B2 lát 1–2](docs/PHASE-5-B2-SCOPE-REPORT.md).
+migrate hay ghi membership cloud. B2 lát 1–3 đã scope API Tasks/Courses,
+Exams/Study plans/Expenses và các truy vấn chỉ đọc của chế độ Hỏi workspace.
+Viewer chỉ đọc các mục này; member/manager tạo và cập nhật, chỉ manager xóa
+exam/study plan/expense. Documents/signing/indexing/RAG/summary và ownership
+feedback vẫn chưa hoàn tất scope/quyền. Runtime `postgres`/bypass RLS chưa được
+thay bằng role B2: chỉ dùng dữ liệu demo. Xem [báo cáo B2 lát 1–2](docs/PHASE-5-B2-SCOPE-REPORT.md)
+và [Đợt 6 — lát 3, runbook và rollback 014](docs/PHASE-6-REPORT.md).
 Vì vậy chỉ thử với dữ liệu demo, không public ứng dụng hoặc đưa dữ
 liệu/API key thật cho người dùng khác.
 
@@ -50,12 +53,13 @@ Browser React ── /api JSON hoặc multipart ──> NestJS
 Tasks/Documents/Assistant đi qua NestJS. Không có database hay Gemini key trong
 frontend. Download API cấp signed URL 60 giây sau khi kiểm tra metadata; browser
 tải binary bằng URL đó. Health chỉ kiểm tra PostgreSQL. Code hiện có login/session
-gate, CSRF và giới hạn admission cho các lần đăng nhập. API `/api/tasks` và
-`/api/courses` đã lọc theo workspace của principal đã verify; viewer không ghi
-task. **Scope toàn ứng dụng và giới hạn ngân sách/lượt gọi AI chưa hoàn tất**:
-workspace-records/Assistant vẫn có thể đọc task/course qua đường chưa scope.
-Nếu provision thành viên trước khi hoàn tất các phần đó, họ vẫn có thể thao tác
-trên dữ liệu nghiệp vụ dùng chung; không coi login là cách ly dữ liệu. Chỉ dùng
+gate, CSRF và giới hạn admission cho các lần đăng nhập. Tasks/Courses,
+Exams/Study plans/Expenses và Hỏi workspace đã lọc theo workspace của principal
+đã verify, không lấy workspace/role từ body/header/query. **Scope toàn ứng dụng
+và giới hạn ngân sách/lượt gọi AI chưa hoàn tất**: API Documents, signing,
+indexing và RAG/summary vẫn cần lát 4; answer receipt/feedback cần lát 5.
+Nếu provision thành viên trước khi hoàn tất các phần đó, họ vẫn có thể truy cập
+tài liệu dùng chung; không coi login là cách ly toàn bộ dữ liệu. Chỉ dùng
 dữ liệu mẫu, không public API cho dữ liệu thật. Courses/Exams/study plans/Finances
 có dữ liệu minh họa; Notes lưu trên browser theo namespace principal nhưng
 không được mã hóa.
@@ -223,7 +227,7 @@ Script cuối ghi output vào `artifacts/` (ignore Git). Kiểm tra số **skipp
 
 DB test riêng (Docker engine phải chạy):
 
-Số lượng và kết quả đầy đủ mới nhất ở [báo cáo B2](docs/PHASE-5-B2-SCOPE-REPORT.md).
+Số lượng và kết quả đầy đủ mới nhất ở [báo cáo Đợt 6](docs/PHASE-6-REPORT.md).
 Harness tạo auth.users/auth.sessions tối thiểu
 chỉ cho FK/SQL; không phải Supabase Auth. Guard phải pass trước mọi Pool,
 migration/grant/cleanup: chỉ localhost hoặc 127.0.0.1, tên DB kết thúc `_test`,
@@ -288,7 +292,8 @@ PDF kiểm tra extension + MIME + 5 bytes `%PDF-`; đây không phải parser đ
 - Quay 5–8 phút, persistence/failure: [demo script](docs/DEMO-SCRIPT-VI.md).
 
 Giới hạn còn lại: login/session đã kiểm bằng test và browser với dependency mock;
-gate đã kiểm ở 320–1440px. Migration `012`–`013`, Auth/DB grants, membership thật
+gate đã kiểm ở 320–1440px; UI ba role đã thử với fixture local ở desktop/375px.
+Migration `012`–`014`, Auth/DB grants, membership thật
 và luồng workspace sau đăng nhập Supabase thật chưa nghiệm thu; chưa thử trên
 điện thoại vật lý. Chưa hoàn thành role matrix, scope từng bản ghi/tài liệu/RAG
 hoặc quota/usage budget AI. Bộ đánh giá RAG và feedback là công cụ hỗ trợ

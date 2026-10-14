@@ -144,12 +144,14 @@ manager thực hiện thao tác quản lý/xóa. Không cần public CRUD member
 
 Tách thành các lát:
 
-**Checkpoint Đợt 5:** nền 014 và scope API Tasks/Courses đã triển khai, xem
-[báo cáo](../docs/PHASE-5-B2-SCOPE-REPORT.md). Chưa áp cloud, chưa tạo
-`examate_app`/tenant RLS; các lát 3–5 và B1 thật vẫn chưa nghiệm thu. Chỉ bổ sung
-workspace từ principal vào INSERT của năm module còn lại để tương thích NOT NULL;
-đọc/lookup/update/delete/role của các module đó chưa scope. Workspace-records
-còn đường đọc task/course chưa scope, nên chưa cách ly toàn app.
+**Checkpoint Đợt 6:** nền 014, Tasks/Courses và lát 3 Exams/Study plans/Expenses
+cùng workspace-records đã triển khai; xem [báo cáo Đợt 5](../docs/PHASE-5-B2-SCOPE-REPORT.md)
+và [báo cáo Đợt 6](../docs/PHASE-6-REPORT.md). Chưa áp cloud, chưa tạo
+`examate_app`/tenant RLS; các lát 4–5 và B1 thật vẫn chưa nghiệm thu.
+Documents/RAG/signing/summary và feedback ownership còn thiếu scope/quyền;
+workspace_id ở INSERT của chúng chỉ là nền tương thích NOT NULL, không phải
+bằng chứng đã cách ly toàn app. Runbook bootstrap 012→014 và rollback 014 đã
+kiểm trên DB disposable, chưa chạy cloud.
 
 1. Migration foundation/scope/backfill đã được duyệt, FK/indexes và role ít
    quyền; preserve/null-course/dữ liệu hiện có. Kiểm integrity/count/backup.
