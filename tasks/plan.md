@@ -1,5 +1,21 @@
 # Implementation Plan: Tài tiếp quản Homework 3A
 
+## Đợt 8 — receipt/feedback ownership (2026-10-14)
+
+1. Baseline: bốn gate và DB disposable; không kết nối cloud.
+2. Migration 015 và rollback: nullable legacy attribution, schema snapshot,
+   dependency/checksum/project guards, rollback chain và migrate lại.
+3. Receipt sau answer đã validate; feedback kiểm user/workspace/hash trong
+   transaction với membership hiện tại. RED→GREEN, mutation và hai workspace.
+4. Transport dùng header server; thiếu/sai header vẫn đọc answer nhưng không
+   gửi feedback. Không sửa AssistantPanel, không lưu lịch sử chat mới.
+5. Export giới hạn một workspace, legacy_unattributed và UNREVIEWED; runbook
+   lên 012–015. Browser Auth local desktop/375px, bốn gate + DB cuối, báo cáo.
+
+Commit theo phần sau khi kiểm chứng. Quyết định mới nhất của Tài: **không push**.
+Receipt lưu hash/identity, không lưu text; feedback không phải gold. N1 sẽ có
+conversation/turn riêng. Không đổi RAG/model/prompt hoặc migration 001–014.
+
 ## Kế hoạch Đợt 7 — Documents/RAG boundary (2026-10-14)
 
 Baseline `f7081eb`: bốn gate exit 0, 954 test thường; DB disposable 152 pass,

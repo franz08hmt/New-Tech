@@ -1,8 +1,8 @@
-# B1 + 014 — một đường áp Supabase cho demo local
+# B1 + 015 — một đường áp Supabase cho demo local
 
 Đây là hướng dẫn **Tài thực hiện sau khi nhóm duyệt**, không phải thao tác cloud
 agent đã chạy. Đợt 6 chỉ kiểm scripts/rollback trên DB disposable. Không cần
-checkout commit cũ: runner hiện có đủ 012→013→014, 014 nhận PILOT_WORKSPACE_ID
+checkout commit cũ: runner hiện có đủ 012→013→014→015, 014 nhận PILOT_WORKSPACE_ID
 hợp lệ để tạo workspace/backfill. App chỉ http://127.0.0.1:5173, không hosting,
 domain/HTTPS cho app; TLS tới Supabase vẫn phải verify. TTS/STT do Thắng phụ trách.
 
@@ -11,13 +11,13 @@ domain/HTTPS cho app; TLS tới Supabase vẫn phải verify. TTS/STT do Thắng
 1. Xác nhận đúng project/quyền quản trị, dữ liệu chỉ là demo của nhóm.
 2. Dashboard tạo manager, member, viewer, no-membership; cất password/UUID riêng.
 3. Điền .env server (session key/workspace/origin/TLS); không in secrets.
-4. Chạy npm run pilot:preflight; thiếu 012–014 là dự kiến, lỗi khác phải xử lý.
+4. Chạy npm run pilot:preflight; thiếu 012–015 là dự kiến, lỗi khác phải xử lý.
 5. Dừng writes; backup public tên mới bằng pg_dump đúng major/TLS, kiểm archive list.
-6. Dừng API; được duyệt mới npm run db:migrate (012→013→014).
-7. Verify ledger/checksum 001–014, đúng 1 workspace khớp env, rows/counts/IDs/quan hệ.
+6. Dừng API; được duyệt mới npm run db:migrate (012→013→014→015).
+7. Verify ledger/checksum 001–015, đúng 1 workspace khớp env, rows/counts/IDs/quan hệ.
 8. Dry-run rồi cấp membership 3 user; no-membership để trống.
 9. Chạy API/web local; Tài tự nhập password, nghiệm thu checklist browser.
-10. Nếu lỗi: giữ API tắt; dry-run/apply rollback 014 rồi rollback 012/013 khi cần.
+10. Nếu lỗi: giữ API tắt; dry-run/apply rollback 015 → 014 → 012/013 khi cần.
 11. Guard từ chối/COMMIT không rõ: dừng, quản trị viên xác minh/duyệt phục hồi dump.
 
 **Giả định bắt buộc:** toàn bộ dữ liệu Supabase hiện có là demo của nhóm, thuộc
@@ -104,12 +104,12 @@ phải true; AUTH_SESSION_VERIFICATION=database, USAGE(auth) và SELECT ba cột
 id,user_id,not_after của auth.sessions. Grants thiếu do quản trị viên duyệt
 riêng; agent không tự GRANT/SELECT* để kiểm.
 
-Trước migrate, thiếu 012–014/ba stage flags false là dự kiến **chỉ nếu** ledger
+Trước migrate, thiếu 012–015/bốn stage flags false là dự kiến **chỉ nếu** ledger
 đọc được, checksum những migration đã áp khớp, config/quyền khác đạt.
 allSourceMigrationsApplied:false không phải bằng chứng Auth hỏng. Pending/source
-ngoài 012–014 hoặc mới >014 → dừng review phạm vi trước lệnh. Sau migrate:
+ngoài 012–015 hoặc mới >015 → dừng review phạm vi trước lệnh. Sau migrate:
 checksumsMatch/allSourceMigrationsApplied/stage012Applied/stage013Applied/
-**stage014Applied** đều true. Exit 0 chưa chứng minh B1 browser đạt.
+**stage014Applied/stage015Applied** đều true. Exit 0 chưa chứng minh B1 browser đạt.
 [PostgreSQL read-only](https://www.postgresql.org/docs/16/sql-set-transaction.html).
 
 ## 4. Backup public tên mới — Tài chạy sau duyệt
@@ -127,7 +127,7 @@ if ($pilotPgMajor -notmatch '^[0-9]{2}$') { throw 'Chưa có major hợp lệ' }
 $pilotPgImage = "postgres:$pilotPgMajor"
 $pilotBackupDir = Join-Path (Get-Location).Path 'artifacts'
 $pilotCertDir = Join-Path (Get-Location).Path 'secrets'
-$pilotBackupName = 'pilot-before-012-014-20261014.dump'
+$pilotBackupName = 'pilot-before-012-015-20261014.dump'
 if (Test-Path (Join-Path $pilotBackupDir $pilotBackupName)) { throw 'Backup đã tồn tại; chọn tên mới, không ghi đè' }
 docker run --rm --env-file artifacts/pilot-backup.env --mount "type=bind,source=$pilotBackupDir,target=/backup" --mount "type=bind,source=$pilotCertDir,target=/certs,readonly" $pilotPgImage pg_dump --schema=public --format=custom "--file=/backup/$pilotBackupName"
 if ($LASTEXITCODE -ne 0) { throw 'Backup chưa đạt; không migrate' }
@@ -142,7 +142,7 @@ là đây **không phải backup Supabase đầy đủ/tự restore độc lập
 chưa chứng minh restore; rollback hẹp đã test là đường lui chính.
 [pg_dump](https://www.postgresql.org/docs/16/app-pgdump.html).
 
-## 5. Migrate 012→013→014 và verify
+## 5. Migrate 012→013→014→015 và verify
 
 Ghi counts, IDs/quan hệ/course NULL của bảy bảng trước lệnh bằng read-only query
 trong môi trường quản trị riêng. Không đưa UUID thật/snapshot row vào chat;
@@ -162,7 +162,7 @@ không retry mù/sửa checksum.
 
 Verify riêng:
 
-- Đúng ledger 001–014, checksum source khớp, không tên/source lạ.
+- Đúng ledger 001–015, checksum source khớp, không tên/source lạ.
 - **Đúng 1 workspace**, ID khớp PILOT_WORKSPACE_ID kiểm riêng, không in giá trị.
 - Mọi row tasks/courses/exams/study_plans/expenses/documents/assistant_feedback
   có workspace đó; counts/IDs/quan hệ/tất cả trường cũ giữ nguyên. Expense/
@@ -228,6 +228,28 @@ Ghi PASS/FAIL/BLOCKED riêng từng case/viewport; fixture không phải Supabas
 đã nghiệm thu. Giữ giới hạn Documents/RAG/feedback/RLS.
 
 ## 8. Đường lui — API vẫn tắt
+
+**Rollback 015 làm mất mọi receipt và attribution mới** (receipt_id/user_id
+của feedback), nhưng giữ feedback rows/snapshot và dữ liệu nghiệp vụ cũ.
+Migrate lại chỉ tạo bảng receipt rỗng/cột NULL; không khôi phục ownership hay
+quyền retry feedback của lượt cũ. Tài phải duyệt mất dữ liệu này, giữ backup
+public mới nhất trước apply nếu cần phục hồi. Không chạy app trên schema đã down.
+015 dry-run chỉ đọc, in số receipt/feedback attribution và đúng ba object gốc.
+Guard kiểm checksum, migration mới hơn, schema/index/default drift và phụ thuộc
+ngoài (kể cả index/check tự bị DROP COLUMN xóa); không dùng CASCADE/bypass.
+
+```powershell
+npm --silent run pilot:rollback-015
+# Đọc kế hoạch/mức mất attribution; chỉ sau Tài duyệt:
+$pilotProjectRef = Read-Host 'Project ref đã đối chiếu riêng'
+npm --silent run pilot:rollback-015 -- --apply "--confirm-project=$pilotProjectRef"
+Remove-Variable pilotProjectRef
+```
+
+Verify 015 ledger/table receipt/cột ownership mất, số feedback rows và business
+IDs giữ nguyên. COMMIT mất phản hồi → outcome unknown; giữ API tắt, kiểm riêng
+trước thao tác tiếp. Sau đó mới rollback 014 rồi 012/013 như dưới đây. Để bật
+runtime lại cần migrate/verify đủ 012–015.
 
 Rollback 014 giữ business rows/IDs/workspaces, xóa nhãn workspace và khôi phục
 FK gốc, **kể cả CASCADE course→exam/plan cũ**, SET NULL expense/document. Không

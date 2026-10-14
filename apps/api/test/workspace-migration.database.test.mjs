@@ -2,7 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import pg from "pg";
-import { migrate, loadMigrations } from "../scripts/migrate.mjs";
+import { migrate as migrateAll, loadMigrations } from "../scripts/migrate.mjs";
+async function migrate(url, options = {}) {
+  return migrateAll(url, {
+    loadSource: async () =>
+      (await loadMigrations()).filter((f) => Number(f.name.slice(0, 3)) <= 14),
+    ...options,
+  });
+}
 import { assertTestDatabaseTarget } from "../scripts/test-database-target.mjs";
 import { prepareAuthFixture } from "./disposable-auth-fixture.mjs";
 import { runPilotRollback } from "../scripts/pilot-rollback-012-013.mjs";
@@ -281,7 +288,9 @@ test("014 creates the configured pilot workspace and preserves every legacy row 
   await migrate(url);
   assert.deepEqual(await ledger(pool), firstLedger);
   assert.equal(firstLedger.length, 14);
-  for (const file of await loadMigrations())
+  for (const file of (await loadMigrations()).filter(
+    (f) => Number(f.name.slice(0, 3)) <= 14,
+  ))
     assert.equal(
       firstLedger.find(({ name }) => name === file.name)?.checksum,
       createHash("sha256")

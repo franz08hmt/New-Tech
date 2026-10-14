@@ -131,7 +131,7 @@ after(async () => {
 test("all migrations run twice with unchanged checksums and timestamps", async () => {
   const files = await loadMigrations();
   assert.equal(ledger.length, files.length);
-  assert.equal(files.length, 14);
+  assert.equal(files.length, 15);
   for (const file of files)
     assert.equal(
       ledger.find((row) => row.name === file.name).checksum,

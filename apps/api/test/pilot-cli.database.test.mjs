@@ -23,12 +23,13 @@ before(async () => {
   pool = new pg.Pool({ connectionString: url, ssl: false, max: 3 });
   const ledger = await pool.query("SELECT name FROM schema_migrations");
   sourceMigrationCount = (await loadMigrations()).length;
-  assert.equal(sourceMigrationCount, 14);
+  assert.equal(sourceMigrationCount, 15);
   assert.equal(ledger.rows.length, sourceMigrationCount);
   for (const name of [
     "012_pilot_access.sql",
     "013_pilot_auth_limits.sql",
     "014_workspace_scope.sql",
+    "015_assistant_answer_receipts.sql",
   ])
     assert.ok(ledger.rows.some((row) => row.name === name));
   // These permanent objects belong exclusively to this run. Read-only protection
@@ -221,6 +222,7 @@ test("preflight checks ledger, role and auth privileges entirely inside a read-o
     assert.equal(report.stage012Applied, true);
     assert.equal(report.stage013Applied, true);
     assert.equal(report.stage014Applied, true);
+    assert.equal(report.stage015Applied, true);
     assert.deepEqual(report.target, { maskedProjectRef });
     assert.deepEqual(report.auth, authSummary);
     assert.equal(report.migrations.length, sourceMigrationCount);

@@ -4,7 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { inspect } from "node:util";
 import pg from "pg";
 import { assertTestDatabaseTarget } from "../scripts/test-database-target.mjs";
-import { migrate, loadMigrations } from "../scripts/migrate.mjs";
+import { migrate as migrateAll, loadMigrations } from "../scripts/migrate.mjs";
 import { PilotCliError } from "../scripts/pilot-cli-common.mjs";
 import { runPilotRollback } from "../scripts/pilot-rollback-012-013.mjs";
 import { prepareAuthFixture } from "./disposable-auth-fixture.mjs";
@@ -14,6 +14,14 @@ import { prepareAuthFixture } from "./disposable-auth-fixture.mjs";
 const parentUrl = assertTestDatabaseTarget(process.env.TEST_DATABASE_URL);
 const projectRef = "a1b2c3d4e5f6g7h8i9j0";
 const migrationName = "014_workspace_scope.sql";
+// This historical suite verifies the schema boundary at 014, not later stages.
+async function migrate(url, options = {}) {
+  return migrateAll(url, {
+    loadSource: async () =>
+      (await loadMigrations()).filter((f) => Number(f.name.slice(0, 3)) <= 14),
+    ...options,
+  });
+}
 const businessTables = [
   "tasks",
   "courses",
@@ -435,7 +443,9 @@ test("014 dry run is read-only; apply restores the EXACT pre-014 schema and ever
   // Release the only held client before the migration runner opens its Pool.
   await migrate(f.url);
   const restored = await ledger(f.pool);
-  const source = await loadMigrations();
+  const source = (await loadMigrations()).filter(
+    (f) => Number(f.name.slice(0, 3)) <= 14,
+  );
   assert.equal(restored.length, source.length);
   assert.equal(restored.length, 14);
   for (const file of source)
