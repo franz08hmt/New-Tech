@@ -87,15 +87,19 @@ chưa chạy thật và cần quyền/grants cùng workspace/user đã được 
 chạy migration khi người quản lý project đồng ý và đã chuẩn bị các điều kiện đó.
 Không dùng project production/dùng chung để thử migration hoặc tự tạo/grant quyền.
 
-Runner trên nhánh này chạy **mọi migration pending, gồm 014**. Nếu B1 cloud chưa
-nghiệm thu, không dùng lệnh bên dưới như một thao tác “chỉ 012/013”; đọc checkpoint
-trong [runbook B1](docs/PILOT-B1-RUNBOOK.md) trước. Sau B1, 014 dùng lại đúng một
-workspace có ID khớp `PILOT_WORKSPACE_ID`; lệch ID hoặc nhiều workspace thì dừng.
+Runner trên nhánh này chạy **mọi migration pending, gồm 014**. Đường đi đã hợp
+nhất 012→013→014 trong [runbook B1](docs/PILOT-B1-RUNBOOK.md): tạo user/cấu hình,
+preflight, backup, dừng API, migrate/verify rồi cấp membership và nghiệm thu.
+Chỉ khi quản trị viên duyệt dữ liệu demo của đúng một nhóm mới áp cloud; 014
+tạo workspace từ UUID cấu hình nếu chưa có, hoặc dùng lại đúng một workspace
+khớp `PILOT_WORKSPACE_ID`. Lệch ID/nhiều workspace thì dừng, không checkout bản cũ.
 DB local mới đã có seed ở 001/003–006 nên cần UUID workspace hợp lệ trước migrate:
 runner truyền bằng tham số `set_config(..., true)` trong transaction, không đổi
 checksum SQL. Không có workspace/setting thì 014 từ chối và rollback chính 014,
 không rollback những migration trước đã commit. DB nghiệp vụ thực sự trống thì
-không cần workspace. Sau khi áp 014, CLI rollback 012/013 phải từ chối.
+không cần workspace. Nếu cần đường lui: dry-run/apply `pilot:rollback-014` trước,
+rồi `pilot:rollback-012-013`; giữ API tắt tới khi remigrate/verify. Không chạy các
+lệnh cloud đó trong lượt phát triển; guards có thể từ chối để bảo vệ dữ liệu.
 
 Khi chạy trực tiếp React, NestJS và Supabase Cloud, không cần Docker. Đường dẫn CA được resolve từ repository root: `DATABASE_CA_CERT_PATH=secrets/prod-supabase.cer.crt`.
 

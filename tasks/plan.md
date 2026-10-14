@@ -1,5 +1,27 @@
 # Implementation Plan: Tài tiếp quản Homework 3A
 
+## Kế hoạch đang thực hiện — Đợt 6 (2026-10-14)
+
+Nhánh `feature/tai-rag-integration`, baseline `6586b5c`. Phần bên dưới là lịch sử.
+
+1. A1: rollback 014 dry-run/confirm/checksum/dependency guards; SQL giữ row,
+   khôi phục FK gốc. Verify: schema snapshot 013 bằng sau rollback, chain
+   rollback 012/013 và migrate lại; RED→GREEN và mutation guard. Commit riêng.
+2. A2: preflight bắt buộc 014, một runbook cloud 012→014. Verify: flag thiếu/có
+   014, không cloud write; ghi giả định dữ liệu demo của một workspace. Commit A.
+3. B1: quyền và scope ba module Exams/Plans/Expenses. Verify: HTTP role matrix,
+   hai workspace real SQL, foreign IDs/associations, list/delete/role mutations.
+4. B2: workspace-records chỉ đọc, scope mọi query trước LIMIT. Verify: tất cả
+   intent/sources/counts bằng DB hai workspace, giữ intent/format hiện có.
+5. B3: UI capability từ session principal. Verify: manager/member/viewer bằng
+   fixture local, desktop/375px, bàn phím, reload và console.
+6. Bàn giao: bốn gate + test:database, báo cáo `docs/PHASE-6-REPORT.md`, commit
+   theo phần; push không force cùng nhánh chỉ khi xanh và tracked tree sạch.
+
+Không sửa migration 001–014, AssistantPanel/TTS/STT, dependencies hoặc cloud.
+Documents/RAG/signing và receipt/feedback/RLS để các lát sau. Rollback làm mất
+nhãn workspace nên API phải đóng; phụ thuộc ngoài tập 014 phải từ chối trước DDL.
+
 > Kế hoạch hiện tại Homework 4: audit/baseline → cấu hình/validation/logs → migration + Storage API → FE Tasks/Documents → tests/quality gates → tài liệu/evidence. Code và automated checks hoàn tất theo docs/VERIFICATION.md; Supabase thật, Docker runtime, video và commit chờ môi trường của người nộp. Không có AI trong checkpoint này. Phần dưới giữ lịch sử Homework 3.
 
 ## Overview

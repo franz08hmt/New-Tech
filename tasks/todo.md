@@ -1,5 +1,16 @@
 # Tài — việc cần làm tiếp theo
 
+## Đợt 6 — đang thực hiện (2026-10-14)
+
+- [x] Baseline bốn gate: exit 0, 832 test; DB 69/69, skipped 0.
+- [x] A: rollback 014/schema snapshot/guards/mutation và preflight/runbook hợp nhất.
+- [ ] B: scope và role matrix Exams/Plans/Expenses + workspace-records.
+- [ ] FE: role controls và browser fixture ba role, desktop/375px.
+- [ ] Gates cuối, report, cleanup stack local, commit/push nhánh phát triển.
+
+Theo [kế hoạch hiện tại](plan.md); các mục bên dưới giữ lịch sử, không phải
+hướng dẫn chạy/pilot mới nhất. Không ghi lên Supabase trong lượt này.
+
 ## Homework 4 checkpoint — 13/09/2026
 
 - [x] Audit source, giữ stack và giao diện, không commit/push.
