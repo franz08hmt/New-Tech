@@ -4,10 +4,24 @@ import { safeTrace } from "./rag-evaluation-lib.mjs";
 import { buildRagContext } from "../dist/assistant/rag-context.js";
 import { AssistantService } from "../dist/assistant/assistant.service.js";
 import { RetrievalError } from "../dist/assistant/rag-retrieval.service.js";
+import { DocumentAccessService } from "../dist/documents/document-access.service.js";
 
 // This is a labelled fixture, not a simulation of Gemini quality or ranking.
 // Production generation parsing, citations and coverage paths are exercised.
 export async function offlineFixtureResponse(item, input) {
+  // Synthetic trusted Auth fixture ONLY: never load .env, create DB sessions,
+  // or substitute this identity in the live runner/application guard.
+  const principal = {
+    userId: "11111111-1111-4111-8111-111111111111",
+    workspaceId: "22222222-2222-4222-8222-222222222222",
+    role: "member",
+  };
+  const access = new DocumentAccessService({
+    membership: async (workspaceId, userId) =>
+      workspaceId === principal.workspaceId && userId === principal.userId
+        ? principal.role
+        : undefined,
+  });
   const start = performance.now(),
     index = [],
     chunks = [];
@@ -120,7 +134,10 @@ export async function offlineFixtureResponse(item, input) {
   try {
     response = {
       httpStatus: 200,
-      body: await new AssistantService(provider, retrieval).chat(input),
+      body: await new AssistantService(provider, retrieval, access).chat(
+        input,
+        principal,
+      ),
     };
   } catch (error) {
     response = {

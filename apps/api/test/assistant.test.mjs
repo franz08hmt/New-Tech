@@ -159,6 +159,11 @@ test("HTTP chat validates DTO and returns backend-validated citations", async ()
   assert.equal(input.message, "Hãy giúp tôi học");
   assert.equal(input.pageContext.pageId, "tasks");
   assert.equal(input.pageContext.pageName, "Tasks");
+  assert.deepEqual(chat.mock.calls[0].arguments[1], {
+    userId: "11111111-1111-4111-8111-111111111111",
+    workspaceId: "22222222-2222-4222-8222-222222222222",
+    role: "manager",
+  });
   assert.equal(fixture.database.query.mock.callCount(), 0);
   assert.equal(fixture.state.uploadCalls, 0);
   assert.equal(fixture.state.removeCalls, 0);

@@ -30,9 +30,9 @@ export class AssistantController {
   @HttpCode(200)
   chat(@Body() input: AssistantChatDto, @Req() req?: AuthRequest) {
     // Workspace questions are answered from records by their own read-only
-    // service; general chat and document RAG stay exactly as they were.
+    // service. Other modes receive only the guard-verified server principal.
     if (input.mode === "workspace")
       return this.workspace.chat(input, req?.principal);
-    return this.assistant.chat(input);
+    return this.assistant.chat(input, req?.principal);
   }
 }

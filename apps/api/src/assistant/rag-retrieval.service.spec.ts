@@ -1,6 +1,16 @@
 import "reflect-metadata";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EmbeddingError } from "./gemini-embedding.service.js";
+import { DocumentAccessService } from "../documents/document-access.service.js";
+const principal = {
+  userId: "55555555-5555-4555-8555-555555555555",
+  workspaceId: "66666666-6666-4666-8666-666666666666",
+  role: "member" as const,
+};
+const access = () =>
+  new DocumentAccessService({
+    membership: vi.fn().mockResolvedValue("member"),
+  } as never);
 import {
   RagRetrievalService,
   RetrievalError,
@@ -30,7 +40,11 @@ function fixture(rows: unknown[] = [firstRow]) {
   return {
     database,
     embeddings,
-    service: new RagRetrievalService(database as never, embeddings as never),
+    service: new RagRetrievalService(
+      database as never,
+      embeddings as never,
+      access(),
+    ),
   };
 }
 
@@ -50,12 +64,16 @@ describe("RagRetrievalService", () => {
   it("embeds the question and retrieves only eligible chunks with parameterized pgvector SQL", async () => {
     const { service, embeddings, database } = fixture();
     vi.spyOn(console, "log").mockImplementation(() => {});
-    const result = await service.retrieve("  What is required?  ", {
-      courseId: firstRow.course_id,
-    });
+    const result = await service.retrieve(
+      "  What is required?  ",
+      {
+        courseId: firstRow.course_id,
+      },
+      principal,
+    );
 
     expect(embeddings.embedQuery).toHaveBeenCalledWith("What is required?");
-    const [sql, values] = database.query.mock.calls[0];
+    const [sql, values] = database.query.mock.calls[1];
     expect(sql).toContain("dc.embedding <=> $1::vector(768)");
     expect(sql).toContain("d.storage_status = 'stored'");
     expect(sql).toContain("d.processing_status = 'ready'");
@@ -71,6 +89,7 @@ describe("RagRetrievalService", () => {
       null,
       10,
       0.55,
+      principal.workspaceId,
     ]);
     expect(result.evidence[0]).toMatchObject({
       sourceId: "S1",
@@ -87,7 +106,9 @@ describe("RagRetrievalService", () => {
 
   it("returns an explicit empty retrieval result without inventing sources", async () => {
     const { service } = fixture([]);
-    await expect(service.retrieve("Unknown topic")).resolves.toEqual({
+    await expect(
+      service.retrieve("Unknown topic", {}, principal),
+    ).resolves.toEqual({
       promptVersion: "rag-v1",
       context: null,
       evidence: [],
@@ -122,7 +143,7 @@ describe("RagRetrievalService", () => {
     ];
     const { service } = fixture(rows);
 
-    const result = await service.retrieve("What is required?");
+    const result = await service.retrieve("What is required?", {}, principal);
     expect(result.evidence).toHaveLength(1);
     expect(result.evidence[0].content).toBe(firstRow.content);
   });
@@ -141,7 +162,11 @@ describe("RagRetrievalService", () => {
       rows: [...fragments, useful].slice(0, Number(values[5])),
     }));
 
-    const result = await service.retrieve("What does the PDF explain?");
+    const result = await service.retrieve(
+      "What does the PDF explain?",
+      {},
+      principal,
+    );
 
     expect(result.evidence.map((item) => item.chunkId)).toEqual([
       useful.chunk_id,
@@ -162,7 +187,11 @@ describe("RagRetrievalService", () => {
       rows: fragments.slice(0, Number(values[5])),
     }));
 
-    const result = await service.retrieve("What does the PDF explain?");
+    const result = await service.retrieve(
+      "What does the PDF explain?",
+      {},
+      principal,
+    );
 
     expect(result.evidence).toEqual([]);
     expect(database.query.mock.calls.map(([, values]) => values[5])).toEqual([
@@ -180,23 +209,27 @@ describe("RagRetrievalService", () => {
     ["score below configured threshold", { score: 0.2 }],
   ])("rejects a malformed database row: %s", async (_name, override) => {
     const { service } = fixture([{ ...firstRow, ...override }]);
-    await expect(service.retrieve("Question")).rejects.toMatchObject({
+    await expect(
+      service.retrieve("Question", {}, principal),
+    ).rejects.toMatchObject({
       kind: "invalid_response",
     });
   });
 
   it("rejects duplicate chunks so citation IDs remain one-to-one", async () => {
     const { service } = fixture([firstRow, { ...firstRow }]);
-    await expect(service.retrieve("Question")).rejects.toBeInstanceOf(
-      RetrievalError,
-    );
+    await expect(
+      service.retrieve("Question", {}, principal),
+    ).rejects.toBeInstanceOf(RetrievalError);
   });
 
   it.each(["", "   ", "x".repeat(4_001)])(
     "rejects an invalid question before embedding",
     async (question) => {
       const { service, embeddings, database } = fixture();
-      await expect(service.retrieve(question)).rejects.toMatchObject({
+      await expect(
+        service.retrieve(question, {}, principal),
+      ).rejects.toMatchObject({
         kind: "invalid_input",
       });
       expect(embeddings.embedQuery).not.toHaveBeenCalled();
@@ -207,7 +240,11 @@ describe("RagRetrievalService", () => {
   it("rejects an invalid course scope before embedding", async () => {
     const { service, embeddings } = fixture();
     await expect(
-      service.retrieve("Question", { courseId: "all-courses' OR TRUE" }),
+      service.retrieve(
+        "Question",
+        { courseId: "all-courses' OR TRUE" },
+        principal,
+      ),
     ).rejects.toMatchObject({ kind: "invalid_input" });
     expect(embeddings.embedQuery).not.toHaveBeenCalled();
   });
@@ -217,6 +254,7 @@ describe("RagRetrievalService", () => {
     const database = {
       query: vi
         .fn()
+        .mockResolvedValueOnce({ rows: [{ id: firstRow.course_id }] })
         .mockResolvedValueOnce({
           rows: [
             {
@@ -242,13 +280,18 @@ describe("RagRetrievalService", () => {
     const service = new RagRetrievalService(
       database as never,
       embeddings as never,
+      access(),
     );
-    await service.retrieve("Question", {
-      courseId: firstRow.course_id,
-      documentId,
-    });
-    expect(database.query.mock.calls[1][0]).toContain("d.id = $5::uuid");
-    expect(database.query.mock.calls[1][1][4]).toBe(documentId);
+    await service.retrieve(
+      "Question",
+      {
+        courseId: firstRow.course_id,
+        documentId,
+      },
+      principal,
+    );
+    expect(database.query.mock.calls[2][0]).toContain("d.id = $5::uuid");
+    expect(database.query.mock.calls[2][1][4]).toBe(documentId);
   });
 
   it("reads a selected document's course metadata without embedding or chunk text", async () => {
@@ -269,11 +312,7 @@ describe("RagRetrievalService", () => {
     });
 
     await expect(
-      (
-        service as unknown as {
-          documentMetadata: (id: string) => Promise<unknown>;
-        }
-      ).documentMetadata(firstRow.document_id),
+      service.documentMetadata(firstRow.document_id, {}, principal),
     ).resolves.toMatchObject({
       documentId: firstRow.document_id,
       courseName: "Công nghệ phần mềm",
@@ -285,26 +324,32 @@ describe("RagRetrievalService", () => {
 
   it("rejects a document outside the selected course before embedding", async () => {
     const { service, database, embeddings } = fixture();
-    database.query.mockResolvedValueOnce({
-      rows: [
-        {
-          id: firstRow.document_id,
-          name: firstRow.document_name,
-          course_id: "44444444-4444-4444-8444-444444444444",
-          storage_status: "stored",
-          processing_status: "ready",
-          total_page_count: null,
-          useful_text_page_count: null,
-          low_text_page_count: null,
-          needs_ocr: null,
-        },
-      ],
-    });
+    database.query
+      .mockResolvedValueOnce({ rows: [{ id: firstRow.course_id }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: firstRow.document_id,
+            name: firstRow.document_name,
+            course_id: "44444444-4444-4444-8444-444444444444",
+            storage_status: "stored",
+            processing_status: "ready",
+            total_page_count: null,
+            useful_text_page_count: null,
+            low_text_page_count: null,
+            needs_ocr: null,
+          },
+        ],
+      });
     await expect(
-      service.retrieve("Question", {
-        courseId: firstRow.course_id,
-        documentId: firstRow.document_id,
-      }),
+      service.retrieve(
+        "Question",
+        {
+          courseId: firstRow.course_id,
+          documentId: firstRow.document_id,
+        },
+        principal,
+      ),
     ).rejects.toMatchObject({ kind: "document_scope_mismatch" });
     expect(embeddings.embedQuery).not.toHaveBeenCalled();
   });
@@ -312,7 +357,9 @@ describe("RagRetrievalService", () => {
   it("propagates a normalized embedding timeout without querying PostgreSQL", async () => {
     const { service, embeddings, database } = fixture();
     embeddings.embedQuery.mockRejectedValue(new EmbeddingError("timeout"));
-    await expect(service.retrieve("Question")).rejects.toMatchObject({
+    await expect(
+      service.retrieve("Question", {}, principal),
+    ).rejects.toMatchObject({
       kind: "timeout",
     });
     expect(database.query).not.toHaveBeenCalled();
@@ -321,7 +368,9 @@ describe("RagRetrievalService", () => {
   it("rejects a malformed query vector without sending it to PostgreSQL", async () => {
     const { service, embeddings, database } = fixture();
     embeddings.embedQuery.mockResolvedValue([Number.NaN]);
-    await expect(service.retrieve("Question")).rejects.toMatchObject({
+    await expect(
+      service.retrieve("Question", {}, principal),
+    ).rejects.toMatchObject({
       kind: "invalid_response",
     });
     expect(database.query).not.toHaveBeenCalled();

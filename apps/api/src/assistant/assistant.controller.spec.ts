@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AssistantChatDto } from "./assistant-chat.dto.js";
 import { AssistantController } from "./assistant.controller.js";
 import { AssistantService } from "./assistant.service.js";
+import { DocumentAccessService } from "../documents/document-access.service.js";
 import type { AssistantProvider, AssistantStatus } from "./assistant.types.js";
 import type { WorkspaceAssistantService } from "./workspace-assistant.service.js";
 const principal = {
@@ -41,7 +42,13 @@ function fixture(status: AssistantStatus) {
       ],
     }),
   };
-  const service = new AssistantService(provider, retrieval as never);
+  const service = new AssistantService(
+    provider,
+    retrieval as never,
+    new DocumentAccessService({
+      membership: vi.fn().mockResolvedValue("member"),
+    } as never),
+  );
   const workspace = {
     chat: vi.fn().mockResolvedValue({ mode: "workspace" }),
   };
@@ -89,7 +96,9 @@ describe("AssistantController", () => {
       },
       { type: "body", metatype: AssistantChatDto },
     );
-    await expect(controller.chat(input)).resolves.toEqual({
+    await expect(
+      controller.chat(input, { principal } as never),
+    ).resolves.toEqual({
       answer: "Study in small steps [S1].",
       answerable: true,
       reasonCode: "ANSWER_GENERATED",
@@ -110,10 +119,13 @@ describe("AssistantController", () => {
       promptVersion: "rag-v1",
     });
     expect(input).toBeInstanceOf(AssistantChatDto);
-    expect(chat).toHaveBeenCalledWith({
-      message: "Help me study",
-      pageContext: { pageId: "tasks", pageName: "Tasks" },
-    });
+    expect(chat).toHaveBeenCalledWith(
+      {
+        message: "Help me study",
+        pageContext: { pageId: "tasks", pageName: "Tasks" },
+      },
+      principal,
+    );
   });
 
   it("accepts both modes, rejects an unknown mode, and allows legacy requests", async () => {
@@ -177,9 +189,15 @@ describe("AssistantController", () => {
       model: "gemini-2.5-flash",
     });
     const chat = vi.spyOn(service, "chat");
-    await controller.chat({ message: "Study tips?", mode: "general" });
-    await controller.chat({ message: "What is due?", mode: "documents" });
-    await controller.chat({ message: "Legacy request" });
+    await controller.chat({ message: "Study tips?", mode: "general" }, {
+      principal,
+    } as never);
+    await controller.chat({ message: "What is due?", mode: "documents" }, {
+      principal,
+    } as never);
+    await controller.chat({ message: "Legacy request" }, {
+      principal,
+    } as never);
 
     expect(chat).toHaveBeenCalledTimes(3);
     expect(workspace.chat).not.toHaveBeenCalled();

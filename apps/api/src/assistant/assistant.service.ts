@@ -5,7 +5,8 @@ import {
   Injectable,
 } from "@nestjs/common";
 import type { AssistantChatDto } from "./assistant-chat.dto.js";
-import type { AssistantReasonCode } from "@examate/contracts";
+import type { AssistantReasonCode, PilotPrincipal } from "@examate/contracts";
+import { DocumentAccessService } from "../documents/document-access.service.js";
 import { log } from "../common/log.js";
 import { EmbeddingError } from "./gemini-embedding.service.js";
 import { GeminiService } from "./gemini.service.js";
@@ -80,17 +81,22 @@ export class AssistantService {
   constructor(
     @Inject(GeminiService) private readonly provider: AssistantProvider,
     private readonly retrieval: RagRetrievalService,
+    private readonly access: DocumentAccessService,
   ) {}
 
   status() {
     return this.provider.status();
   }
 
-  async chat(input: AssistantChatDto): Promise<AssistantAnswer> {
+  async chat(
+    input: AssistantChatDto,
+    principal?: PilotPrincipal,
+  ): Promise<AssistantAnswer> {
     const mode = input.mode ?? "documents";
     const operation = input.operation ?? "question";
     const startedAt = Date.now();
     try {
+      const verified = await this.access.authorize(principal, "read");
       if (mode === "general") {
         if (operation !== "question" || input.documentId)
           throw new BadRequestException({
@@ -98,13 +104,13 @@ export class AssistantService {
             message:
               "Document selection and summarization require documents mode.",
           });
-        return await this.generalChat(input, startedAt);
+        return await this.generalChat(input, startedAt, verified);
       }
       if (operation === "summarize")
-        return await this.summarizeDocument(input, startedAt);
+        return await this.summarizeDocument(input, startedAt, verified);
       if (operation === "course_info")
-        return await this.documentCourseInfo(input, startedAt);
-      return await this.documentChat(input, startedAt);
+        return await this.documentCourseInfo(input, startedAt, verified);
+      return await this.documentChat(input, startedAt, verified);
     } catch (error: unknown) {
       log("error", "assistant.chat.failed", {
         mode,
@@ -122,9 +128,11 @@ export class AssistantService {
   private async generalChat(
     input: AssistantChatDto,
     startedAt: number,
+    principal: PilotPrincipal,
   ): Promise<AssistantAnswer> {
     const generationStartedAt = Date.now();
     const userParts = this.userParts(input);
+    await this.access.authorize(principal, "read");
     const answer = await this.provider.generate({
       systemInstruction: GENERAL_SYSTEM_INSTRUCTION,
       userParts,
@@ -150,14 +158,19 @@ export class AssistantService {
   private async documentChat(
     input: AssistantChatDto,
     startedAt: number,
+    principal: PilotPrincipal,
   ): Promise<AssistantAnswer> {
     const retrievalStartedAt = Date.now();
     let rag: RagContext;
     try {
-      rag = await this.retrieval.retrieve(input.message, {
-        courseId: input.courseId,
-        ...(input.documentId ? { documentId: input.documentId } : {}),
-      });
+      rag = await this.retrieval.retrieve(
+        input.message,
+        {
+          courseId: input.courseId,
+          ...(input.documentId ? { documentId: input.documentId } : {}),
+        },
+        principal,
+      );
     } catch (error: unknown) {
       throw this.normalizeRetrievalError(error);
     }
@@ -181,6 +194,7 @@ export class AssistantService {
     const userParts = this.userParts(input);
     userParts.push(rag.context);
     const generationStartedAt = Date.now();
+    await this.access.authorize(principal, "read");
     const raw = await this.provider.generate({
       systemInstruction: SYSTEM_INSTRUCTION,
       userParts,
@@ -230,6 +244,7 @@ export class AssistantService {
   private async documentCourseInfo(
     input: AssistantChatDto,
     startedAt: number,
+    principal: PilotPrincipal,
   ): Promise<AssistantAnswer> {
     if (!input.documentId)
       throw new BadRequestException({
@@ -239,9 +254,13 @@ export class AssistantService {
 
     let source;
     try {
-      source = await this.retrieval.documentMetadata(input.documentId, {
-        courseId: input.courseId,
-      });
+      source = await this.retrieval.documentMetadata(
+        input.documentId,
+        {
+          courseId: input.courseId,
+        },
+        principal,
+      );
     } catch (error: unknown) {
       throw this.normalizeRetrievalError(error);
     }
@@ -274,6 +293,7 @@ export class AssistantService {
   private async summarizeDocument(
     input: AssistantChatDto,
     startedAt: number,
+    principal: PilotPrincipal,
   ): Promise<AssistantAnswer> {
     if (!input.documentId)
       throw new BadRequestException({
@@ -284,9 +304,13 @@ export class AssistantService {
     const retrievalStartedAt = Date.now();
     let material;
     try {
-      material = await this.retrieval.documentForSummary(input.documentId, {
-        courseId: input.courseId,
-      });
+      material = await this.retrieval.documentForSummary(
+        input.documentId,
+        {
+          courseId: input.courseId,
+        },
+        principal,
+      );
     } catch (error: unknown) {
       throw this.normalizeRetrievalError(error);
     }
@@ -331,6 +355,7 @@ export class AssistantService {
             "The document section exceeds the safe summary context limit.",
         });
       sourceOffset += rag.evidence.length;
+      await this.access.authorize(principal, "read");
       const raw = await this.provider.generate({
         systemInstruction: SUMMARY_SYSTEM_INSTRUCTION,
         userParts: [
@@ -361,6 +386,7 @@ export class AssistantService {
       const uniqueCitations = [
         ...new Map(allCitations.map((item) => [item.sourceId, item])).values(),
       ];
+      await this.access.authorize(principal, "read");
       const raw = await this.provider.generate({
         systemInstruction: SUMMARY_SYNTHESIS_INSTRUCTION,
         userParts: [

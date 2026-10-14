@@ -1,11 +1,15 @@
-import { Injectable } from "@nestjs/common";
-import type { AssistantMetadataSource } from "@examate/contracts";
+import { Injectable, NotFoundException } from "@nestjs/common";
+import type {
+  AssistantMetadataSource,
+  PilotPrincipal,
+} from "@examate/contracts";
 import type { QueryResultRow } from "pg";
 import { log } from "../common/log.js";
 import { ragConfig } from "../config/config.js";
 import { DatabaseService } from "../database/database.service.js";
 import { MAX_DOCUMENT_CHUNKS } from "../documents/document-chunker.js";
 import { isUsefulDocumentText } from "../documents/document-text-quality.js";
+import { DocumentAccessService } from "../documents/document-access.service.js";
 import { GeminiEmbeddingService } from "./gemini-embedding.service.js";
 import { buildRagContext, type RetrievedChunk } from "./rag-context.js";
 
@@ -78,9 +82,15 @@ export class RagRetrievalService {
   constructor(
     private readonly database: DatabaseService,
     private readonly embeddings: GeminiEmbeddingService,
+    private readonly access: DocumentAccessService,
   ) {}
 
-  async retrieve(question: string, scope: RetrievalScope = {}) {
+  async retrieve(
+    question: string,
+    scope: RetrievalScope = {},
+    principal?: PilotPrincipal,
+  ) {
+    const verified = await this.access.authorize(principal, "read");
     const normalizedQuestion = question.trim();
     const courseId = scope.courseId ?? null;
     const documentId = scope.documentId ?? null;
@@ -94,9 +104,12 @@ export class RagRetrievalService {
 
     const startedAt = Date.now();
     try {
+      if (courseId)
+        await this.courseInWorkspace(courseId, verified.workspaceId);
       const scopedDocument = documentId
-        ? await this.documentInScope(documentId, courseId)
+        ? await this.documentInScope(documentId, courseId, verified.workspaceId)
         : null;
+      await this.access.authorize(verified, "read");
       const vector = await this.embeddings.embedQuery(normalizedQuestion);
       if (
         vector.length !== this.embeddings.dimensions ||
@@ -108,6 +121,7 @@ export class RagRetrievalService {
       let candidates: RetrievedChunk[] = [];
       let usefulCandidates: RetrievedChunk[] = [];
       while (true) {
+        await this.access.authorize(verified, "read");
         const result = await this.database.query<RetrievalRow>(
           `WITH nearest AS (
            SELECT dc.id::text AS chunk_id,
@@ -128,6 +142,7 @@ export class RagRetrievalService {
              AND char_length(dc.content) BETWEEN 1 AND 1800
              AND ($4::uuid IS NULL OR d.course_id = $4::uuid)
              AND ($5::uuid IS NULL OR d.id = $5::uuid)
+             AND d.workspace_id = $8::uuid
            ORDER BY dc.embedding <=> $1::vector(768), dc.id
            LIMIT $6
          )
@@ -144,6 +159,7 @@ export class RagRetrievalService {
             documentId,
             scanLimit,
             this.config.minScore,
+            verified.workspaceId,
           ],
         );
 
@@ -219,7 +235,9 @@ export class RagRetrievalService {
   async documentForSummary(
     documentId: string,
     scope: { courseId?: string | null } = {},
+    principal?: PilotPrincipal,
   ): Promise<DocumentSummaryMaterial> {
+    const verified = await this.access.authorize(principal, "read");
     const courseId = scope.courseId ?? null;
     if (
       !UUID_PATTERN.test(documentId) ||
@@ -227,7 +245,13 @@ export class RagRetrievalService {
     )
       throw new RetrievalError("invalid_input");
 
-    const document = await this.documentInScope(documentId, courseId);
+    if (courseId) await this.courseInWorkspace(courseId, verified.workspaceId);
+    const document = await this.documentInScope(
+      documentId,
+      courseId,
+      verified.workspaceId,
+    );
+    await this.access.authorize(verified, "read");
     const result = await this.database.query<RetrievalRow>(
       `SELECT dc.id::text AS chunk_id,
               d.id::text AS document_id,
@@ -240,12 +264,13 @@ export class RagRetrievalService {
        FROM document_chunks dc
        INNER JOIN documents d ON d.id = dc.document_id
        WHERE d.id = $1::uuid
+         AND d.workspace_id = $3::uuid
          AND d.storage_status = 'stored'
          AND d.processing_status = 'ready'
          AND char_length(dc.content) BETWEEN 1 AND 1800
        ORDER BY dc.source_page NULLS LAST, dc.chunk_index, dc.id
        LIMIT $2`,
-      [documentId, MAX_DOCUMENT_CHUNKS + 1],
+      [documentId, MAX_DOCUMENT_CHUNKS + 1, verified.workspaceId],
     );
     if (result.rows.length > MAX_DOCUMENT_CHUNKS)
       throw new RetrievalError("document_too_large");
@@ -271,14 +296,22 @@ export class RagRetrievalService {
   async documentMetadata(
     documentId: string,
     scope: { courseId?: string | null } = {},
+    principal?: PilotPrincipal,
   ): Promise<AssistantMetadataSource> {
+    const verified = await this.access.authorize(principal, "read");
     const courseId = scope.courseId ?? null;
     if (
       !UUID_PATTERN.test(documentId) ||
       (courseId !== null && !UUID_PATTERN.test(courseId))
     )
       throw new RetrievalError("invalid_input");
-    const document = await this.documentInScope(documentId, courseId);
+    if (courseId) await this.courseInWorkspace(courseId, verified.workspaceId);
+    const document = await this.documentInScope(
+      documentId,
+      courseId,
+      verified.workspaceId,
+    );
+    await this.access.authorize(verified, "read");
     return {
       documentId: document.id,
       title: document.name,
@@ -289,7 +322,23 @@ export class RagRetrievalService {
     };
   }
 
-  private async documentInScope(documentId: string, courseId: string | null) {
+  private async courseInWorkspace(courseId: string, workspaceId: string) {
+    const result = await this.database.query(
+      "SELECT id FROM courses WHERE id = $1::uuid AND workspace_id = $2::uuid",
+      [courseId, workspaceId],
+    );
+    if (!result.rows.length)
+      throw new NotFoundException({
+        code: "COURSE_NOT_FOUND",
+        message: "Không tìm thấy môn học này trong workspace của bạn.",
+      });
+  }
+
+  private async documentInScope(
+    documentId: string,
+    courseId: string | null,
+    workspaceId: string,
+  ) {
     const result = await this.database.query<DocumentScopeRow>(
       `SELECT d.id::text, d.name, d.course_id::text AS course_id,
               c.slug AS course_slug, c.name AS course_name,
@@ -297,12 +346,16 @@ export class RagRetrievalService {
               d.total_page_count, d.useful_text_page_count,
               d.low_text_page_count, d.needs_ocr
        FROM documents d
-       LEFT JOIN courses c ON c.id = d.course_id
-       WHERE d.id = $1::uuid`,
-      [documentId],
+       LEFT JOIN courses c ON c.id = d.course_id AND c.workspace_id = d.workspace_id
+       WHERE d.id = $1::uuid AND d.workspace_id = $2::uuid`,
+      [documentId, workspaceId],
     );
     const document = result.rows[0];
-    if (!document) throw new RetrievalError("document_not_found");
+    if (!document)
+      throw new NotFoundException({
+        code: "DOCUMENT_NOT_FOUND",
+        message: "Không tìm thấy tài liệu này trong workspace của bạn.",
+      });
     if (courseId !== null && document.course_id !== courseId)
       throw new RetrievalError("document_scope_mismatch");
     if (
