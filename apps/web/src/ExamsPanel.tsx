@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useContext, useEffect, useState, type FormEvent } from "react";
 import {
   ArrowPathIcon,
   ArrowUpRightIcon,
@@ -14,6 +14,7 @@ import { useCourses } from "./use-courses";
 import { countdownLabel, daysUntil, useExams } from "./use-exams";
 import { revealClass, useReveal } from "./use-reveal";
 import type { Exam } from "./api";
+import { PilotPrincipalContext } from "./PilotPrincipalContext";
 
 function formatDate(date: string) {
   const [year, month, day] = date.split("-");
@@ -209,11 +210,22 @@ function EditExam({
 }
 
 export function ExamsPanel({ compact = false }: { compact?: boolean }) {
+  const principal = useContext(PilotPrincipalContext);
+  const canWrite =
+    principal?.role === "manager" || principal?.role === "member";
+  const canDelete = principal?.role === "manager";
   const { ref, revealed } = useReveal<HTMLDivElement>();
   const exams = useExams();
   const courses = useCourses();
   const [notice, setNotice] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!canWrite) {
+      setEditingId(null);
+      setNotice("");
+    }
+  }, [canWrite]);
 
   const today = new Date();
   // A past exam is still useful when revising, but it must never sit among the
@@ -228,6 +240,7 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canWrite) return;
     const form = event.currentTarget;
     const data = new FormData(form);
     const courseId = String(data.get("courseId") || "");
@@ -264,6 +277,7 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
       revisionNote?: string;
     },
   ) {
+    if (!canWrite) return;
     const ok = await exams.update(exam.id, input);
     if (ok) {
       setEditingId(null);
@@ -272,6 +286,7 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
   }
 
   async function remove(exam: Exam) {
+    if (!canDelete) return;
     const ok = await exams.remove(exam.id);
     if (ok) setNotice("Đã xoá kỳ thi khỏi lịch.");
   }
@@ -288,6 +303,12 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
 
   return (
     <Panel title="Upcoming exams" icon={<CalendarDaysIcon />}>
+      {!canWrite && (
+        <p className="page-note">
+          Bạn đang có quyền xem lịch thi. Nhờ thành viên hoặc người quản lý thêm
+          và cập nhật kỳ thi nhé.
+        </p>
+      )}
       <p className="view-label">
         <ClockIcon /> Countdown
         <span>
@@ -321,7 +342,7 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
             {next.revision_note && (
               <p className="exam-note">{next.revision_note}</p>
             )}
-            {!compact && (
+            {!compact && canWrite && (
               <span className="exam-actions">
                 <EditButton
                   exam={next}
@@ -332,15 +353,17 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
                     featured exam would leave the next one mounted with the
                     previous component's open confirmation, primed to delete
                     on one click. */}
-                <DeleteExam
-                  key={next.id}
-                  exam={next}
-                  busy={exams.busy}
-                  onDelete={() => void remove(next)}
-                />
+                {canDelete && (
+                  <DeleteExam
+                    key={next.id}
+                    exam={next}
+                    busy={exams.busy}
+                    onDelete={() => void remove(next)}
+                  />
+                )}
               </span>
             )}
-            {editingId === next.id && (
+            {canWrite && editingId === next.id && (
               <EditExam
                 exam={next}
                 busy={exams.busy}
@@ -379,21 +402,23 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
                       <small className="exam-note">{exam.revision_note}</small>
                     )}
                   </span>
-                  {!compact && (
+                  {!compact && canWrite && (
                     <span className="exam-actions">
                       <EditButton
                         exam={exam}
                         busy={exams.busy}
                         onEdit={() => setEditingId(exam.id)}
                       />
-                      <DeleteExam
-                        exam={exam}
-                        busy={exams.busy}
-                        onDelete={() => void remove(exam)}
-                      />
+                      {canDelete && (
+                        <DeleteExam
+                          exam={exam}
+                          busy={exams.busy}
+                          onDelete={() => void remove(exam)}
+                        />
+                      )}
                     </span>
                   )}
-                  {editingId === exam.id && (
+                  {canWrite && editingId === exam.id && (
                     <EditExam
                       exam={exam}
                       busy={exams.busy}
@@ -425,11 +450,13 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
                     </a>
                     <ExamFacts exam={exam} />
                   </span>
-                  <DeleteExam
-                    exam={exam}
-                    busy={exams.busy}
-                    onDelete={() => void remove(exam)}
-                  />
+                  {canDelete && (
+                    <DeleteExam
+                      exam={exam}
+                      busy={exams.busy}
+                      onDelete={() => void remove(exam)}
+                    />
+                  )}
                 </li>
               ))}
             </ul>
@@ -439,9 +466,10 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
 
       {compact ? (
         <a className="text-button" href="#exams">
-          <PlusIcon /> Add or view exams
+          {canWrite && <PlusIcon />}{" "}
+          {canWrite ? "Add or view exams" : "View exams"}
         </a>
-      ) : (
+      ) : canWrite ? (
         <form
           className="exam-form grid grid-cols-1 sm:grid-cols-2 gap-4"
           onSubmit={(event) => void submit(event)}
@@ -501,7 +529,7 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
           </button>
           <p role="status">{notice}</p>
         </form>
-      )}
+      ) : null}
     </Panel>
   );
 }

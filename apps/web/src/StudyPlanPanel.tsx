@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useContext, useEffect, useState, type FormEvent } from "react";
 import {
   ArrowPathIcon,
   ArrowUpRightIcon,
@@ -13,6 +13,7 @@ import { groupByCourse, useStudyPlans } from "./use-study-plans";
 import { countdownLabel, daysUntil } from "./use-exams";
 import { revealClass, useReveal } from "./use-reveal";
 import type { StudyPlan } from "./api";
+import { PilotPrincipalContext } from "./PilotPrincipalContext";
 
 function DeletePlan({
   plan,
@@ -62,10 +63,18 @@ function DeletePlan({
 }
 
 export function StudyPlanPanel({ compact = false }: { compact?: boolean }) {
+  const principal = useContext(PilotPrincipalContext);
+  const canWrite =
+    principal?.role === "manager" || principal?.role === "member";
+  const canDelete = principal?.role === "manager";
   const { ref, revealed } = useReveal<HTMLDivElement>();
   const store = useStudyPlans();
   const courses = useCourses();
   const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    if (!canWrite) setNotice("");
+  }, [canWrite]);
 
   const groups = groupByCourse(store.plans);
   const remaining = store.plans.filter((plan) => !plan.completed_at).length;
@@ -73,6 +82,7 @@ export function StudyPlanPanel({ compact = false }: { compact?: boolean }) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canWrite) return;
     const form = event.currentTarget;
     const data = new FormData(form);
     const courseId = String(data.get("courseId") || "");
@@ -110,6 +120,12 @@ export function StudyPlanPanel({ compact = false }: { compact?: boolean }) {
 
   return (
     <Panel title="Study plan" icon={<ClipboardDocumentCheckIcon />}>
+      {!canWrite && (
+        <p className="page-note">
+          Bạn đang có quyền xem kế hoạch ôn tập. Nhờ thành viên hoặc người quản
+          lý thêm và cập nhật việc cần ôn nhé.
+        </p>
+      )}
       <p className="view-label">
         <ClipboardDocumentCheckIcon /> Ôn tập theo môn
         <span>{remaining ? `${remaining} việc còn lại` : "Đã xong hết"}</span>
@@ -153,10 +169,11 @@ export function StudyPlanPanel({ compact = false }: { compact?: boolean }) {
                           type="button"
                           className={`task-check ${done ? "checked" : ""}`}
                           aria-label={`${done ? "Mark as not done" : "Mark as done"}: ${plan.title}`}
-                          disabled={store.busy}
-                          onClick={() =>
-                            void store.setCompletion(plan.id, !done)
-                          }
+                          disabled={store.busy || !canWrite}
+                          onClick={() => {
+                            if (!canWrite) return;
+                            void store.setCompletion(plan.id, !done);
+                          }}
                         >
                           {done && <CheckIcon />}
                         </button>
@@ -176,11 +193,12 @@ export function StudyPlanPanel({ compact = false }: { compact?: boolean }) {
                             {plan.owner_name && <span>{plan.owner_name}</span>}
                           </small>
                         </span>
-                        {!compact && (
+                        {!compact && canDelete && (
                           <DeletePlan
                             plan={plan}
                             busy={store.busy}
                             onDelete={() => {
+                              if (!canDelete) return;
                               void store.remove(plan.id);
                             }}
                           />
@@ -201,9 +219,10 @@ export function StudyPlanPanel({ compact = false }: { compact?: boolean }) {
 
       {compact ? (
         <a className="text-button" href="#study-plan">
-          <PlusIcon /> Add or view revision items
+          {canWrite && <PlusIcon />}
+          {canWrite ? "Add or view revision items" : "View revision items"}
         </a>
-      ) : (
+      ) : canWrite ? (
         <form
           className="exam-form grid grid-cols-1 sm:grid-cols-2 gap-4"
           onSubmit={(event) => void submit(event)}
@@ -254,7 +273,7 @@ export function StudyPlanPanel({ compact = false }: { compact?: boolean }) {
           </button>
           <p role="status">{notice}</p>
         </form>
-      )}
+      ) : null}
     </Panel>
   );
 }

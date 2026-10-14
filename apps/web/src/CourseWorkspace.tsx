@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useContext, useState, type FormEvent, type ReactNode } from "react";
 import {
   CalendarDaysIcon,
   CheckIcon,
@@ -13,6 +13,7 @@ import { useStudyPlans } from "./use-study-plans";
 import { CATEGORY_LABELS, useExpenses } from "./use-expenses";
 import { useDocuments } from "./use-documents";
 import type { Course, ExpenseCategory } from "./api";
+import { PilotPrincipalContext } from "./PilotPrincipalContext";
 
 const money = new Intl.NumberFormat("vi-VN");
 
@@ -109,11 +110,16 @@ function Block({
  * an item added on its own page cannot disagree.
  */
 export function CourseWorkspace({ course }: { course: Course }) {
+  const principal = useContext(PilotPrincipalContext);
+  const canWrite =
+    principal?.role === "manager" || principal?.role === "member";
+  const canDelete = principal?.role === "manager";
   const exams = useExams();
   const plans = useStudyPlans();
   const expenses = useExpenses();
   const documents = useDocuments();
   const [notice, setNotice] = useState("");
+
   const today = new Date();
 
   const courseExams = exams.exams
@@ -153,6 +159,7 @@ export function CourseWorkspace({ course }: { course: Course }) {
 
   async function addExam(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canWrite) return;
     const form = event.currentTarget;
     const data = new FormData(form);
     const ok = await exams.create({
@@ -170,6 +177,7 @@ export function CourseWorkspace({ course }: { course: Course }) {
 
   async function addPlan(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canWrite) return;
     const form = event.currentTarget;
     const data = new FormData(form);
     const ok = await plans.create({
@@ -185,6 +193,7 @@ export function CourseWorkspace({ course }: { course: Course }) {
 
   async function addExpense(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canWrite) return;
     const form = event.currentTarget;
     const data = new FormData(form);
     const amount = Number(data.get("amount"));
@@ -212,6 +221,13 @@ export function CourseWorkspace({ course }: { course: Course }) {
         Mọi thứ bạn thêm ở đây đều được gắn sẵn cho môn này, và cũng hiện ở
         trang tương ứng của nó.
       </p>
+      {!canWrite && (
+        <p className="page-note">
+          Bạn đang có quyền xem lịch thi, kế hoạch ôn tập và các khoản chi của
+          môn này. Nhờ thành viên hoặc người quản lý thêm và cập nhật các mục
+          này nhé.
+        </p>
+      )}
 
       <div className="cw-grid">
         <Block
@@ -235,46 +251,56 @@ export function CourseWorkspace({ course }: { course: Course }) {
                     <span>{exam.room}</span>
                   </small>
                 </span>
-                <RemoveButton
-                  label={`Delete exam: ${exam.topic}`}
-                  busy={exams.busy}
-                  onDelete={() =>
-                    void removeAnd(exams.remove(exam.id), "Kỳ thi")
-                  }
-                />
+                {canDelete && (
+                  <RemoveButton
+                    label={`Delete exam: ${exam.topic}`}
+                    busy={exams.busy}
+                    onDelete={() => {
+                      if (!canDelete) return;
+                      void removeAnd(exams.remove(exam.id), "Kỳ thi");
+                    }}
+                  />
+                )}
               </li>
             ))}
           </ul>
           {!courseExams.length && (
             <p className="empty-message">Chưa có kỳ thi nào sắp tới.</p>
           )}
-          <form className="cw-form" onSubmit={(event) => void addExam(event)}>
-            <label>
-              <span className="sr-only">Exam name</span>
-              <input
-                name="topic"
-                placeholder="Tên kỳ thi"
-                minLength={3}
-                maxLength={160}
-                required
-              />
-            </label>
-            <label>
-              <span className="sr-only">Exam date</span>
-              <input name="examDate" type="date" required />
-            </label>
-            <label>
-              <span className="sr-only">Exam time</span>
-              <input name="examTime" type="time" required />
-            </label>
-            <label>
-              <span className="sr-only">Exam room</span>
-              <input name="room" placeholder="Phòng" maxLength={80} required />
-            </label>
-            <button className="text-button" disabled={exams.busy}>
-              <PlusIcon /> Add exam
-            </button>
-          </form>
+          {canWrite && (
+            <form className="cw-form" onSubmit={(event) => void addExam(event)}>
+              <label>
+                <span className="sr-only">Exam name</span>
+                <input
+                  name="topic"
+                  placeholder="Tên kỳ thi"
+                  minLength={3}
+                  maxLength={160}
+                  required
+                />
+              </label>
+              <label>
+                <span className="sr-only">Exam date</span>
+                <input name="examDate" type="date" required />
+              </label>
+              <label>
+                <span className="sr-only">Exam time</span>
+                <input name="examTime" type="time" required />
+              </label>
+              <label>
+                <span className="sr-only">Exam room</span>
+                <input
+                  name="room"
+                  placeholder="Phòng"
+                  maxLength={80}
+                  required
+                />
+              </label>
+              <button className="text-button" disabled={exams.busy}>
+                <PlusIcon /> Add exam
+              </button>
+            </form>
+          )}
         </Block>
 
         <Block
@@ -292,8 +318,11 @@ export function CourseWorkspace({ course }: { course: Course }) {
                     type="button"
                     className={`task-check ${done ? "checked" : ""}`}
                     aria-label={`${done ? "Mark as not done" : "Mark as done"}: ${plan.title}`}
-                    disabled={plans.busy}
-                    onClick={() => void plans.setCompletion(plan.id, !done)}
+                    disabled={plans.busy || !canWrite}
+                    onClick={() => {
+                      if (!canWrite) return;
+                      void plans.setCompletion(plan.id, !done);
+                    }}
                   >
                     {done && <CheckIcon />}
                   </button>
@@ -309,13 +338,16 @@ export function CourseWorkspace({ course }: { course: Course }) {
                       </small>
                     )}
                   </span>
-                  <RemoveButton
-                    label={`Delete revision item: ${plan.title}`}
-                    busy={plans.busy}
-                    onDelete={() =>
-                      void removeAnd(plans.remove(plan.id), "Việc cần ôn")
-                    }
-                  />
+                  {canDelete && (
+                    <RemoveButton
+                      label={`Delete revision item: ${plan.title}`}
+                      busy={plans.busy}
+                      onDelete={() => {
+                        if (!canDelete) return;
+                        void removeAnd(plans.remove(plan.id), "Việc cần ôn");
+                      }}
+                    />
+                  )}
                 </li>
               );
             })}
@@ -323,25 +355,27 @@ export function CourseWorkspace({ course }: { course: Course }) {
           {!coursePlans.length && (
             <p className="empty-message">Chưa có việc nào cần ôn.</p>
           )}
-          <form className="cw-form" onSubmit={(event) => void addPlan(event)}>
-            <label>
-              <span className="sr-only">What to revise</span>
-              <input
-                name="title"
-                placeholder="Cần ôn gì?"
-                minLength={3}
-                maxLength={160}
-                required
-              />
-            </label>
-            <label>
-              <span className="sr-only">Revision due date</span>
-              <input name="dueDate" type="date" />
-            </label>
-            <button className="text-button" disabled={plans.busy}>
-              <PlusIcon /> Add revision item
-            </button>
-          </form>
+          {canWrite && (
+            <form className="cw-form" onSubmit={(event) => void addPlan(event)}>
+              <label>
+                <span className="sr-only">What to revise</span>
+                <input
+                  name="title"
+                  placeholder="Cần ôn gì?"
+                  minLength={3}
+                  maxLength={160}
+                  required
+                />
+              </label>
+              <label>
+                <span className="sr-only">Revision due date</span>
+                <input name="dueDate" type="date" />
+              </label>
+              <button className="text-button" disabled={plans.busy}>
+                <PlusIcon /> Add revision item
+              </button>
+            </form>
+          )}
         </Block>
 
         <Block
@@ -365,64 +399,69 @@ export function CourseWorkspace({ course }: { course: Course }) {
                     <span>{CATEGORY_LABELS[item.category]}</span>
                   </small>
                 </span>
-                <RemoveButton
-                  label={`Delete expense: ${item.description}`}
-                  busy={expenses.busy}
-                  onDelete={() =>
-                    void removeAnd(expenses.remove(item.id), "Khoản chi")
-                  }
-                />
+                {canDelete && (
+                  <RemoveButton
+                    label={`Delete expense: ${item.description}`}
+                    busy={expenses.busy}
+                    onDelete={() => {
+                      if (!canDelete) return;
+                      void removeAnd(expenses.remove(item.id), "Khoản chi");
+                    }}
+                  />
+                )}
               </li>
             ))}
           </ul>
           {!courseExpenses.length && (
             <p className="empty-message">Chưa ghi khoản chi nào cho môn này.</p>
           )}
-          <form
-            className="cw-form"
-            onSubmit={(event) => void addExpense(event)}
-          >
-            <label>
-              <span className="sr-only">Expense amount</span>
-              <input
-                name="amount"
-                type="number"
-                min={1}
-                step={1}
-                placeholder="Số tiền"
-                required
-              />
-            </label>
-            <label>
-              <span className="sr-only">Expense description</span>
-              <input
-                name="description"
-                placeholder="Chi cho việc gì?"
-                minLength={2}
-                maxLength={160}
-                required
-              />
-            </label>
-            <label>
-              <span className="sr-only">Expense date</span>
-              <input name="spentOn" type="date" required />
-            </label>
-            <label>
-              <span className="sr-only">Expense category</span>
-              <select name="category" defaultValue="books">
-                {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map(
-                  (key) => (
-                    <option key={key} value={key}>
-                      {CATEGORY_LABELS[key]}
-                    </option>
-                  ),
-                )}
-              </select>
-            </label>
-            <button className="text-button" disabled={expenses.busy}>
-              <PlusIcon /> Add expense
-            </button>
-          </form>
+          {canWrite && (
+            <form
+              className="cw-form"
+              onSubmit={(event) => void addExpense(event)}
+            >
+              <label>
+                <span className="sr-only">Expense amount</span>
+                <input
+                  name="amount"
+                  type="number"
+                  min={1}
+                  step={1}
+                  placeholder="Số tiền"
+                  required
+                />
+              </label>
+              <label>
+                <span className="sr-only">Expense description</span>
+                <input
+                  name="description"
+                  placeholder="Chi cho việc gì?"
+                  minLength={2}
+                  maxLength={160}
+                  required
+                />
+              </label>
+              <label>
+                <span className="sr-only">Expense date</span>
+                <input name="spentOn" type="date" required />
+              </label>
+              <label>
+                <span className="sr-only">Expense category</span>
+                <select name="category" defaultValue="books">
+                  {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map(
+                    (key) => (
+                      <option key={key} value={key}>
+                        {CATEGORY_LABELS[key]}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </label>
+              <button className="text-button" disabled={expenses.busy}>
+                <PlusIcon /> Add expense
+              </button>
+            </form>
+          )}
         </Block>
 
         <Block

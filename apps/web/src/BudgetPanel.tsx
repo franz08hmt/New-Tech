@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useContext, useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ArrowPathIcon,
   ArrowUpRightIcon,
@@ -18,6 +18,7 @@ import {
 } from "./use-expenses";
 import { revealClass, useReveal } from "./use-reveal";
 import type { Expense, ExpenseCategory } from "./api";
+import { PilotPrincipalContext } from "./PilotPrincipalContext";
 
 const money = new Intl.NumberFormat("vi-VN");
 const PERIODS: Period[] = ["day", "week", "month", "all"];
@@ -75,11 +76,19 @@ function DeleteExpense({
 }
 
 export function BudgetPanel({ focusId }: { focusId?: string }) {
+  const principal = useContext(PilotPrincipalContext);
+  const canWrite =
+    principal?.role === "manager" || principal?.role === "member";
+  const canDelete = principal?.role === "manager";
   const { ref, revealed } = useReveal<HTMLDivElement>();
   const store = useExpenses();
   const courses = useCourses();
   const [period, setPeriod] = useState<Period>("month");
   const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    if (!canWrite) setNotice("");
+  }, [canWrite]);
 
   const today = new Date();
   const visible = inPeriod(store.expenses, period, today);
@@ -110,6 +119,7 @@ export function BudgetPanel({ focusId }: { focusId?: string }) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canWrite) return;
     const form = event.currentTarget;
     const data = new FormData(form);
     // Number() rather than parseInt: it rejects "12abc" outright instead of
@@ -149,6 +159,12 @@ export function BudgetPanel({ focusId }: { focusId?: string }) {
 
   return (
     <Panel title="Student budget" icon={<WalletIcon />}>
+      {!canWrite && (
+        <p className="page-note">
+          Bạn đang có quyền xem các khoản chi. Nhờ thành viên hoặc người quản lý
+          ghi khoản chi mới nhé.
+        </p>
+      )}
       <p className="view-label">
         <WalletIcon /> {PERIOD_LABELS[period]}
         <span className="example-label">Illustrative budget · VND</span>
@@ -255,11 +271,16 @@ export function BudgetPanel({ focusId }: { focusId?: string }) {
                       {item.course_code && <span>{item.course_code}</span>}
                     </small>
                   </span>
-                  <DeleteExpense
-                    expense={item}
-                    busy={store.busy}
-                    onDelete={() => void store.remove(item.id)}
-                  />
+                  {canDelete && (
+                    <DeleteExpense
+                      expense={item}
+                      busy={store.busy}
+                      onDelete={() => {
+                        if (!canDelete) return;
+                        void store.remove(item.id);
+                      }}
+                    />
+                  )}
                 </li>
               ))}
             </ul>
@@ -275,62 +296,66 @@ export function BudgetPanel({ focusId }: { focusId?: string }) {
         </section>
       </div>
 
-      <form
-        className="exam-form grid grid-cols-1 sm:grid-cols-2 gap-4"
-        onSubmit={(event) => void submit(event)}
-      >
-        <label>
-          Amount (₫)
-          <input
-            name="amount"
-            type="number"
-            min={1}
-            step={1}
-            placeholder="35000"
-            required
-          />
-        </label>
-        <label>
-          Date
-          <input name="spentOn" type="date" required />
-        </label>
-        <label className="sm:col-span-2">
-          Description
-          <input
-            name="description"
-            placeholder="Ví dụ: In tài liệu ôn thi"
-            minLength={2}
-            maxLength={160}
-            required
-          />
-        </label>
-        <label>
-          Category
-          <select name="category" defaultValue="books">
-            {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((key) => (
-              <option key={key} value={key}>
-                {CATEGORY_LABELS[key]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Course
-          <select name="courseId" defaultValue="">
-            <option value="">Không thuộc môn nào</option>
-            {courses.courses.map((course) => (
-              <option key={course.id} value={course.id}>
-                {course.name} ({course.code})
-              </option>
-            ))}
-          </select>
-        </label>
-        <button className="primary-button" disabled={store.busy}>
-          <PlusIcon />
-          {store.busy ? "Đang lưu…" : "Add expense"}
-        </button>
-        <p role="status">{notice}</p>
-      </form>
+      {canWrite && (
+        <form
+          className="exam-form grid grid-cols-1 sm:grid-cols-2 gap-4"
+          onSubmit={(event) => void submit(event)}
+        >
+          <label>
+            Amount (₫)
+            <input
+              name="amount"
+              type="number"
+              min={1}
+              step={1}
+              placeholder="35000"
+              required
+            />
+          </label>
+          <label>
+            Date
+            <input name="spentOn" type="date" required />
+          </label>
+          <label className="sm:col-span-2">
+            Description
+            <input
+              name="description"
+              placeholder="Ví dụ: In tài liệu ôn thi"
+              minLength={2}
+              maxLength={160}
+              required
+            />
+          </label>
+          <label>
+            Category
+            <select name="category" defaultValue="books">
+              {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map(
+                (key) => (
+                  <option key={key} value={key}>
+                    {CATEGORY_LABELS[key]}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+          <label>
+            Course
+            <select name="courseId" defaultValue="">
+              <option value="">Không thuộc môn nào</option>
+              {courses.courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.name} ({course.code})
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="primary-button" disabled={store.busy}>
+            <PlusIcon />
+            {store.busy ? "Đang lưu…" : "Add expense"}
+          </button>
+          <p role="status">{notice}</p>
+        </form>
+      )}
 
       <p className="page-note">
         Đây là sổ chi tiêu minh hoạ của workspace, không kết nối với tài khoản

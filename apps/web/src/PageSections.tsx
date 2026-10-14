@@ -94,8 +94,8 @@ export function PageSections({
         <ExamsPanel />
         <p className="page-note">
           Lịch thi được lưu trong cơ sở dữ liệu của workspace. Các kỳ thi có sẵn
-          là dữ liệu minh hoạ để bạn thử, cứ xoá đi và thêm kỳ thi của riêng
-          bạn.
+          là dữ liệu minh hoạ để bạn thử. Thành viên và người quản lý có thể
+          thêm, sửa kỳ thi; chỉ người quản lý mới có thể xoá.
         </p>
       </>
     );
