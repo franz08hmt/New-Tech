@@ -19,13 +19,16 @@ Chuẩn bị nghiệm thu Auth thật: [runbook B1](docs/PILOT-B1-RUNBOOK.md) v�
 [báo cáo B1a](docs/PHASE-4-B1A-REPORT.md). Có CLI `pilot:preflight` chỉ đọc và
 `pilot:membership` mặc định dry-run; khi cấp quyền dùng `npm --silent` để npm
 không echo UUID/project ref trong arguments. B1a chưa tạo user, backup,
-migrate hay ghi membership cloud. B2 lát 1–3 đã scope API Tasks/Courses,
+migrate hay ghi membership cloud. B2 lát 1–4 đã scope API Tasks/Courses,
 Exams/Study plans/Expenses và các truy vấn chỉ đọc của chế độ Hỏi workspace.
 Viewer chỉ đọc các mục này; member/manager tạo và cập nhật, chỉ manager xóa
-exam/study plan/expense. Documents/signing/indexing/RAG/summary và ownership
-feedback vẫn chưa hoàn tất scope/quyền. Runtime `postgres`/bypass RLS chưa được
+exam/study plan/expense/document. Documents, signing, indexing, retrieval,
+summary và metadata đã scope theo principal; member/manager upload/gán môn/index,
+viewer chỉ xem/tải. Answer receipt/ownership feedback vẫn chưa hoàn tất.
+Runtime `postgres`/bypass RLS chưa được
 thay bằng role B2: chỉ dùng dữ liệu demo. Xem [báo cáo B2 lát 1–2](docs/PHASE-5-B2-SCOPE-REPORT.md)
-và [Đợt 6 — lát 3, runbook và rollback 014](docs/PHASE-6-REPORT.md).
+và [Đợt 6 — lát 3, runbook và rollback 014](docs/PHASE-6-REPORT.md),
+[Đợt 7 — Documents/RAG boundary](docs/PHASE-7-DOCUMENTS-RAG-SCOPE-REPORT.md).
 Vì vậy chỉ thử với dữ liệu demo, không public ứng dụng hoặc đưa dữ
 liệu/API key thật cho người dùng khác.
 
@@ -56,10 +59,10 @@ tải binary bằng URL đó. Health chỉ kiểm tra PostgreSQL. Code hiện c�
 gate, CSRF và giới hạn admission cho các lần đăng nhập. Tasks/Courses,
 Exams/Study plans/Expenses và Hỏi workspace đã lọc theo workspace của principal
 đã verify, không lấy workspace/role từ body/header/query. **Scope toàn ứng dụng
-và giới hạn ngân sách/lượt gọi AI chưa hoàn tất**: API Documents, signing,
-indexing và RAG/summary vẫn cần lát 4; answer receipt/feedback cần lát 5.
-Nếu provision thành viên trước khi hoàn tất các phần đó, họ vẫn có thể truy cập
-tài liệu dùng chung; không coi login là cách ly toàn bộ dữ liệu. Chỉ dùng
+và giới hạn ngân sách/lượt gọi AI chưa hoàn tất**: Documents/signing/indexing và
+RAG/summary đã có ranh giới workspace ở Nest, nhưng answer receipt/feedback còn
+lát 5 và least-privilege role/tenant RLS còn lát 6. Không coi login hay các test
+SQL bằng owner là bằng chứng cách ly toàn bộ ứng dụng. Chỉ dùng
 dữ liệu mẫu, không public API cho dữ liệu thật. Courses/Exams/study plans/Finances
 có dữ liệu minh họa; Notes lưu trên browser theo namespace principal nhưng
 không được mã hóa.
@@ -227,7 +230,7 @@ Script cuối ghi output vào `artifacts/` (ignore Git). Kiểm tra số **skipp
 
 DB test riêng (Docker engine phải chạy):
 
-Số lượng và kết quả đầy đủ mới nhất ở [báo cáo Đợt 6](docs/PHASE-6-REPORT.md).
+Số lượng và kết quả đầy đủ mới nhất ở [báo cáo Đợt 7](docs/PHASE-7-DOCUMENTS-RAG-SCOPE-REPORT.md).
 Harness tạo auth.users/auth.sessions tối thiểu
 chỉ cho FK/SQL; không phải Supabase Auth. Guard phải pass trước mọi Pool,
 migration/grant/cleanup: chỉ localhost hoặc 127.0.0.1, tên DB kết thúc `_test`,
@@ -295,8 +298,13 @@ Giới hạn còn lại: login/session đã kiểm bằng test và browser với
 gate đã kiểm ở 320–1440px; UI ba role đã thử với fixture local ở desktop/375px.
 Migration `012`–`014`, Auth/DB grants, membership thật
 và luồng workspace sau đăng nhập Supabase thật chưa nghiệm thu; chưa thử trên
-điện thoại vật lý. Chưa hoàn thành role matrix, scope từng bản ghi/tài liệu/RAG
-hoặc quota/usage budget AI. Bộ đánh giá RAG và feedback là công cụ hỗ trợ
+điện thoại vật lý. Documents/RAG đã scope ở service và kiểm role; chưa hoàn thành
+answer receipt/feedback ownership, tenant RLS hoặc quota/usage budget AI.
+`eval:rag --execute` hiện **BLOCKED**, exit 3: runner live chưa có principal
+workspace và bị chặn trước config/DB/Storage/Gemini; chờ đợt tích hợp Auth.
+Offline/dry-run vẫn chạy, không chứng minh chất lượng Gemini thật. Thu hồi quyền
+giữa index có thể để job ở `processing` và cần reconciliation; không tự bỏ
+guard để re-index. Bộ đánh giá RAG và feedback là công cụ hỗ trợ
 review: feedback người dùng không tự biến thành đáp án chuẩn hay verdict PASS.
 Upload buffer tối đa 10 MiB mỗi request; không transaction phân tán, không
 resumable upload/idempotency token. Schema AI/evaluation được giữ cho tương

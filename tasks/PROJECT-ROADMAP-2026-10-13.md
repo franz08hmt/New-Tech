@@ -144,13 +144,16 @@ manager thực hiện thao tác quản lý/xóa. Không cần public CRUD member
 
 Tách thành các lát:
 
-**Checkpoint Đợt 6:** nền 014, Tasks/Courses và lát 3 Exams/Study plans/Expenses
+**Checkpoint Đợt 7:** nền 014, Tasks/Courses và lát 3 Exams/Study plans/Expenses
 cùng workspace-records đã triển khai; xem [báo cáo Đợt 5](../docs/PHASE-5-B2-SCOPE-REPORT.md)
-và [báo cáo Đợt 6](../docs/PHASE-6-REPORT.md). Chưa áp cloud, chưa tạo
-`examate_app`/tenant RLS; các lát 4–5 và B1 thật vẫn chưa nghiệm thu.
-Documents/RAG/signing/summary và feedback ownership còn thiếu scope/quyền;
-workspace_id ở INSERT của chúng chỉ là nền tương thích NOT NULL, không phải
-bằng chứng đã cách ly toàn app. Runbook bootstrap 012→014 và rollback 014 đã
+và [báo cáo Đợt 6](../docs/PHASE-6-REPORT.md). Lát 4 Documents/signing/indexing/
+RAG/summary/metadata đã scope và kiểm role ở service; xem
+[báo cáo Đợt 7](../docs/PHASE-7-DOCUMENTS-RAG-SCOPE-REPORT.md).
+Chưa áp cloud, chưa tạo `examate_app`/tenant RLS; lát 5 và B1 thật chưa nghiệm thu.
+Feedback ownership/answer receipt và hạn mức AI còn thiếu; chưa cách ly toàn app.
+Runner live evaluation bị khóa trước mọi kết nối vì chưa có principal workspace;
+offline/dry-run giữ nguyên, tích hợp Auth cho runner là đợt riêng chưa chọn thiết kế.
+Runbook bootstrap 012→014 và rollback 014 đã
 kiểm trên DB disposable, chưa chạy cloud.
 
 1. Migration foundation/scope/backfill đã được duyệt, FK/indexes và role ít

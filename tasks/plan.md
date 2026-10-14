@@ -1,5 +1,30 @@
 # Implementation Plan: Tài tiếp quản Homework 3A
 
+## Kế hoạch Đợt 7 — Documents/RAG boundary (2026-10-14)
+
+Baseline `f7081eb`: bốn gate exit 0, 954 test thường; DB disposable 152 pass,
+skipped 0. Không sửa thuật toán RAG, AssistantPanel, migration hoặc cloud.
+Kết quả cuối: bốn gate + DB exit 0, 1.052 test thường, 177 DB pass/0 skipped.
+Xem [báo cáo Đợt 7](../docs/PHASE-7-DOCUMENTS-RAG-SCOPE-REPORT.md) cho RED,
+mutation, atomic authority, live runner BLOCKED và giới hạn PDF native của IAB.
+
+1. Viết RED HTTP/DB/UI trước runtime; golden nearest SQL `f7081eb` là regression
+   xanh trước/sau, không gọi nó là RED.
+2. API: principal từ guard, kiểm role và membership hiện tại trước Storage/index;
+   mọi document/course query scoped; giữ compensation upload sau lỗi DB.
+3. RAG: scope trong nearest CTE trước LIMIT; summary/metadata scoped; kiểm quyền
+   trước embed/Gemini. Chunks ghi trong transaction khóa document đã authorize.
+4. FE: Documents và khu vực tài liệu môn học theo role, không sửa AssistantPanel.
+5. Verify mutation, fixture browser desktop/375px ba role, PDF/download local;
+   bốn gate + DB; báo cáo tác động RAG và các lát chưa hoàn thành.
+6. Commit API/RAG/FE/docs riêng; chỉ push không force cùng nhánh khi các gate
+   xanh và tracked tree sạch. Giữ nguyên prompt untracked có trước.
+
+Membership recheck dùng AuthStore canonical (có transaction tùy chọn), không có
+identity/header/Storage key client hoặc fallback bỏ Auth. Thu hồi quyền giữa
+index phải fail closed; trạng thái processing có thể cần reconciliation như
+crash giữa job, không tự đổi scan/claim policy để vượt quyền.
+
 ## Kế hoạch Đợt 6 — hoàn tất phạm vi local (2026-10-14)
 
 Nhánh `feature/tai-rag-integration`, baseline `6586b5c`. Phần bên dưới là lịch sử.
