@@ -247,3 +247,13 @@ không đụng stack SOP hoặc database/Supabase dùng chung.
 Push không force cùng nhánh sau commit docs/gates/tracked tree sạch, không merge
 main. Giữ nguyên `docs/PHASE-4-RAG-EVALUATION-PROMPT.md` untracked có trước;
 không stage artifact, secret, migration cũ hoặc attribution Claude.
+
+### Kết quả push của lượt này
+
+Sau commit docs `136c15b`, fetch xác nhận remote không diverge (0 behind,
+5 ahead), tracked tree sạch. `git push origin feature/tai-rag-integration`
+không trả kết quả, Git Credential Manager còn chờ. Đã hỏi Tài tự hoàn tất đăng
+nhập, không xin/đọc token hoặc password. Khi chưa có phản hồi, hủy lệnh đang
+chờ (exit 1), **không tuyên bố push thành công**. `git ls-remote` sau hủy xác
+nhận remote vẫn `f7081eb`, chưa nhận commit Đợt 7. Commit docs bổ sung ghi lại
+giới hạn này; cần Tài hoàn tất Auth GitHub rồi push tiếp, không force/merge.
