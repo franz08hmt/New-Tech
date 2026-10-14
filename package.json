@@ -13,6 +13,7 @@
     "pilot:preflight": "npm run build --workspace @examate/api && npm run pilot:preflight --workspace @examate/api",
     "pilot:membership": "npm run build --workspace @examate/api && npm run --silent pilot:membership --workspace @examate/api --",
     "pilot:rollback-012-013": "npm run build --workspace @examate/api && npm run --silent pilot:rollback-012-013 --workspace @examate/api --",
+    "pilot:rollback-014": "npm run build --workspace @examate/api && npm run --silent pilot:rollback-014 --workspace @examate/api --",
     "dev:web": "npm run dev --workspace @examate/web",
     "dev:api": "npm run dev --workspace @examate/api",
     "build": "npm run build --workspaces --if-present",
