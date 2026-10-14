@@ -6,6 +6,7 @@ import { ExamsService } from "../dist/exams/exams.service.js";
 import { StudyPlansService } from "../dist/study-plans/study-plans.service.js";
 import { ExpensesService } from "../dist/expenses/expenses.service.js";
 import { DocumentsService } from "../dist/documents/documents.service.js";
+import { DocumentAccessService } from "../dist/documents/document-access.service.js";
 import { FeedbackService } from "../dist/feedback/feedback.service.js";
 
 const workspaceA = "22222222-2222-4222-8222-222222222222";
@@ -52,6 +53,15 @@ function insertFixture(options = {}) {
   const database = {
     async query(sql, values = []) {
       queries.push({ sql, values: [...values] });
+      if (/\bFROM\s+courses\b/i.test(sql)) {
+        events.push("course");
+        return {
+          rows:
+            values[0] === ownCourseId && values[1] === workspaceA
+              ? [{ id: ownCourseId }]
+              : [],
+        };
+      }
       if (/\bINSERT\s+INTO\b/i.test(sql)) {
         events.push("insert");
         const parsed = insertedValues(sql, values);
@@ -75,7 +85,10 @@ function insertFixture(options = {}) {
         )
           throw Object.assign(
             new Error("private composite foreign-key detail"),
-            { code: "23503" },
+            {
+              code: "23503",
+              constraint: `${parsed.table}_workspace_course_fk`,
+            },
           );
         if (parsed.table === "assistant_feedback")
           row.created_at = new Date(timestamp);
@@ -92,6 +105,9 @@ function insertFixture(options = {}) {
       }
       throw new Error("Unhandled SQL in insert compatibility fixture");
     },
+    async transaction(work) {
+      return work(database);
+    },
   };
   const storage = {
     async upload(key, bytes) {
@@ -104,6 +120,19 @@ function insertFixture(options = {}) {
     },
   };
   return { database, storage, queries, events, inserted, objects };
+}
+
+function documentsService(fixture) {
+  return new DocumentsService(
+    fixture.database,
+    fixture.storage,
+    new DocumentAccessService({
+      membership: async (workspaceId, userId) =>
+        workspaceId === principal.workspaceId && userId === principal.userId
+          ? principal.role
+          : undefined,
+    }),
+  );
 }
 
 function pdfFile() {
@@ -299,10 +328,11 @@ test("workspace INSERT compatibility: missing feedback principal is AUTH_REQUIRE
 
 test("workspace INSERT compatibility: document upload binds workspace and preserves public receipt", async () => {
   const fixture = insertFixture();
-  const result = await new DocumentsService(
-    fixture.database,
-    fixture.storage,
-  ).upload(pdfFile(), ownCourseId, principal);
+  const result = await documentsService(fixture).upload(
+    pdfFile(),
+    ownCourseId,
+    principal,
+  );
   assertWorkspaceInsert(fixture, "documents", {
     name: "fixture.pdf",
     course_id: ownCourseId,
@@ -313,27 +343,20 @@ test("workspace INSERT compatibility: document upload binds workspace and preser
   assert.equal(result.name, "fixture.pdf");
   assert.equal(result.storage_key, undefined);
   assert.equal(result.index_quality, null);
-  assert.deepEqual(fixture.events, ["upload", "insert"]);
+  assert.deepEqual(fixture.events, ["course", "upload", "insert"]);
   assert.equal(fixture.objects.size, 1);
 });
 
 test("workspace INSERT compatibility: document without course binds workspace with null course", async () => {
   const fixture = insertFixture();
-  await new DocumentsService(fixture.database, fixture.storage).upload(
-    pdfFile(),
-    undefined,
-    principal,
-  );
+  await documentsService(fixture).upload(pdfFile(), undefined, principal);
   assertWorkspaceInsert(fixture, "documents", { course_id: null });
 });
 
 test("workspace INSERT compatibility: missing document principal fails before Storage and SQL", async () => {
   const fixture = insertFixture();
   await assert.rejects(
-    new DocumentsService(fixture.database, fixture.storage).upload(
-      pdfFile(),
-      ownCourseId,
-    ),
+    documentsService(fixture).upload(pdfFile(), ownCourseId),
     hasSafeError(401, "AUTH_REQUIRED"),
   );
   assert.equal(fixture.queries.length, 0);
@@ -341,18 +364,14 @@ test("workspace INSERT compatibility: missing document principal fails before St
   assert.equal(fixture.objects.size, 0);
 });
 
-test("workspace INSERT compatibility: cross-workspace document course confirms absence then cleans object before safe 400", async () => {
+test("workspace INSERT compatibility: cross-workspace document course fails before upload or INSERT", async () => {
   const fixture = insertFixture({ enforceCourseWorkspace: true });
   await assert.rejects(
-    new DocumentsService(fixture.database, fixture.storage).upload(
-      pdfFile(),
-      outsideCourseId,
-      principal,
-    ),
-    hasSafeError(400, "COURSE_NOT_FOUND"),
+    documentsService(fixture).upload(pdfFile(), outsideCourseId, principal),
+    hasSafeError(404, "COURSE_NOT_FOUND"),
   );
-  assertWorkspaceInsert(fixture, "documents", { course_id: outsideCourseId });
-  assert.deepEqual(fixture.events, ["upload", "insert", "find", "remove"]);
+  assert.equal(fixture.inserted.length, 0);
+  assert.deepEqual(fixture.events, ["course"]);
   assert.equal(fixture.objects.size, 0);
 });
 
@@ -364,12 +383,13 @@ test("workspace INSERT compatibility: response-lost document INSERT preserves th
       { code: "ETIMEDOUT" },
     ),
   });
-  const result = await new DocumentsService(
-    fixture.database,
-    fixture.storage,
-  ).upload(pdfFile(), ownCourseId, principal);
+  const result = await documentsService(fixture).upload(
+    pdfFile(),
+    ownCourseId,
+    principal,
+  );
   assert.equal(result.id, fixture.inserted[0].row.id);
-  assert.deepEqual(fixture.events, ["upload", "insert", "find"]);
+  assert.deepEqual(fixture.events, ["course", "upload", "insert", "find"]);
   assert.equal(fixture.objects.size, 1);
 });
 
@@ -383,13 +403,9 @@ test("workspace INSERT compatibility: uncertain document reconciliation retains 
     documentLookupError: new Error("synthetic lookup outage"),
   });
   await assert.rejects(
-    new DocumentsService(fixture.database, fixture.storage).upload(
-      pdfFile(),
-      ownCourseId,
-      principal,
-    ),
+    documentsService(fixture).upload(pdfFile(), ownCourseId, principal),
     (error) => error === original,
   );
-  assert.deepEqual(fixture.events, ["upload", "insert", "find"]);
+  assert.deepEqual(fixture.events, ["course", "upload", "insert", "find"]);
   assert.equal(fixture.objects.size, 1);
 });

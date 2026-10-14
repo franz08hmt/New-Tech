@@ -129,7 +129,7 @@ test("HTTP health exposes only readiness, 503 on failure, then recovers", async 
   fixture.state.failHealth = false;
   assert.equal((await server.request("/health")).status, 200);
 });
-test("HTTP Documents: upload, list, signed download, delete and repeated delete", async () => {
+test("HTTP Documents: upload, list, signed download, delete and missing repeat returns safe 404", async () => {
   const response = await server.request("/documents", pdfForm());
   assert.equal(response.status, 201);
   const document = await response.json();
@@ -154,15 +154,15 @@ test("HTTP Documents: upload, list, signed download, delete and repeated delete"
   assert.equal(
     (await server.request(`/documents/${document.id}`, { method: "DELETE" }))
       .status,
-    204,
+    404,
   );
 });
 test("HTTP Documents validates process UUID and delegates document indexing", async () => {
   await server.app.close();
   const processed = [];
   const ingestion = {
-    async process(id) {
-      processed.push(id);
+    async process(id, principal) {
+      processed.push({ id, principal });
       return {
         document_id: id,
         processing_status: "ready",
@@ -217,7 +217,13 @@ test("HTTP Documents validates process UUID and delegates document indexing", as
       ocr_page_numbers: [],
     },
   });
-  assert.deepEqual(processed, [id]);
+  assert.equal(processed.length, 1);
+  assert.ok(processed[0].id === id);
+  assert.deepEqual(processed[0].principal, {
+    userId: "11111111-1111-4111-8111-111111111111",
+    workspaceId: "22222222-2222-4222-8222-222222222222",
+    role: "manager",
+  });
 });
 for (const [label, form] of [
   ["extension", () => pdfForm("%PDF-1.4", "file.txt")],

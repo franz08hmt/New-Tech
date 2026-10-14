@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   PayloadTooLargeException,
@@ -8,7 +9,7 @@ import {
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type { StoredDocument, PilotPrincipal } from "@examate/contracts";
-import { requirePrincipal } from "../auth/principal.js";
+import { DocumentAccessService } from "./document-access.service.js";
 import { DatabaseService } from "../database/database.service.js";
 import { log } from "../common/log.js";
 import { StorageService } from "./storage.service.js";
@@ -72,7 +73,7 @@ const DOCUMENT_COLUMNS = `d.id,
   d.updated_at`;
 
 const DOCUMENT_FROM = `FROM documents d
-  LEFT JOIN courses c ON c.id = d.course_id`;
+  LEFT JOIN courses c ON c.id = d.course_id AND c.workspace_id = d.workspace_id`;
 /**
  * Recovers a filename that multipart parsing handed back as Latin-1.
  *
@@ -96,11 +97,25 @@ function uploadWriteError(error: unknown) {
   if (
     error &&
     typeof error === "object" &&
-    (error as { code?: string }).code === "23503"
+    (error as { code?: string }).code === "23503" &&
+    (error as { constraint?: string }).constraint ===
+      "documents_workspace_course_fk"
   ) {
-    return new BadRequestException({
+    return new NotFoundException({
       code: "COURSE_NOT_FOUND",
       message: "Môn học này không còn trong danh sách nữa.",
+    });
+  }
+  if (
+    error &&
+    typeof error === "object" &&
+    (error as { code?: string }).code === "23503" &&
+    (error as { constraint?: string }).constraint === "documents_workspace_fk"
+  ) {
+    return new ForbiddenException({
+      code: "WORKSPACE_ACCESS_DENIED",
+      message:
+        "Workspace này không còn sẵn sàng. Nhờ người quản lý kiểm tra lại nhé.",
     });
   }
   return error;
@@ -145,26 +160,52 @@ export class DocumentsService {
   constructor(
     private readonly database: DatabaseService,
     private readonly storage: StorageService,
+    private readonly access: DocumentAccessService,
   ) {}
 
-  async list() {
+  async list(principal?: PilotPrincipal) {
+    const { workspaceId } = await this.access.authorize(principal);
     const result = await this.database.query<DocumentRecord>(
       `SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM}
-       ORDER BY d.created_at DESC, d.id DESC`,
+       WHERE d.workspace_id = $1 ORDER BY d.created_at DESC, d.id DESC`,
+      [workspaceId],
     );
     return result.rows.map(publicDocument);
   }
 
-  private async find(id: string) {
+  private async find(id: string, workspaceId: string) {
     const result = await this.database.query<DocumentRecord>(
-      `SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM} WHERE d.id = $1`,
-      [id],
+      `SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM} WHERE d.id = $1 AND d.workspace_id = $2`,
+      [id, workspaceId],
     );
     return result.rows[0];
   }
 
+  async get(id: string, principal?: PilotPrincipal): Promise<StoredDocument> {
+    const { workspaceId } = await this.access.authorize(principal);
+    const document = await this.find(id, workspaceId);
+    if (!document) throw new NotFoundException("Document not found");
+    return publicDocument(document);
+  }
+
+  private async checkCourse(
+    courseId: string | null | undefined,
+    workspaceId: string,
+  ) {
+    if (!courseId) return;
+    const result = await this.database.query(
+      "SELECT id FROM courses WHERE id = $1 AND workspace_id = $2",
+      [courseId, workspaceId],
+    );
+    if (!result.rows.length)
+      throw new NotFoundException({
+        code: "COURSE_NOT_FOUND",
+        message: "Môn học này không còn trong danh sách của workspace nữa.",
+      });
+  }
+
   async upload(file?: PdfFile, courseId?: string, principal?: PilotPrincipal) {
-    const { workspaceId } = requirePrincipal(principal);
+    const { workspaceId } = await this.access.authorize(principal, "write");
     if (!file)
       throw new BadRequestException(
         "One PDF file in the 'file' field is required",
@@ -189,29 +230,34 @@ export class DocumentsService {
       throw new BadRequestException(
         "PDF filename must contain 5..255 characters",
       );
+    await this.checkCourse(courseId, workspaceId);
+    await this.access.authorize(principal, "write");
     const id = randomUUID();
     const key = `documents/${id}.pdf`;
     try {
       await this.storage.upload(key, file.buffer);
     } catch (error) {
-      // Timeout may occur AFTER Storage accepted the object; keep its key in logs.
+      // Timeout may occur AFTER Storage accepted the object; retain only its ID
+      // for reconciliation, not the private object key.
       log("error", "document.upload_uncertain", {
         documentId: id,
-        storageKey: key,
       });
       throw error;
     }
     try {
-      const result = await this.database.query<DocumentRecord>(
-        `WITH inserted AS (
+      const result = await this.database.transaction(async (tx) => {
+        await this.access.authorize(principal, "write", tx);
+        return tx.query<DocumentRecord>(
+          `WITH inserted AS (
            INSERT INTO documents
              (id, name, media_type, storage_key, size_bytes, storage_status, course_id, workspace_id)
            VALUES ($1, $2, 'application/pdf', $3, $4, 'stored', $5, $6)
            RETURNING *
          )
          SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM.replace("FROM documents d", "FROM inserted d")}`,
-        [id, name, key, file.size, courseId ?? null, workspaceId],
-      );
+          [id, name, key, file.size, courseId ?? null, workspaceId],
+        );
+      });
       log("info", "document.stored", { documentId: id, sizeBytes: file.size });
       return publicDocument(result.rows[0]);
     } catch (error) {
@@ -219,32 +265,41 @@ export class DocumentsService {
       // Confirm absence before compensating, to avoid deleting a committed file.
       let existing: DocumentRecord | undefined;
       try {
-        existing = await this.find(id);
+        existing = await this.find(id, workspaceId);
       } catch {
         log("error", "document.reconciliation_required", {
           documentId: id,
-          storageKey: key,
         });
         throw uploadWriteError(error);
       }
-      if (existing) return publicDocument(existing);
+      if (existing) {
+        await this.access.authorize(principal, "write");
+        return publicDocument(existing);
+      }
+      // Compensation concerns only this request's newly allocated object, not
+      // a key supplied by a client or a different workspace's document.
       try {
         await this.storage.remove(key);
       } catch {
         log("error", "document.cleanup_failed", {
           documentId: id,
-          storageKey: key,
         });
       }
       throw uploadWriteError(error);
     }
   }
 
-  async download(id: string, options: { inline?: boolean } = {}) {
-    const document = await this.find(id);
+  async download(
+    id: string,
+    options: { inline?: boolean } = {},
+    principal?: PilotPrincipal,
+  ) {
+    const { workspaceId } = await this.access.authorize(principal);
+    const document = await this.find(id, workspaceId);
     if (!document) throw new NotFoundException("Document not found");
     if (document.storage_status !== "stored")
       throw new ConflictException("Document is not available for download");
+    await this.access.authorize(principal);
     return this.storage.signedDownload(
       document.storage_key,
       document.name,
@@ -253,48 +308,61 @@ export class DocumentsService {
   }
 
   /** Re-file a document under another subject, or under none. */
-  async setCourse(id: string, courseId: string | null) {
+  async setCourse(
+    id: string,
+    courseId: string | null,
+    principal?: PilotPrincipal,
+  ) {
+    const { workspaceId } = await this.access.authorize(principal, "write");
+    if (!(await this.find(id, workspaceId)))
+      throw new NotFoundException("Document not found");
+    await this.checkCourse(courseId, workspaceId);
     const result = await this.database
-      .query<DocumentRecord>(
-        `WITH updated AS (
+      .transaction(async (tx) => {
+        await this.access.authorize(principal, "write", tx);
+        return tx.query<DocumentRecord>(
+          `WITH updated AS (
            UPDATE documents SET course_id = $2, updated_at = NOW()
-           WHERE id = $1
+           WHERE id = $1 AND workspace_id = $3
            RETURNING *
          )
          SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM.replace("FROM documents d", "FROM updated d")}`,
-        [id, courseId],
-      )
+          [id, courseId, workspaceId],
+        );
+      })
       .catch((error: unknown) => {
-        if (
-          error &&
-          typeof error === "object" &&
-          (error as { code?: string }).code === "23503"
-        ) {
-          throw new BadRequestException({
-            code: "COURSE_NOT_FOUND",
-            message: "Môn học này không còn trong danh sách nữa.",
-          });
-        }
-        throw error;
+        throw uploadWriteError(error);
       });
     const document = result.rows[0];
     if (!document) throw new NotFoundException("Document not found");
     return publicDocument(document);
   }
 
-  async remove(id: string) {
-    const document = await this.find(id);
-    if (!document) return; // Idempotent 204, also after a lost successful response.
+  async remove(id: string, principal?: PilotPrincipal) {
+    const { workspaceId } = await this.access.authorize(principal, "delete");
+    const document = await this.find(id, workspaceId);
+    if (!document) throw new NotFoundException("Document not found");
     if (document.storage_status === "legacy")
       throw new ConflictException(
         "Legacy document requires manual storage reconciliation",
       );
-    await this.database.query(
-      "UPDATE documents SET storage_status = 'deleting', updated_at = NOW() WHERE id = $1",
-      [id],
-    );
+    const marked = await this.database.transaction(async (tx) => {
+      await this.access.authorize(principal, "delete", tx);
+      return tx.query(
+        "UPDATE documents SET storage_status = 'deleting', updated_at = NOW() WHERE id = $1 AND workspace_id = $2 RETURNING id",
+        [id, workspaceId],
+      );
+    });
+    if (!marked.rows.length) throw new NotFoundException("Document not found");
+    await this.access.authorize(principal, "delete");
     await this.storage.remove(document.storage_key);
-    await this.database.query("DELETE FROM documents WHERE id = $1", [id]);
+    await this.database.transaction(async (tx) => {
+      await this.access.authorize(principal, "delete", tx);
+      return tx.query(
+        "DELETE FROM documents WHERE id = $1 AND workspace_id = $2",
+        [id, workspaceId],
+      );
+    });
     log("info", "document.deleted", { documentId: id });
   }
 }

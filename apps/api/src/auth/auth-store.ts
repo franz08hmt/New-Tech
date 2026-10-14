@@ -132,10 +132,11 @@ export class AuthStore {
   async membership(
     workspaceId: string,
     userId: string,
+    tx?: DatabaseTransaction,
   ): Promise<PilotRole | undefined> {
     const row = (
-      await this.db.query<{ role: PilotRole }>(
-        `SELECT m.role FROM workspace_memberships m JOIN workspaces w ON w.id=m.workspace_id WHERE m.workspace_id=$1 AND m.user_id=$2 AND m.active=true AND w.active=true`,
+      await (tx ?? this.db).query<{ role: PilotRole }>(
+        `SELECT m.role FROM workspace_memberships m JOIN workspaces w ON w.id=m.workspace_id WHERE m.workspace_id=$1 AND m.user_id=$2 AND m.active=true AND w.active=true${tx ? " FOR SHARE OF m, w" : ""}`,
         [workspaceId, userId],
       )
     ).rows[0];

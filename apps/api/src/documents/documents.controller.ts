@@ -30,8 +30,12 @@ export class DocumentsController {
     private readonly documents: DocumentsService,
     private readonly ingestion: DocumentIngestionService,
   ) {}
-  @Get() list() {
-    return this.documents.list();
+  @Get() list(@Req() req: AuthRequest) {
+    return this.documents.list(req.principal);
+  }
+  @Get(":id")
+  get(@Param("id", new ParseUUIDPipe()) id: string, @Req() req: AuthRequest) {
+    return this.documents.get(id, req.principal);
   }
   @Post()
   @UseInterceptors(
@@ -58,28 +62,40 @@ export class DocumentsController {
   }
   @Post(":id/process")
   @HttpCode(200)
-  process(@Param("id", new ParseUUIDPipe()) id: string) {
-    return this.ingestion.process(id);
+  process(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthRequest,
+  ) {
+    return this.ingestion.process(id, req.principal);
   }
   @Get(":id/download")
   download(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Query() query: DownloadDocumentQueryDto,
+    @Req() req: AuthRequest,
   ) {
-    return this.documents.download(id, {
-      inline: query.disposition === "inline",
-    });
+    return this.documents.download(
+      id,
+      {
+        inline: query.disposition === "inline",
+      },
+      req.principal,
+    );
   }
   @Patch(":id/course")
   setCourse(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Body() input: SetDocumentCourseDto,
+    @Req() req: AuthRequest,
   ) {
-    return this.documents.setCourse(id, input.courseId);
+    return this.documents.setCourse(id, input.courseId, req.principal);
   }
   @Delete(":id")
   @HttpCode(204)
-  remove(@Param("id", new ParseUUIDPipe()) id: string) {
-    return this.documents.remove(id);
+  remove(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthRequest,
+  ) {
+    return this.documents.remove(id, req.principal);
   }
 }

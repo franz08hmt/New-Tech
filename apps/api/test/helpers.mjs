@@ -24,16 +24,25 @@ export async function httpApp(
   listenOptions = { host: "127.0.0.1", port: 0 },
 ) {
   let builder = Test.createTestingModule({ imports: [AppModule] });
-  // Domain regression tests inject a trusted Auth service, never a runtime bypass.
-  if (!authProviders)
-    builder = builder.overrideProvider(AuthService).useValue({
-      authenticate: async () => ({
-        userId: "11111111-1111-4111-8111-111111111111",
-        workspaceId: fixtureWorkspaceId,
-        role: "member",
-      }),
-    });
-  else {
+  // Full-CRUD domain regressions use a trusted manager fixture. New role-matrix
+  // suites use real AuthService/PilotAuthGuard and configurable memberships.
+  if (!authProviders) {
+    const principal = {
+      userId: "11111111-1111-4111-8111-111111111111",
+      workspaceId: fixtureWorkspaceId,
+      role: "manager",
+    };
+    builder = builder
+      .overrideProvider(AuthService)
+      .useValue({ authenticate: async () => principal })
+      .overrideProvider(AuthStore)
+      .useValue({
+        membership: async (workspaceId, userId) =>
+          workspaceId === principal.workspaceId && userId === principal.userId
+            ? principal.role
+            : undefined,
+      });
+  } else {
     builder = builder
       .overrideProvider(AUTH_CONFIG)
       .useValue(() => authProviders.config)
@@ -226,18 +235,48 @@ export function fakeDependencies() {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
+        if (row.course_id !== null) {
+          const course = [...courses.values()].find(
+            (item) => item.id === row.course_id,
+          );
+          if (!course || course.workspace_id !== row.workspace_id)
+            throw Object.assign(new Error("synthetic course FK failure"), {
+              code: "23503",
+              constraint: "documents_workspace_course_fk",
+            });
+        }
         documents.set(row.id, row);
         return { rows: selectedRows([row]) };
       }
       if (sql.includes("UPDATE documents")) {
-        const row = documents.get(values[0]);
-        if (row) row.storage_status = "deleting";
-        return { rows: [] };
+        const rows = matchingRows([...documents.values()], sql, values);
+        for (const row of rows) {
+          if (/storage_status\s*=\s*'deleting'/i.test(sql))
+            row.storage_status = "deleting";
+          const bind = sql.match(/course_id\s*=\s*\$(\d+)/i);
+          if (bind) {
+            const courseId = values[Number(bind[1]) - 1];
+            const course = [...courses.values()].find(
+              (item) => item.id === courseId,
+            );
+            if (
+              courseId !== null &&
+              (!course || course.workspace_id !== row.workspace_id)
+            )
+              throw Object.assign(new Error("synthetic course FK failure"), {
+                code: "23503",
+                constraint: "documents_workspace_course_fk",
+              });
+            row.course_id = courseId;
+          }
+        }
+        return { rows: selectedRows(rows), rowCount: rows.length };
       }
       if (sql.includes("DELETE FROM documents")) {
         if (state.failDbDelete) throw new Error("database deletion failed");
-        documents.delete(values[0]);
-        return { rows: [] };
+        const rows = matchingRows([...documents.values()], sql, values);
+        rows.forEach((row) => documents.delete(row.id));
+        return { rows: selectedRows(rows), rowCount: rows.length };
       }
       if (sql.includes("FROM documents"))
         return {
@@ -246,6 +285,9 @@ export function fakeDependencies() {
           ),
         };
       throw new Error("Unhandled SQL in test fixture");
+    },
+    async transaction(work) {
+      return work(database);
     },
   };
   const storage = {

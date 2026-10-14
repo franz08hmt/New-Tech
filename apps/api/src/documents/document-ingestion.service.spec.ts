@@ -4,11 +4,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { EmbeddingError } from "../assistant/gemini-embedding.service.js";
 import { DocumentIngestionService } from "./document-ingestion.service.js";
 import { DocumentOcrError } from "./document-ocr.service.js";
+import { DocumentAccessService } from "./document-access.service.js";
+const principal = {
+  userId: "55555555-5555-4555-8555-555555555555",
+  workspaceId: "66666666-6666-4666-8666-666666666666",
+  role: "member" as const,
+};
 
 const indexedAt = "2026-09-25T12:00:00.000Z";
 const vector = () => [1, ...Array.from({ length: 767 }, () => 0)];
 
 function fixture() {
+  let membershipActive = true;
   const document: {
     id: string;
     name: string;
@@ -67,6 +74,34 @@ function fixture() {
       const beforeDocument = { ...document };
       const tx = {
         query: vi.fn(async (sql: string, values: unknown[] = []) => {
+          // Claim and failure bookkeeping now share their membership check's
+          // transaction. Keep the same fixture transition implementation.
+          if (
+            sql.includes("processing_status = 'processing'") &&
+            sql.includes("UPDATE documents") &&
+            !sql.includes("processing_status = 'ready'")
+          )
+            return database.query(sql, values);
+          if (
+            sql.includes("UPDATE documents") &&
+            sql.includes("processing_status = 'failed'")
+          )
+            return database.query(sql, values);
+          if (
+            sql.includes("SELECT id FROM documents") &&
+            sql.includes("FOR UPDATE")
+          )
+            return {
+              rows:
+                values[0] === document.id &&
+                values[1] === principal.workspaceId &&
+                document.storage_status === "stored" &&
+                document.processing_status === "processing"
+                  ? [{ id: document.id }]
+                  : [],
+            };
+          if (sql.includes("FROM documents WHERE id = $1"))
+            return database.query(sql, values);
           if (sql.includes("DELETE FROM document_chunks")) {
             chunks = [];
             return { rows: [] };
@@ -139,6 +174,9 @@ function fixture() {
     extractor as never,
     ocr as never,
     embeddings as never,
+    new DocumentAccessService({
+      membership: vi.fn(async () => (membershipActive ? "member" : undefined)),
+    } as never),
   );
   return {
     service,
@@ -158,16 +196,42 @@ function fixture() {
     set failInsert(value: boolean) {
       failInsert = value;
     },
+    set membershipActive(value: boolean) {
+      membershipActive = value;
+    },
   };
 }
 
 describe("DocumentIngestionService", () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it("refuses stale indexing work when membership is revoked after embedding but before chunk replacement", async () => {
+    const item = fixture();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const oldChunk = {
+      document_id: item.document.id,
+      content: "Existing searchable content.",
+    };
+    item.chunks = [oldChunk];
+    item.embeddings.embedDocuments.mockImplementation(async () => {
+      item.membershipActive = false;
+      return [vector(), vector()];
+    });
+    await expect(
+      item.service.process(item.document.id, principal),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(item.database.transaction).toHaveBeenCalledTimes(3);
+    expect(item.chunks).toEqual([oldChunk]);
+    expect(item.insertCalls).toEqual([]);
+    expect(item.document.processing_status).toBe("processing");
+  });
+
   it("downloads, extracts, embeds and atomically replaces document chunks", async () => {
     const item = fixture();
     vi.spyOn(console, "log").mockImplementation(() => {});
-    await expect(item.service.process(item.document.id)).resolves.toEqual({
+    await expect(
+      item.service.process(item.document.id, principal),
+    ).resolves.toEqual({
       document_id: item.document.id,
       processing_status: "ready",
       chunk_count: 2,
@@ -208,7 +272,9 @@ describe("DocumentIngestionService", () => {
   it("rejects a concurrent processing request before Storage or Gemini", async () => {
     const item = fixture();
     item.document.processing_status = "processing";
-    await expect(item.service.process(item.document.id)).rejects.toMatchObject({
+    await expect(
+      item.service.process(item.document.id, principal),
+    ).rejects.toMatchObject({
       status: 409,
       response: { code: "DOCUMENT_PROCESSING" },
     });
@@ -234,17 +300,17 @@ describe("DocumentIngestionService", () => {
       attemptedPageNumbers: [2],
     });
 
-    await expect(item.service.process(item.document.id)).resolves.toMatchObject(
-      {
-        index_quality: {
-          useful_text_page_count: 2,
-          low_text_page_count: 0,
-          needs_ocr: false,
-          ocr_page_count: 1,
-          ocr_page_numbers: [2],
-        },
+    await expect(
+      item.service.process(item.document.id, principal),
+    ).resolves.toMatchObject({
+      index_quality: {
+        useful_text_page_count: 2,
+        low_text_page_count: 0,
+        needs_ocr: false,
+        ocr_page_count: 1,
+        ocr_page_numbers: [2],
       },
-    );
+    });
     expect(item.embeddings.embedDocuments).toHaveBeenCalledWith("study.pdf", [
       "First source paragraph.",
       "Recovered OCR paragraph with useful information.",
@@ -255,7 +321,9 @@ describe("DocumentIngestionService", () => {
     const item = fixture();
     item.chunks = [{ document_id: item.document.id, content: "old evidence" }];
     item.ocr.recover.mockRejectedValue(new DocumentOcrError("OCR_TIMEOUT"));
-    await expect(item.service.process(item.document.id)).rejects.toMatchObject({
+    await expect(
+      item.service.process(item.document.id, principal),
+    ).rejects.toMatchObject({
       status: 504,
       response: { code: "OCR_TIMEOUT" },
     });
@@ -271,7 +339,9 @@ describe("DocumentIngestionService", () => {
       { page: 1, text: "" },
       { page: 2, text: "" },
     ]);
-    await expect(item.service.process(item.document.id)).rejects.toMatchObject({
+    await expect(
+      item.service.process(item.document.id, principal),
+    ).rejects.toMatchObject({
       status: 422,
       response: { code: "NO_USEFUL_TEXT" },
     });
@@ -288,7 +358,9 @@ describe("DocumentIngestionService", () => {
       { page: 2, text: "Top Sites\n3" },
     ]);
 
-    await expect(item.service.process(item.document.id)).rejects.toMatchObject({
+    await expect(
+      item.service.process(item.document.id, principal),
+    ).rejects.toMatchObject({
       status: 422,
       response: { code: "NO_USEFUL_TEXT" },
     });
@@ -303,17 +375,19 @@ describe("DocumentIngestionService", () => {
     item.embeddings.embedDocuments
       .mockRejectedValueOnce(new EmbeddingError("timeout"))
       .mockResolvedValueOnce([vector(), vector()]);
-    await expect(item.service.process(item.document.id)).rejects.toMatchObject({
+    await expect(
+      item.service.process(item.document.id, principal),
+    ).rejects.toMatchObject({
       status: 504,
       response: { code: "EMBEDDING_TIMEOUT" },
     });
     expect(item.document.processing_status).toBe("failed");
-    await expect(item.service.process(item.document.id)).resolves.toMatchObject(
-      {
-        processing_status: "ready",
-        chunk_count: 2,
-      },
-    );
+    await expect(
+      item.service.process(item.document.id, principal),
+    ).resolves.toMatchObject({
+      processing_status: "ready",
+      chunk_count: 2,
+    });
     expect(item.chunks).toHaveLength(2);
     expect(item.embeddings.embedDocuments).toHaveBeenCalledTimes(2);
   });
@@ -322,9 +396,9 @@ describe("DocumentIngestionService", () => {
     const item = fixture();
     item.chunks = [{ document_id: item.document.id, content: "old evidence" }];
     item.failInsert = true;
-    await expect(item.service.process(item.document.id)).rejects.toThrow(
-      "fixture insert failure",
-    );
+    await expect(
+      item.service.process(item.document.id, principal),
+    ).rejects.toThrow("fixture insert failure");
     expect(item.chunks).toEqual([
       { document_id: item.document.id, content: "old evidence" },
     ]);
@@ -339,7 +413,9 @@ describe("DocumentIngestionService", () => {
       [1, 2],
       [1, 2],
     ]);
-    await expect(item.service.process(item.document.id)).rejects.toMatchObject({
+    await expect(
+      item.service.process(item.document.id, principal),
+    ).rejects.toMatchObject({
       status: 502,
       response: { code: "EMBEDDING_INVALID_RESPONSE" },
     });

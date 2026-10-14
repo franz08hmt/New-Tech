@@ -9,6 +9,8 @@ import {
   UnprocessableEntityException,
 } from "@nestjs/common";
 import type { QueryResultRow } from "pg";
+import type { PilotPrincipal } from "@examate/contracts";
+import { DocumentAccessService } from "./document-access.service.js";
 import {
   EmbeddingError,
   GeminiEmbeddingService,
@@ -53,19 +55,25 @@ export class DocumentIngestionService {
     private readonly extractor: PdfTextExtractorService,
     private readonly ocr: DocumentOcrService,
     private readonly embeddings: GeminiEmbeddingService,
+    private readonly access: DocumentAccessService,
   ) {}
 
-  async process(documentId: string) {
+  async process(documentId: string, principal?: PilotPrincipal) {
     const startedAt = Date.now();
-    const document = await this.claim(documentId);
+    const { workspaceId } = await this.access.authorize(principal, "write");
+    const document = await this.claim(documentId, workspaceId, principal);
     try {
+      await this.access.authorize(principal, "write");
       const buffer = await this.storage.downloadBuffer(document.storage_key);
+      await this.access.authorize(principal, "write");
       const nativePages = await this.extractor.extract(buffer);
+      await this.access.authorize(principal, "write");
       const { pages } = await this.ocr.recover(buffer, nativePages);
       const prepared = prepareDocumentPages(pages);
       const { chunks, quality } = prepared;
       if (chunks.length === 0)
         throw new DocumentChunkingError("NO_USEFUL_TEXT");
+      await this.access.authorize(principal, "write");
       const vectors = await this.embeddings.embedDocuments(
         document.name,
         chunks.map(({ content }) => content),
@@ -74,9 +82,18 @@ export class DocumentIngestionService {
         throw new EmbeddingError("invalid_response");
 
       const indexedAt = await this.database.transaction(async (tx) => {
-        await tx.query("DELETE FROM document_chunks WHERE document_id = $1", [
-          document.id,
-        ]);
+        await this.access.authorize(principal, "write", tx);
+        // Lock the authorized parent while replacing derived chunks. A delete
+        // or state change during extraction cannot commit work to another job.
+        const locked = await tx.query(
+          "SELECT id FROM documents WHERE id = $1 AND workspace_id = $2 AND storage_status = 'stored' AND processing_status = 'processing' FOR UPDATE",
+          [document.id, workspaceId],
+        );
+        if (!locked.rows.length) throw new ProcessingStateError();
+        await tx.query(
+          "DELETE FROM document_chunks dc USING documents d WHERE dc.document_id = d.id AND d.id = $1 AND d.workspace_id = $2",
+          [document.id, workspaceId],
+        );
         for (let start = 0; start < chunks.length; start += 50) {
           await this.insertBatch(
             tx,
@@ -100,6 +117,7 @@ export class DocumentIngestionService {
                ocr_page_numbers = $9::smallint[],
                updated_at = NOW()
            WHERE id = $1
+             AND workspace_id = $10
              AND storage_status = 'stored'
              AND processing_status = 'processing'
            RETURNING indexed_at::text AS indexed_at`,
@@ -113,6 +131,7 @@ export class DocumentIngestionService {
             quality.needsOcr,
             quality.ocrPageNumbers.length,
             quality.ocrPageNumbers,
+            workspaceId,
           ],
         );
         if (!ready.rows[0]) throw new ProcessingStateError();
@@ -150,17 +169,21 @@ export class DocumentIngestionService {
     } catch (error: unknown) {
       const code = this.processingCode(error);
       try {
-        await this.database.query(
-          `UPDATE documents
+        await this.database.transaction(async (tx) => {
+          await this.access.authorize(principal, "write", tx);
+          return tx.query(
+            `UPDATE documents
            SET processing_status = 'failed',
                indexed_at = NULL,
                processing_error_code = $2,
                updated_at = NOW()
            WHERE id = $1
+             AND workspace_id = $3
              AND storage_status = 'stored'
              AND processing_status = 'processing'`,
-          [document.id, code],
-        );
+            [document.id, code, workspaceId],
+          );
+        });
       } catch (stateError) {
         log("error", "document.processing_reconciliation_required", {
           documentId,
@@ -177,35 +200,43 @@ export class DocumentIngestionService {
     }
   }
 
-  private async claim(documentId: string) {
-    const claimed = await this.database.query<IngestionDocument>(
-      `UPDATE documents
+  private async claim(
+    documentId: string,
+    workspaceId: string,
+    principal?: PilotPrincipal,
+  ) {
+    return this.database.transaction(async (tx) => {
+      await this.access.authorize(principal, "write", tx);
+      const claimed = await tx.query<IngestionDocument>(
+        `UPDATE documents
        SET processing_status = 'processing',
            indexed_at = NULL,
            processing_error_code = NULL,
            updated_at = NOW()
        WHERE id = $1
+         AND workspace_id = $2
          AND storage_status = 'stored'
          AND processing_status IN ('pending', 'failed', 'ready')
        RETURNING id, name, storage_key, storage_status, processing_status`,
-      [documentId],
-    );
-    if (claimed.rows[0]) return claimed.rows[0];
+        [documentId, workspaceId],
+      );
+      if (claimed.rows[0]) return claimed.rows[0];
 
-    const current = await this.database.query<IngestionDocument>(
-      `SELECT id, name, storage_key, storage_status, processing_status
-       FROM documents WHERE id = $1`,
-      [documentId],
-    );
-    if (!current.rows[0]) throw new NotFoundException("Document not found");
-    if (current.rows[0].processing_status === "processing")
+      const current = await tx.query<IngestionDocument>(
+        `SELECT id, name, storage_key, storage_status, processing_status
+       FROM documents WHERE id = $1 AND workspace_id = $2`,
+        [documentId, workspaceId],
+      );
+      if (!current.rows[0]) throw new NotFoundException("Document not found");
+      if (current.rows[0].processing_status === "processing")
+        throw new ConflictException({
+          code: "DOCUMENT_PROCESSING",
+          message: "Document processing is already in progress.",
+        });
       throw new ConflictException({
-        code: "DOCUMENT_PROCESSING",
-        message: "Document processing is already in progress.",
+        code: "DOCUMENT_NOT_PROCESSABLE",
+        message: "Document is not available for processing.",
       });
-    throw new ConflictException({
-      code: "DOCUMENT_NOT_PROCESSABLE",
-      message: "Document is not available for processing.",
     });
   }
 

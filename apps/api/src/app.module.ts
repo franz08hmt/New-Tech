@@ -21,6 +21,7 @@ import { TasksController } from "./tasks/tasks.controller.js";
 import { TasksService } from "./tasks/tasks.service.js";
 import { DocumentsController } from "./documents/documents.controller.js";
 import { DocumentsService } from "./documents/documents.service.js";
+import { DocumentAccessService } from "./documents/document-access.service.js";
 import { StorageService } from "./documents/storage.service.js";
 import { PdfTextExtractorService } from "./documents/pdf-text-extractor.service.js";
 import { DocumentIngestionService } from "./documents/document-ingestion.service.js";
@@ -57,6 +58,7 @@ import { ExpensesService } from "./expenses/expenses.service.js";
     DatabaseService,
     TasksService,
     DocumentsService,
+    DocumentAccessService,
     StorageService,
     PdfTextExtractorService,
     DocumentOcrService,
