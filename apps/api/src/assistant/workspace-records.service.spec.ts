@@ -6,6 +6,11 @@ import {
   WorkspaceRecordsService,
 } from "./workspace-records.service.js";
 
+const principal = {
+  userId: "11111111-1111-4111-8111-111111111111",
+  workspaceId: "22222222-2222-4222-8222-222222222222",
+  role: "member" as const,
+};
 const COURSE = "11111111-1111-4111-8111-111111111111";
 const NOW = { date: "2026-09-29", time: "00:30" };
 const id = (n: number) =>
@@ -21,15 +26,15 @@ function recording(rows: Record<string, unknown>[] = []) {
 
 async function allQueries() {
   const { records, query } = recording([{ count: 2 }]);
-  await records.courses();
-  await records.tasks({ state: "open" });
-  await records.tasks({ state: "done" });
-  await records.exams(null, NOW);
-  await records.exams(COURSE, NOW);
-  await records.studyPlans(COURSE, { state: "open" });
-  await records.courseExpenses(COURSE);
-  await records.unassignedExpenseCount();
-  await records.documents();
+  await records.courses(principal);
+  await records.tasks({ state: "open" }, principal);
+  await records.tasks({ state: "done" }, principal);
+  await records.exams(null, NOW, principal);
+  await records.exams(COURSE, NOW, principal);
+  await records.studyPlans(COURSE, { state: "open" }, principal);
+  await records.courseExpenses(COURSE, principal);
+  await records.unassignedExpenseCount(principal);
+  await records.documents(principal);
   return query.mock.calls.map(([sql, values]) => ({
     sql: String(sql).replace(/\s+/g, " ").trim(),
     values: values ?? [],
@@ -166,7 +171,7 @@ describe("WorkspaceRecordsService", () => {
 
   it("reads the unassigned count as a number", async () => {
     const { records } = recording([{ count: "3" }]);
-    await expect(records.unassignedExpenseCount()).resolves.toBe(3);
+    await expect(records.unassignedExpenseCount(principal)).resolves.toBe(3);
   });
 
   it("finds the one unfinished task behind 200 finished ones", async () => {
@@ -186,7 +191,7 @@ describe("WorkspaceRecordsService", () => {
         },
       ],
     });
-    const open = await records.tasks({ state: "open" });
+    const open = await records.tasks({ state: "open" }, principal);
     expect(open.rows.map((t) => t.id)).toEqual([id(999)]);
     expect(open.truncated).toBe(false);
   });
@@ -210,7 +215,11 @@ describe("WorkspaceRecordsService", () => {
         },
       ],
     });
-    const { upcoming, latestPast } = await records.exams(COURSE, NOW);
+    const { upcoming, latestPast } = await records.exams(
+      COURSE,
+      NOW,
+      principal,
+    );
     expect(upcoming.rows.map((e) => e.id)).toEqual([id(999)]);
     expect(upcoming.truncated).toBe(false);
     expect(latestPast?.topic).toMatch(/^Đã thi/);
@@ -242,10 +251,14 @@ describe("WorkspaceRecordsService", () => {
         },
       ],
     });
-    const overdue = await records.studyPlans(COURSE, {
-      state: "open",
-      dueBefore: NOW.date,
-    });
+    const overdue = await records.studyPlans(
+      COURSE,
+      {
+        state: "open",
+        dueBefore: NOW.date,
+      },
+      principal,
+    );
     expect(overdue.rows.map((p) => p.id)).toEqual([id(999)]);
     expect(overdue.truncated).toBe(false);
   });
@@ -259,7 +272,7 @@ describe("WorkspaceRecordsService", () => {
         due_date: null,
       })),
     });
-    const open = await records.tasks({ state: "open" });
+    const open = await records.tasks({ state: "open" }, principal);
     expect(open.rows).toHaveLength(ROW_LIMIT);
     expect(open.truncated).toBe(true);
   });

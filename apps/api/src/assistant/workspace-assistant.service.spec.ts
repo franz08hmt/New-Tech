@@ -17,6 +17,7 @@ import type {
 
 const C1 = "11111111-1111-4111-8111-111111111111";
 const C2 = "22222222-2222-4222-8222-222222222222";
+const principal = { userId: C1, workspaceId: C2, role: "member" as const };
 const id = (n: number) =>
   `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 
@@ -225,7 +226,7 @@ function fixture(
   );
   service.now = () => NOW;
   const ask = (message: string, extra: Record<string, unknown> = {}) =>
-    service.chat({ message, mode: "workspace", ...extra });
+    service.chat({ message, mode: "workspace", ...extra }, principal);
   return { service, records, ask };
 }
 
@@ -296,10 +297,14 @@ describe("WorkspaceAssistantService", () => {
     const { ask, records } = fixture();
     const answer = await ask("Kỳ thi sắp tới?", { courseId: C2 });
 
-    expect(records.exams).toHaveBeenCalledWith(C2, {
-      date: "2026-09-29",
-      time: "00:30",
-    });
+    expect(records.exams).toHaveBeenCalledWith(
+      C2,
+      {
+        date: "2026-09-29",
+        time: "00:30",
+      },
+      principal,
+    );
     expect(sourceIds(answer)).toEqual([id(14)]);
     expect(answer.answer).toContain("Giải tích");
   });
@@ -366,7 +371,7 @@ describe("WorkspaceAssistantService", () => {
     });
     expect(sourceIds(answer)).toEqual([id(3)]);
     expect(answer.answer).not.toMatch(/chưa xong/);
-    expect(records.tasks).toHaveBeenCalledWith({ state: "done" });
+    expect(records.tasks).toHaveBeenCalledWith({ state: "done" }, principal);
   });
 
   it("lists completed study items when asked, and only those", async () => {
@@ -375,7 +380,11 @@ describe("WorkspaceAssistantService", () => {
 
     expect(answer.workspaceIntent).toBe("study_plans_done");
     expect(sourceIds(answer)).toEqual([id(22)]);
-    expect(records.studyPlans).toHaveBeenCalledWith(C1, { state: "completed" });
+    expect(records.studyPlans).toHaveBeenCalledWith(
+      C1,
+      { state: "completed" },
+      principal,
+    );
   });
 
   it("asks the database for exactly the rows it needs", async () => {
@@ -384,15 +393,27 @@ describe("WorkspaceAssistantService", () => {
     await ask("Task nào đã quá hạn?");
     await ask("Việc cần ôn nào của môn CS 201 đã quá hạn?");
 
-    expect(records.tasks).toHaveBeenNthCalledWith(1, { state: "open" });
-    expect(records.tasks).toHaveBeenNthCalledWith(2, {
-      state: "open",
-      dueBefore: "2026-09-29",
-    });
-    expect(records.studyPlans).toHaveBeenCalledWith(C1, {
-      state: "open",
-      dueBefore: "2026-09-29",
-    });
+    expect(records.tasks).toHaveBeenNthCalledWith(
+      1,
+      { state: "open" },
+      principal,
+    );
+    expect(records.tasks).toHaveBeenNthCalledWith(
+      2,
+      {
+        state: "open",
+        dueBefore: "2026-09-29",
+      },
+      principal,
+    );
+    expect(records.studyPlans).toHaveBeenCalledWith(
+      C1,
+      {
+        state: "open",
+        dueBefore: "2026-09-29",
+      },
+      principal,
+    );
   });
 
   it("does not state a count or an absence it could not check", async () => {

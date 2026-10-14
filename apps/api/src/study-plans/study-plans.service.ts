@@ -7,7 +7,11 @@ import { DatabaseService } from "../database/database.service.js";
 import type { CreateStudyPlanDto } from "./create-study-plan.dto.js";
 import type { StudyPlanRecord } from "./study-plan.types.js";
 import type { PilotPrincipal } from "@examate/contracts";
-import { requirePrincipal } from "../auth/principal.js";
+import {
+  requireManager,
+  requirePrincipal,
+  requireRecordWrite,
+} from "../auth/principal.js";
 
 /**
  * due_date is formatted in SQL for the same reason as the exam columns: the pg
@@ -32,21 +36,24 @@ const PLAN_COLUMNS = `p.id,
 export class StudyPlansService {
   constructor(private readonly database: DatabaseService) {}
 
-  async list() {
+  async list(principal?: PilotPrincipal) {
+    const { workspaceId } = requirePrincipal(principal);
     const result = await this.database.query<StudyPlanRecord>(
       `SELECT ${PLAN_COLUMNS}
        FROM study_plans p
-       JOIN courses c ON c.id = p.course_id
+       JOIN courses c ON c.id = p.course_id AND c.workspace_id = p.workspace_id
+       WHERE p.workspace_id = $1
        -- Unfinished work first within each subject, then by deadline. Items
        -- with no deadline sort last rather than first, which is what NULLS
        -- LAST guarantees and plain ORDER BY does not.
        ORDER BY c.code, (p.completed_at IS NOT NULL), p.due_date NULLS LAST, p.created_at`,
+      [workspaceId],
     );
     return result.rows;
   }
 
   async create(input: CreateStudyPlanDto, principal?: PilotPrincipal) {
-    const { workspaceId } = requirePrincipal(principal);
+    const { workspaceId } = requireRecordWrite(principal);
     const result = await this.database
       .query<StudyPlanRecord>(
         `WITH inserted AS (
@@ -56,7 +63,7 @@ export class StudyPlansService {
          )
          SELECT ${PLAN_COLUMNS}
          FROM inserted p
-         JOIN courses c ON c.id = p.course_id`,
+         JOIN courses c ON c.id = p.course_id AND c.workspace_id = p.workspace_id`,
         [
           input.courseId,
           input.title,
@@ -82,19 +89,24 @@ export class StudyPlansService {
     return result.rows[0];
   }
 
-  async setCompletion(id: string, completed: boolean) {
+  async setCompletion(
+    id: string,
+    completed: boolean,
+    principal?: PilotPrincipal,
+  ) {
+    const { workspaceId } = requireRecordWrite(principal);
     const result = await this.database.query<StudyPlanRecord>(
       `WITH updated AS (
          UPDATE study_plans
          SET completed_at = CASE WHEN $2 THEN NOW() ELSE NULL END,
              updated_at = NOW()
-         WHERE id = $1
+         WHERE id = $1 AND workspace_id = $3
          RETURNING *
        )
        SELECT ${PLAN_COLUMNS}
        FROM updated p
-       JOIN courses c ON c.id = p.course_id`,
-      [id, completed],
+       JOIN courses c ON c.id = p.course_id AND c.workspace_id = p.workspace_id`,
+      [id, completed, workspaceId],
     );
     const plan = result.rows[0];
     if (!plan) {
@@ -106,10 +118,11 @@ export class StudyPlansService {
     return plan;
   }
 
-  async remove(id: string) {
+  async remove(id: string, principal?: PilotPrincipal) {
+    const { workspaceId } = requireManager(principal);
     const result = await this.database.query(
-      "DELETE FROM study_plans WHERE id = $1",
-      [id],
+      "DELETE FROM study_plans WHERE id = $1 AND workspace_id = $2",
+      [id, workspaceId],
     );
     if (!result.rowCount) {
       throw new NotFoundException({

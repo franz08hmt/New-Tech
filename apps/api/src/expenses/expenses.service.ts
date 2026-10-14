@@ -7,7 +7,11 @@ import { DatabaseService } from "../database/database.service.js";
 import type { CreateExpenseDto } from "./create-expense.dto.js";
 import type { ExpenseRecord } from "./expense.types.js";
 import type { PilotPrincipal } from "@examate/contracts";
-import { requirePrincipal } from "../auth/principal.js";
+import {
+  requireManager,
+  requirePrincipal,
+  requireRecordWrite,
+} from "../auth/principal.js";
 
 /**
  * spent_on is formatted in SQL for the same reason as every other date column
@@ -31,20 +35,23 @@ const EXPENSE_COLUMNS = `e.id,
 export class ExpensesService {
   constructor(private readonly database: DatabaseService) {}
 
-  async list() {
+  async list(principal?: PilotPrincipal) {
+    const { workspaceId } = requirePrincipal(principal);
     // LEFT JOIN: an expense with no course must still appear, and it is the
     // only join in this codebase that has to be outer.
     const result = await this.database.query<ExpenseRecord>(
       `SELECT ${EXPENSE_COLUMNS}
        FROM expenses e
-       LEFT JOIN courses c ON c.id = e.course_id
+       LEFT JOIN courses c ON c.id = e.course_id AND c.workspace_id = e.workspace_id
+       WHERE e.workspace_id = $1
        ORDER BY e.spent_on DESC, e.created_at DESC`,
+      [workspaceId],
     );
     return result.rows;
   }
 
   async create(input: CreateExpenseDto, principal?: PilotPrincipal) {
-    const { workspaceId } = requirePrincipal(principal);
+    const { workspaceId } = requireRecordWrite(principal);
     const result = await this.database
       .query<ExpenseRecord>(
         `WITH inserted AS (
@@ -54,7 +61,7 @@ export class ExpensesService {
          )
          SELECT ${EXPENSE_COLUMNS}
          FROM inserted e
-         LEFT JOIN courses c ON c.id = e.course_id`,
+         LEFT JOIN courses c ON c.id = e.course_id AND c.workspace_id = e.workspace_id`,
         [
           input.amount,
           input.description,
@@ -80,10 +87,11 @@ export class ExpensesService {
     return result.rows[0];
   }
 
-  async remove(id: string) {
+  async remove(id: string, principal?: PilotPrincipal) {
+    const { workspaceId } = requireManager(principal);
     const result = await this.database.query(
-      "DELETE FROM expenses WHERE id = $1",
-      [id],
+      "DELETE FROM expenses WHERE id = $1 AND workspace_id = $2",
+      [id, workspaceId],
     );
     if (!result.rowCount) {
       throw new NotFoundException({

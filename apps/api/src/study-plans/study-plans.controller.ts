@@ -22,8 +22,8 @@ export class StudyPlansController {
   constructor(private readonly plans: StudyPlansService) {}
 
   @Get()
-  list() {
-    return this.plans.list();
+  list(@Req() req: AuthRequest) {
+    return this.plans.list(req.principal);
   }
 
   @Post()
@@ -35,13 +35,17 @@ export class StudyPlansController {
   setCompletion(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Body() input: UpdateStudyPlanCompletionDto,
+    @Req() req: AuthRequest,
   ) {
-    return this.plans.setCompletion(id, input.completed);
+    return this.plans.setCompletion(id, input.completed, req.principal);
   }
 
   @Delete(":id")
   @HttpCode(204)
-  remove(@Param("id", new ParseUUIDPipe()) id: string) {
-    return this.plans.remove(id);
+  remove(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthRequest,
+  ) {
+    return this.plans.remove(id, req.principal);
   }
 }

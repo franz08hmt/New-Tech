@@ -20,8 +20,8 @@ export class ExamsController {
   constructor(private readonly exams: ExamsService) {}
 
   @Get()
-  list() {
-    return this.exams.list();
+  list(@Req() req: AuthRequest) {
+    return this.exams.list(req.principal);
   }
 
   @Post()
@@ -33,13 +33,17 @@ export class ExamsController {
   update(
     @Param("id", new ParseUUIDPipe()) id: string,
     @Body() input: UpdateExamDto,
+    @Req() req: AuthRequest,
   ) {
-    return this.exams.update(id, input);
+    return this.exams.update(id, input, req.principal);
   }
 
   @Delete(":id")
   @HttpCode(204)
-  remove(@Param("id", new ParseUUIDPipe()) id: string) {
-    return this.exams.remove(id);
+  remove(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthRequest,
+  ) {
+    return this.exams.remove(id, req.principal);
   }
 }

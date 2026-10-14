@@ -2,7 +2,9 @@ import { BadRequestException, Injectable } from "@nestjs/common";
 import type {
   AssistantWorkspaceIntent,
   AssistantWorkspaceSource,
+  PilotPrincipal,
 } from "@examate/contracts";
+import { requirePrincipal } from "../auth/principal.js";
 import { log } from "../common/log.js";
 import type { AssistantChatDto } from "./assistant-chat.dto.js";
 import type { WorkspaceAnswer } from "./assistant.types.js";
@@ -118,7 +120,11 @@ export class WorkspaceAssistantService {
 
   constructor(private readonly records: WorkspaceRecordsService) {}
 
-  async chat(input: AssistantChatDto): Promise<WorkspaceAnswer> {
+  async chat(
+    input: AssistantChatDto,
+    principal?: PilotPrincipal,
+  ): Promise<WorkspaceAnswer> {
+    const verified = requirePrincipal(principal);
     if ((input.operation && input.operation !== "question") || input.documentId)
       throw new BadRequestException({
         code: "WORKSPACE_QUESTION_ONLY",
@@ -129,7 +135,7 @@ export class WorkspaceAssistantService {
     const startedAt = Date.now();
     const clock = workspaceNow(this.now());
     try {
-      const draft = await this.answer(input, clock);
+      const draft = await this.answer(input, clock, verified);
       const result: WorkspaceAnswer = {
         ...draft,
         answer: draft.answerable
@@ -172,7 +178,11 @@ export class WorkspaceAssistantService {
     }
   }
 
-  private async answer(input: AssistantChatDto, clock: Clock): Promise<Draft> {
+  private async answer(
+    input: AssistantChatDto,
+    clock: Clock,
+    principal: PilotPrincipal,
+  ): Promise<Draft> {
     const { topic, overdue, done } = classifyQuestion(input.message);
 
     // Checked before anything is read: there is no write path to reach.
@@ -186,13 +196,14 @@ export class WorkspaceAssistantService {
         "notes_unavailable",
         "Ghi chú nhanh (Quick notes) chỉ được lưu trong trình duyệt của bạn; máy chủ không đọc được chúng, nên mình không trả lời về nội dung ghi chú. Bạn có thể xem trực tiếp ở Dashboard.",
       );
-    if (topic === "tasks") return this.tasks(input, overdue, done, clock);
-    if (topic === "exams") return this.exams(input, clock);
+    if (topic === "tasks")
+      return this.tasks(input, overdue, done, clock, principal);
+    if (topic === "exams") return this.exams(input, clock, principal);
     if (topic === "study_plans")
-      return this.studyPlans(input, overdue, done, clock);
-    if (topic === "expenses") return this.expenses(input);
-    if (topic === "documents") return this.documents(input);
-    if (topic === "courses") return this.courses();
+      return this.studyPlans(input, overdue, done, clock, principal);
+    if (topic === "expenses") return this.expenses(input, principal);
+    if (topic === "documents") return this.documents(input, principal);
+    if (topic === "courses") return this.courses(principal);
     return limits(
       "unsupported",
       `Câu hỏi này nằm ngoài những gì mình tra được trong dữ liệu workspace, nên mình không đoán. Bạn có thể hỏi, ví dụ:\n${EXAMPLES.map((example) => `- ${example}`).join("\n")}`,
@@ -203,8 +214,12 @@ export class WorkspaceAssistantService {
    * The course a question is about, or the answer to give when there is no
    * single one: unknown, ambiguous, or — when `required` — not named at all.
    */
-  private async course(input: AssistantChatDto, required: string | null) {
-    const courses = await this.records.courses();
+  private async course(
+    input: AssistantChatDto,
+    required: string | null,
+    principal: PilotPrincipal,
+  ) {
+    const courses = await this.records.courses(principal);
     const match = matchCourse(input.message, courses, input.courseId);
     const listed = courses.map(courseSource);
     if (match.kind === "unknown")
@@ -236,10 +251,11 @@ export class WorkspaceAssistantService {
     overdue: boolean,
     done: boolean,
     clock: Clock,
+    principal: PilotPrincipal,
   ): Promise<Draft> {
     // Tasks have no course in the schema. Naming one is refused rather than
     // guessed from a title, an owner or a PDF.
-    const courses = await this.records.courses();
+    const courses = await this.records.courses(principal);
     if (
       mentionsCourse(input.message) ||
       matchCourse(input.message, courses).kind === "matched"
@@ -257,7 +273,7 @@ export class WorkspaceAssistantService {
       : overdue
         ? { state: "open", dueBefore: clock.date }
         : { state: "open" };
-    const found = await this.records.tasks(filter);
+    const found = await this.records.tasks(filter, principal);
     const tasks = found.rows.filter((task) =>
       done
         ? task.status === "done"
@@ -303,10 +319,18 @@ export class WorkspaceAssistantService {
     };
   }
 
-  private async exams(input: AssistantChatDto, clock: Clock): Promise<Draft> {
-    const scope = await this.course(input, null);
+  private async exams(
+    input: AssistantChatDto,
+    clock: Clock,
+    principal: PilotPrincipal,
+  ): Promise<Draft> {
+    const scope = await this.course(input, null, principal);
     if (scope.stop) return scope.stop;
-    const found = await this.records.exams(scope.course?.id ?? null, clock);
+    const found = await this.records.exams(
+      scope.course?.id ?? null,
+      clock,
+      principal,
+    );
     type Exam = (typeof found.upcoming.rows)[number];
     // An exam is upcoming until the minute it starts, in Vietnamese time —
     // decided in the query, and checked again here.
@@ -365,8 +389,9 @@ export class WorkspaceAssistantService {
     overdue: boolean,
     done: boolean,
     clock: Clock,
+    principal: PilotPrincipal,
   ): Promise<Draft> {
-    const scope = await this.course(input, null);
+    const scope = await this.course(input, null, principal);
     if (scope.stop) return scope.stop;
     const filter: StudyPlanFilter = done
       ? { state: "completed" }
@@ -376,6 +401,7 @@ export class WorkspaceAssistantService {
     const found = await this.records.studyPlans(
       scope.course?.id ?? null,
       filter,
+      principal,
     );
     // Done is done: a completed item is never open, and so never overdue.
     const plans = found.rows.filter((plan) =>
@@ -434,14 +460,18 @@ export class WorkspaceAssistantService {
     };
   }
 
-  private async expenses(input: AssistantChatDto): Promise<Draft> {
+  private async expenses(
+    input: AssistantChatDto,
+    principal: PilotPrincipal,
+  ): Promise<Draft> {
     const scope = await this.course(
       input,
       "Bạn muốn tính tổng chi cho môn nào? Mình chỉ cộng các khoản chi đã được gắn với đúng môn đó; các môn hiện có được liệt kê bên dưới.",
+      principal,
     );
     if (scope.stop) return scope.stop;
     const course = scope.course!;
-    const rows = await this.records.courseExpenses(course.id);
+    const rows = await this.records.courseExpenses(course.id, principal);
     if (rows.length >= EXPENSE_LIMIT)
       return limits(
         "expenses_total",
@@ -458,7 +488,7 @@ export class WorkspaceAssistantService {
         "expenses_total",
         "Tổng chi vượt quá phạm vi mình tính chính xác được. Hãy xem trong trang Finances.",
       );
-    const unassigned = await this.records.unassignedExpenseCount();
+    const unassigned = await this.records.unassignedExpenseCount(principal);
     const where = `môn ${courseLabel(course)}${scope.fromPage ? " (môn đang mở)" : ""}`;
     const detail = (row: (typeof own)[number]) =>
       `${formatVnd(row.amount)} · ${formatDay(row.spent_on)}`;
@@ -487,8 +517,11 @@ export class WorkspaceAssistantService {
     };
   }
 
-  private async documents(input: AssistantChatDto): Promise<Draft> {
-    const found = await this.records.documents();
+  private async documents(
+    input: AssistantChatDto,
+    principal: PilotPrincipal,
+  ): Promise<Draft> {
+    const found = await this.records.documents(principal);
     const documents = found.rows;
     const named = matchDocument(input.message, documents);
     if (named) {
@@ -524,6 +557,7 @@ export class WorkspaceAssistantService {
     const scope = await this.course(
       input,
       "Bạn muốn xem tài liệu của môn nào, hay hỏi về một tài liệu cụ thể theo tên file? Các môn hiện có được liệt kê bên dưới.",
+      principal,
     );
     if (scope.stop) return scope.stop;
     const course = scope.course!;
@@ -560,8 +594,8 @@ export class WorkspaceAssistantService {
     };
   }
 
-  private async courses(): Promise<Draft> {
-    const courses = await this.records.courses();
+  private async courses(principal: PilotPrincipal): Promise<Draft> {
+    const courses = await this.records.courses(principal);
     if (courses.length === 0)
       return {
         answer: "Workspace hiện chưa có môn học nào.",

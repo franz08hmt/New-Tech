@@ -8,7 +8,11 @@ import type { CreateExamDto } from "./create-exam.dto.js";
 import type { UpdateExamDto } from "./update-exam.dto.js";
 import type { ExamRecord } from "./exam.types.js";
 import type { PilotPrincipal } from "@examate/contracts";
-import { requirePrincipal } from "../auth/principal.js";
+import {
+  requireManager,
+  requirePrincipal,
+  requireRecordWrite,
+} from "../auth/principal.js";
 
 /**
  * exam_date and exam_time are formatted in SQL rather than handed to the pg
@@ -34,18 +38,21 @@ const EXAM_COLUMNS = `e.id,
 export class ExamsService {
   constructor(private readonly database: DatabaseService) {}
 
-  async list() {
+  async list(principal?: PilotPrincipal) {
+    const { workspaceId } = requirePrincipal(principal);
     const result = await this.database.query<ExamRecord>(
       `SELECT ${EXAM_COLUMNS}
        FROM exams e
-       JOIN courses c ON c.id = e.course_id
+       JOIN courses c ON c.id = e.course_id AND c.workspace_id = e.workspace_id
+       WHERE e.workspace_id = $1
        ORDER BY e.exam_date, e.exam_time, c.code`,
+      [workspaceId],
     );
     return result.rows;
   }
 
   async create(input: CreateExamDto, principal?: PilotPrincipal) {
-    const { workspaceId } = requirePrincipal(principal);
+    const { workspaceId } = requireRecordWrite(principal);
     const result = await this.database
       .query<ExamRecord>(
         `WITH inserted AS (
@@ -55,7 +62,7 @@ export class ExamsService {
          )
          SELECT ${EXAM_COLUMNS}
          FROM inserted e
-         JOIN courses c ON c.id = e.course_id`,
+         JOIN courses c ON c.id = e.course_id AND c.workspace_id = e.workspace_id`,
         [
           input.courseId,
           input.topic,
@@ -68,7 +75,7 @@ export class ExamsService {
       )
       .catch((error: unknown) => {
         // The foreign key is the only way a well-formed request can fail, and
-        // it means the course id does not exist: that is the caller's mistake,
+        // it means the course is absent from this workspace: a caller's mistake,
         // not a server fault, so it must not surface as a 500.
         if (
           error &&
@@ -85,7 +92,8 @@ export class ExamsService {
     return result.rows[0];
   }
 
-  async update(id: string, input: UpdateExamDto) {
+  async update(id: string, input: UpdateExamDto, principal?: PilotPrincipal) {
+    const { workspaceId } = requireRecordWrite(principal);
     const result = await this.database.query<ExamRecord>(
       `WITH updated AS (
          UPDATE exams
@@ -95,12 +103,12 @@ export class ExamsService {
              room = $5,
              revision_note = $6,
              updated_at = NOW()
-         WHERE id = $1
+         WHERE id = $1 AND workspace_id = $7
          RETURNING *
        )
        SELECT ${EXAM_COLUMNS}
        FROM updated e
-       JOIN courses c ON c.id = e.course_id`,
+       JOIN courses c ON c.id = e.course_id AND c.workspace_id = e.workspace_id`,
       [
         id,
         input.topic,
@@ -108,6 +116,7 @@ export class ExamsService {
         input.examTime,
         input.room,
         input.revisionNote ?? null,
+        workspaceId,
       ],
     );
     const exam = result.rows[0];
@@ -120,10 +129,11 @@ export class ExamsService {
     return exam;
   }
 
-  async remove(id: string) {
+  async remove(id: string, principal?: PilotPrincipal) {
+    const { workspaceId } = requireManager(principal);
     const result = await this.database.query(
-      "DELETE FROM exams WHERE id = $1",
-      [id],
+      "DELETE FROM exams WHERE id = $1 AND workspace_id = $2",
+      [id, workspaceId],
     );
     if (!result.rowCount) {
       throw new NotFoundException({

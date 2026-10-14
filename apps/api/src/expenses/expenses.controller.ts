@@ -18,8 +18,8 @@ export class ExpensesController {
   constructor(private readonly expenses: ExpensesService) {}
 
   @Get()
-  list() {
-    return this.expenses.list();
+  list(@Req() req: AuthRequest) {
+    return this.expenses.list(req.principal);
   }
 
   @Post()
@@ -29,7 +29,10 @@ export class ExpensesController {
 
   @Delete(":id")
   @HttpCode(204)
-  remove(@Param("id", new ParseUUIDPipe()) id: string) {
-    return this.expenses.remove(id);
+  remove(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthRequest,
+  ) {
+    return this.expenses.remove(id, req.principal);
   }
 }

@@ -6,6 +6,11 @@ import { AssistantController } from "./assistant.controller.js";
 import { AssistantService } from "./assistant.service.js";
 import type { AssistantProvider, AssistantStatus } from "./assistant.types.js";
 import type { WorkspaceAssistantService } from "./workspace-assistant.service.js";
+const principal = {
+  userId: "11111111-1111-4111-8111-111111111111",
+  workspaceId: "22222222-2222-4222-8222-222222222222",
+  role: "member" as const,
+};
 
 function fixture(status: AssistantStatus) {
   const provider: AssistantProvider = {
@@ -155,10 +160,12 @@ describe("AssistantController", () => {
       mode: "workspace" as const,
     };
 
-    await expect(controller.chat(input)).resolves.toEqual({
+    await expect(
+      controller.chat(input, { principal } as never),
+    ).resolves.toEqual({
       mode: "workspace",
     });
-    expect(workspace.chat).toHaveBeenCalledWith(input);
+    expect(workspace.chat).toHaveBeenCalledWith(input, principal);
     expect(chat).not.toHaveBeenCalled();
     expect(provider.generate).not.toHaveBeenCalled();
   });

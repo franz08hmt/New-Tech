@@ -32,3 +32,28 @@ export function requireTaskWrite(
     });
   return verified;
 }
+
+export function requireRecordWrite(
+  principal: PilotPrincipal | undefined,
+): PilotPrincipal {
+  const verified = requirePrincipal(principal);
+  if (verified.role === "viewer")
+    throw new ForbiddenException({
+      code: "ROLE_FORBIDDEN" satisfies PilotAuthErrorCode,
+      message:
+        "Bạn đang có quyền xem. Nhờ thành viên hoặc người quản lý cập nhật bản ghi này nhé.",
+    });
+  return verified;
+}
+
+export function requireManager(
+  principal: PilotPrincipal | undefined,
+): PilotPrincipal {
+  const verified = requirePrincipal(principal);
+  if (verified.role !== "manager")
+    throw new ForbiddenException({
+      code: "ROLE_FORBIDDEN" satisfies PilotAuthErrorCode,
+      message: "Chỉ người quản lý workspace mới có thể xoá bản ghi này nhé.",
+    });
+  return verified;
+}
