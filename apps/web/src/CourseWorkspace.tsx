@@ -152,6 +152,7 @@ export function CourseWorkspace({ course }: { course: Course }) {
   }
 
   async function uploadHere(file: File) {
+    if (!canWrite) return;
     setNotice("");
     const ok = await documents.upload(file, course.id);
     if (ok) setNotice(`Đã tải "${file.name}" lên cho môn này.`);
@@ -479,17 +480,20 @@ export function CourseWorkspace({ course }: { course: Course }) {
                     <span>{item.storage_status}</span>
                   </small>
                 </span>
-                <RemoveButton
-                  label={`Detach document: ${item.name}`}
-                  busy={documents.busy}
-                  onDelete={() =>
-                    void removeAnd(
-                      documents.setCourse(item.id, null),
-                      "Tài liệu",
-                      "đã được gỡ khỏi môn này",
-                    )
-                  }
-                />
+                {canWrite && (
+                  <RemoveButton
+                    label={`Detach document: ${item.name}`}
+                    busy={documents.busy}
+                    onDelete={() => {
+                      if (!canWrite) return;
+                      void removeAnd(
+                        documents.setCourse(item.id, null),
+                        "Tài liệu",
+                        "đã được gỡ khỏi môn này",
+                      );
+                    }}
+                  />
+                )}
               </li>
             ))}
           </ul>
@@ -500,21 +504,29 @@ export function CourseWorkspace({ course }: { course: Course }) {
               that matter — PDF signature, 10 MiB ceiling, filename length —
               all live in the API, so this cannot drift from the Documents
               page: both call the same endpoint. */}
-          <label className="file-picker cw-upload">
-            {documents.busy ? "Đang tải lên…" : "Chọn tệp PDF cho môn này"}
-            <input
-              type="file"
-              accept=".pdf,application/pdf"
-              disabled={documents.busy}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                // Cleared immediately so picking the same file twice in a row
-                // still fires a change event.
-                event.target.value = "";
-                if (file) void uploadHere(file);
-              }}
-            />
-          </label>
+          {canWrite && (
+            <label className="file-picker cw-upload">
+              {documents.busy ? "Đang tải lên…" : "Chọn tệp PDF cho môn này"}
+              <input
+                type="file"
+                accept=".pdf,application/pdf"
+                disabled={documents.busy}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  // Cleared immediately so picking the same file twice in a row
+                  // still fires a change event.
+                  event.target.value = "";
+                  if (file) void uploadHere(file);
+                }}
+              />
+            </label>
+          )}
+          {!canWrite && (
+            <p className="page-note">
+              Bạn đang có quyền xem tài liệu của môn này. Nhờ thành viên hoặc
+              người quản lý tải lên và đổi môn cho tài liệu giúp nhé.
+            </p>
+          )}
           {documents.error && (
             <p role="alert" className="error-message">
               {documents.error}

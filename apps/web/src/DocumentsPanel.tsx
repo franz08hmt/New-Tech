@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -15,6 +16,7 @@ import {
 import { DocumentCard } from "./DocumentCard";
 import { useCourses } from "./use-courses";
 import { api, type StoredDocument } from "./api";
+import { PilotPrincipalContext } from "./PilotPrincipalContext";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 interface LocalDocument {
@@ -27,6 +29,16 @@ const message = (error: unknown) =>
   error instanceof Error ? error.message : "Operation failed. Please retry.";
 
 export function DocumentsPanel() {
+  const principal = useContext(PilotPrincipalContext);
+  const canWrite =
+    principal?.role === "member" || principal?.role === "manager";
+  const canDelete = principal?.role === "manager";
+  // Confirm dialogs can outlive a role update. Keep the action boundary tied
+  // to the latest verified session, not the role captured by an old click.
+  const permissions = useRef({ canWrite, canDelete });
+  useEffect(() => {
+    permissions.current = { canWrite, canDelete };
+  }, [canWrite, canDelete]);
   const courses = useCourses();
   // The subject chosen for the next upload, and the subject the list is
   // filtered by. Deliberately separate: filing a new PDF under Maths should
@@ -41,6 +53,14 @@ export function DocumentsPanel() {
   const [busyIds, setBusyIds] = useState<string[]>([]);
   const busy = useRef(new Set<string>());
   const revision = useRef(0);
+  const lifetime = useRef(0);
+  useEffect(() => {
+    if (!canWrite) {
+      setSelected([]);
+      setUploadCourseId("");
+      setNotice("");
+    }
+  }, [canWrite]);
   const reload = useCallback(async () => {
     if (busy.current.size) return;
     const current = ++revision.current;
@@ -59,10 +79,15 @@ export function DocumentsPanel() {
     void reload();
     return () => {
       revision.current++;
+      lifetime.current++;
     };
   }, [reload]);
 
   function selectFiles(event: ChangeEvent<HTMLInputElement>) {
+    if (!permissions.current.canWrite) {
+      event.currentTarget.value = "";
+      return;
+    }
     const files = Array.from(event.currentTarget.files ?? []);
     event.currentTarget.value = "";
     setError("");
@@ -113,6 +138,7 @@ export function DocumentsPanel() {
     setBusyIds([...busy.current]);
   }
   async function upload(item: LocalDocument) {
+    if (!permissions.current.canWrite) return;
     if (!begin(item.id)) return;
     setSelected((current) =>
       current.map((row) =>
@@ -153,6 +179,7 @@ export function DocumentsPanel() {
   });
 
   async function refile(item: StoredDocument, courseId: string | null) {
+    if (!permissions.current.canWrite) return;
     if (!begin(item.id)) return;
     try {
       const updated = await api.setDocumentCourse(item.id, courseId);
@@ -176,6 +203,7 @@ export function DocumentsPanel() {
   }
 
   async function process(item: StoredDocument) {
+    if (!permissions.current.canWrite) return;
     if (!begin(item.id)) return;
     setDocuments((current) =>
       current.map((row) =>
@@ -218,12 +246,14 @@ export function DocumentsPanel() {
   }
 
   async function remove(item: StoredDocument) {
+    if (!permissions.current.canDelete) return;
     if (
       !window.confirm(
-        `Delete ${item.name} from the shared workspace and Storage?`,
+        `Xoá "${item.name}" khỏi workspace và Storage? Tài liệu này sẽ không còn để xem hay hỏi nữa.`,
       )
     )
       return;
+    if (!permissions.current.canDelete) return;
     if (!begin(item.id)) return;
     try {
       await api.deleteDocument(item.id);
@@ -239,8 +269,13 @@ export function DocumentsPanel() {
   }
   async function download(item: StoredDocument) {
     if (!begin(item.id)) return;
+    const currentLifetime = lifetime.current;
     try {
       const { url } = await api.downloadDocument(item.id);
+      // PilotAccess remounts the view when the verified account/workspace
+      // changes. A link requested by the old view must not trigger a download
+      // after that view has gone away.
+      if (currentLifetime !== lifetime.current) return;
       const anchor = document.createElement("a");
       anchor.href = url;
       // The link asks Storage to send the file as an attachment, so the browser
@@ -279,6 +314,7 @@ export function DocumentsPanel() {
             Choose PDF files
             <input
               type="file"
+              disabled={!canWrite}
               accept=".pdf,application/pdf"
               multiple
               aria-describedby="upload-help upload-boundary"
@@ -289,6 +325,7 @@ export function DocumentsPanel() {
             Save under course
             <select
               value={uploadCourseId}
+              disabled={!canWrite}
               onChange={(event) => setUploadCourseId(event.target.value)}
             >
               <option value="">Không thuộc môn nào</option>
@@ -299,6 +336,13 @@ export function DocumentsPanel() {
               ))}
             </select>
           </label>
+          {!canWrite && (
+            <p className="page-note">
+              Bạn đang có quyền xem và tải tài liệu. Nhờ thành viên hoặc người
+              quản lý tải lên, đổi môn hoặc lập chỉ mục giúp nhé. Chỉ người quản
+              lý mới được xoá tài liệu đã lưu.
+            </p>
+          )}
           <p id="upload-boundary" className="upload-boundary">
             Uploaded PDFs are saved in private Storage with database metadata.
             Shared demo workspace · index documents for grounded answers.
@@ -310,7 +354,7 @@ export function DocumentsPanel() {
           )}
           {notice && <p role="status">{notice}</p>}
         </section>
-        {selected.length > 0 && (
+        {canWrite && selected.length > 0 && (
           <section
             className="selected-documents"
             aria-label="Selected documents"
@@ -386,15 +430,15 @@ export function DocumentsPanel() {
                     busy={busyIds.includes(item.id)}
                     processingStatus={item.processing_status ?? "pending"}
                     indexQuality={item.index_quality}
-                    onProcess={() => void process(item)}
+                    onProcess={canWrite ? () => void process(item) : undefined}
                     onDownload={() => void download(item)}
-                    onRemove={() => void remove(item)}
+                    onRemove={canDelete ? () => void remove(item) : undefined}
                   />
                   <label className="document-course">
                     <span className="sr-only">Course for {item.name}</span>
                     <select
                       value={item.course_id ?? ""}
-                      disabled={busyIds.includes(item.id)}
+                      disabled={!canWrite || busyIds.includes(item.id)}
                       onChange={(event) =>
                         void refile(item, event.target.value || null)
                       }

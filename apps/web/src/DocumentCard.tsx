@@ -9,7 +9,7 @@ interface DocumentCardProps {
   state: DocumentLifecycle;
   error?: string;
   busy?: boolean;
-  onRemove: () => void;
+  onRemove?: () => void;
   onUpload?: () => void;
   onDownload?: () => void;
   processingStatus?: StoredDocument["processing_status"];
@@ -136,14 +136,16 @@ export function DocumentCard({
             {processingStatus === "processing" ? "Indexing…" : processLabel}
           </button>
         )}
-        <button
-          type="button"
-          disabled={busy || state === "legacy"}
-          aria-label={`${onUpload ? "Remove" : "Delete"} ${name}`}
-          onClick={onRemove}
-        >
-          <TrashIcon aria-hidden="true" />
-        </button>
+        {onRemove && (
+          <button
+            type="button"
+            disabled={busy || state === "legacy"}
+            aria-label={`${onUpload ? "Remove" : "Delete"} ${name}`}
+            onClick={onRemove}
+          >
+            <TrashIcon aria-hidden="true" />
+          </button>
+        )}
       </footer>
     </article>
   );

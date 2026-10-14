@@ -3257,6 +3257,17 @@
     flex-wrap: wrap;
     justify-content: space-between;
   }
+  /* Keep role-aware document actions usable with touch, including icon-only
+     deletion; desktop spacing, typography and colour tokens stay unchanged. */
+  .document-card-actions > button,
+  .selected-documents > header button,
+  .document-layout select,
+  .document-layout .file-picker,
+  .cw-block[aria-label="Documents"] button,
+  .cw-block[aria-label="Documents"] .file-picker {
+    min-height: 44px;
+    min-width: 44px;
+  }
   .course-summary {
     grid-template-columns: minmax(0, 1fr);
     align-items: start;

@@ -32,6 +32,21 @@ const documentRow = {
   size_bytes: 100,
   storage_status: "stored",
 };
+// Existing document CRUD regressions require the verified manager capability.
+// Viewer/member/no-principal affordances are covered by DocumentsPermissions.
+function DocumentsApp() {
+  return (
+    <PilotPrincipalContext.Provider
+      value={{
+        userId: "11111111-1111-4111-8111-111111111111",
+        workspaceId: "22222222-2222-4222-8222-222222222222",
+        role: "manager",
+      }}
+    >
+      <App />
+    </PilotPrincipalContext.Provider>
+  );
+}
 
 it("loads stored documents after remount, downloads and deletes through API", async () => {
   window.history.replaceState(null, "", "/#documents");
@@ -51,10 +66,10 @@ it("loads stored documents after remount, downloads and deletes through API", as
       return Response.json(url === "/api/documents" ? [documentRow] : []);
     }),
   );
-  const first = render(<App />);
+  const first = render(<DocumentsApp />);
   expect(await screen.findByText("saved.pdf")).toBeVisible();
   first.unmount();
-  render(<App />);
+  render(<DocumentsApp />);
   expect(await screen.findByText("saved.pdf")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Download saved.pdf" }));
   await waitFor(() => expect(click).toHaveBeenCalled());
@@ -88,7 +103,7 @@ it("keeps stored document visible when delete fails and retries a failed list", 
       return Response.json(url === "/api/documents" ? [documentRow] : []);
     }),
   );
-  render(<App />);
+  render(<DocumentsApp />);
   expect(await screen.findByRole("alert")).toHaveTextContent("Cannot reach");
   fireEvent.click(screen.getByRole("button", { name: "Retry list" }));
   await screen.findByText("saved.pdf");
