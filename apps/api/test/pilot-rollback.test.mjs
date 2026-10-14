@@ -19,12 +19,14 @@ const names = [
   "public.pilot_refresh_attempts",
 ];
 const rollbackEntries = ["012_pilot_access.sql", "013_pilot_auth_limits.sql"];
-const ledger = (await loadMigrations()).map((file) => ({
-  name: file.name,
-  checksum: createHash("sha256")
-    .update(file.sql.replace(/\r\n/g, "\n"))
-    .digest("hex"),
-}));
+const ledger = (await loadMigrations())
+  .filter((file) => Number(file.name.slice(0, 3)) <= 13)
+  .map((file) => ({
+    name: file.name,
+    checksum: createHash("sha256")
+      .update(file.sql.replace(/\r\n/g, "\n"))
+      .digest("hex"),
+  }));
 const base = { apply: false, projectRef };
 
 function privateError(error, extra = []) {

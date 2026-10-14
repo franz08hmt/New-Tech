@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
+import { uuid } from "../dist/auth/auth-config.js";
 import {
   databaseConfig,
   loadEnvironment,
@@ -50,6 +51,12 @@ export async function loadMigrations(root = projectRoot) {
 }
 
 export function migrationFailure(error) {
+  const backfillHints = new Set([
+    "014: workspace backfill requires exactly one workspace; multiple workspaces need an explicit mapping first",
+    "014: PILOT_WORKSPACE_ID must be a valid UUID",
+    "014: PILOT_WORKSPACE_ID differs from the existing workspace; check configuration before migrating",
+    "014: seeded data needs a workspace; set a valid PILOT_WORKSPACE_ID before db:migrate",
+  ]);
   const code = /^[A-Z0-9_]+$/.test(error.code)
     ? error.code
     : "CONFIG_OR_SCHEMA_ERROR";
@@ -78,17 +85,21 @@ export function migrationFailure(error) {
   const message =
     error instanceof ConfigurationError || error instanceof MigrationFileError
       ? error.message
-      : reasons[code] ||
+      : (code === "P0001" && backfillHints.has(error.message)
+          ? error.message
+          : undefined) ||
+        reasons[code] ||
         "Database migration failed; inspect server logs for this error code";
   return `Migration failed [${code}]: ${message}`;
 }
 
 export async function migrate(
   connectionString = process.env.MIGRATION_DATABASE_URL?.trim() || undefined,
+  { loadSource = loadMigrations } = {},
 ) {
   const config = databaseConfig(connectionString);
   // Read every SQL file before connecting or changing database state.
-  const files = await loadMigrations();
+  const files = await loadSource();
   const pool = new pg.Pool(config);
   let client;
   try {
@@ -130,6 +141,12 @@ export async function migrate(
       }
       await client.query("BEGIN");
       try {
+        const pilotWorkspace = process.env.PILOT_WORKSPACE_ID;
+        if (pilotWorkspace && uuid.test(pilotWorkspace))
+          await client.query(
+            "SELECT set_config('examate.pilot_workspace_id',$1,true)",
+            [pilotWorkspace],
+          );
         await client.query(sql);
         // Secure initial tables before their first COMMIT, even if migration 002 fails.
         if (file.name === "001_init.sql") {

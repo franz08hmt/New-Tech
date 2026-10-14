@@ -8,10 +8,12 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Req,
 } from "@nestjs/common";
 import { CreateExamDto } from "./create-exam.dto.js";
 import { ExamsService } from "./exams.service.js";
 import { UpdateExamDto } from "./update-exam.dto.js";
+import type { AuthRequest } from "../auth/auth.service.js";
 
 @Controller("exams")
 export class ExamsController {
@@ -23,8 +25,8 @@ export class ExamsController {
   }
 
   @Post()
-  create(@Body() input: CreateExamDto) {
-    return this.exams.create(input);
+  create(@Body() input: CreateExamDto, @Req() req: AuthRequest) {
+    return this.exams.create(input, req.principal);
   }
 
   @Patch(":id")

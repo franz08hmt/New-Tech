@@ -7,9 +7,11 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Req,
 } from "@nestjs/common";
 import { CreateExpenseDto } from "./create-expense.dto.js";
 import { ExpensesService } from "./expenses.service.js";
+import type { AuthRequest } from "../auth/auth.service.js";
 
 @Controller("expenses")
 export class ExpensesController {
@@ -21,8 +23,8 @@ export class ExpensesController {
   }
 
   @Post()
-  create(@Body() input: CreateExpenseDto) {
-    return this.expenses.create(input);
+  create(@Body() input: CreateExpenseDto, @Req() req: AuthRequest) {
+    return this.expenses.create(input, req.principal);
   }
 
   @Delete(":id")

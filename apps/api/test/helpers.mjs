@@ -12,6 +12,8 @@ import { AuthService } from "../dist/auth/auth.service.js";
 import { AuthStore } from "../dist/auth/auth-store.js";
 import { AUTH_ADAPTER, AUTH_CONFIG } from "../dist/auth/auth-config.js";
 
+const fixtureWorkspaceId = "22222222-2222-4222-8222-222222222222";
+
 export async function httpApp(
   database,
   storage,
@@ -27,7 +29,7 @@ export async function httpApp(
     builder = builder.overrideProvider(AuthService).useValue({
       authenticate: async () => ({
         userId: "11111111-1111-4111-8111-111111111111",
-        workspaceId: "22222222-2222-4222-8222-222222222222",
+        workspaceId: fixtureWorkspaceId,
         role: "member",
       }),
     });
@@ -108,6 +110,7 @@ export function fakeDependencies() {
     ],
   ].map(([slug, name, code, tone, cover]) => ({
     id: randomUUID(),
+    workspace_id: fixtureWorkspaceId,
     slug,
     name,
     code,
@@ -142,56 +145,89 @@ export function fakeDependencies() {
     removeCalls: 0,
     signedDownloads: [],
   };
+
+  function matchingRows(rows, sql, values) {
+    const where = sql.match(
+      /\bWHERE\b([\s\S]*?)(?:\bRETURNING\b|\bORDER\s+BY\b|$)/i,
+    )?.[1];
+    return rows.filter((row) =>
+      ["id", "slug", "workspace_id"].every((column) => {
+        const match = where?.match(
+          new RegExp(`(?:\\b\\w+\\.)?\\b${column}\\s*=\\s*\\$(\\d+)`, "i"),
+        );
+        return !match || row[column] === values[Number(match[1]) - 1];
+      }),
+    );
+  }
+
+  function selectedRows(rows) {
+    // The public SQL column lists omit internal workspace_id, including the
+    // outer SELECT used for document INSERTs that have RETURNING * in a CTE.
+    return rows.map(({ workspace_id, ...row }) => row);
+  }
+
+  function insertValues(sql, values) {
+    const insert = sql.match(
+      /INSERT\s+INTO\s+\w+\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i,
+    );
+    if (!insert) throw new Error("Unhandled INSERT in test fixture");
+    const columns = insert[1].split(",").map((column) => column.trim());
+    const expressions = insert[2].split(",");
+    return Object.fromEntries(
+      columns.map((column, index) => {
+        const expression = expressions[index].trim();
+        const parameter = expression.match(/^\$(\d+)(?:::.*)?$/);
+        if (parameter) return [column, values[Number(parameter[1]) - 1]];
+        const literal = expression.match(/^'([^']*)'$/);
+        if (literal) return [column, literal[1]];
+        throw new Error("Unhandled INSERT value in test fixture");
+      }),
+    );
+  }
+
   const database = {
     async ping() {
       if (state.failHealth) throw new Error("offline");
       return 1;
     },
     async query(sql, values = []) {
-      if (sql.includes("FROM courses") && sql.includes("WHERE slug")) {
-        const course = courses.get(values[0]);
-        return { rows: course ? [course] : [] };
-      }
-      if (sql.includes("FROM courses")) return { rows: [...courses.values()] };
+      if (sql.includes("FROM courses"))
+        return {
+          rows: selectedRows(matchingRows([...courses.values()], sql, values)),
+        };
       if (sql.includes("INSERT INTO tasks")) {
         const row = {
           id: randomUUID(),
-          title: values[0],
-          owner_name: values[1],
-          status: values[2],
-          due_date: values[3],
-          evidence_type: values[4],
+          ...insertValues(sql, values),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
         tasks.set(row.id, row);
-        return { rows: [row] };
+        return { rows: selectedRows([row]) };
       }
       if (sql.includes("UPDATE tasks")) {
-        const row = tasks.get(values[0]);
+        const [row] = matchingRows([...tasks.values()], sql, values);
         if (!row) return { rows: [] };
         row.status = values[1];
-        return { rows: [row] };
+        return { rows: selectedRows([row]) };
       }
-      if (sql.includes("FROM tasks")) return { rows: [...tasks.values()] };
+      if (sql.includes("FROM tasks"))
+        return {
+          rows: selectedRows(matchingRows([...tasks.values()], sql, values)),
+        };
       if (sql.includes("INSERT INTO documents")) {
         if (state.failInsert)
           throw Object.assign(new Error("sensitive SQL must not escape"), {
             code: "23514",
           });
         const row = {
-          id: values[0],
-          name: values[1],
-          media_type: "application/pdf",
-          storage_key: values[2],
-          size_bytes: values[3],
-          storage_status: "stored",
+          ...insertValues(sql, values),
           processing_status: "pending",
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
         documents.set(row.id, row);
-        return { rows: [row] };
+        return { rows: selectedRows([row]) };
       }
       if (sql.includes("UPDATE documents")) {
         const row = documents.get(values[0]);
@@ -203,12 +239,12 @@ export function fakeDependencies() {
         documents.delete(values[0]);
         return { rows: [] };
       }
-      if (sql.includes("FROM documents WHERE"))
-        return {
-          rows: documents.has(values[0]) ? [documents.get(values[0])] : [],
-        };
       if (sql.includes("FROM documents"))
-        return { rows: [...documents.values()] };
+        return {
+          rows: selectedRows(
+            matchingRows([...documents.values()], sql, values),
+          ),
+        };
       throw new Error("Unhandled SQL in test fixture");
     },
   };

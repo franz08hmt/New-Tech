@@ -14,7 +14,11 @@ import {
 
 // Validate before any connection, migration, fixture, grant or cleanup. This test
 // never loads .env or invokes the production CLI/connection selector.
-const url = assertTestDatabaseTarget(process.env.TEST_DATABASE_URL);
+const parentUrl = assertTestDatabaseTarget(process.env.TEST_DATABASE_URL);
+const databaseName = `examate_b1a_rollback_${randomUUID().replaceAll("-", "")}_test`;
+const target = new URL(parentUrl);
+target.pathname = `/${databaseName}`;
+const url = assertTestDatabaseTarget(target.href);
 const projectRef = "a1b2c3d4e5f6g7h8i9j0";
 const names = [
   "workspaces",
@@ -44,8 +48,33 @@ const savedEnvironment = Object.fromEntries(
   environmentNames.map((name) => [name, process.env[name]]),
 );
 let pool,
+  parent,
   originalLedger,
+  created = false,
   prepared = false;
+
+async function legacySource() {
+  const files = (await loadMigrations()).filter(
+    (file) => Number(file.name.slice(0, 3)) <= 13,
+  );
+  assert.equal(files.length, 13);
+  return files;
+}
+async function migrateLegacy() {
+  await migrate(url, { loadSource: legacySource });
+}
+async function assertOwnedDatabase(client, name) {
+  assert.equal(
+    (
+      await client.query(
+        "SELECT pg_get_userbyid(datdba)=current_user AS owned FROM pg_database WHERE datname=$1",
+        [name],
+      )
+    ).rows[0]?.owned,
+    true,
+    "rollback fixture role must own the exact database",
+  );
+}
 
 async function ledgerRows(client = pool) {
   return (
@@ -170,9 +199,19 @@ before(async () => {
   process.env.DATABASE_SSL = "false";
   process.env.DATABASE_CA_CERT_PATH = "";
   process.env.DATABASE_POOL_MAX = "5";
+  // Destructive rollback positives exercise the 013 schema in a database owned
+  // exclusively by this fixture; the shared test database retains migration014.
+  parent = new pg.Pool({ connectionString: parentUrl, ssl: false, max: 1 });
+  await assertOwnedDatabase(
+    parent,
+    decodeURIComponent(new URL(parentUrl).pathname.slice(1)),
+  );
+  await parent.query(`CREATE DATABASE "${databaseName}"`);
+  created = true;
   pool = new pg.Pool({ connectionString: url, ssl: false, max: 5 });
+  await assertOwnedDatabase(pool, databaseName);
   await prepareAuthFixture(pool);
-  await migrate(url);
+  await migrateLegacy();
   originalLedger = await ledgerRows();
   assert.equal(originalLedger.length, 13);
   // Do not destroy pre-existing pilot rows when running this destructive test.
@@ -197,7 +236,7 @@ after(async () => {
       await pool.query(`DROP VIEW IF EXISTS public.${externalView}`);
       await pool.query(`DROP FUNCTION IF EXISTS public.${externalFunction}()`);
       await pool.query(`DROP TABLE IF EXISTS public.${foreignTable}`);
-      await migrate(url);
+      await migrateLegacy();
       await prepareRuntimeFixture(pool);
       await pool.query(
         "DELETE FROM public.pilot_refresh_attempts WHERE cookie_hash=$1",
@@ -225,9 +264,18 @@ after(async () => {
     }
   } finally {
     await pool?.end();
-    for (const [name, value] of Object.entries(savedEnvironment)) {
-      if (value === undefined) delete process.env[name];
-      else process.env[name] = value;
+    try {
+      if (created) {
+        assertTestDatabaseTarget(url);
+        await assertOwnedDatabase(parent, databaseName);
+        await parent.query(`DROP DATABASE "${databaseName}"`);
+      }
+    } finally {
+      await parent?.end();
+      for (const [name, value] of Object.entries(savedEnvironment)) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
     }
   }
 });
@@ -430,17 +478,17 @@ test("dry run preserves every old table and auth metadata; apply removes only fi
     assert.equal((await ledgerRows()).length, 11);
     assert.deepEqual(await preservedState(), state);
 
-    await migrate(url);
+    await migrateLegacy();
     const restored = await ledgerRows();
     assert.equal(restored.length, 13);
-    for (const file of await loadMigrations())
+    for (const file of await legacySource())
       assert.equal(
         restored.find(({ name }) => name === file.name).checksum,
         createHash("sha256")
           .update(file.sql.replace(/\r\n/g, "\n"))
           .digest("hex"),
       );
-    await migrate(url);
+    await migrateLegacy();
     assert.deepEqual(await ledgerRows(), restored);
     assert.ok((await pilotCounts()).every(({ rowCount }) => rowCount === "0"));
     assert.deepEqual(await preservedState(), state);
@@ -449,7 +497,7 @@ test("dry run preserves every old table and auth metadata; apply removes only fi
     client.release();
     // A failed assertion following an applied rollback still leaves the
     // disposable database runnable for the remaining SQL verification.
-    await migrate(url);
+    await migrateLegacy();
     await prepareRuntimeFixture(pool);
   }
 });
@@ -484,7 +532,7 @@ test("lost acknowledgement after a real COMMIT reports outcome unknown although 
   } finally {
     await client.query("ROLLBACK");
     client.release();
-    await migrate(url);
+    await migrateLegacy();
     await prepareRuntimeFixture(pool);
   }
 });

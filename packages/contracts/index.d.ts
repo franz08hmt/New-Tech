@@ -224,6 +224,7 @@ export type PilotAuthErrorCode =
   | "SESSION_REFRESH_REQUIRED"
   | "CSRF_INVALID"
   | "WORKSPACE_ACCESS_DENIED"
+  | "ROLE_FORBIDDEN"
   | "AUTH_UNAVAILABLE"
   | "LOGIN_RATE_LIMITED";
 export interface PilotAuthErrorResponse {

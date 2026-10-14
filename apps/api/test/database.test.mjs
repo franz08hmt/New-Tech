@@ -18,6 +18,7 @@ import { fakeDependencies, httpApp, json, pdfForm } from "./helpers.mjs";
 // Fail BEFORE any pool, migration, grant or cleanup. Never load .env.
 const url = assertTestDatabaseTarget(process.env.TEST_DATABASE_URL);
 const saved = { ...process.env };
+const domainWorkspaceId = "22222222-2222-4222-8222-222222222222";
 let admin,
   runtimeDb,
   store,
@@ -61,6 +62,7 @@ before(async () => {
   process.env.DATABASE_SSL = "false";
   process.env.DATABASE_CA_CERT_PATH = "";
   process.env.DATABASE_POOL_MAX = "5";
+  process.env.PILOT_WORKSPACE_ID = domainWorkspaceId;
   admin = new pg.Pool(databaseConfig(url));
   await prepareAuthFixture(admin);
   await migrate(url);
@@ -129,7 +131,7 @@ after(async () => {
 test("all migrations run twice with unchanged checksums and timestamps", async () => {
   const files = await loadMigrations();
   assert.equal(ledger.length, files.length);
-  assert.equal(files.length, 13);
+  assert.equal(files.length, 14);
   for (const file of files)
     assert.equal(
       ledger.find((row) => row.name === file.name).checksum,
@@ -333,7 +335,7 @@ test("session, refresh intent and admission persist after real pool restart", as
     1,
   );
 });
-test("legacy HTTP Tasks/Documents persist across API restart; owner domain fixture, Storage/Auth mocked", async () => {
+test("HTTP Tasks/Documents persist across API restart; actual owner domain SQL, Storage/Auth mocked", async () => {
   const fixture = fakeDependencies();
   let server, taskId, documentId;
   const runtimeUrl = process.env.DATABASE_URL;

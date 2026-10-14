@@ -7,6 +7,7 @@ import { assertTestDatabaseTarget } from "../scripts/test-database-target.mjs";
 import { withReadOnly } from "../scripts/pilot-cli-common.mjs";
 import { runPilotPreflight } from "../scripts/pilot-preflight.mjs";
 import { runPilotMembership } from "../scripts/pilot-membership.mjs";
+import { loadMigrations } from "../scripts/migrate.mjs";
 
 // Fail before opening a pool or touching fixtures. Never load environment files,
 // migrate, contact Supabase, or create users through the CLI under test.
@@ -15,14 +16,20 @@ const projectRef = "a1b2c3d4e5f6g7h8i9j0";
 const maskedProjectRef = "a1b2***i9j0";
 const probe = "b1a_probe_" + randomUUID().replaceAll("-", "");
 const createProbe = "b1a_create_" + randomUUID().replaceAll("-", "");
-let pool;
+let pool, sourceMigrationCount;
 let probeCreated = false;
 
 before(async () => {
   pool = new pg.Pool({ connectionString: url, ssl: false, max: 3 });
   const ledger = await pool.query("SELECT name FROM schema_migrations");
-  assert.equal(ledger.rows.length, 13);
-  for (const name of ["012_pilot_access.sql", "013_pilot_auth_limits.sql"])
+  sourceMigrationCount = (await loadMigrations()).length;
+  assert.equal(sourceMigrationCount, 14);
+  assert.equal(ledger.rows.length, sourceMigrationCount);
+  for (const name of [
+    "012_pilot_access.sql",
+    "013_pilot_auth_limits.sql",
+    "014_workspace_scope.sql",
+  ])
     assert.ok(ledger.rows.some((row) => row.name === name));
   // These permanent objects belong exclusively to this run. Read-only protection
   // of permanent writes is PostgreSQL's guarantee; temp objects and physical I/O
@@ -215,7 +222,7 @@ test("preflight checks ledger, role and auth privileges entirely inside a read-o
     assert.equal(report.stage013Applied, true);
     assert.deepEqual(report.target, { maskedProjectRef });
     assert.deepEqual(report.auth, authSummary);
-    assert.equal(report.migrations.length, 13);
+    assert.equal(report.migrations.length, sourceMigrationCount);
     for (const entry of report.migrations) {
       assert.deepEqual(Object.keys(entry).sort(), [
         "applied",
@@ -280,7 +287,7 @@ test("preflight flags missing migrations and mismatched checksums without writin
           "SELECT count(*)::int AS count FROM schema_migrations",
         )
       ).rows[0].count,
-      13,
+      sourceMigrationCount,
     );
   } finally {
     client.release();

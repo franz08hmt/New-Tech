@@ -9,6 +9,8 @@ import { DatabaseService } from "../database/database.service.js";
 import { log } from "../common/log.js";
 import { canonicalJson } from "./feedback-validation.js";
 import type { CreateFeedbackDto } from "./create-feedback.dto.js";
+import type { PilotPrincipal } from "@examate/contracts";
+import { requirePrincipal } from "../auth/principal.js";
 
 type Row = {
   id: string;
@@ -21,15 +23,19 @@ type Row = {
 @Injectable()
 export class FeedbackService {
   constructor(private readonly database: DatabaseService) {}
-  async create(input: CreateFeedbackDto): Promise<AssistantFeedbackReceipt> {
+  async create(
+    input: CreateFeedbackDto,
+    principal?: PilotPrincipal,
+  ): Promise<AssistantFeedbackReceipt> {
+    const { workspaceId } = requirePrincipal(principal);
     const hash = createHash("sha256")
       .update(canonicalJson(input))
       .digest("hex");
     let row: Row | undefined;
     try {
       const created = await this.database.query<Row>(
-        `INSERT INTO assistant_feedback (answer_id, submission_id, rating, reasons, comment, snapshot, payload_hash)
-        VALUES ($1, $2, $3, $4, $5, $6::json, $7)
+        `INSERT INTO assistant_feedback (answer_id, submission_id, rating, reasons, comment, snapshot, payload_hash, workspace_id)
+        VALUES ($1, $2, $3, $4, $5, $6::json, $7, $8)
         ON CONFLICT DO NOTHING RETURNING id, answer_id, submission_id, rating, created_at, payload_hash`,
         [
           input.answerId,
@@ -39,6 +45,7 @@ export class FeedbackService {
           input.comment ?? null,
           canonicalJson(input.snapshot),
           hash,
+          workspaceId,
         ],
       );
       row = created.rows[0];

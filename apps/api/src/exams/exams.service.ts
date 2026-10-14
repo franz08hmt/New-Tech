@@ -7,6 +7,8 @@ import { DatabaseService } from "../database/database.service.js";
 import type { CreateExamDto } from "./create-exam.dto.js";
 import type { UpdateExamDto } from "./update-exam.dto.js";
 import type { ExamRecord } from "./exam.types.js";
+import type { PilotPrincipal } from "@examate/contracts";
+import { requirePrincipal } from "../auth/principal.js";
 
 /**
  * exam_date and exam_time are formatted in SQL rather than handed to the pg
@@ -42,12 +44,13 @@ export class ExamsService {
     return result.rows;
   }
 
-  async create(input: CreateExamDto) {
+  async create(input: CreateExamDto, principal?: PilotPrincipal) {
+    const { workspaceId } = requirePrincipal(principal);
     const result = await this.database
       .query<ExamRecord>(
         `WITH inserted AS (
-           INSERT INTO exams (course_id, topic, exam_date, exam_time, room, revision_note)
-           VALUES ($1, $2, $3::date, $4::time, $5, $6)
+           INSERT INTO exams (course_id, topic, exam_date, exam_time, room, revision_note, workspace_id)
+           VALUES ($1, $2, $3::date, $4::time, $5, $6, $7)
            RETURNING *
          )
          SELECT ${EXAM_COLUMNS}
@@ -60,6 +63,7 @@ export class ExamsService {
           input.examTime,
           input.room,
           input.revisionNote ?? null,
+          workspaceId,
         ],
       )
       .catch((error: unknown) => {

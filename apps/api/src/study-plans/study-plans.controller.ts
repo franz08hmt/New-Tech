@@ -8,12 +8,14 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Req,
 } from "@nestjs/common";
 import {
   CreateStudyPlanDto,
   UpdateStudyPlanCompletionDto,
 } from "./create-study-plan.dto.js";
 import { StudyPlansService } from "./study-plans.service.js";
+import type { AuthRequest } from "../auth/auth.service.js";
 
 @Controller("study-plans")
 export class StudyPlansController {
@@ -25,8 +27,8 @@ export class StudyPlansController {
   }
 
   @Post()
-  create(@Body() input: CreateStudyPlanDto) {
-    return this.plans.create(input);
+  create(@Body() input: CreateStudyPlanDto, @Req() req: AuthRequest) {
+    return this.plans.create(input, req.principal);
   }
 
   @Patch(":id/completion")

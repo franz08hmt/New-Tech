@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UploadedFile,
   UseInterceptors,
 } from "@nestjs/common";
@@ -16,6 +17,7 @@ import { FileInterceptor } from "@nestjs/platform-express";
 import { DocumentsService, MAX_FILE_SIZE } from "./documents.service.js";
 import { DocumentIngestionService } from "./document-ingestion.service.js";
 import type { PdfFile } from "./documents.service.js";
+import type { AuthRequest } from "../auth/auth.service.js";
 import {
   DownloadDocumentQueryDto,
   SetDocumentCourseDto,
@@ -47,8 +49,12 @@ export class DocumentsController {
       },
     }),
   )
-  upload(@Body() input: UploadDocumentDto, @UploadedFile() file?: PdfFile) {
-    return this.documents.upload(file, input.courseId);
+  upload(
+    @Body() input: UploadDocumentDto,
+    @UploadedFile() file: PdfFile | undefined,
+    @Req() req: AuthRequest,
+  ) {
+    return this.documents.upload(file, input.courseId, req.principal);
   }
   @Post(":id/process")
   @HttpCode(200)

@@ -6,6 +6,8 @@ import {
 import { DatabaseService } from "../database/database.service.js";
 import type { CreateStudyPlanDto } from "./create-study-plan.dto.js";
 import type { StudyPlanRecord } from "./study-plan.types.js";
+import type { PilotPrincipal } from "@examate/contracts";
+import { requirePrincipal } from "../auth/principal.js";
 
 /**
  * due_date is formatted in SQL for the same reason as the exam columns: the pg
@@ -43,12 +45,13 @@ export class StudyPlansService {
     return result.rows;
   }
 
-  async create(input: CreateStudyPlanDto) {
+  async create(input: CreateStudyPlanDto, principal?: PilotPrincipal) {
+    const { workspaceId } = requirePrincipal(principal);
     const result = await this.database
       .query<StudyPlanRecord>(
         `WITH inserted AS (
-           INSERT INTO study_plans (course_id, title, detail, due_date, owner_name)
-           VALUES ($1, $2, $3, $4::date, $5)
+           INSERT INTO study_plans (course_id, title, detail, due_date, owner_name, workspace_id)
+           VALUES ($1, $2, $3, $4::date, $5, $6)
            RETURNING *
          )
          SELECT ${PLAN_COLUMNS}
@@ -60,6 +63,7 @@ export class StudyPlansService {
           input.detail ?? null,
           input.dueDate ?? null,
           input.ownerName ?? null,
+          workspaceId,
         ],
       )
       .catch((error: unknown) => {

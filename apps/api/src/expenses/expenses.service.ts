@@ -6,6 +6,8 @@ import {
 import { DatabaseService } from "../database/database.service.js";
 import type { CreateExpenseDto } from "./create-expense.dto.js";
 import type { ExpenseRecord } from "./expense.types.js";
+import type { PilotPrincipal } from "@examate/contracts";
+import { requirePrincipal } from "../auth/principal.js";
 
 /**
  * spent_on is formatted in SQL for the same reason as every other date column
@@ -41,12 +43,13 @@ export class ExpensesService {
     return result.rows;
   }
 
-  async create(input: CreateExpenseDto) {
+  async create(input: CreateExpenseDto, principal?: PilotPrincipal) {
+    const { workspaceId } = requirePrincipal(principal);
     const result = await this.database
       .query<ExpenseRecord>(
         `WITH inserted AS (
-           INSERT INTO expenses (amount, description, spent_on, category, course_id)
-           VALUES ($1, $2, $3::date, $4, $5)
+           INSERT INTO expenses (amount, description, spent_on, category, course_id, workspace_id)
+           VALUES ($1, $2, $3::date, $4, $5, $6)
            RETURNING *
          )
          SELECT ${EXPENSE_COLUMNS}
@@ -58,6 +61,7 @@ export class ExpensesService {
           input.spentOn,
           input.category,
           input.courseId ?? null,
+          workspaceId,
         ],
       )
       .catch((error: unknown) => {

@@ -7,7 +7,8 @@ import {
   UnsupportedMediaTypeException,
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import type { StoredDocument } from "@examate/contracts";
+import type { StoredDocument, PilotPrincipal } from "@examate/contracts";
+import { requirePrincipal } from "../auth/principal.js";
 import { DatabaseService } from "../database/database.service.js";
 import { log } from "../common/log.js";
 import { StorageService } from "./storage.service.js";
@@ -91,6 +92,20 @@ function decodeUploadName(raw: string): string {
   return decoded.includes("�") ? raw : decoded;
 }
 
+function uploadWriteError(error: unknown) {
+  if (
+    error &&
+    typeof error === "object" &&
+    (error as { code?: string }).code === "23503"
+  ) {
+    return new BadRequestException({
+      code: "COURSE_NOT_FOUND",
+      message: "Môn học này không còn trong danh sách nữa.",
+    });
+  }
+  return error;
+}
+
 // The annotated return type is load-bearing: without it the shape was merely
 // inferred, so an extra field here — `storage_key`, say — would have reached
 // the browser with nothing to catch it. Now the contract rejects it.
@@ -148,7 +163,8 @@ export class DocumentsService {
     return result.rows[0];
   }
 
-  async upload(file?: PdfFile, courseId?: string) {
+  async upload(file?: PdfFile, courseId?: string, principal?: PilotPrincipal) {
+    const { workspaceId } = requirePrincipal(principal);
     if (!file)
       throw new BadRequestException(
         "One PDF file in the 'file' field is required",
@@ -189,12 +205,12 @@ export class DocumentsService {
       const result = await this.database.query<DocumentRecord>(
         `WITH inserted AS (
            INSERT INTO documents
-             (id, name, media_type, storage_key, size_bytes, storage_status, course_id)
-           VALUES ($1, $2, 'application/pdf', $3, $4, 'stored', $5)
+             (id, name, media_type, storage_key, size_bytes, storage_status, course_id, workspace_id)
+           VALUES ($1, $2, 'application/pdf', $3, $4, 'stored', $5, $6)
            RETURNING *
          )
          SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM.replace("FROM documents d", "FROM inserted d")}`,
-        [id, name, key, file.size, courseId ?? null],
+        [id, name, key, file.size, courseId ?? null, workspaceId],
       );
       log("info", "document.stored", { documentId: id, sizeBytes: file.size });
       return publicDocument(result.rows[0]);
@@ -209,7 +225,7 @@ export class DocumentsService {
           documentId: id,
           storageKey: key,
         });
-        throw error;
+        throw uploadWriteError(error);
       }
       if (existing) return publicDocument(existing);
       try {
@@ -220,7 +236,7 @@ export class DocumentsService {
           storageKey: key,
         });
       }
-      throw error;
+      throw uploadWriteError(error);
     }
   }
 

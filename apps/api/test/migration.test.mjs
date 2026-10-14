@@ -25,6 +25,7 @@ const expectedMigrationNames = [
   "011_assistant_feedback.sql",
   "012_pilot_access.sql",
   "013_pilot_auth_limits.sql",
+  "014_workspace_scope.sql",
 ];
 
 const saved = { ...process.env };
@@ -65,12 +66,14 @@ function databaseMock({ failSql = false, wrongChecksum = false } = {}) {
   delete process.env.MIGRATION_DATABASE_URL;
   const history = new Map();
   const statements = [];
+  const bindings = [];
   const configs = [];
   let releases = 0;
   let ends = 0;
   const client = {
     async query(sql, values) {
       statements.push(sql);
+      bindings.push({ sql, values });
       if (sql.startsWith("SELECT checksum"))
         return {
           rows: history.has(values[0])
@@ -109,6 +112,7 @@ function databaseMock({ failSql = false, wrongChecksum = false } = {}) {
   return {
     history,
     statements,
+    bindings,
     configs,
     messages,
     get releases() {
@@ -308,6 +312,44 @@ test("failed course seed is rolled back without recording the third migration", 
   assert.ok(db.statements.includes("SELECT pg_advisory_unlock(424204)"));
 });
 
+test("valid pilot UUID is passed as bound SET LOCAL in each migration transaction, never logged", async () => {
+  const db = databaseMock();
+  const pilot = "22222222-2222-4222-8222-222222222222";
+  process.env.PILOT_WORKSPACE_ID = pilot;
+  await migrate();
+  const settings = db.bindings.filter(({ sql }) =>
+    sql.startsWith("SELECT set_config('examate.pilot_workspace_id'"),
+  );
+  assert.equal(settings.length, expectedMigrationNames.length);
+  for (const setting of settings) assert.deepEqual(setting.values, [pilot]);
+  let inTransaction = false;
+  for (const sql of db.statements) {
+    if (sql === "BEGIN") inTransaction = true;
+    if (sql === "COMMIT" || sql === "ROLLBACK") inTransaction = false;
+    if (sql.startsWith("SELECT set_config('examate.pilot_workspace_id'"))
+      assert.equal(inTransaction, true);
+    assert.ok(!sql.includes(pilot));
+  }
+  assert.ok(db.messages.every((message) => !message.includes(pilot)));
+});
+for (const setting of [
+  undefined,
+  "invalid",
+  "00000000-0000-0000-0000-000000000000",
+])
+  test("missing/invalid pilot setting is not sent to PostgreSQL", async () => {
+    const db = databaseMock();
+    if (setting === undefined) delete process.env.PILOT_WORKSPACE_ID;
+    else process.env.PILOT_WORKSPACE_ID = setting;
+    await migrate();
+    assert.equal(
+      db.bindings.filter(({ sql }) =>
+        sql.startsWith("SELECT set_config('examate.pilot_workspace_id'"),
+      ).length,
+      0,
+    );
+  });
+
 test("changed migration checksum fails without reapplying SQL (mock DB)", async () => {
   const db = databaseMock({ wrongChecksum: true });
   await migrate();
@@ -368,4 +410,22 @@ test("diagnostics expose safe configuration messages and error codes, never prov
     );
     assert.doesNotMatch(result, /private|postgres:\/\//);
   }
+});
+
+test("014 backfill diagnostics give actionable safe hints, not arbitrary PostgreSQL messages", () => {
+  const message =
+    "014: seeded data needs a workspace; set a valid PILOT_WORKSPACE_ID before db:migrate";
+  assert.ok(
+    migrationFailure(
+      Object.assign(new Error(message), { code: "P0001" }),
+    ).includes(message),
+  );
+  assert.doesNotMatch(
+    migrationFailure(
+      Object.assign(new Error("014: private-password postgres://secret"), {
+        code: "P0001",
+      }),
+    ),
+    /private-password|postgres:\/\/secret/,
+  );
 });
