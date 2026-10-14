@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, useContext, type FormEvent } from "react";
 import {
   CheckIcon,
   ClipboardDocumentListIcon,
@@ -8,6 +8,7 @@ import {
 import { Panel } from "./AcademicPanels";
 import type { Workspace } from "./use-workspace";
 import type { TaskStatus } from "./api";
+import { PilotPrincipalContext } from "./PilotPrincipalContext";
 
 type OwnerFilter = "all" | "Tài" | "Thắng";
 
@@ -18,6 +19,9 @@ export function TasksPanel({
   workspace: Workspace;
   expanded?: boolean;
 }) {
+  const principal = useContext(PilotPrincipalContext);
+  const canWrite =
+    principal?.role === "member" || principal?.role === "manager";
   const [filter, setFilter] = useState("all");
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all");
   const [notice, setNotice] = useState("");
@@ -32,6 +36,7 @@ export function TasksPanel({
   });
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canWrite || workspace.busy || workspace.loading) return;
     setNotice("");
     const form = event.currentTarget;
     const data = new FormData(form);
@@ -65,6 +70,12 @@ export function TasksPanel({
           complete
         </span>
       </p>
+      {!canWrite && (
+        <p className="page-note">
+          Bạn đang có quyền xem. Nhờ thành viên hoặc người quản lý cập nhật công
+          việc nhé.
+        </p>
+      )}
       {workspace.error && (
         <p role="alert" className="error-message">
           {workspace.error}
@@ -119,8 +130,9 @@ export function TasksPanel({
               <button
                 className={`task-check ${task.status === "done" ? "checked" : ""}`}
                 aria-label={`${task.status === "done" ? "Reopen" : "Complete"} ${task.title}`}
-                disabled={workspace.busy}
+                disabled={workspace.busy || !canWrite}
                 onClick={() =>
+                  canWrite &&
                   void workspace.update(
                     task.id,
                     task.status === "done" ? "todo" : "done",
@@ -148,8 +160,9 @@ export function TasksPanel({
                 <select
                   aria-label={`Status for ${task.title}`}
                   value={task.status}
-                  disabled={workspace.busy}
+                  disabled={workspace.busy || !canWrite}
                   onChange={(event) =>
+                    canWrite &&
                     void workspace.update(
                       task.id,
                       event.target.value as TaskStatus,
@@ -175,7 +188,7 @@ export function TasksPanel({
           </p>
         )
       )}
-      {expanded ? (
+      {expanded && canWrite ? (
         <form
           className="task-form grid grid-cols-1 sm:grid-cols-2 gap-4"
           onSubmit={(event) => void submit(event)}
@@ -226,7 +239,15 @@ export function TasksPanel({
         </form>
       ) : (
         <a className="text-button" href="#tasks">
-          <PlusIcon /> Add or view tasks
+          {canWrite ? (
+            <>
+              <PlusIcon /> Add or view tasks
+            </>
+          ) : (
+            <>
+              <ClipboardDocumentListIcon /> View tasks
+            </>
+          )}
         </a>
       )}
     </Panel>

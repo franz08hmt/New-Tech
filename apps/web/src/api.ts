@@ -102,6 +102,9 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
       if (!path.startsWith("/api/auth/")) notifyPilotDenied(body?.code ?? "");
       throw new ApiError(
         message ||
+          (body?.code === "ROLE_FORBIDDEN"
+            ? "Bạn đang có quyền xem. Nhờ thành viên hoặc người quản lý cập nhật công việc nhé."
+            : undefined) ||
           ([502, 503, 504].includes(response.status)
             ? "Service is unavailable. Please retry."
             : `Request failed (${response.status}).`),

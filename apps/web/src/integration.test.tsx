@@ -9,6 +9,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { WorkspaceApp as App } from "./App";
 import { configurePilotClient } from "./pilot-client";
 import { api, request } from "./api";
+import { PilotPrincipalContext } from "./PilotPrincipalContext";
 beforeEach(() => configurePilotClient("a".repeat(43), true));
 
 afterEach(() => {
@@ -112,7 +113,17 @@ it("updates task status using server response and shows failed submission", asyn
       return Response.json([task]);
     }),
   );
-  render(<App />);
+  render(
+    <PilotPrincipalContext.Provider
+      value={{
+        userId: "11111111-1111-4111-8111-111111111111",
+        workspaceId: "22222222-2222-4222-8222-222222222222",
+        role: "member",
+      }}
+    >
+      <App />
+    </PilotPrincipalContext.Provider>,
+  );
   await screen.findByText(task.title);
   fireEvent.change(screen.getByLabelText(`Status for ${task.title}`), {
     target: { value: "done" },

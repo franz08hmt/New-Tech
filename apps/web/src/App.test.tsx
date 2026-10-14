@@ -11,10 +11,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceApp } from "./App";
 import { configurePilotClient } from "./pilot-client";
 import { NotesStorageContext } from "./NotesStorageContext";
+import { PilotPrincipalContext } from "./PilotPrincipalContext";
 function App() {
   return (
     <NotesStorageContext.Provider value="examate-notes:test-user:test-workspace">
-      <WorkspaceApp />
+      <PilotPrincipalContext.Provider
+        value={{
+          userId: "11111111-1111-4111-8111-111111111111",
+          workspaceId: "22222222-2222-4222-8222-222222222222",
+          role: "member",
+        }}
+      >
+        <WorkspaceApp />
+      </PilotPrincipalContext.Provider>
     </NotesStorageContext.Provider>
   );
 }

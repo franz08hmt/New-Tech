@@ -6,6 +6,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { usePilotSession } from "./use-pilot-session";
 import { NotesStorageContext } from "./NotesStorageContext";
+import { PilotPrincipalContext } from "./PilotPrincipalContext";
 export function PilotAccess({ children }: { children: ReactNode }) {
   const session = usePilotSession();
   const [email, setEmail] = useState(""),
@@ -173,7 +174,9 @@ export function PilotAccess({ children }: { children: ReactNode }) {
           <NotesStorageContext.Provider
             value={`examate-notes:${session.principal.workspaceId}:${session.principal.userId}`}
           >
-            {children}
+            <PilotPrincipalContext.Provider value={session.principal}>
+              {children}
+            </PilotPrincipalContext.Provider>
           </NotesStorageContext.Provider>
         </div>
       )}
