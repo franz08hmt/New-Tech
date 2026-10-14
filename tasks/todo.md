@@ -10,8 +10,9 @@
 - [ ] Xác nhận lại nội dung PDF trên Chrome thật; IAB chỉ thấy surface tối.
 - [x] Mutations, bốn gate exit 0: 1.052 test; DB 177 pass/0 skipped, report/cleanup.
 - [x] Commit API/RAG/eval/FE và docs; tracked tree sạch.
-- [ ] Push cùng nhánh không force: đang chờ Tài hoàn tất GitHub authentication.
-      Attempt bị hủy exit 1; `ls-remote` vẫn `f7081eb`, không merge main.
+- [x] Sau khi Tài đăng nhập, push cùng nhánh không force exit 0; remote khớp
+      `8344878`, ahead/behind 0/0. Commit docs bổ sung cập nhật xác nhận này;
+      không merge main. Attempt chờ Auth trước đó được giữ trong báo cáo.
 
 ## Đợt 6 — hoàn tất phạm vi local (2026-10-14)
 

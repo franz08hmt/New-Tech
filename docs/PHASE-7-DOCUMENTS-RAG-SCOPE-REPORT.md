@@ -257,3 +257,9 @@ nhập, không xin/đọc token hoặc password. Khi chưa có phản hồi, h�
 chờ (exit 1), **không tuyên bố push thành công**. `git ls-remote` sau hủy xác
 nhận remote vẫn `f7081eb`, chưa nhận commit Đợt 7. Commit docs bổ sung ghi lại
 giới hạn này; cần Tài hoàn tất Auth GitHub rồi push tiếp, không force/merge.
+
+**Cập nhật sau khi Tài xác nhận đã đăng nhập:** thử lại push exit 0, remote
+`feature/tai-rag-integration` cập nhật `f7081eb..8344878`. `git ls-remote` xác
+nhận hash remote bằng HEAD, ahead/behind `0 / 0`, tracked tree sạch. Không force,
+không merge main, không stage prompt untracked. Commit tài liệu tiếp theo chỉ
+ghi lại kết quả này và cập nhật checklist; không sửa runtime hay chạy cloud.
