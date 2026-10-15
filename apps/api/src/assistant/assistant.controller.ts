@@ -41,6 +41,7 @@ export class AssistantController {
     @Res({ passthrough: true })
     res?: { setHeader(name: string, value: string): void },
   ) {
+    await this.receipts.verifyHistory(input, req?.principal);
     // Workspace questions are answered from records by their own read-only
     // service. Other modes receive only the guard-verified server principal.
     const answer =

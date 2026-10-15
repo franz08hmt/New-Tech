@@ -42,6 +42,20 @@ afterEach(() => {
 });
 
 describe("GeminiService", () => {
+  it("maps verified conversation to alternating SDK roles before the current user", async () => {
+    await new GeminiService().generate({
+      ...input,
+      conversation: [
+        { role: "user", text: "Câu trước" },
+        { role: "model", text: "Đáp trước (nguồn ở lượt trước)" },
+      ],
+    });
+    expect(generateContent.mock.calls[0][0].contents).toEqual([
+      { role: "user", parts: [{ text: "Câu trước" }] },
+      { role: "model", parts: [{ text: "Đáp trước (nguồn ở lượt trước)" }] },
+      { role: "user", parts: [{ text: "Private user message" }] },
+    ]);
+  });
   it("reads text, sends a single user turn, and limits generation without tools or retries", async () => {
     const service = new GeminiService();
     await expect(service.generate(input)).resolves.toBe("A useful answer.");

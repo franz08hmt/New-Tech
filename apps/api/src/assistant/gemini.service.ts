@@ -53,6 +53,10 @@ export class GeminiService implements AssistantProvider {
         this.client.models.generateContent({
           model: this.model,
           contents: [
+            ...(input.conversation ?? []).map(({ role, text }) => ({
+              role,
+              parts: [{ text }],
+            })),
             { role: "user", parts: input.userParts.map((text) => ({ text })) },
           ],
           config: {

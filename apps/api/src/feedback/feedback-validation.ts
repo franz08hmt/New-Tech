@@ -67,6 +67,16 @@ export function validSnapshot(
     return false;
   const q = value.request,
     r = value.response;
+  const contextFields = ["contextTurnsUsed", "contextTruncated"];
+  if (
+    object(r) &&
+    contextFields.some((k) => Object.hasOwn(r, k)) &&
+    (!Number.isInteger(r.contextTurnsUsed) ||
+      Number(r.contextTurnsUsed) < 0 ||
+      Number(r.contextTurnsUsed) > 6 ||
+      typeof r.contextTruncated !== "boolean")
+  )
+    return false;
   if (
     !shape(q, ["mode", "operation", "question"], ["courseId", "documentId"]) ||
     !text(q.question, 4000) ||
@@ -167,7 +177,7 @@ export function validSnapshot(
     );
   }
   if (
-    !shape(r, base) ||
+    !shape(r, base, contextFields) ||
     r.provider !== "google" ||
     r.ragEnabled !== (q.mode === "documents") ||
     !["ANSWER_GENERATED", "PARTIAL_COVERAGE", "NO_RELEVANT_EVIDENCE"].includes(

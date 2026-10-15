@@ -1,5 +1,6 @@
 import {
   ArgumentsHost,
+  BadRequestException,
   Catch,
   ExceptionFilter,
   HttpException,
@@ -11,6 +12,8 @@ import { errorCode, log, requestContext } from "./log.js";
 import { httpRuntimeConfig } from "../config/config.js";
 import { normalizeIp } from "./client-ip.js";
 import type { AssistantAnswerIdHeader } from "@examate/contracts";
+import { AssistantChatDto } from "../assistant/assistant-chat.dto.js";
+import { boundedHistoryInput } from "../assistant/history-validation.js";
 
 @Catch()
 class ApiExceptionFilter implements ExceptionFilter {
@@ -79,10 +82,35 @@ export function configureApp(app: INestApplication, origins: string[] = []) {
     },
   );
   app.useGlobalPipes(
+    {
+      transform(value: unknown, metadata) {
+        if (
+          metadata.metatype === AssistantChatDto &&
+          value !== null &&
+          typeof value === "object" &&
+          "history" in value &&
+          !boundedHistoryInput(value.history)
+        )
+          throw new BadRequestException({
+            code: "HISTORY_INVALID",
+            message:
+              "Ngữ cảnh quá phức tạp. Bạn mở cuộc hội thoại mới rồi thử lại nhé.",
+          });
+        return value;
+      },
+    },
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      exceptionFactory: (errors) =>
+        errors.some((error) => error.property === "history")
+          ? new BadRequestException({
+              code: "HISTORY_INVALID",
+              message:
+                "Chưa xác minh được ngữ cảnh. Bạn mở cuộc hội thoại mới rồi thử lại nhé.",
+            })
+          : new ValidationPipe().createExceptionFactory()(errors),
     }),
   );
   app.useGlobalFilters(new ApiExceptionFilter());

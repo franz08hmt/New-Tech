@@ -18,6 +18,8 @@ export type WorkspaceAnswer = Extract<
 export interface AssistantGeneration {
   systemInstruction: string;
   userParts: string[];
+  /** Verified, source-neutralized history. Never retrieved evidence. */
+  conversation?: { role: "user" | "model"; text: string }[];
   responseMimeType?: "application/json";
   responseJsonSchema?: unknown;
 }

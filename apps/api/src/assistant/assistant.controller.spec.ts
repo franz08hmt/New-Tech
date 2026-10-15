@@ -61,6 +61,7 @@ function fixture(status: AssistantStatus) {
       service,
       workspace as unknown as WorkspaceAssistantService,
       {
+        verifyHistory: vi.fn().mockResolvedValue(undefined),
         issue: vi
           .fn()
           .mockResolvedValue("77777777-7777-4777-8777-777777777777"),

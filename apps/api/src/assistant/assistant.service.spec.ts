@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { AssistantService } from "./assistant.service.js";
 import { EmbeddingError } from "./gemini-embedding.service.js";
@@ -98,6 +99,45 @@ function fixture(
 }
 
 describe("AssistantService grounded orchestration", () => {
+  it.each(["general", "documents"] as const)(
+    "no-history %s prompt and retrieval match the d15afea golden",
+    async (mode) => {
+      const f = fixture();
+      const input = {
+        mode,
+        message: "Câu hỏi gốc",
+        pageContext: { pageId: "documents", pageName: "Documents" },
+        courseId: null,
+      };
+      const result = await f.service.chat(input, principal);
+      const generation = f.generate.mock.calls[0][0];
+      expect(
+        createHash("sha256").update(generation.systemInstruction).digest("hex"),
+      ).toBe(
+        mode === "general"
+          ? "551c516e14ccdde93295e23014d2b38fc0b841b17407dd7e176aba6ae477bdd2"
+          : "c813cef8dc45516c190efd2ffd3a0caa321e38002a0da9ce6af17057e9004b1e",
+      );
+      expect(generation.userParts).toEqual([
+        'Untrusted UI page metadata: {"pageId":"documents","pageName":"Documents"}',
+        "Question: Câu hỏi gốc",
+        ...(mode === "documents" ? [rag.context] : []),
+      ]);
+      expect(generation).not.toHaveProperty("conversation");
+      expect(result).not.toHaveProperty("contextTurnsUsed");
+      expect(result).not.toHaveProperty("contextTruncated");
+      expect(result.promptVersion).toBe(
+        mode === "general" ? "general-v1" : "rag-v1",
+      );
+      if (mode === "documents")
+        expect(f.retrieval.retrieve).toHaveBeenCalledExactlyOnceWith(
+          "Câu hỏi gốc",
+          { courseId: null },
+          principal,
+        );
+      else expect(f.retrieval.retrieve).not.toHaveBeenCalled();
+    },
+  );
   it("answers a selected document's course from workspace metadata without generating text", async () => {
     const { service, retrieval, generate } = fixture();
     const result = await service.chat(

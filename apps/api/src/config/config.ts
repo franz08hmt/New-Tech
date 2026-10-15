@@ -53,6 +53,15 @@ export function geminiConfig() {
   };
 }
 
+export function conversationConfig() {
+  const raw = process.env.ASSISTANT_CONTEXT_MAX_CHARS ?? "12000";
+  if (!/^\d+$/.test(raw) || Number(raw) < 1000 || Number(raw) > 24000)
+    throw new ConfigurationError(
+      "Invalid configuration: ASSISTANT_CONTEXT_MAX_CHARS",
+    );
+  return { maxChars: Number(raw) };
+}
+
 function optionalGeminiApiKey() {
   const rawKey = process.env.GEMINI_API_KEY?.trim();
   return rawKey && !rawKey.includes("REPLACE_") ? rawKey : undefined;
@@ -284,6 +293,7 @@ export function appConfig() {
     ...runtime,
     database,
     gemini: geminiConfig(),
+    conversation: conversationConfig(),
     embedding: geminiEmbeddingConfig(),
     rag: ragConfig(),
     port: integer("PORT", 3000, 65535),

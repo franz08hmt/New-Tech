@@ -305,7 +305,7 @@ for (const [name, body] of Object.entries({
   array: { message: [] },
   credentials: { message: "Help", apiKey: secret },
   envCredentials: { message: "Help", GEMINI_API_KEY: secret },
-  unknown: { message: "Help", history: [] },
+  unknown: { message: "Help", clientHistory: [] },
   url: { message: "Help", url: "https://example.test" },
   file: { message: "Help", file: "file.pdf" },
   badCourse: { message: "Help", courseId: "not-a-uuid" },

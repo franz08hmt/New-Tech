@@ -1,5 +1,6 @@
 import {
   HttpException,
+  BadRequestException,
   Injectable,
   ServiceUnavailableException,
 } from "@nestjs/common";
@@ -21,6 +22,41 @@ export class AnswerReceiptService {
     private readonly database: DatabaseService,
     private readonly access: DocumentAccessService,
   ) {}
+
+  async verifyHistory(
+    input: AssistantChatRequest,
+    principal: PilotPrincipal | undefined,
+  ) {
+    if (!input.history?.length) return;
+    await this.database.transaction(async (tx) => {
+      const owner = await this.access.authorize(principal, "read", tx);
+      for (const turn of input.history!) {
+        const snapshot = turn.snapshot;
+        const request = snapshot.request;
+        const invalid = () =>
+          new BadRequestException({
+            code: "HISTORY_INVALID",
+            message:
+              "Chưa xác minh được ngữ cảnh. Bạn mở cuộc hội thoại mới rồi thử lại nhé.",
+          });
+        if (
+          request.mode !== (input.mode ?? "documents") ||
+          (request.courseId ?? null) !== (input.courseId ?? null) ||
+          (request.documentId ?? null) !== (input.documentId ?? null)
+        )
+          throw invalid();
+        const hash = createHash("sha256")
+          .update(canonicalJson(snapshot))
+          .digest("hex");
+        const result = await tx.query(
+          `SELECT id FROM assistant_answer_receipts
+          WHERE id = $1 AND workspace_id = $2 AND user_id = $3 AND mode = $4 AND snapshot_hash = $5 FOR SHARE`,
+          [turn.receiptId, owner.workspaceId, owner.userId, request.mode, hash],
+        );
+        if (result.rows.length !== 1) throw invalid();
+      }
+    });
+  }
 
   async issue(
     input: AssistantChatRequest,

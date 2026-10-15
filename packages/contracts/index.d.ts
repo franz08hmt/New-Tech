@@ -272,7 +272,16 @@ export interface AssistantChatRequest {
   pageContext?: AssistantPageContext | null;
   courseId?: string | null;
   documentId?: string | null;
+  /** At most six receipted turns, oldest first. Question operation only.
+   * UTF-8 JSON <=81920 bytes and <=64000 serialized characters in total. */
+  history?: AssistantHistoryTurn[];
 }
+
+export interface AssistantHistoryTurn {
+  receiptId: string;
+  snapshot: AssistantFeedbackSnapshot;
+}
+export type AssistantHistoryErrorCode = "HISTORY_INVALID";
 
 export interface AssistantCitation {
   sourceId: string;
@@ -350,7 +359,7 @@ export type AssistantReasonCode =
   | "DOCUMENT_METADATA";
 
 /** Response from general chat or document-grounded RAG. */
-/** Successful chat only. Server UUID; absent on errors. Body shape unchanged. */
+/** Server UUID after successful receipt persistence. Absent on receipt outages. */
 export type AssistantAnswerIdHeader = "X-Assistant-Answer-ID";
 export type AssistantReceiptErrorCode =
   "ANSWER_RECEIPT_UNAVAILABLE" | "ANSWER_RECEIPT_NOT_FOUND";
@@ -359,6 +368,9 @@ type AssistantResponseBase = {
   answer: string;
   answerable: boolean;
   promptVersion: string;
+  /** Present only when non-empty history was supplied (legacy answers unchanged). */
+  contextTurnsUsed?: number;
+  contextTruncated?: boolean;
 };
 
 export type AssistantChatResponse =
