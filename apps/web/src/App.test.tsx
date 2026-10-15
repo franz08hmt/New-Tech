@@ -3214,6 +3214,59 @@ describe("Academic workspace", () => {
       ]);
     });
 
+    it("closes a pending accepted source popup on new conversation and ignores its late signed URL", async () => {
+      answerWithCitation();
+      const answering = globalThis.fetch;
+      let downloadRequests = 0;
+      let releasePopup!: (response: Response) => void;
+      const pendingPopup = new Promise<Response>((resolve) => {
+        releasePopup = resolve;
+      });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: RequestInit) => {
+          if (url.includes("/doc-2/download") && ++downloadRequests === 2)
+            return pendingPopup;
+          return answering(url, init);
+        }),
+      );
+      const tab = fakeTab();
+      const open = vi.fn(() => tab);
+      vi.stubGlobal("open", open);
+      render(<App />);
+      await openWithDocument();
+      await ask("Chương 2 nói gì?");
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Open source ghi-chu-chung.pdf, tr. 3",
+        }),
+      );
+      await screen.findByTitle("ghi-chu-chung.pdf, trang 3");
+      const source = screen.getByRole("region", { name: "ghi-chu-chung.pdf" });
+      fireEvent.click(
+        within(source).getByRole("button", { name: "Mở trong tab mới" }),
+      );
+      expect(open).toHaveBeenCalledWith("", "_blank");
+      expect(downloadRequests).toBe(2);
+      expect(tab.location.replace).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
+
+      // Closure must happen while the old URL request is still pending.
+      expect.soft(tab.close).toHaveBeenCalled();
+      expect(screen.queryByText(citedAnswer.answer)).not.toBeInTheDocument();
+      await act(async () => {
+        releasePopup(
+          Response.json({
+            url: "https://storage.example.test/old-source.pdf?token=late",
+            expiresIn: 60,
+          }),
+        );
+        await pendingPopup;
+      });
+      expect(tab.location.replace).not.toHaveBeenCalled();
+    });
+
     it("offers a direct link when the browser blocks the new tab anyway", async () => {
       answerWithCitation();
       vi.stubGlobal(

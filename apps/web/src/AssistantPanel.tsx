@@ -78,7 +78,10 @@ interface AssistantPanelProps {
    * Opens the cited document in a new tab. Resolves with the source URL when
    * the browser blocked that tab, so it can be offered as a link to click.
    */
-  onOpenCitation?: (citation: AssistantCitation) => Promise<string | void>;
+  onOpenCitation?: (
+    citation: AssistantCitation,
+    signal?: AbortSignal,
+  ) => Promise<string | void>;
   /** Resolves with a signed inline link to show the cited PDF in the panel. */
   loadSource?: (citation: AssistantCitation) => Promise<string>;
   /**
@@ -166,6 +169,8 @@ export function AssistantPanel({
   const panel = useRef<HTMLElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const [openingCitation, setOpeningCitation] = useState<string | null>(null);
+  const sourceEpoch = useRef(0);
+  const pendingSource = useRef<AbortController | null>(null);
   const [citationError, setCitationError] = useState("");
   const [blockedSource, setBlockedSource] = useState<{
     label: string;
@@ -211,6 +216,32 @@ export function AssistantPanel({
   const selectedDocument = availableDocuments.find(
     (item) => item.id === documentId,
   );
+
+  useEffect(() => {
+    assistant.syncContext({
+      courseId,
+      ...(assistant.mode === "documents" && documentId ? { documentId } : {}),
+    });
+  }, [assistant.syncContext, assistant.mode, courseId, documentId]);
+
+  useEffect(() => {
+    // A reset removes the source opener along with its answer; do not leave a
+    // PDF from the previous scope visible beside the new conversation.
+    sourceEpoch.current++;
+    pendingSource.current?.abort();
+    pendingSource.current = null;
+    closeSourceView();
+    setBlockedSource(null);
+    setCitationError("");
+    setOpeningCitation(null);
+    sourceOpener.current = null;
+    restoreSourceFocus.current = false;
+    return () => {
+      sourceEpoch.current++;
+      pendingSource.current?.abort();
+      pendingSource.current = null;
+    };
+  }, [assistant.conversationVersion, closeSourceView]);
 
   useEffect(() => {
     if (
@@ -291,19 +322,27 @@ export function AssistantPanel({
   async function openCitation(citation: AssistantCitation) {
     if (!onOpenCitation || !citation.documentId || openingCitation) return;
     const key = citation.id ?? citation.documentId;
+    const openedIn = sourceEpoch.current;
+    const controller = new AbortController();
+    pendingSource.current = controller;
     setOpeningCitation(key);
     setCitationError("");
     setBlockedSource(null);
     try {
       // Called straight from the click, not after an await: the new tab has
       // to open while the browser still counts this as the student's action.
-      const blockedUrl = await onOpenCitation(citation);
+      const blockedUrl = await onOpenCitation(citation, controller.signal);
+      if (openedIn !== sourceEpoch.current) return;
       if (blockedUrl)
         setBlockedSource({ label: sourceLabel(citation), url: blockedUrl });
     } catch {
+      if (openedIn !== sourceEpoch.current) return;
       setCitationError("Chưa mở được tài liệu nguồn. Thử lại giúp mình nhé.");
     } finally {
-      setOpeningCitation(null);
+      if (openedIn === sourceEpoch.current) {
+        setOpeningCitation(null);
+        pendingSource.current = null;
+      }
     }
   }
 
@@ -381,6 +420,25 @@ export function AssistantPanel({
       </header>
 
       <div className="assistant-body" hidden={sourceScreen}>
+        {!preview && (
+          <section
+            className="assistant-conversation-tools"
+            aria-label="Conversation context"
+          >
+            <button
+              type="button"
+              onClick={() => {
+                assistant.resetConversation();
+                composer.current?.focus();
+              }}
+            >
+              New conversation
+            </button>
+            {assistant.contextNotice && (
+              <p role="status">{assistant.contextNotice}</p>
+            )}
+          </section>
+        )}
         {preview && (
           <section
             className="assistant-intro"
@@ -584,8 +642,9 @@ export function AssistantPanel({
                 {message.role === "assistant" &&
                   message.feedbackUnavailable && (
                     <p role="status">
-                      Câu trả lời vẫn được giữ. Trình duyệt chưa tạo được mã
-                      phản hồi nên chưa thể gửi đánh giá cho câu trả lời này.
+                      Câu trả lời vẫn được giữ, nhưng chưa nhận được mã xác nhận
+                      từ server. Lượt này chưa thể gửi đánh giá và sẽ không dùng
+                      làm ngữ cảnh.
                     </p>
                   )}
               </li>

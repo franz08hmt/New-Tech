@@ -35,6 +35,15 @@ function Harness({ transport }: { transport?: AskTransport }) {
 afterEach(() => cleanup());
 
 describe("ExaMate AI seam", () => {
+  it("provides a keyboard-native new conversation control and reset notice", () => {
+    render(
+      <Harness transport={async () => ({ text: "Trả lời", citations: [] })} />,
+    );
+    const button = screen.getByRole("button", { name: "New conversation" });
+    button.focus();
+    fireEvent.click(button);
+    expect(screen.getByText(/Đã mở cuộc hội thoại mới/)).toBeInTheDocument();
+  });
   it("renders a reply and its sources once a transport answers", async () => {
     const transport = vi.fn<AskTransport>(async () => ({
       text: "Ôn lại độ phức tạp trước, rồi tới cây nhị phân.",

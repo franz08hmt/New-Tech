@@ -12,6 +12,7 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+.assistant-conversation-tools button,
 .assistant-feedback button {
   /* 46 × the panel's smallest entrance scale (0.97) still exceeds 44px. */
   min-height: 46px;
@@ -20,6 +21,15 @@
   border-radius: 8px;
   background: var(--color-paper);
   color: var(--color-ink);
+}
+.assistant-conversation-tools {
+  margin: 12px 16px;
+}
+.assistant-conversation-tools p {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 .assistant-feedback button[aria-pressed="true"] {
   border-color: var(--color-ai-accent);

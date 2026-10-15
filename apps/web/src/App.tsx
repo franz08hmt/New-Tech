@@ -545,8 +545,8 @@ export function WorkspaceApp() {
         assistant={assistant}
         documents={assistantDocuments.documents}
         documentsLoading={assistantDocuments.loading}
-        onOpenCitation={async (citation) => {
-          if (!citation.documentId) return;
+        onOpenCitation={async (citation, signal) => {
+          if (!citation.documentId || signal?.aborted) return;
           // The tab opens now, still inside the click. Opened after awaiting
           // the signed URL, the browser no longer counts it as the student's
           // own action and blocks it as a popup. "noopener" would make
@@ -554,16 +554,21 @@ export function WorkspaceApp() {
           // the tab is cut off from this page by hand instead.
           const tab = window.open("", "_blank");
           if (tab) tab.opener = null;
+          const cancel = () => tab?.close();
+          signal?.addEventListener("abort", cancel, { once: true });
           try {
             const source = await citedSourceUrl(
               citation.documentId,
               citation.page,
             );
+            if (signal?.aborted) return;
             if (!tab) return source;
             tab.location.replace(source);
           } catch (error: unknown) {
             tab?.close();
             throw error;
+          } finally {
+            signal?.removeEventListener("abort", cancel);
           }
         }}
         loadSource={(citation) =>
