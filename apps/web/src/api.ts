@@ -71,6 +71,9 @@ export async function request<T>(
   const authHeaders = pilotHeaders(path, init?.method);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60000);
+  const cancel = () => controller.abort();
+  if (init?.signal?.aborted) cancel();
+  init?.signal?.addEventListener("abort", cancel, { once: true });
   try {
     let response: Response;
     try {
@@ -128,6 +131,7 @@ export async function request<T>(
     return body;
   } finally {
     clearTimeout(timer);
+    init?.signal?.removeEventListener("abort", cancel);
   }
 }
 
@@ -163,12 +167,14 @@ export const api = {
   askAssistant: (
     input: AssistantChatRequest,
     onAnswerId?: (id: string | undefined) => void,
+    signal?: AbortSignal,
   ) =>
     request<AssistantChatResponse>(
       "/api/assistant/chat",
       {
         method: "POST",
         body: JSON.stringify(input),
+        signal,
       },
       (headers) => {
         const header: AssistantAnswerIdHeader = "X-Assistant-Answer-ID";

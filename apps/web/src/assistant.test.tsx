@@ -62,6 +62,7 @@ describe("ExaMate AI seam", () => {
       },
       "documents",
       "question",
+      { history: [], signal: expect.any(AbortSignal) },
     );
     // Sent successfully, so the composer is ready for the next question.
     expect(screen.getByLabelText("Question for ExaMate")).toHaveValue("");

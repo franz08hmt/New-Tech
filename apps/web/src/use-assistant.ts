@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   AssistantMetadataSource,
   AssistantMode,
@@ -6,6 +6,7 @@ import type {
   AssistantWorkspaceSource,
   AssistantChatResponse,
   AssistantFeedbackSnapshot,
+  AssistantHistoryTurn,
 } from "@examate/contracts";
 
 /*
@@ -68,6 +69,7 @@ export type AskTransport = (
   context: AssistantContext,
   mode: AssistantMode,
   operation: AssistantOperation,
+  options?: { history?: AssistantHistoryTurn[]; signal?: AbortSignal },
 ) => Promise<{
   text: string;
   citations: AssistantCitation[];
@@ -89,6 +91,12 @@ export interface AssistantState {
   canSend: boolean;
   mode: AssistantMode;
   setMode: (mode: AssistantMode) => void;
+  contextNotice: string;
+  conversationVersion: number;
+  resetConversation: (note?: string) => void;
+  syncContext: (
+    context: Pick<AssistantContext, "courseId" | "documentId">,
+  ) => void;
   send: (
     context: AssistantContext,
     options?: { operation?: AssistantOperation; message?: string },
@@ -107,6 +115,51 @@ export function useAssistant(transport?: AskTransport): AssistantState {
   // re-rendered, so a state flag would still read "not sending" on the second.
   const inFlight = useRef(false);
   const nextId = useRef(0);
+  const epoch = useRef(0);
+  const pending = useRef<AbortController | null>(null);
+  const history = useRef<AssistantHistoryTurn[]>([]);
+  const scope = useRef<string | undefined>(undefined);
+  const [contextNotice, setContextNotice] = useState("");
+  const [conversationVersion, setConversationVersion] = useState(0);
+
+  const resetConversation = useCallback(
+    (note = "Đã mở cuộc hội thoại mới. Ngữ cảnh cũ không được gửi tiếp.") => {
+      epoch.current++;
+      setConversationVersion((value) => value + 1);
+      pending.current?.abort();
+      pending.current = null;
+      inFlight.current = false;
+      history.current = [];
+      setMessages([]);
+      setStatus(transport ? "idle" : "unavailable");
+      setErrorMessage("");
+      setContextNotice(note);
+    },
+    [transport],
+  );
+
+  const syncContext = useCallback(
+    (context: Pick<AssistantContext, "courseId" | "documentId">) => {
+      const next = JSON.stringify([
+        context.courseId ?? null,
+        context.documentId ?? null,
+      ]);
+      if (scope.current !== undefined && scope.current !== next)
+        resetConversation(
+          "Bạn vừa đổi môn hoặc tài liệu. Mình bắt đầu ngữ cảnh mới để không lẫn nguồn nhé.",
+        );
+      scope.current = next;
+    },
+    [resetConversation],
+  );
+
+  useEffect(
+    () => () => {
+      epoch.current++;
+      pending.current?.abort();
+    },
+    [],
+  );
 
   const canSend =
     Boolean(transport) && draft.trim().length > 0 && status !== "sending";
@@ -117,11 +170,29 @@ export function useAssistant(transport?: AskTransport): AssistantState {
       options?: { operation?: AssistantOperation; message?: string },
     ) => {
       const question = (options?.message ?? draft).trim();
+      syncContext(context);
       if (!transport || !question || inFlight.current) return;
       inFlight.current = true;
       const requestMode = mode;
       const requestOperation = options?.operation ?? "question";
       const requestContext = { ...context };
+      const requestEpoch = epoch.current;
+      const controller = new AbortController();
+      pending.current = controller;
+      const prior = history.current.slice(-6);
+      while (prior.length) {
+        const serialized = JSON.stringify(prior);
+        if (
+          serialized.length <= 64000 &&
+          new TextEncoder().encode(serialized).byteLength <= 81920
+        )
+          break;
+        prior.shift();
+      }
+      if (prior.length !== history.current.length)
+        setContextNotice(
+          "Ngữ cảnh dài nên chỉ gửi các lượt gần nhất; hội thoại hiển thị vẫn còn nguyên.",
+        );
       setStatus("sending");
       setErrorMessage("");
       try {
@@ -130,7 +201,14 @@ export function useAssistant(transport?: AskTransport): AssistantState {
           requestContext,
           requestMode,
           requestOperation,
+          {
+            signal: controller.signal,
+            ...(requestMode !== "workspace" && requestOperation === "question"
+              ? { history: prior }
+              : {}),
+          },
         );
+        if (requestEpoch !== epoch.current || controller.signal.aborted) return;
         const answerId =
           reply.answerId &&
           /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -161,6 +239,15 @@ export function useAssistant(transport?: AskTransport): AssistantState {
                 ) as AssistantFeedbackSnapshot,
               }
             : undefined;
+        if (feedback && requestMode !== "workspace")
+          history.current = [
+            ...history.current,
+            { receiptId: feedback.answerId, snapshot: feedback.snapshot },
+          ].slice(-6);
+        if (reply.response?.contextTruncated)
+          setContextNotice(
+            "Ngữ cảnh dài nên server đã bỏ lượt cũ hoặc rút gọn phần dài. Nguồn trích dẫn vẫn lấy ở lượt hiện tại.",
+          );
         nextId.current += 2;
         setMessages((current) => [
           ...current,
@@ -192,6 +279,7 @@ export function useAssistant(transport?: AskTransport): AssistantState {
         if (options?.message === undefined) setDraft("");
         setStatus("idle");
       } catch (error: unknown) {
+        if (requestEpoch !== epoch.current || controller.signal.aborted) return;
         setErrorMessage(
           error instanceof Error
             ? error.message
@@ -199,15 +287,24 @@ export function useAssistant(transport?: AskTransport): AssistantState {
         );
         setStatus("error");
       } finally {
-        inFlight.current = false;
+        if (requestEpoch === epoch.current) {
+          inFlight.current = false;
+          pending.current = null;
+        }
       }
     },
-    [draft, mode, transport],
+    [draft, mode, transport, syncContext],
   );
 
-  const setMode = useCallback((nextMode: AssistantMode) => {
-    if (!inFlight.current) setModeState(nextMode);
-  }, []);
+  const setMode = useCallback(
+    (nextMode: AssistantMode) => {
+      if (nextMode === mode) return;
+      resetConversation("Bạn vừa đổi chế độ. Mình bắt đầu ngữ cảnh mới nhé.");
+      scope.current = undefined;
+      setModeState(nextMode);
+    },
+    [mode, resetConversation],
+  );
 
   return {
     draft,
@@ -218,6 +315,10 @@ export function useAssistant(transport?: AskTransport): AssistantState {
     canSend,
     mode,
     setMode,
+    contextNotice,
+    conversationVersion,
+    resetConversation,
+    syncContext,
     send,
   };
 }

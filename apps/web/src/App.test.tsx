@@ -2096,6 +2096,7 @@ describe("Academic workspace", () => {
           mode: "documents",
           operation: "question",
           pageContext: { pageId: "dashboard", pageName: "Dashboard" },
+          history: [],
         }),
       }),
     );
@@ -2667,7 +2668,7 @@ describe("Academic workspace", () => {
       },
     );
 
-    it("keeps the conversation and the chosen document across a trip through workspace mode", async () => {
+    it("resets conversation while keeping document selection across a trip through workspace mode", async () => {
       answerWithCitation();
       render(<App />);
       await openWithDocument();
@@ -2684,17 +2685,17 @@ describe("Academic workspace", () => {
       fireEvent.click(screen.getByRole("radio", { name: "Hỏi tài liệu" }));
       expect(screen.getByLabelText("Tài liệu")).toHaveValue("doc-2");
       expect(
-        screen.getByText("Chương 2 nói về độ phức tạp thuật toán."),
-      ).toBeInTheDocument();
+        screen.queryByText("Chương 2 nói về độ phức tạp thuật toán."),
+      ).not.toBeInTheDocument();
       expect(
-        screen.getByText(/Có 1 task chưa xong trong danh sách chung/),
-      ).toBeInTheDocument();
-      // The PDF citation from before still opens its preview.
+        screen.queryByText(/Có 1 task chưa xong trong danh sách chung/),
+      ).not.toBeInTheDocument();
+      // Old citations must not remain in a fresh conversation scope.
       expect(
-        screen.getByRole("button", {
+        screen.queryByRole("button", {
           name: "Open source ghi-chu-chung.pdf, tr. 3",
         }),
-      ).toBeInTheDocument();
+      ).not.toBeInTheDocument();
     });
 
     it("offers workspace questions to try, and fills the draft with one", async () => {
@@ -2855,8 +2856,8 @@ describe("Academic workspace", () => {
       fireEvent.click(screen.getByRole("radio", { name: "Hỏi tài liệu" }));
       expect(screen.getByLabelText("Tài liệu")).toHaveValue("doc-2");
       expect(
-        screen.getByText("Chương 2 nói về độ phức tạp thuật toán."),
-      ).toBeInTheDocument();
+        screen.queryByText("Chương 2 nói về độ phức tạp thuật toán."),
+      ).not.toBeInTheDocument();
       expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
         "Câu hỏi tiếp theo đang soạn",
       );

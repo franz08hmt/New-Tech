@@ -86,3 +86,41 @@ it("HTTP transport forwards server answer header without changing the response b
   ).toEqual(response);
   expect(observed).toHaveBeenCalledWith(answerId);
 });
+
+it("HTTP assistant abort follows conversation cancellation without losing the timeout boundary", async () => {
+  configurePilotClient("synthetic-csrf", true);
+  const controller = new AbortController();
+  let received: AbortSignal | undefined;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_url, init: RequestInit) => {
+      received = init.signal ?? undefined;
+      return new Response(JSON.stringify(response), { status: 200 });
+    }),
+  );
+  await api.askAssistant(
+    { mode: "general", message: "Câu hỏi?" },
+    undefined,
+    controller.signal,
+  );
+  // Also check cancellation while fetch is still pending, not after cleanup.
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((_url, init: RequestInit) => {
+      received = init.signal ?? undefined;
+      return new Promise<Response>((_resolve, reject) =>
+        received?.addEventListener("abort", () => reject(new Error("abort")), {
+          once: true,
+        }),
+      );
+    }),
+  );
+  const pending = api.askAssistant(
+    { mode: "general", message: "Câu hỏi?" },
+    undefined,
+    controller.signal,
+  );
+  controller.abort();
+  expect(received?.aborted).toBe(true);
+  await expect(pending).rejects.toThrow();
+});

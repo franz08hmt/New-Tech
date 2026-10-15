@@ -430,11 +430,12 @@ it("snapshot captures request scope and mode before UI changes", async () => {
   await act(async () => {
     await result.current.send(scope);
   });
+  const answer = result.current.messages[1];
   act(() => {
     result.current.setMode("general");
     scope.pageName = "Changed";
   });
-  const answer = result.current.messages[1];
+  expect(result.current.messages).toEqual([]);
   expect(answer.feedback?.snapshot.request).toEqual({
     mode: "workspace",
     operation: "question",

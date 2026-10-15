@@ -220,7 +220,7 @@ export function WorkspaceApp() {
   // The conversation lives here, above the panel, so hiding the panel or
   // changing page never takes the draft with it.
   const assistant = useAssistant(
-    async (question, pageContext, mode, operation) => {
+    async (question, pageContext, mode, operation, options) => {
       const { courseId, documentId, ...screenContext } = pageContext;
       try {
         let answerId: string | undefined;
@@ -232,10 +232,12 @@ export function WorkspaceApp() {
             pageContext: screenContext,
             ...(courseId ? { courseId } : {}),
             ...(documentId ? { documentId } : {}),
+            ...(options?.history ? { history: options.history } : {}),
           },
           (id) => {
             answerId = id;
           },
+          options?.signal,
         );
         // Workspace answers come from records, not a model: shown as sent,
         // with their record links instead of PDF citations.
