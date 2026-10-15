@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  HttpException,
   Post,
   Req,
   Res,
@@ -46,14 +47,22 @@ export class AssistantController {
       input.mode === "workspace"
         ? await this.workspace.chat(input, req?.principal)
         : await this.assistant.chat(input, req?.principal);
-    const id = await this.receipts.issue(
-      input,
-      answer,
-      req?.principal,
-      requestContext.getStore()?.requestId ?? randomUUID(),
-    );
-    const header: AssistantAnswerIdHeader = "X-Assistant-Answer-ID";
-    res?.setHeader(header, id);
+    try {
+      const id = await this.receipts.issue(
+        input,
+        answer,
+        req?.principal,
+        requestContext.getStore()?.requestId ?? randomUUID(),
+      );
+      const header: AssistantAnswerIdHeader = "X-Assistant-Answer-ID";
+      res?.setHeader(header, id);
+    } catch (error) {
+      // Only receipt persistence is best-effort after a validated answer.
+      // The receipt service logs its fixed outage code; revoked access is not
+      // an outage and must still block delivery.
+      if (!(error instanceof HttpException) || error.getStatus() < 500)
+        throw error;
+    }
     return answer;
   }
 }

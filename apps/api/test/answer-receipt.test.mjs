@@ -420,15 +420,28 @@ for (const [label, expectedStatus, request] of [
       assert.equal(context.fixture.feedback.size, 0);
     }));
 
-test("HTTP answer receipt: failed receipt storage never returns an unreceipted successful answer", async () =>
+test("HTTP answer receipt: receipt outage preserves the valid answer without an answer ID", async () =>
   receiptApp(async ({ fixture, post }) => {
     fixture.state.receiptStorageError = true;
     const response = await post("/assistant/chat", {
       mode: "general",
       message: "Synthetic question",
     });
-    assert.equal(response.status, 503);
-    assert.equal((await response.json()).code, "ANSWER_RECEIPT_UNAVAILABLE");
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).answer, "Synthetic general answer");
+    assert.equal(response.headers.get("X-Assistant-Answer-ID"), null);
+    assert.equal(fixture.receipts.size, 0);
+  }));
+
+test("HTTP answer receipt: membership revoked after generation still blocks the answer", async () =>
+  receiptApp(async ({ fixture, post }) => {
+    fixture.state.denyTransactionMembership = true;
+    const response = await post("/assistant/chat", {
+      mode: "general",
+      message: "Synthetic question",
+    });
+    assert.equal(response.status, 403);
+    assert.equal((await response.json()).code, "WORKSPACE_ACCESS_DENIED");
     assert.equal(response.headers.get("X-Assistant-Answer-ID"), null);
     assert.equal(fixture.receipts.size, 0);
   }));
