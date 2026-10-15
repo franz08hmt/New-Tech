@@ -223,18 +223,25 @@ export function WorkspaceApp() {
     async (question, pageContext, mode, operation) => {
       const { courseId, documentId, ...screenContext } = pageContext;
       try {
-        const response = await api.askAssistant({
-          message: question,
-          mode,
-          operation,
-          pageContext: screenContext,
-          ...(courseId ? { courseId } : {}),
-          ...(documentId ? { documentId } : {}),
-        });
+        let answerId: string | undefined;
+        const response = await api.askAssistant(
+          {
+            message: question,
+            mode,
+            operation,
+            pageContext: screenContext,
+            ...(courseId ? { courseId } : {}),
+            ...(documentId ? { documentId } : {}),
+          },
+          (id) => {
+            answerId = id;
+          },
+        );
         // Workspace answers come from records, not a model: shown as sent,
         // with their record links instead of PDF citations.
         if (response.mode === "workspace")
           return {
+            answerId,
             response,
             text: response.answer,
             citations: [],
@@ -246,6 +253,7 @@ export function WorkspaceApp() {
             ? "Lưu ý: bản tóm tắt chỉ bao phủ phần nội dung đọc được; một số trang có thể cần OCR."
             : "";
         return {
+          answerId,
           response,
           text: [translated ?? response.answer, coverageWarning]
             .filter(Boolean)

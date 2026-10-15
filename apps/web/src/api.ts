@@ -49,6 +49,7 @@ import type {
 import type {
   CreateAssistantFeedbackRequest,
   AssistantFeedbackReceipt,
+  AssistantAnswerIdHeader,
   AssistantChatRequest,
   AssistantChatResponse,
   Course,
@@ -62,7 +63,11 @@ import type {
   Task,
   TaskStatus,
 } from "@examate/contracts";
-export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(
+  path: string,
+  init?: RequestInit,
+  onResponse?: (headers: Headers) => void,
+): Promise<T> {
   const authHeaders = pilotHeaders(path, init?.method);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60000);
@@ -118,7 +123,9 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
       );
     }
     if (response.status === 204) return undefined as T;
-    return (await response.json()) as T;
+    const body = (await response.json()) as T;
+    onResponse?.(response.headers);
+    return body;
   } finally {
     clearTimeout(timer);
   }
@@ -153,11 +160,29 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  askAssistant: (input: AssistantChatRequest) =>
-    request<AssistantChatResponse>("/api/assistant/chat", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
+  askAssistant: (
+    input: AssistantChatRequest,
+    onAnswerId?: (id: string | undefined) => void,
+  ) =>
+    request<AssistantChatResponse>(
+      "/api/assistant/chat",
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+      (headers) => {
+        const header: AssistantAnswerIdHeader = "X-Assistant-Answer-ID";
+        const id = headers.get(header);
+        onAnswerId?.(
+          id &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+              id,
+            )
+            ? id
+            : undefined,
+        );
+      },
+    ),
   listCourses: () => request<Course[]>("/api/courses"),
   getCourse: (slug: string) =>
     request<Course>(`/api/courses/${encodeURIComponent(slug)}`),

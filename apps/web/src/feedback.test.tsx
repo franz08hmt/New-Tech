@@ -30,6 +30,7 @@ const response: AssistantChatResponse = {
   workspaceIntent: "tasks_overdue",
   asOf: "2026-10-05",
 };
+const serverAnswerId = "22222222-2222-4222-8222-222222222222";
 const scope = {
   pageId: "tasks",
   pageName: "Tasks",
@@ -46,7 +47,12 @@ function Harness({
 }) {
   const assistant = useAssistant(async () => {
     if (fail) throw new Error("fixture HTTP error");
-    return { text: response.answer, citations: [], response };
+    return {
+      text: response.answer,
+      citations: [],
+      response,
+      answerId: serverAnswerId,
+    };
   });
   useEffect(() => assistant.setMode("workspace"), [assistant.setMode]);
   return (
@@ -110,6 +116,7 @@ for (const mode of ["general", "documents", "workspace"] as const) {
         text: raw.answer,
         citations: [],
         response: raw,
+        answerId: serverAnswerId,
       })),
     );
     act(() => {
@@ -123,7 +130,7 @@ for (const mode of ["general", "documents", "workspace"] as const) {
     expect(result.current.messages[1].text).toBe(raw.answer);
     expect(result.current.status).toBe("idle");
     expect(result.current.messages[1].feedback?.answerId).toMatch(uuidV4);
-    expect(getRandomValues).toHaveBeenCalledTimes(1);
+    expect(getRandomValues).not.toHaveBeenCalled();
   });
 }
 it("a random source failure cannot discard a successful chat answer", async () => {
@@ -148,7 +155,7 @@ it("a random source failure cannot discard a successful chat answer", async () =
   expect(result.current.messages[1].feedback).toBeUndefined();
   expect(result.current.messages[1].feedbackUnavailable).toBe(true);
 });
-it("a restricted native UUID implementation falls back without losing the answer", async () => {
+it("a restricted native UUID implementation cannot replace the server answer ID", async () => {
   const nativeCrypto = globalThis.crypto;
   vi.stubGlobal("crypto", {
     randomUUID: () => {
@@ -162,6 +169,7 @@ it("a restricted native UUID implementation falls back without losing the answer
       text: response.answer,
       citations: [],
       response,
+      answerId: serverAnswerId,
     })),
   );
   act(() => result.current.setDraft("Restricted native fixture"));
@@ -230,9 +238,9 @@ it("feedback submission and retry use a stable fallback UUID without crypto.rand
   fireEvent.click(screen.getByRole("button", { name: /Thử lại/ }));
   await screen.findByText(/Đã lưu phản hồi/);
   expect(submit.mock.calls[1][0]).toEqual(first);
-  expect(getRandomValues).toHaveBeenCalledTimes(2);
+  expect(getRandomValues).toHaveBeenCalledTimes(1);
 });
-for (const status of [400, 409])
+for (const status of [400, 404, 409])
   it(`feedback ${status} retains the selection without offering an impossible retry`, async () => {
     const submit = vi
       .spyOn(api, "submitAssistantFeedback")
@@ -249,7 +257,11 @@ for (const status of [400, 409])
     fireEvent.click(screen.getByRole("button", { name: /Gửi phản hồi/ }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(
-      status === 400 ? /không hợp lệ/i : /đã có phản hồi/i,
+      status === 400
+        ? /không hợp lệ/i
+        : status === 404
+          ? /câu trả lời của bạn/i
+          : /đã có phản hồi/i,
     );
     expect(alert).not.toHaveTextContent("Private fixture details");
     expect(screen.getByLabelText(/Ghi chú/)).toHaveValue("Retained note");
@@ -350,6 +362,7 @@ it("feedback draft and question draft survive source preview and Back", async ()
       text: raw.answer,
       citations: [citation],
       response: raw,
+      answerId: serverAnswerId,
     }));
     return (
       <AssistantPanel
@@ -407,6 +420,7 @@ it("snapshot captures request scope and mode before UI changes", async () => {
       text: response.answer,
       citations: [],
       response,
+      answerId: serverAnswerId,
     })),
   );
   act(() => {

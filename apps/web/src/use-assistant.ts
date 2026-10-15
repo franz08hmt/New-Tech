@@ -1,5 +1,4 @@
 import { useCallback, useRef, useState } from "react";
-import { createUuid } from "./create-uuid";
 import type {
   AssistantMetadataSource,
   AssistantMode,
@@ -75,6 +74,8 @@ export type AskTransport = (
   metadataSource?: AssistantMetadataSource;
   workspaceSources?: AssistantWorkspaceSource[];
   response?: AssistantChatResponse;
+  /** UUID issued by the server; never generated from client randomness. */
+  answerId?: string;
 }>;
 
 export type AssistantStatus = "unavailable" | "idle" | "sending" | "error";
@@ -130,7 +131,13 @@ export function useAssistant(transport?: AskTransport): AssistantState {
           requestMode,
           requestOperation,
         );
-        const answerId = reply.response ? createUuid() : undefined;
+        const answerId =
+          reply.answerId &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+            reply.answerId,
+          )
+            ? reply.answerId
+            : undefined;
         const feedback =
           reply.response && answerId
             ? {

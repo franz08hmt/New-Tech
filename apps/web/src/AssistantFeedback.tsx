@@ -27,7 +27,13 @@ export function AssistantFeedback({
   const [selected, setSelected] = useState<AssistantFeedbackReason[]>([]);
   const [comment, setComment] = useState("");
   const [status, setStatus] = useState<
-    "draft" | "saving" | "saved" | "error" | "rejected" | "conflict"
+    | "draft"
+    | "saving"
+    | "saved"
+    | "error"
+    | "rejected"
+    | "conflict"
+    | "not_found"
   >("draft");
   const [validation, setValidation] = useState("");
   const submission = useRef<CreateAssistantFeedbackRequest | null>(null);
@@ -38,7 +44,7 @@ export function AssistantFeedback({
     if (
       !rating ||
       inFlight.current ||
-      ["saved", "rejected", "conflict"].includes(status)
+      ["saved", "rejected", "conflict", "not_found"].includes(status)
     )
       return;
     if (!submission.current) {
@@ -101,11 +107,13 @@ export function AssistantFeedback({
       setStatus("saved");
     } catch (error) {
       setStatus(
-        error instanceof ApiError && error.status === 400
-          ? "rejected"
-          : error instanceof ApiError && error.status === 409
-            ? "conflict"
-            : "error",
+        error instanceof ApiError && error.status === 404
+          ? "not_found"
+          : error instanceof ApiError && error.status === 400
+            ? "rejected"
+            : error instanceof ApiError && error.status === 409
+              ? "conflict"
+              : "error",
       );
     } finally {
       inFlight.current = false;
@@ -207,19 +215,27 @@ export function AssistantFeedback({
               nhận lưu. Không thể ghi đè bằng cách thử lại.
             </p>
           )}
-          {status !== "rejected" && status !== "conflict" && (
-            <button
-              type="submit"
-              disabled={status === "saving"}
-              aria-label={`${status === "error" ? "Thử lại" : "Gửi phản hồi"} — ${name}`}
-            >
-              {status === "saving"
-                ? "Đang lưu…"
-                : status === "error"
-                  ? "Thử lại"
-                  : "Gửi phản hồi"}
-            </button>
+          {status === "not_found" && (
+            <p role="alert">
+              Chưa tìm thấy câu trả lời của bạn để lưu phản hồi. Nội dung bạn
+              chọn vẫn còn; hãy gửi câu hỏi mới trước khi phản hồi lại nhé.
+            </p>
           )}
+          {status !== "rejected" &&
+            status !== "conflict" &&
+            status !== "not_found" && (
+              <button
+                type="submit"
+                disabled={status === "saving"}
+                aria-label={`${status === "error" ? "Thử lại" : "Gửi phản hồi"} — ${name}`}
+              >
+                {status === "saving"
+                  ? "Đang lưu…"
+                  : status === "error"
+                    ? "Thử lại"
+                    : "Gửi phản hồi"}
+              </button>
+            )}
         </form>
       )}
       {status === "saving" && <p role="status">Đang lưu phản hồi…</p>}
