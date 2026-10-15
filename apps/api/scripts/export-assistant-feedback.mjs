@@ -7,6 +7,8 @@ const root = fileURLToPath(new URL("../../../", import.meta.url));
 const uuid =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function validate(options) {
+  if (!uuid.test(options.workspaceId ?? ""))
+    throw new Error("One valid workspace UUID is required.");
   if (options.ids) {
     if (
       options.rating ||
@@ -34,6 +36,7 @@ export function parseExportOptions(args) {
       "--rating": "rating",
       "--limit": "limit",
       "--output": "output",
+      "--workspace-id": "workspaceId",
     }[args[i]];
     if (
       !key ||
@@ -59,10 +62,15 @@ export function candidateFromFeedback(row) {
     comment: row.comment,
     snapshot: row.snapshot,
     provenance: "client_reported",
+    attribution: row.receipt_id
+      ? row.user_id
+        ? "receipt_linked"
+        : "user_removed"
+      : "legacy_unattributed",
     createdAt: row.created_at,
     status: "UNREVIEWED",
     evidenceLimitations: [
-      "Client snapshot is not server-authenticated evidence.",
+      "Receipt ownership/integrity does not establish source truth or a semantic verdict; legacy snapshots have no authenticated owner.",
       "Sources may have changed or been deleted; citation snapshots do not prove current existence.",
       "Rating and comment are signals, never gold answers or semantic verdicts.",
     ],
@@ -99,19 +107,20 @@ export async function exportFeedback(options, database) {
     if (error.code !== "ENOENT") throw error;
   }
   const columns =
-    "id, answer_id, submission_id, rating, reasons, comment, snapshot, provenance, review_status, created_at";
+    "id, answer_id, submission_id, rating, reasons, comment, snapshot, provenance, review_status, created_at, receipt_id, user_id";
   const result = options.ids
     ? await database.query(
-        `SELECT ${columns} FROM assistant_feedback WHERE id = ANY($1::uuid[]) ORDER BY created_at DESC, id LIMIT $2`,
-        [options.ids, options.ids.length],
+        `SELECT ${columns} FROM assistant_feedback WHERE id = ANY($1::uuid[]) AND workspace_id=$3 ORDER BY created_at DESC, id LIMIT $2`,
+        [options.ids, options.ids.length, options.workspaceId],
       )
     : await database.query(
-        `SELECT ${columns} FROM assistant_feedback WHERE rating = $1 ORDER BY created_at DESC, id LIMIT $2`,
-        [options.rating, options.limit],
+        `SELECT ${columns} FROM assistant_feedback WHERE rating = $1 AND workspace_id=$3 ORDER BY created_at DESC, id LIMIT $2`,
+        [options.rating, options.limit, options.workspaceId],
       );
   const artifact = {
     schemaVersion: 1,
     kind: "assistant_feedback_candidates",
+    workspaceId: options.workspaceId,
     exportedAt: new Date().toISOString(),
     selection: options.ids
       ? { ids: options.ids }
@@ -127,20 +136,39 @@ export async function exportFeedback(options, database) {
   });
   return { count: artifact.candidates.length, output: relative(root, output) };
 }
+export function validateMaintenanceExport(options, environment = process.env) {
+  if (options.workspaceId !== environment.PILOT_WORKSPACE_ID)
+    throw new Error("Export must match the configured pilot workspace.");
+  if (!environment.MIGRATION_DATABASE_URL?.trim())
+    throw new Error(
+      "Separate maintenance database credentials are required; runtime fallback is refused.",
+    );
+}
 async function main() {
-  const options = parseExportOptions(process.argv.slice(2));
   const { loadEnvironment } = await import("../dist/config/config.js");
   loadEnvironment();
-  const { DatabaseService } =
-    await import("../dist/database/database.service.js");
-  const database = new DatabaseService();
+  const options = parseExportOptions(process.argv.slice(2));
+  validateMaintenanceExport(options);
+  // Local maintenance CLI, not a user-facing endpoint or a forged HTTP principal.
+  // Its operator needs separately protected maintenance DB credentials.
+  const { pilotConnection, withReadOnly } =
+    await import("./pilot-cli-common.mjs");
+  const { pool } = pilotConnection({ maintenance: true, readOnly: true });
   try {
-    const result = await exportFeedback(options, database);
+    const client = await pool.connect();
+    let result;
+    try {
+      result = await withReadOnly(client, () =>
+        exportFeedback(options, client),
+      );
+    } finally {
+      client.release();
+    }
     process.stdout.write(
       `Exported ${result.count} UNREVIEWED candidates to ${result.output}. Keep this artifact private.\n`,
     );
   } finally {
-    await database.onModuleDestroy();
+    await pool.end();
   }
 }
 if (

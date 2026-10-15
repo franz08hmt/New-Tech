@@ -7,6 +7,7 @@ import { AssistantService } from "./assistant.service.js";
 import { DocumentAccessService } from "../documents/document-access.service.js";
 import type { AssistantProvider, AssistantStatus } from "./assistant.types.js";
 import type { WorkspaceAssistantService } from "./workspace-assistant.service.js";
+import type { AnswerReceiptService } from "./answer-receipt.service.js";
 const principal = {
   userId: "11111111-1111-4111-8111-111111111111",
   workspaceId: "22222222-2222-4222-8222-222222222222",
@@ -59,6 +60,11 @@ function fixture(status: AssistantStatus) {
     controller: new AssistantController(
       service,
       workspace as unknown as WorkspaceAssistantService,
+      {
+        issue: vi
+          .fn()
+          .mockResolvedValue("77777777-7777-4777-8777-777777777777"),
+      } as unknown as AnswerReceiptService,
     ),
   };
 }

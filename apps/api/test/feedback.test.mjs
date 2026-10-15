@@ -1,6 +1,7 @@
 import { test, beforeEach, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
+import { canonicalJson } from "../dist/feedback/feedback-validation.js";
 import { fakeDependencies, httpApp, json } from "./helpers.mjs";
 
 const snapshot = () => ({
@@ -32,16 +33,36 @@ const payload = () => ({
   reasons: [],
   snapshot: snapshot(),
 });
-let server, rows, statements, failDatabase;
+let server, rows, statements, failDatabase, loseCommit;
+let receipts;
 beforeEach(async () => {
   rows = [];
+  receipts = new Map();
   statements = [];
   failDatabase = false;
+  loseCommit = false;
   const database = {
+    async transaction(work) {
+      const result = await work(database);
+      if (loseCommit) throw new Error("SYNTHETIC lost commit response");
+      return result;
+    },
     async query(sql, values) {
       statements.push({ sql, values });
       if (failDatabase)
         throw new Error("SECRET_CONNECTION_STRING private snapshot");
+      if (sql.startsWith("SELECT id FROM assistant_answer_receipts")) {
+        const receipt = receipts.get(values[0]);
+        return {
+          rows:
+            receipt &&
+            receipt.workspaceId === values[1] &&
+            receipt.userId === values[2] &&
+            receipt.hash === values[3]
+              ? [{ id: values[0] }]
+              : [],
+        };
+      }
       if (sql.startsWith("INSERT INTO assistant_feedback")) {
         if (
           rows.some(
@@ -75,16 +96,30 @@ afterEach(async () => {
   await server?.app.close();
   mock.restoreAll();
 });
-const send = (body) =>
-  server.request("/assistant/feedback", json("POST", body));
+const send = (body) => {
+  // These existing DTO/idempotency tests use an explicitly issued synthetic
+  // receipt fixture; ownership attacks use the independent HTTP/real-DB suites.
+  if (!receipts.has(body.answerId))
+    receipts.set(body.answerId, {
+      workspaceId: "22222222-2222-4222-8222-222222222222",
+      userId: "11111111-1111-4111-8111-111111111111",
+      hash: createHash("sha256")
+        .update(canonicalJson(body.snapshot))
+        .digest("hex"),
+    });
+  return server.request("/assistant/feedback", json("POST", body));
+};
 test("feedback helpful persists a refusal and returns only acknowledgement", async () => {
   const response = await send(payload());
   assert.equal(response.status, 201);
   const ack = await response.json();
   assert.deepEqual(Object.keys(ack).sort(), ["createdAt", "id", "rating"]);
   assert.equal(rows.length, 1);
-  assert.ok(statements[0].sql.includes("$7"));
-  assert.equal(statements[0].sql.includes("Synthetic"), false);
+  const insert = statements.find((s) =>
+    s.sql.startsWith("INSERT INTO assistant_feedback"),
+  );
+  assert.ok(insert.sql.includes("$7"));
+  assert.equal(insert.sql.includes("Synthetic"), false);
 });
 test("feedback unhelpful accepts multiple reasons with other note", async () => {
   const response = await send({
@@ -157,7 +192,11 @@ test("feedback allows full 1000 Unicode characters without changing content", as
   const p = payload();
   p.comment = "😀".repeat(1000);
   assert.equal((await send(p)).status, 201);
-  assert.equal(statements[0].values[4], p.comment);
+  assert.equal(
+    statements.find((s) => s.sql.startsWith("INSERT INTO assistant_feedback"))
+      .values[4],
+    p.comment,
+  );
 });
 
 test("feedback rejects deeply nested invalid snapshot as validation without storage", async () => {
@@ -254,6 +293,22 @@ test("feedback canonical object key order replays", async () => {
   ).json();
   assert.equal(a.id, b.id);
 });
+test("feedback only logs saved after a confirmed commit; unknown outcome retries idempotently", async () => {
+  const logs = [];
+  mock.method(console, "log", (line) => logs.push(JSON.parse(line)));
+  const p = payload();
+  loseCommit = true;
+  assert.equal((await send(p)).status, 503);
+  assert.equal(logs.filter((l) => l.event === "feedback.saved").length, 0);
+  loseCommit = false;
+  assert.equal((await send(p)).status, 201);
+  assert.equal(rows.length, 1);
+  assert.equal(
+    logs.filter((l) => l.event === "feedback.saved")[0].outcome,
+    "replayed",
+  );
+});
+
 test("feedback database errors and logs do not reveal content", async () => {
   const logs = [];
   mock.method(console, "log", (...args) => logs.push(args));

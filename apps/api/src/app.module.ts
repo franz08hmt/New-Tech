@@ -9,6 +9,7 @@ import { PilotAuthGuard } from "./auth/auth.guard.js";
 import { FeedbackController } from "./feedback/feedback.controller.js";
 import { FeedbackService } from "./feedback/feedback.service.js";
 import { AssistantController } from "./assistant/assistant.controller.js";
+import { AnswerReceiptService } from "./assistant/answer-receipt.service.js";
 import { AssistantService } from "./assistant/assistant.service.js";
 import { GeminiService } from "./assistant/gemini.service.js";
 import { GeminiEmbeddingService } from "./assistant/gemini-embedding.service.js";
@@ -68,6 +69,7 @@ import { ExpensesService } from "./expenses/expenses.service.js";
     StudyPlansService,
     ExpensesService,
     AssistantService,
+    AnswerReceiptService,
     GeminiService,
     GeminiEmbeddingService,
     RagRetrievalService,

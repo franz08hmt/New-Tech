@@ -164,7 +164,11 @@ test("HTTP chat validates DTO and returns backend-validated citations", async ()
     workspaceId: "22222222-2222-4222-8222-222222222222",
     role: "manager",
   });
-  assert.equal(fixture.database.query.mock.callCount(), 0);
+  assert.equal(fixture.database.query.mock.callCount(), 1);
+  assert.match(
+    fixture.database.query.mock.calls[0].arguments[0],
+    /^INSERT INTO assistant_answer_receipts/,
+  );
   assert.equal(fixture.state.uploadCalls, 0);
   assert.equal(fixture.state.removeCalls, 0);
   assert.equal(provider.generate.mock.callCount(), 1);

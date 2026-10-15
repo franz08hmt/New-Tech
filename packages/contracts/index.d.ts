@@ -350,6 +350,11 @@ export type AssistantReasonCode =
   | "DOCUMENT_METADATA";
 
 /** Response from general chat or document-grounded RAG. */
+/** Successful chat only. Server UUID; absent on errors. Body shape unchanged. */
+export type AssistantAnswerIdHeader = "X-Assistant-Answer-ID";
+export type AssistantReceiptErrorCode =
+  "ANSWER_RECEIPT_UNAVAILABLE" | "ANSWER_RECEIPT_NOT_FOUND";
+
 type AssistantResponseBase = {
   answer: string;
   answerable: boolean;

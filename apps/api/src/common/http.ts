@@ -10,6 +10,7 @@ import { randomUUID } from "node:crypto";
 import { errorCode, log, requestContext } from "./log.js";
 import { httpRuntimeConfig } from "../config/config.js";
 import { normalizeIp } from "./client-ip.js";
+import type { AssistantAnswerIdHeader } from "@examate/contracts";
 
 @Catch()
 class ApiExceptionFilter implements ExceptionFilter {
@@ -88,7 +89,10 @@ export function configureApp(app: INestApplication, origins: string[] = []) {
   app.enableCors({
     origin: origins,
     credentials: false,
-    exposedHeaders: ["X-Request-ID"],
+    exposedHeaders: [
+      "X-Request-ID",
+      "X-Assistant-Answer-ID" satisfies AssistantAnswerIdHeader,
+    ],
   });
   app.enableShutdownHooks();
   const server = app.getHttpServer();

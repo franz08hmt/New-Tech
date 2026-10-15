@@ -173,11 +173,17 @@ test("015 adds private text-free receipts and rollback preserves schema/legacy r
     await pool.query(
       "ALTER TABLE assistant_answer_receipts ALTER COLUMN created_at SET DEFAULT NOW()",
     );
+    const future = { name: "016_future.sql", sql: "SELECT 1;" };
     await pool.query(
       "INSERT INTO schema_migrations(name,checksum) VALUES('016_future.sql',$1)",
-      ["a".repeat(64)],
+      [hash(future)],
     );
-    await assert.rejects(runPilotRollback015(client, options), /later|unknown/);
+    await assert.rejects(
+      runPilotRollback015(client, options, {
+        loadSource: async () => [...source, future],
+      }),
+      /later/,
+    );
     await pool.query(
       "DELETE FROM schema_migrations WHERE name='016_future.sql'",
     );

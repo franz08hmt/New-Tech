@@ -29,6 +29,7 @@ const row = (rating = "helpful") => ({
   review_status: "UNREVIEWED",
   created_at: new Date().toISOString(),
 });
+const workspaceId = "22222222-2222-4222-8222-222222222222";
 for (const rating of ["helpful", "unhelpful"])
   test(`candidate ${rating} remains unreviewed without verdict or gold`, () => {
     const candidate = candidateFromFeedback(row(rating));
@@ -70,12 +71,12 @@ test("export reads only selected IDs, creates private artifact and never overwri
     throw new Error("Provider/network forbidden");
   };
   try {
-    await exportFeedback({ ids: [r.id], output }, database);
+    await exportFeedback({ ids: [r.id], output, workspaceId }, database);
     const artifact = JSON.parse(await readFile(output, "utf8"));
     assert.equal(artifact.schemaVersion, 1);
     assert.equal(artifact.candidates[0].feedbackId, r.id);
     await assert.rejects(
-      exportFeedback({ ids: [r.id], output }, database),
+      exportFeedback({ ids: [r.id], output, workspaceId }, database),
       /already exists/,
     );
     assert.equal(reads, 1);
@@ -155,7 +156,11 @@ test("export rejects output outside artifacts before SELECT", async () => {
   let reads = 0;
   await assert.rejects(
     exportFeedback(
-      { ids: [randomUUID()], output: "docs/private-feedback.json" },
+      {
+        ids: [randomUUID()],
+        output: "docs/private-feedback.json",
+        workspaceId,
+      },
       {
         query() {
           reads++;

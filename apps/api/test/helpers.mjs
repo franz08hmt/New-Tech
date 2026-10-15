@@ -95,6 +95,7 @@ export function pdfForm(
   return { method: "POST", body: form };
 }
 export function fakeDependencies() {
+  const receipts = new Map();
   const tasks = new Map();
   const documents = new Map();
   const objects = new Map();
@@ -200,6 +201,19 @@ export function fakeDependencies() {
       return 1;
     },
     async query(sql, values = []) {
+      if (sql.startsWith("INSERT INTO assistant_answer_receipts")) {
+        const [id, workspace_id, user_id, mode, request_id, snapshot_hash] =
+          values;
+        receipts.set(id, {
+          id,
+          workspace_id,
+          user_id,
+          mode,
+          request_id,
+          snapshot_hash,
+        });
+        return { rows: [{ id }], rowCount: 1 };
+      }
       if (sql.includes("FROM courses"))
         return {
           rows: selectedRows(matchingRows([...courses.values()], sql, values)),

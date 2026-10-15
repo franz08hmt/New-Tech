@@ -53,6 +53,10 @@ function insertFixture(options = {}) {
   const database = {
     async query(sql, values = []) {
       queries.push({ sql, values: [...values] });
+      // Explicit issued-receipt fixture for this historical INSERT-shape test.
+      // Dedicated Phase8 HTTP/DB tests check owner/hash rejection independently.
+      if (sql.startsWith("SELECT id FROM assistant_answer_receipts"))
+        return { rows: [{ id: values[0] }] };
       if (/\bFROM\s+courses\b/i.test(sql)) {
         events.push("course");
         return {
@@ -303,10 +307,16 @@ test("workspace INSERT compatibility: optional expense course stays null while w
 test("workspace INSERT compatibility: viewer feedback remains allowed and binds trusted workspace", async () => {
   const fixture = insertFixture();
   const input = feedbackInput();
-  const result = await new FeedbackService(fixture.database).create(input, {
-    ...principal,
-    role: "viewer",
+  const access = new DocumentAccessService({
+    membership: async () => "viewer",
   });
+  const result = await new FeedbackService(fixture.database, access).create(
+    input,
+    {
+      ...principal,
+      role: "viewer",
+    },
+  );
   assertWorkspaceInsert(fixture, "assistant_feedback", {
     answer_id: input.answerId,
     submission_id: input.submissionId,
@@ -314,13 +324,16 @@ test("workspace INSERT compatibility: viewer feedback remains allowed and binds 
   });
   assert.equal(result.id, fixture.inserted[0].row.id);
   assert.equal(result.createdAt, timestamp);
-  assert.equal(fixture.queries.length, 1);
+  assert.equal(fixture.queries.length, 2);
 });
 
 test("workspace INSERT compatibility: missing feedback principal is AUTH_REQUIRED before SQL", async () => {
   const fixture = insertFixture();
   await assert.rejects(
-    new FeedbackService(fixture.database).create(feedbackInput()),
+    new FeedbackService(
+      fixture.database,
+      new DocumentAccessService({ membership: async () => undefined }),
+    ).create(feedbackInput()),
     hasSafeError(401, "AUTH_REQUIRED"),
   );
   assert.equal(fixture.queries.length, 0);
