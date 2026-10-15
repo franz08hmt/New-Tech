@@ -7,7 +7,8 @@ Workspace học tập dùng React + NestJS + PostgreSQL/Supabase Storage. Hiện
 **Trạng thái Supabase và giới hạn an toàn:** lần kiểm tra chỉ đọc được ghi trong
 [báo cáo khảo sát pilot](docs/pilot-stage-0-report.md) xác nhận migration
 `001`–`011` trên project đã kiểm tra. Migration `012` (workspace/session) và
-`013` (giới hạn thử đăng nhập/refresh) và `014` (nền workspace nghiệp vụ) hiện mới có trong repository, **chưa áp
+`013` (giới hạn thử đăng nhập/refresh), `014` (nền workspace nghiệp vụ) và
+`015` (answer receipt/feedback ownership) hiện mới có trong repository, **chưa áp
 dụng thật**. Không chạy migration trên project dùng chung cho tới khi Thắng/Tài
 xác nhận đúng target, quyền DB và kế hoạch cấp workspace/user. Đăng nhập trong
 code chưa thay thế phân quyền theo từng workspace/bản ghi: phase triển khai
@@ -24,11 +25,13 @@ Exams/Study plans/Expenses và các truy vấn chỉ đọc của chế độ H�
 Viewer chỉ đọc các mục này; member/manager tạo và cập nhật, chỉ manager xóa
 exam/study plan/expense/document. Documents, signing, indexing, retrieval,
 summary và metadata đã scope theo principal; member/manager upload/gán môn/index,
-viewer chỉ xem/tải. Answer receipt/ownership feedback vẫn chưa hoàn tất.
+viewer chỉ xem/tải. B2 lát 5 có server answer receipt cho cả ba mode; feedback
+kiểm user/workspace/hash, viewer được phản hồi câu trả lời của chính mình.
 Runtime `postgres`/bypass RLS chưa được
 thay bằng role B2: chỉ dùng dữ liệu demo. Xem [báo cáo B2 lát 1–2](docs/PHASE-5-B2-SCOPE-REPORT.md)
 và [Đợt 6 — lát 3, runbook và rollback 014](docs/PHASE-6-REPORT.md),
-[Đợt 7 — Documents/RAG boundary](docs/PHASE-7-DOCUMENTS-RAG-SCOPE-REPORT.md).
+[Đợt 7 — Documents/RAG boundary](docs/PHASE-7-DOCUMENTS-RAG-SCOPE-REPORT.md) và
+[Đợt 8 — receipt/feedback ownership](docs/PHASE-8-RECEIPT-REPORT.md).
 Vì vậy chỉ thử với dữ liệu demo, không public ứng dụng hoặc đưa dữ
 liệu/API key thật cho người dùng khác.
 
@@ -46,6 +49,20 @@ Code có automated HTTP/frontend tests. [VERIFICATION.md](docs/VERIFICATION.md) 
 
 ## Kiến trúc và phạm vi
 
+Chat thành công trả UUID server qua `X-Assistant-Answer-ID`, JSON answer giữ
+nguyên. Receipt chỉ lưu identity/hash, không lưu lịch sử text. Feedback mới phải
+khớp receipt của người gửi; thiếu header vẫn đọc answer nhưng không gửi feedback.
+Legacy feedback giữ ownership NULL; không tự thành gold/evaluation verdict.
+
+Export là CLI quản trị local, không phải API/user login: cần maintenance credential
+riêng `MIGRATION_DATABASE_URL`, không fallback runtime, `--workspace-id` khớp
+`PILOT_WORKSPACE_ID`, và lựa chọn IDs hoặc rating/limit 1–50. Dùng
+`npm --silent run feedback:export --workspace @examate/api -- --workspace-id ... --rating unhelpful --limit 10`
+với UUID nhập riêng trên máy, không paste vào báo cáo/chat. Artifact chỉ ở
+`artifacts/`, không overwrite; bảo vệ Windows ACL vì chứa feedback snapshot.
+Chưa xác thực operator CLI bằng Supabase Auth manager; quyền dựa vào credential
+DB quản trị được cất riêng. Không cấp credential này cho member/viewer.
+
 ```text
 Browser React ── /api JSON hoặc multipart ──> NestJS
                                              ├── pg.Pool ──> Supabase PostgreSQL (records + chunks + vectors)
@@ -60,8 +77,8 @@ gate, CSRF và giới hạn admission cho các lần đăng nhập. Tasks/Course
 Exams/Study plans/Expenses và Hỏi workspace đã lọc theo workspace của principal
 đã verify, không lấy workspace/role từ body/header/query. **Scope toàn ứng dụng
 và giới hạn ngân sách/lượt gọi AI chưa hoàn tất**: Documents/signing/indexing và
-RAG/summary đã có ranh giới workspace ở Nest, nhưng answer receipt/feedback còn
-lát 5 và least-privilege role/tenant RLS còn lát 6. Không coi login hay các test
+RAG/summary và receipt/feedback đã có ranh giới ở Nest; least-privilege role/
+tenant RLS còn lát 6. Không coi login hay các test
 SQL bằng owner là bằng chứng cách ly toàn bộ ứng dụng. Chỉ dùng
 dữ liệu mẫu, không public API cho dữ liệu thật. Courses/Exams/study plans/Finances
 có dữ liệu minh họa; Notes lưu trên browser theo namespace principal nhưng
@@ -89,13 +106,13 @@ Copy-Item .env.example .env
 Chỉnh `.env` bằng editor local theo [SUPABASE-SETUP.md](docs/SUPABASE-SETUP.md): lấy URI đúng project, percent-encode password, cấu hình TLS/CA; điền SUPABASE_SECRET_KEY server-only (hoặc service_role JWT fallback) và tạo bucket private giới hạn PDF 10 MiB. Bổ sung cấu hình Auth pilot từ `.env.example` theo checklist phía trên. Không paste secrets vào chat, shell history hoặc `VITE_*`.
 
 **Trước khi migrate:** xác nhận lại Supabase URL/database đích và lịch sử trong
-`schema_migrations`. Trạng thái gần nhất được ghi nhận là `001`–`011`; `012`–`014`
+`schema_migrations`. Trạng thái gần nhất được ghi nhận là `001`–`011`; `012`–`015`
 chưa chạy thật và cần quyền/grants cùng workspace/user đã được nhóm duyệt. Chỉ
 chạy migration khi người quản lý project đồng ý và đã chuẩn bị các điều kiện đó.
 Không dùng project production/dùng chung để thử migration hoặc tự tạo/grant quyền.
 
-Runner trên nhánh này chạy **mọi migration pending, gồm 014**. Đường đi đã hợp
-nhất 012→013→014 trong [runbook B1](docs/PILOT-B1-RUNBOOK.md): tạo user/cấu hình,
+Runner trên nhánh này chạy **mọi migration pending, gồm 015**. Đường đi đã hợp
+nhất 012→013→014→015 trong [runbook B1](docs/PILOT-B1-RUNBOOK.md): tạo user/cấu hình,
 preflight, backup, dừng API, migrate/verify rồi cấp membership và nghiệm thu.
 Chỉ khi quản trị viên duyệt dữ liệu demo của đúng một nhóm mới áp cloud; 014
 tạo workspace từ UUID cấu hình nếu chưa có, hoặc dùng lại đúng một workspace
@@ -104,8 +121,10 @@ DB local mới đã có seed ở 001/003–006 nên cần UUID workspace hợp l
 runner truyền bằng tham số `set_config(..., true)` trong transaction, không đổi
 checksum SQL. Không có workspace/setting thì 014 từ chối và rollback chính 014,
 không rollback những migration trước đã commit. DB nghiệp vụ thực sự trống thì
-không cần workspace. Nếu cần đường lui: dry-run/apply `pilot:rollback-014` trước,
-rồi `pilot:rollback-012-013`; giữ API tắt tới khi remigrate/verify. Không chạy các
+không cần workspace. Nếu cần đường lui: dry-run/apply `pilot:rollback-015` trước,
+rồi `pilot:rollback-014`, rồi `pilot:rollback-012-013`; giữ API tắt tới khi remigrate/verify.
+Rollback 015 mất receipt/attribution mới; migrate lại không khôi phục chúng.
+Không chạy các
 lệnh cloud đó trong lượt phát triển; guards có thể từ chối để bảo vệ dữ liệu.
 
 Khi chạy trực tiếp React, NestJS và Supabase Cloud, không cần Docker. Đường dẫn CA được resolve từ repository root: `DATABASE_CA_CERT_PATH=secrets/prod-supabase.cer.crt`.
@@ -230,7 +249,7 @@ Script cuối ghi output vào `artifacts/` (ignore Git). Kiểm tra số **skipp
 
 DB test riêng (Docker engine phải chạy):
 
-Số lượng và kết quả đầy đủ mới nhất ở [báo cáo Đợt 7](docs/PHASE-7-DOCUMENTS-RAG-SCOPE-REPORT.md).
+Số lượng và kết quả đầy đủ mới nhất ở [báo cáo Đợt 8](docs/PHASE-8-RECEIPT-REPORT.md).
 Harness tạo auth.users/auth.sessions tối thiểu
 chỉ cho FK/SQL; không phải Supabase Auth. Guard phải pass trước mọi Pool,
 migration/grant/cleanup: chỉ localhost hoặc 127.0.0.1, tên DB kết thúc `_test`,
@@ -261,22 +280,22 @@ CREATE DATABASE cho các fixture này. Không gọi owner-domain tests là tenan
 
 ## API contract
 
-| Method/path                     | Thành công                                   | Lỗi chính                                                          |
-| ------------------------------- | -------------------------------------------- | ------------------------------------------------------------------ |
-| GET /api/tasks                  | 200 array                                    | 503 DB offline                                                     |
-| POST /api/tasks                 | 201 task                                     | 400 DTO                                                            |
-| PATCH /api/tasks/:id/status     | 200 task                                     | 400 UUID/status, 404                                               |
-| GET /api/documents              | 200 metadata array                           | 503 DB offline                                                     |
-| POST /api/documents             | 201 metadata                                 | 400 missing/fields, 413 size, 415 type/signature, 503 Storage      |
-| GET /api/documents/:id/download | 200 {url, expiresIn:60}                      | 400 UUID, 404, 409 pending/legacy, 503                             |
-| DELETE /api/documents/:id       | 204, idempotent khi đã xóa                   | 400 UUID, 409 legacy, 503 partial failure                          |
-| GET /api/health                 | 200 DB connected                             | 503 DB unavailable                                                 |
-| GET /api/auth/session           | 200 trạng thái session/pre-session + CSRF    | 401/403/429/503 theo trạng thái Auth, CSRF, admission              |
-| POST /api/auth/login            | 200 session pilot                            | 400/401/403/429/503                                                |
-| POST /api/auth/refresh, /logout | 200 trạng thái session                       | 401/403/429/503                                                    |
-| GET /api/assistant/status       | 200 modes general/documents; ragEnabled true | Route có Auth; chỉ báo cấu hình, không chứng minh upstream/quota   |
-| POST /api/assistant/chat        | 200 theo mode general/documents/workspace    | 400 DTO, lỗi AI/RAG, 401/403 Auth; xem contract và Assistant setup |
-| POST /api/assistant/feedback    | 201 receipt/idempotent result                | 400 input; 401/403 Auth; feedback không phải nhãn chuẩn            |
+| Method/path                     | Thành công                                   | Lỗi chính                                                              |
+| ------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------- |
+| GET /api/tasks                  | 200 array                                    | 503 DB offline                                                         |
+| POST /api/tasks                 | 201 task                                     | 400 DTO                                                                |
+| PATCH /api/tasks/:id/status     | 200 task                                     | 400 UUID/status, 404                                                   |
+| GET /api/documents              | 200 metadata array                           | 503 DB offline                                                         |
+| POST /api/documents             | 201 metadata                                 | 400 missing/fields, 413 size, 415 type/signature, 503 Storage          |
+| GET /api/documents/:id/download | 200 {url, expiresIn:60}                      | 400 UUID, 404, 409 pending/legacy, 503                                 |
+| DELETE /api/documents/:id       | 204, idempotent khi đã xóa                   | 400 UUID, 409 legacy, 503 partial failure                              |
+| GET /api/health                 | 200 DB connected                             | 503 DB unavailable                                                     |
+| GET /api/auth/session           | 200 trạng thái session/pre-session + CSRF    | 401/403/429/503 theo trạng thái Auth, CSRF, admission                  |
+| POST /api/auth/login            | 200 session pilot                            | 400/401/403/429/503                                                    |
+| POST /api/auth/refresh, /logout | 200 trạng thái session                       | 401/403/429/503                                                        |
+| GET /api/assistant/status       | 200 modes general/documents; ragEnabled true | Route có Auth; chỉ báo cấu hình, không chứng minh upstream/quota       |
+| POST /api/assistant/chat        | 200 theo mode general/documents/workspace    | 400 DTO, lỗi AI/RAG, 401/403 Auth; xem contract và Assistant setup     |
+| POST /api/assistant/feedback    | 201 receipt/idempotent result                | 400 input; 401/403 Auth; 404 receipt/owner/hash; không phải nhãn chuẩn |
 
 Title trim trước check 3–160. status có todo/in_progress/done, bỏ qua thì todo, null là 400. ownerName/dueDate/evidenceType bỏ qua hoặc null được lưu NULL; owner/evidence trống sau trim cũng NULL. dueDate chỉ ngày YYYY-MM-DD thực sự tồn tại, không timestamp. Field lạ bị 400. SQL dùng placeholders. Response lỗi có requestId; chưa phân loại là 500, không tự chuyển mọi lỗi thành 503.
 
@@ -296,10 +315,11 @@ PDF kiểm tra extension + MIME + 5 bytes `%PDF-`; đây không phải parser đ
 
 Giới hạn còn lại: login/session đã kiểm bằng test và browser với dependency mock;
 gate đã kiểm ở 320–1440px; UI ba role đã thử với fixture local ở desktop/375px.
-Migration `012`–`014`, Auth/DB grants, membership thật
+Migration `012`–`015`, Auth/DB grants, membership thật
 và luồng workspace sau đăng nhập Supabase thật chưa nghiệm thu; chưa thử trên
 điện thoại vật lý. Documents/RAG đã scope ở service và kiểm role; chưa hoàn thành
-answer receipt/feedback ownership, tenant RLS hoặc quota/usage budget AI.
+tenant RLS hoặc quota/usage budget AI. Receipt/feedback ownership đã kiểm local,
+không chứng minh tenant RLS hoặc Supabase Auth thật.
 `eval:rag --execute` hiện **BLOCKED**, exit 3: runner live chưa có principal
 workspace và bị chặn trước config/DB/Storage/Gemini; chờ đợt tích hợp Auth.
 Offline/dry-run vẫn chạy, không chứng minh chất lượng Gemini thật. Thu hồi quyền

@@ -1,13 +1,16 @@
 # Tài — việc cần làm tiếp theo
 
-## Đợt 8 — đang triển khai, commit-only
+## Đợt 8 — hoàn tất phạm vi local, commit-only
 
 - [x] Git/Docker và baseline 4 gate + DB (1052 test thường, 177 DB; exit 0).
-- [ ] RED→GREEN migration 015/rollback, snapshot/chain/mutation.
-- [ ] Receipt HTTP và feedback ownership/idempotency, real DB hai workspace.
-- [ ] FE server header, thiếu header fail closed; export scoped/legacy.
-- [ ] Browser local fake provider desktop/375px và reload.
-- [ ] Gates cuối, review, report/runbook, commit; không push.
+- [x] RED→GREEN migration 015/rollback, snapshot/chain/mutation.
+- [x] Receipt HTTP và feedback ownership/idempotency, real DB hai workspace.
+- [x] FE server header, thiếu header fail closed; export scoped/legacy.
+- [x] Browser local fake provider desktop/375px và reload.
+- [x] Gates cuối, review, report/runbook, commit; không push.
+
+Kết quả: 1084 test thường + 190 DB, fail/skip 0; năm gate exit 0. Chưa áp cloud,
+chưa nghiệm thu Supabase Auth thật/tenant RLS/AI budget. Xem báo cáo Đợt 8.
 
 ## Đợt 7 — hoàn tất phạm vi local, còn giới hạn browser (2026-10-14)
 

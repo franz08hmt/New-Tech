@@ -253,7 +253,7 @@ runtime lại cần migrate/verify đủ 012–015.
 
 Rollback 014 giữ business rows/IDs/workspaces, xóa nhãn workspace và khôi phục
 FK gốc, **kể cả CASCADE course→exam/plan cũ**, SET NULL expense/document. Không
-chạy app trên schema đã down; chỉ sau remigrate/verify 012–014 mới bật runtime.
+chạy app trên schema đã down; chỉ sau remigrate/verify 012–015 mới bật runtime.
 Rollback 012/013 tiếp theo xóa năm bảng pilot/login/membership/session/limits,
 không xóa Auth provider users/Storage/business data; cần đăng nhập/cấp quyền lại.
 

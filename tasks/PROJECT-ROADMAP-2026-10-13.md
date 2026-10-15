@@ -47,7 +47,7 @@ mà web/PWA không đáp ứng. Không chọn công nghệ chỉ để tăng s�
 - Giữ baseline của Thắng: retrieval/chunking/embedding/OCR/validator. Bổ sung
   scope/admission ở boundary; mỗi thay đổi thuật toán/model/prompt phải được
   benchmark riêng, có version và lý do. Không bỏ citation check để test xanh.
-- Không sửa migration đã có. B2 lát 1–2 bổ sung 014; migration kế tiếp hiện là 015, nhưng kiểm lại
+- Không sửa migration đã có. B2 đã bổ sung 014 và receipt 015; migration kế tiếp hiện là 016, nhưng kiểm lại
   Git/runner/history trước đặt số. Không tự áp vào Supabase dùng chung.
 - Không thêm dependency npm trong đợt ổn định. PoC WASM/native/provider mới
   phải nêu package/license/chi phí/phạm vi trước khi được chọn để triển khai.
@@ -144,16 +144,17 @@ manager thực hiện thao tác quản lý/xóa. Không cần public CRUD member
 
 Tách thành các lát:
 
-**Checkpoint Đợt 7:** nền 014, Tasks/Courses và lát 3 Exams/Study plans/Expenses
+**Checkpoint Đợt 8:** nền 015, Tasks/Courses và lát 3 Exams/Study plans/Expenses
 cùng workspace-records đã triển khai; xem [báo cáo Đợt 5](../docs/PHASE-5-B2-SCOPE-REPORT.md)
 và [báo cáo Đợt 6](../docs/PHASE-6-REPORT.md). Lát 4 Documents/signing/indexing/
 RAG/summary/metadata đã scope và kiểm role ở service; xem
 [báo cáo Đợt 7](../docs/PHASE-7-DOCUMENTS-RAG-SCOPE-REPORT.md).
-Chưa áp cloud, chưa tạo `examate_app`/tenant RLS; lát 5 và B1 thật chưa nghiệm thu.
-Feedback ownership/answer receipt và hạn mức AI còn thiếu; chưa cách ly toàn app.
+Lát 5 receipt/feedback ownership đã triển khai và kiểm local; xem
+[báo cáo Đợt 8](../docs/PHASE-8-RECEIPT-REPORT.md). Chưa áp cloud, chưa tạo
+`examate_app`/tenant RLS; B1 thật và hạn mức AI còn thiếu, chưa cách ly toàn app.
 Runner live evaluation bị khóa trước mọi kết nối vì chưa có principal workspace;
 offline/dry-run giữ nguyên, tích hợp Auth cho runner là đợt riêng chưa chọn thiết kế.
-Runbook bootstrap 012→014 và rollback 014 đã
+Runbook bootstrap 012→015 và rollback 015→014→012/013 đã
 kiểm trên DB disposable, chưa chạy cloud.
 
 1. Migration foundation/scope/backfill đã được duyệt, FK/indexes và role ít

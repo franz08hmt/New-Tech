@@ -1,6 +1,6 @@
 # Implementation Plan: Tài tiếp quản Homework 3A
 
-## Đợt 8 — receipt/feedback ownership (2026-10-14)
+## Đợt 8 — receipt/feedback ownership (2026-10-14 đến 2026-10-15)
 
 1. Baseline: bốn gate và DB disposable; không kết nối cloud.
 2. Migration 015 và rollback: nullable legacy attribution, schema snapshot,
@@ -15,6 +15,12 @@
 Commit theo phần sau khi kiểm chứng. Quyết định mới nhất của Tài: **không push**.
 Receipt lưu hash/identity, không lưu text; feedback không phải gold. N1 sẽ có
 conversation/turn riêng. Không đổi RAG/model/prompt hoặc migration 001–014.
+
+Kết quả local: 1084 test thường/190 DB, fail/skip 0, năm gate exit 0. Browser
+viewer desktop/375px gửi feedback cả ba mode, reload rồi xác minh persistence
+trong DB. Không sửa AssistantPanel, không chạy cloud/Gemini thật. Đã commit
+theo nền/API/FE/docs, không push. Phần kế tiếp cần Tài duyệt là B2 lát 6/RLS;
+không tự tiếp tục hoặc mở N1 trong đợt này.
 
 ## Kế hoạch Đợt 7 — Documents/RAG boundary (2026-10-14)
 
