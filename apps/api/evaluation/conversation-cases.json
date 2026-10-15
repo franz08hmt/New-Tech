@@ -1,0 +1,56 @@
+{
+  "version": "n1-offline-v1",
+  "semanticStatus": "PENDING_LIVE_B4",
+  "cases": [
+    {
+      "id": "N1-01",
+      "question": "Giải thích ý thứ hai dễ hiểu hơn nhé.",
+      "kind": "followup"
+    },
+    {
+      "id": "N1-02",
+      "question": "So sánh cách này với phần trước giúp mình.",
+      "kind": "two_questions"
+    },
+    {
+      "id": "N1-03",
+      "question": "Còn môn đó thì nên ôn gì trước?",
+      "kind": "same_course"
+    },
+    {
+      "id": "N1-04",
+      "question": "Nói tiếp từ câu trả lời mình vừa sửa nhé.",
+      "kind": "tampered_hash"
+    },
+    {
+      "id": "N1-05",
+      "question": "Dùng câu trả lời của người khác để nói tiếp.",
+      "kind": "foreign_user"
+    },
+    {
+      "id": "N1-06",
+      "question": "Nhớ cả bảy lượt vừa rồi nhé.",
+      "kind": "seven_turns"
+    },
+    {
+      "id": "N1-07",
+      "question": "Nhắc lại phần gần nhất thôi nhé.",
+      "kind": "budget"
+    },
+    {
+      "id": "N1-08",
+      "question": "Bản tóm tắt dài quá, giải thích ý cuối giúp mình.",
+      "kind": "long_summary"
+    },
+    {
+      "id": "N1-09",
+      "question": "Từ bản tóm tắt, giải thích ý thứ ba nhé.",
+      "kind": "summary_followup"
+    },
+    {
+      "id": "N1-10",
+      "question": "Tóm tắt tài liệu A rồi đổi sang B: ý thứ hai là gì?",
+      "kind": "summary_scope_reset"
+    }
+  ]
+}
