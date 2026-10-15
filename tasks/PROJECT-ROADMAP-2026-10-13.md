@@ -220,6 +220,13 @@ có bằng chứng riêng. Không dùng 562 test để thay các kiểm tra này
 
 ### N1. Hội thoại AI nhiều lượt, có ngữ cảnh và nguồn
 
+**Checkpoint Đợt 9 — lát 1:** general/documents dùng history tối đa 6 receipt đã
+verify user/workspace/mode/course/document/hash. FE memory-tab có reset/abort;
+workspace và hai thao tác summary/course info vẫn một lượt. Character/byte cap
+đã có, **chưa phải token/cost cap**. Có 10 case deterministic offline, semantic
+chờ B4 live; chưa persistence/retention/streaming. Xem
+[báo cáo Đợt 9](../docs/PHASE-9-N1-CONVERSATION-REPORT.md).
+
 **Giá trị:** hỏi "giải thích ý thứ hai", "so sánh với phần trước" có nghĩa;
 đây là phần AI cần nâng cấp hơn việc chỉ đổi model.
 

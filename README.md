@@ -32,6 +32,8 @@ thay bằng role B2: chỉ dùng dữ liệu demo. Xem [báo cáo B2 lát 1–2]
 và [Đợt 6 — lát 3, runbook và rollback 014](docs/PHASE-6-REPORT.md),
 [Đợt 7 — Documents/RAG boundary](docs/PHASE-7-DOCUMENTS-RAG-SCOPE-REPORT.md) và
 [Đợt 8 — receipt/feedback ownership](docs/PHASE-8-RECEIPT-REPORT.md).
+N1 lát 1 đã bổ sung lịch sử general/documents được server xác minh qua receipt;
+xem [Đợt 9 — hội thoại có ngữ cảnh](docs/PHASE-9-N1-CONVERSATION-REPORT.md).
 Vì vậy chỉ thử với dữ liệu demo, không public ứng dụng hoặc đưa dữ
 liệu/API key thật cho người dùng khác.
 
@@ -53,6 +55,20 @@ Chat thành công trả UUID server qua `X-Assistant-Answer-ID`, JSON answer gi�
 nguyên. Receipt chỉ lưu identity/hash, không lưu lịch sử text. Feedback mới phải
 khớp receipt của người gửi; thiếu header vẫn đọc answer nhưng không gửi feedback.
 Legacy feedback giữ ownership NULL; không tự thành gold/evaluation verdict.
+
+Lưu receipt lỗi 5xx sau khi đã có answer hợp lệ vẫn trả answer 200, không có
+header; FE khóa feedback và không dùng lượt đó làm history. Lỗi quyền 4xx vẫn
+chặn. N1 chỉ giữ lịch sử trong bộ nhớ tab: tối đa 6 receipt, cùng user/workspace/
+mode/course/document; đổi phạm vi hoặc **New conversation** reset, reload mất
+lịch sử. Workspace, Summarize và Course info vẫn một lượt; receipt của hai thao
+tác sau có thể dùng cho câu hỏi tiếp theo trong cùng phạm vi.
+
+`ASSISTANT_CONTEXT_MAX_CHARS=12000` (1000–24000) giới hạn phần question/answer
+được đưa vào prompt, không phải token/cost cap. History request tối đa 64000 ký
+tự serialized và 81920 byte UTF-8; không cắt snapshot để làm khớp hash. Bỏ lượt
+cũ trước; lượt mới nhất quá dài được rút gọn có nhãn sau khi loại marker nguồn
+cũ. RAG chỉ trích dẫn chunk lấy ở lượt hiện tại. Ngữ nghĩa follow-up còn chờ B4
+live; test offline/fake provider không chứng minh chất lượng Gemini.
 
 Export là CLI quản trị local, không phải API/user login: cần maintenance credential
 riêng `MIGRATION_DATABASE_URL`, không fallback runtime, `--workspace-id` khớp
