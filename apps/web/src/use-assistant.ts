@@ -104,7 +104,13 @@ export interface AssistantState {
 }
 
 export function useAssistant(transport?: AskTransport): AssistantState {
-  const [draft, setDraft] = useState("");
+  const [draft, setDraftState] = useState("");
+  const draftRevision = useRef(0);
+  const setDraft = useCallback((value: string) => {
+    // Record intent synchronously, including edits batched with a reply or reverted later.
+    draftRevision.current++;
+    setDraftState(value);
+  }, []);
   const [mode, setModeState] = useState<AssistantMode>("documents");
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
   const [status, setStatus] = useState<AssistantStatus>(
@@ -177,6 +183,7 @@ export function useAssistant(transport?: AskTransport): AssistantState {
       const requestOperation = options?.operation ?? "question";
       const requestContext = { ...context };
       const requestEpoch = epoch.current;
+      const requestDraftRevision = draftRevision.current;
       const controller = new AbortController();
       pending.current = controller;
       const prior = history.current.slice(-6);
@@ -274,9 +281,13 @@ export function useAssistant(transport?: AskTransport): AssistantState {
               : {}),
           },
         ]);
-        // Cleared only once the question has an answer. On failure the draft
-        // stays exactly as typed, ready to send again.
-        if (options?.message === undefined) setDraft("");
+        // Clear only the untouched composer that supplied this successful request.
+        // An explicit message override never owns the composer draft.
+        if (
+          options?.message === undefined &&
+          draftRevision.current === requestDraftRevision
+        )
+          setDraftState("");
         setStatus("idle");
       } catch (error: unknown) {
         if (requestEpoch !== epoch.current || controller.signal.aborted) return;

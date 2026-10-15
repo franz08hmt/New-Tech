@@ -330,3 +330,328 @@ describe("reset during an outstanding answer", () => {
     },
   );
 });
+
+describe("draft ownership while replies are pending", () => {
+  const question = "Câu hỏi A";
+  const nextDraft = "Bản nháp B đang gõ";
+
+  // Unlike fixture.send(), this exercises the composer path without options.message.
+  function begin(
+    hook: ReturnType<typeof fixture>,
+    value = question,
+    requestContext = context,
+  ) {
+    act(() => hook.result.current.setDraft(value));
+    let request!: Promise<void>;
+    act(() => {
+      request = hook.result.current.send(requestContext);
+    });
+    expect(hook.result.current.status).toBe("sending");
+    return request;
+  }
+
+  it.each(["general", "documents", "workspace"] as const)(
+    "%s preserves edited draft B and the exact question A receipt snapshot",
+    async (mode) => {
+      const hook = fixture();
+      act(() => hook.result.current.setMode(mode));
+      const requestContext =
+        mode === "documents" ? context : { pageId: "tasks", pageName: "Tasks" };
+      const base = {
+        answer: "Câu trả lời gốc A",
+        answerable: true,
+        promptVersion: "fixture",
+      };
+      const response: AssistantChatResponse =
+        mode === "workspace"
+          ? {
+              ...base,
+              mode,
+              provider: "workspace",
+              model: "database",
+              ragEnabled: false,
+              citations: [],
+              reasonCode: "WORKSPACE_ANSWER",
+              workspaceIntent: "courses_list",
+              workspaceSources: [],
+              asOf: "2026-10-15",
+            }
+          : mode === "general"
+            ? {
+                ...base,
+                mode,
+                provider: "google",
+                model: "fixture",
+                ragEnabled: false,
+                citations: [],
+                reasonCode: "ANSWER_GENERATED",
+              }
+            : {
+                ...base,
+                mode,
+                provider: "google",
+                model: "fixture",
+                ragEnabled: true,
+                citations: [],
+                reasonCode: "ANSWER_GENERATED",
+              };
+      const first = deferred<Reply>();
+      hook.transport.mockReturnValueOnce(first.promise);
+      const request = begin(hook, "  " + question + "  ", requestContext);
+      act(() => hook.result.current.setDraft(nextDraft));
+      await act(async () => {
+        first.resolve(reply(1, { response }));
+        await request;
+      });
+
+      expect(hook.result.current.draft).toBe(nextDraft);
+      expect(hook.transport).toHaveBeenCalledTimes(1);
+      expect(hook.transport.mock.calls[0].slice(0, 4)).toEqual([
+        question,
+        requestContext,
+        mode,
+        "question",
+      ]);
+      expect(
+        hook.result.current.messages.map(({ role, text }) => ({ role, text })),
+      ).toEqual([
+        { role: "user", text: question },
+        { role: "assistant", text: "Câu trả lời hiển thị 1" },
+      ]);
+      const snapshot = {
+        schemaVersion: 1,
+        request: {
+          mode,
+          operation: "question",
+          question,
+          ...(mode === "documents"
+            ? { courseId: context.courseId, documentId: context.documentId }
+            : {}),
+        },
+        response,
+      };
+      expect(hook.result.current.messages[1].feedback).toEqual({
+        answerId: receiptId(1),
+        snapshot,
+      });
+      hook.transport.mockResolvedValueOnce(reply(2, { response }));
+      await act(async () => {
+        await hook.result.current.send(requestContext, {
+          message: "Câu kiểm tiếp theo",
+        });
+      });
+      if (mode === "workspace")
+        expect(hook.transport.mock.calls[1][4]).not.toHaveProperty("history");
+      else
+        expect(hook.transport.mock.calls[1][4]?.history).toEqual([
+          { receiptId: receiptId(1), snapshot },
+        ]);
+      expect(hook.result.current.draft).toBe(nextDraft);
+    },
+  );
+
+  it("preserves draft B when its edit and answer A resolution share one act batch", async () => {
+    const hook = fixture();
+    const first = deferred<Reply>();
+    hook.transport.mockReturnValueOnce(first.promise);
+    const request = begin(hook);
+    await act(async () => {
+      // No await/render between the edit and resolving A: an effect-based guard is too late.
+      hook.result.current.setDraft(nextDraft);
+      first.resolve(reply(1));
+      await request;
+    });
+    expect(hook.result.current.draft).toBe(nextDraft);
+    expect(hook.result.current.messages).toHaveLength(2);
+    expect(hook.result.current.messages[0].text).toBe(question);
+    expect(
+      hook.result.current.messages[1].feedback?.snapshot.request.question,
+    ).toBe(question);
+    expect(hook.transport).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([question, "  " + question + "  "])(
+    "clears an untouched draft after success, including trim: %j",
+    async (value) => {
+      const hook = fixture();
+      const first = deferred<Reply>();
+      hook.transport.mockReturnValueOnce(first.promise);
+      const request = begin(hook, value);
+      await act(async () => {
+        first.resolve(reply(1));
+        await request;
+      });
+      expect(hook.result.current.draft).toBe("");
+      expect(hook.result.current.messages[0].text).toBe(question);
+    },
+  );
+
+  it("preserves a draft edited away and then back to the exact original text", async () => {
+    const hook = fixture();
+    const first = deferred<Reply>();
+    hook.transport.mockReturnValueOnce(first.promise);
+    const request = begin(hook);
+    act(() => hook.result.current.setDraft(nextDraft));
+    act(() => hook.result.current.setDraft(question));
+    await act(async () => {
+      first.resolve(reply(1));
+      await request;
+    });
+    expect(hook.result.current.draft).toBe(question);
+    expect(hook.result.current.messages).toHaveLength(2);
+  });
+
+  it("keeps edited draft B on failure without retrying or appending a successful turn", async () => {
+    const hook = fixture();
+    const first = deferred<Reply>();
+    hook.transport.mockReturnValueOnce(first.promise);
+    const request = begin(hook);
+    act(() => hook.result.current.setDraft(nextDraft));
+    await act(async () => {
+      first.reject(new Error("Lỗi fixture chủ ý"));
+      await request;
+    });
+    expect(hook.result.current.draft).toBe(nextDraft);
+    expect(hook.result.current.status).toBe("error");
+    expect(hook.result.current.errorMessage).toBe("Lỗi fixture chủ ý");
+    expect(hook.result.current.messages).toEqual([]);
+    expect(hook.transport).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["question", "summarize", "course_info"] as const)(
+    "%s via options.message leaves the existing composer draft alone",
+    async (operation) => {
+      const hook = fixture();
+      const first = deferred<Reply>();
+      hook.transport.mockReturnValueOnce(first.promise);
+      act(() => hook.result.current.setDraft(nextDraft));
+      let request!: Promise<void>;
+      act(() => {
+        request = hook.result.current.send(context, {
+          message: question,
+          operation,
+        });
+      });
+      await act(async () => {
+        first.resolve(reply(1));
+        await request;
+      });
+      expect(hook.result.current.draft).toBe(nextDraft);
+      expect(
+        hook.result.current.messages[1].feedback?.snapshot.request,
+      ).toMatchObject({ question, operation });
+      if (operation !== "question")
+        expect(hook.transport.mock.calls[0][4]).not.toHaveProperty("history");
+    },
+  );
+
+  it.each([undefined, "malformed-receipt"])(
+    "keeps answer A and edited draft B without feedback/history when receipt is %s",
+    async (answerId) => {
+      const hook = fixture();
+      const first = deferred<Reply>();
+      hook.transport.mockReturnValueOnce(first.promise);
+      const request = begin(hook);
+      act(() => hook.result.current.setDraft(nextDraft));
+      await act(async () => {
+        first.resolve(reply(1, { answerId }));
+        await request;
+      });
+      expect(hook.result.current.draft).toBe(nextDraft);
+      expect(hook.result.current.messages).toHaveLength(2);
+      expect(hook.result.current.messages[1]).toMatchObject({
+        text: "Câu trả lời hiển thị 1",
+        feedbackUnavailable: true,
+      });
+      expect(hook.result.current.messages[1].feedback).toBeUndefined();
+      hook.transport.mockResolvedValueOnce(reply(2));
+      await hook.send("Câu kiểm tiếp theo");
+      expect(hook.transport.mock.calls[1][4]?.history).toEqual([]);
+    },
+  );
+
+  for (const reset of ["new conversation", "document", "course"] as const) {
+    function resetScope(hook: ReturnType<typeof fixture>) {
+      if (reset === "new conversation") {
+        act(() => hook.result.current.resetConversation());
+        return context;
+      }
+      const next = {
+        ...context,
+        ...(reset === "document"
+          ? { documentId: "33333333-3333-4333-8333-333333333333" }
+          : { courseId: "44444444-4444-4444-8444-444444444444" }),
+      };
+      act(() => hook.result.current.syncContext(next));
+      return next;
+    }
+
+    it(`${reset} keeps a new unsent draft when an abort-ignoring transport resolves late`, async () => {
+      const hook = fixture();
+      const first = deferred<Reply>();
+      hook.transport.mockReturnValueOnce(first.promise);
+      const request = begin(hook);
+      resetScope(hook);
+      act(() => hook.result.current.setDraft(nextDraft));
+      expect(hook.transport.mock.calls[0][4]?.signal?.aborted).toBe(true);
+      await act(async () => {
+        first.resolve(reply(1));
+        await request;
+      });
+      expect(hook.result.current.draft).toBe(nextDraft);
+      expect(hook.result.current.messages).toEqual([]);
+      expect(hook.result.current.status).toBe("idle");
+      expect(hook.transport).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(["success", "failure"] as const)(
+      `${reset}: stale %s cannot erase draft B or release the fresh request's lock`,
+      async (outcome) => {
+        const hook = fixture();
+        const first = deferred<Reply>(),
+          fresh = deferred<Reply>();
+        hook.transport
+          .mockReturnValueOnce(first.promise)
+          .mockReturnValueOnce(fresh.promise);
+        const oldRequest = begin(hook);
+        const newContext = resetScope(hook);
+        const newRequest = begin(hook, "Câu hỏi mới", newContext);
+        act(() => hook.result.current.setDraft(nextDraft));
+        await act(async () => {
+          if (outcome === "success") first.resolve(reply(1));
+          else first.reject(new Error("Lỗi cũ không được hiển thị"));
+          await oldRequest;
+        });
+        expect(hook.result.current.draft).toBe(nextDraft);
+        expect(hook.result.current.status).toBe("sending");
+        expect(hook.result.current.errorMessage).toBe("");
+        expect(hook.result.current.messages).toEqual([]);
+        expect(hook.transport.mock.calls[1][4]?.history).toEqual([]);
+        await act(async () => {
+          await hook.result.current.send(newContext);
+        });
+        expect(hook.transport).toHaveBeenCalledTimes(2);
+        await act(async () => {
+          fresh.resolve(reply(2));
+          await newRequest;
+        });
+        expect(hook.result.current.draft).toBe(nextDraft);
+        expect(hook.result.current.messages.map((item) => item.text)).toEqual([
+          "Câu hỏi mới",
+          "Câu trả lời hiển thị 2",
+        ]);
+        hook.transport.mockResolvedValueOnce(reply(3));
+        await act(async () => {
+          await hook.result.current.send(newContext, {
+            message: "Kiểm history mới",
+          });
+        });
+        expect(
+          hook.transport.mock.calls[2][4]?.history?.map(
+            (turn) => turn.receiptId,
+          ),
+        ).toEqual([receiptId(2)]);
+      },
+    );
+  }
+});
