@@ -7,6 +7,7 @@ import { DatabaseService } from "../dist/database/database.service.js";
 import { AuthStore } from "../dist/auth/auth-store.js";
 import { DocumentAccessService } from "../dist/documents/document-access.service.js";
 import { FeedbackService } from "../dist/feedback/feedback.service.js";
+import { validSnapshot } from "../dist/feedback/feedback-validation.js";
 import { loadMigrations, migrate } from "../scripts/migrate.mjs";
 import { assertTestDatabaseTarget } from "../scripts/test-database-target.mjs";
 import { prepareAuthFixture } from "./disposable-auth-fixture.mjs";
@@ -438,4 +439,259 @@ test("user deletion retains receipt and feedback with NULL users; workspace dele
   );
   assert.equal(receipt.workspace_id, f.principal.workspaceId);
   assert.equal(row.workspace_id, f.principal.workspaceId);
+});
+
+function followUp(request, receiptId, value) {
+  return {
+    ...request,
+    message: "Explain the previous answer further",
+    operation: "question",
+    history: [{ receiptId, snapshot: value }],
+  };
+}
+
+async function historyRefused(operation, fixture, status = 400) {
+  await assert.rejects(operation, (error) => {
+    assert.equal(error.getStatus?.(), status);
+    const response = error.getResponse?.();
+    assert.equal(
+      response?.code,
+      status === 403 ? "WORKSPACE_ACCESS_DENIED" : "HISTORY_INVALID",
+    );
+    const text = JSON.stringify(response);
+    assert.doesNotMatch(
+      text,
+      /SELECT|snapshot_hash|workspace_id|user_id|Synthetic|stack/,
+    );
+    for (const id of [
+      ...fixture.users,
+      ...fixture.workspaces,
+      fixture.answerId,
+    ])
+      assert.equal(text.includes(id), false);
+    return true;
+  });
+}
+
+for (const role of ["member", "viewer"])
+  test(`real SQL ${role} verifies their own history without writing receipt or feedback rows`, async () => {
+    const f = await fixture(role);
+    const before = await persistedState();
+    await f.receipts.verifyHistory(
+      followUp(f.request, f.answerId, f.body.snapshot),
+      f.principal,
+    );
+    assert.deepEqual(await persistedState(), before);
+  });
+
+test("real SQL second user verifies their own receipt in the second workspace", async () => {
+  const f = await fixture();
+  const principal = {
+    userId: f.users[1],
+    workspaceId: f.workspaces[1],
+    role: "member",
+  };
+  const receiptId = await f.receipts.issue(
+    f.request,
+    f.result,
+    principal,
+    randomUUID(),
+  );
+  const before = await persistedState();
+  await f.receipts.verifyHistory(
+    followUp(f.request, receiptId, f.body.snapshot),
+    principal,
+  );
+  assert.deepEqual(await persistedState(), before);
+});
+
+for (const attack of [
+  "other user",
+  "other workspace",
+  "fabricated UUID",
+  "changed answer hash",
+  "changed question hash",
+  "different request mode",
+  "different stored receipt mode",
+])
+  test(`real SQL ${attack} history returns HISTORY_INVALID without changing any receipt or feedback row`, async () => {
+    const f = await fixture();
+    const request = followUp(
+      f.request,
+      f.answerId,
+      structuredClone(f.body.snapshot),
+    );
+    const principal = { ...f.principal };
+    if (attack === "other user") principal.userId = f.users[1];
+    if (attack === "other workspace") principal.workspaceId = f.workspaces[1];
+    if (attack === "fabricated UUID")
+      request.history[0].receiptId = randomUUID();
+    if (attack === "changed answer hash")
+      request.history[0].snapshot.response.answer = "Synthetic altered answer";
+    if (attack === "changed question hash")
+      request.history[0].snapshot.request.question =
+        "Synthetic altered question";
+    if (attack === "different request mode") request.mode = "documents";
+    if (attack === "different stored receipt mode")
+      await admin.query(
+        "UPDATE assistant_answer_receipts SET mode='documents' WHERE id=$1",
+        [f.answerId],
+      );
+    const before = await persistedState();
+    await historyRefused(() => f.receipts.verifyHistory(request, principal), f);
+    assert.deepEqual(await persistedState(), before);
+  });
+
+for (const [label, change] of [
+  [
+    "different course",
+    (request) => {
+      request.courseId = randomUUID();
+    },
+  ],
+  [
+    "removed course",
+    (request) => {
+      request.courseId = null;
+    },
+  ],
+  [
+    "different document",
+    (request) => {
+      request.documentId = randomUUID();
+    },
+  ],
+  [
+    "removed document",
+    (request) => {
+      request.documentId = null;
+    },
+  ],
+])
+  test(`real SQL ${label} history is rejected even with a matching owned snapshot hash`, async () => {
+    const f = await fixture();
+    const priorRequest = {
+      ...input(),
+      mode: "documents",
+      courseId: randomUUID(),
+      documentId: randomUUID(),
+    };
+    const priorResult = {
+      ...response(),
+      mode: "documents",
+      ragEnabled: true,
+      answerable: false,
+      reasonCode: "NO_RELEVANT_EVIDENCE",
+    };
+    const priorSnapshot = snapshot(priorRequest, priorResult);
+    assert.equal(validSnapshot(priorSnapshot), true);
+    const receiptId = await f.receipts.issue(
+      priorRequest,
+      priorResult,
+      f.principal,
+      randomUUID(),
+    );
+    const request = followUp(priorRequest, receiptId, priorSnapshot);
+    change(request);
+    const before = await persistedState();
+    await historyRefused(
+      () => f.receipts.verifyHistory(request, f.principal),
+      f,
+    );
+    assert.deepEqual(await persistedState(), before);
+  });
+
+test("real SQL matching document and course scope verifies a prior refusal without writes", async () => {
+  const f = await fixture();
+  const priorRequest = {
+    ...input(),
+    mode: "documents",
+    courseId: randomUUID(),
+    documentId: randomUUID(),
+  };
+  const priorResult = {
+    ...response(),
+    mode: "documents",
+    ragEnabled: true,
+    answerable: false,
+    reasonCode: "NO_RELEVANT_EVIDENCE",
+  };
+  const receiptId = await f.receipts.issue(
+    priorRequest,
+    priorResult,
+    f.principal,
+    randomUUID(),
+  );
+  const before = await persistedState();
+  await f.receipts.verifyHistory(
+    followUp(priorRequest, receiptId, snapshot(priorRequest, priorResult)),
+    f.principal,
+  );
+  assert.deepEqual(await persistedState(), before);
+});
+
+test("real SQL fresh membership revocation blocks history verification with 403", async () => {
+  const f = await fixture("viewer");
+  await admin.query(
+    "UPDATE workspace_memberships SET active=false WHERE workspace_id=$1 AND user_id=$2",
+    [f.principal.workspaceId, f.principal.userId],
+  );
+  const before = await persistedState();
+  await historyRefused(
+    () =>
+      f.receipts.verifyHistory(
+        followUp(f.request, f.answerId, f.body.snapshot),
+        f.principal,
+      ),
+    f,
+    403,
+  );
+  assert.deepEqual(await persistedState(), before);
+});
+
+test("real SQL response context metadata remains valid for hashing, feedback, and later history", async () => {
+  const f = await fixture("viewer");
+  const request = followUp(f.request, f.answerId, f.body.snapshot);
+  const result = {
+    ...response(),
+    contextTurnsUsed: 1,
+    contextTruncated: false,
+  };
+  const value = snapshot(request, result);
+  assert.equal(
+    validSnapshot(value),
+    true,
+    "feedback DTO must accept context response fields",
+  );
+  assert.equal(Object.hasOwn(value.request, "history"), false);
+  const receiptId = await f.receipts.issue(
+    request,
+    result,
+    f.principal,
+    randomUUID(),
+  );
+  const receipt = (
+    await admin.query(
+      "SELECT snapshot_hash FROM assistant_answer_receipts WHERE id=$1",
+      [receiptId],
+    )
+  ).rows[0];
+  assert.equal(receipt.snapshot_hash, hash(value));
+  const body = payload(receiptId, value);
+  const ack = await feedback.create(body, f.principal);
+  const row = (
+    await admin.query(
+      "SELECT receipt_id,snapshot FROM assistant_feedback WHERE id=$1",
+      [ack.id],
+    )
+  ).rows[0];
+  assert.equal(row.receipt_id, receiptId);
+  assert.deepEqual(row.snapshot, value);
+  const before = await persistedState();
+  assert.deepEqual(await feedback.create(body, f.principal), ack);
+  await f.receipts.verifyHistory(
+    followUp(f.request, receiptId, value),
+    f.principal,
+  );
+  assert.deepEqual(await persistedState(), before);
 });

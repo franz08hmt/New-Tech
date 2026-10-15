@@ -57,6 +57,21 @@ function generalSnapshot() {
   };
 }
 
+test("HTTP history: deeply nested snapshot is a safe HISTORY_INVALID before DTO transformation", async () =>
+  receiptApp(async ({ fixture, post }) => {
+    let nested = {};
+    for (let index = 0; index < 3000; index++) nested = { child: nested };
+    const response = await post("/assistant/chat", {
+      mode: "general",
+      message: "Câu tiếp",
+      history: [{ receiptId: randomUUID(), snapshot: { request: nested } }],
+    });
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).code, "HISTORY_INVALID");
+    assert.equal(fixture.state.generations.length, 0);
+    assert.equal(fixture.state.retrievalCalls, 0);
+  }));
+
 function receiptDependencies(auth) {
   const dependencies = fakeDependencies();
   const receipts = new Map();
@@ -68,6 +83,10 @@ function receiptDependencies(auth) {
     rejectedModelResponse: false,
     noEvidence: false,
     receiptStorageError: false,
+    providerCalls: 0,
+    retrievalCalls: 0,
+    generations: [],
+    retrievalInputs: [],
   };
   auth.config.workspaceId = workspaceId;
   auth.store.membership = async (workspace, user, tx) =>
@@ -117,6 +136,7 @@ function receiptDependencies(auth) {
             "workspace_id",
             "user_id",
             "snapshot_hash",
+            "mode",
           ]),
         );
         return { rows: rows.map((row) => ({ ...row })), rowCount: rows.length };
@@ -171,6 +191,8 @@ function receiptDependencies(auth) {
     model: "synthetic-fixture-model",
     status: () => ({ status: "ready" }),
     async generate(input) {
+      state.providerCalls++;
+      state.generations.push(structuredClone(input));
       if (state.providerError) throw new AssistantError("unavailable");
       if (!input.responseMimeType) return "Synthetic general answer";
       return JSON.stringify({
@@ -183,7 +205,9 @@ function receiptDependencies(auth) {
     },
   };
   const retrieval = {
-    async retrieve() {
+    async retrieve(...input) {
+      state.retrievalCalls++;
+      state.retrievalInputs.push(structuredClone(input));
       return {
         promptVersion: "rag-v1",
         context: state.noEvidence ? null : "Synthetic local evidence",
@@ -556,3 +580,494 @@ test("HTTP answer receipt: revoked membership at transaction boundary cannot sav
     assert.equal((await response.json()).code, "WORKSPACE_ACCESS_DENIED");
     assert.deepEqual(savedState(fixture), before);
   }));
+
+function documentSnapshot(request = {}, response = {}) {
+  const snapshot = generalSnapshot();
+  snapshot.request = { ...snapshot.request, mode: "documents", ...request };
+  snapshot.response = {
+    ...snapshot.response,
+    mode: "documents",
+    ragEnabled: true,
+    promptVersion: "rag-v1",
+    answer: "**Earlier raw server answer** [S1].",
+    citations: [
+      { ...citation, chunkId: randomUUID(), title: "Earlier evidence.pdf" },
+    ],
+    ...response,
+  };
+  return snapshot;
+}
+
+function historyTurn(fixture, snapshot = generalSnapshot(), overrides = {}) {
+  return { receiptId: fixture.seedReceipt(snapshot, overrides).id, snapshot };
+}
+
+async function assertHistoryInvalid(response, fixture, before) {
+  assert.equal(
+    fixture.state.providerCalls,
+    0,
+    "invalid history must not call generation",
+  );
+  assert.equal(
+    fixture.state.retrievalCalls,
+    0,
+    "invalid history must not call retrieval",
+  );
+  assert.equal(response.status, 400);
+  const error = await response.json();
+  assert.equal(error.code, "HISTORY_INVALID");
+  assert.match(error.requestId, uuid);
+  assert.doesNotMatch(
+    JSON.stringify(error),
+    /snapshot_hash|workspace_id|user_id|SELECT|Earlier raw server answer/,
+  );
+  assert.equal(response.headers.get("X-Assistant-Answer-ID"), null);
+  assert.deepEqual(savedState(fixture), before);
+}
+
+for (const [label, history] of [
+  ["null", null],
+  ["an object instead of an array", {}],
+  ["a null turn", [null]],
+  ["a missing receipt", [{ snapshot: generalSnapshot() }]],
+  [
+    "a non-UUID receipt",
+    [{ receiptId: "client-id", snapshot: generalSnapshot() }],
+  ],
+  ["a missing snapshot", [{ receiptId: randomUUID() }]],
+  ["a malformed snapshot", [{ receiptId: randomUUID(), snapshot: {} }]],
+  [
+    "extra client text",
+    [
+      {
+        receiptId: randomUUID(),
+        snapshot: generalSnapshot(),
+        answer: "forged",
+      },
+    ],
+  ],
+])
+  test(`HTTP history: rejects ${label} before retrieval or generation`, async () =>
+    receiptApp(async ({ fixture, post }) => {
+      const before = savedState(fixture);
+      const response = await post("/assistant/chat", {
+        mode: "general",
+        message: "Follow-up",
+        history,
+      });
+      await assertHistoryInvalid(response, fixture, before);
+    }));
+
+for (const [label, setup] of [
+  [
+    "another user",
+    (fixture) => ({
+      history: [
+        historyTurn(fixture, generalSnapshot(), { user_id: otherUserId }),
+      ],
+    }),
+  ],
+  [
+    "another workspace",
+    (fixture) => ({
+      history: [
+        historyTurn(fixture, generalSnapshot(), {
+          workspace_id: otherWorkspaceId,
+        }),
+      ],
+    }),
+  ],
+  [
+    "a receipt with the wrong stored mode",
+    (fixture) => ({
+      history: [historyTurn(fixture, generalSnapshot(), { mode: "documents" })],
+    }),
+  ],
+  [
+    "a different snapshot mode",
+    (fixture) => ({ history: [historyTurn(fixture, documentSnapshot())] }),
+  ],
+  [
+    "an unknown receipt",
+    () => ({
+      history: [{ receiptId: randomUUID(), snapshot: generalSnapshot() }],
+    }),
+  ],
+  [
+    "a substituted answer",
+    (fixture) => {
+      const turn = historyTurn(fixture);
+      turn.snapshot.response.answer = "Client-rendered substituted answer";
+      return { history: [turn] };
+    },
+  ],
+  [
+    "a substituted question",
+    (fixture) => {
+      const turn = historyTurn(fixture);
+      turn.snapshot.request.question = "Client-substituted question";
+      return { history: [turn] };
+    },
+  ],
+  [
+    "a different course filter",
+    (fixture) => ({
+      mode: "documents",
+      courseId: randomUUID(),
+      history: [
+        historyTurn(fixture, documentSnapshot({ courseId: randomUUID() })),
+      ],
+    }),
+  ],
+  [
+    "a removed course filter",
+    (fixture) => ({
+      mode: "documents",
+      history: [
+        historyTurn(fixture, documentSnapshot({ courseId: randomUUID() })),
+      ],
+    }),
+  ],
+  [
+    "an added document filter",
+    (fixture) => ({
+      mode: "documents",
+      documentId: randomUUID(),
+      history: [historyTurn(fixture, documentSnapshot())],
+    }),
+  ],
+  [
+    "a different document filter",
+    (fixture) => ({
+      mode: "documents",
+      documentId: randomUUID(),
+      history: [
+        historyTurn(fixture, documentSnapshot({ documentId: randomUUID() })),
+      ],
+    }),
+  ],
+  [
+    "a removed document filter",
+    (fixture) => ({
+      mode: "documents",
+      history: [
+        historyTurn(fixture, documentSnapshot({ documentId: randomUUID() })),
+      ],
+    }),
+  ],
+])
+  test(`HTTP history: rejects ${label} before retrieval or generation`, async () =>
+    receiptApp(async ({ fixture, post }) => {
+      const input = {
+        mode: "general",
+        message: "Follow-up",
+        ...setup(fixture),
+      };
+      const before = savedState(fixture);
+      const response = await post("/assistant/chat", input, {
+        "X-Role": "manager",
+        "X-Workspace-ID": otherWorkspaceId,
+        "X-User-ID": otherUserId,
+      });
+      await assertHistoryInvalid(response, fixture, before);
+    }));
+
+test("HTTP history: rejects seven valid owned turns before retrieval or generation", async () =>
+  receiptApp(async ({ fixture, post }) => {
+    const history = Array.from({ length: 7 }, () => historyTurn(fixture));
+    const before = savedState(fixture);
+    await assertHistoryInvalid(
+      await post("/assistant/chat", {
+        mode: "general",
+        message: "Follow-up",
+        history,
+      }),
+      fixture,
+      before,
+    );
+  }));
+
+test("HTTP history: workspace questions reject nonempty history", async () =>
+  receiptApp(async ({ fixture, post }) => {
+    const history = [historyTurn(fixture)];
+    const before = savedState(fixture);
+    await assertHistoryInvalid(
+      await post("/assistant/chat", {
+        mode: "workspace",
+        message: "Workspace có những môn học nào?",
+        history,
+      }),
+      fixture,
+      before,
+    );
+  }));
+
+for (const operation of ["summarize", "course_info"])
+  test(`HTTP history: ${operation} rejects even an empty history property`, async () =>
+    receiptApp(async ({ fixture, post }) => {
+      const before = savedState(fixture);
+      await assertHistoryInvalid(
+        await post("/assistant/chat", {
+          mode: "documents",
+          operation,
+          documentId: citation.documentId,
+          message: "Read selected document",
+          history: [],
+        }),
+        fixture,
+        before,
+      );
+    }));
+
+test("HTTP history: owned general history uses raw verified answer and keeps receipt snapshot hashing unchanged", async () =>
+  receiptApp(async ({ fixture, post }) => {
+    const snapshot = generalSnapshot();
+    snapshot.response.answer = "**Raw server Markdown**\nSecond line.";
+    const history = [historyTurn(fixture, snapshot)];
+    const priorHash = fixture.receipts.get(history[0].receiptId).snapshot_hash;
+    const input = { mode: "general", message: "Explain that further", history };
+    const response = await post("/assistant/chat", input);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.contextTurnsUsed, 1);
+    assert.equal(body.contextTruncated, false);
+    assert.deepEqual(fixture.state.generations[0].conversation, [
+      { role: "user", text: snapshot.request.question },
+      { role: "model", text: snapshot.response.answer },
+    ]);
+    assert.equal(fixture.state.providerCalls, 1);
+    assert.equal(fixture.state.retrievalCalls, 0);
+    const id = response.headers.get("X-Assistant-Answer-ID");
+    assert.match(id, uuid);
+    assert.equal(
+      fixture.receipts.get(id).snapshot_hash,
+      hashSnapshot(snapshotOf(input, body)),
+      "history is not added to the canonical feedback snapshot request",
+    );
+    assert.equal(
+      fixture.receipts.get(history[0].receiptId).snapshot_hash,
+      priorHash,
+    );
+  }));
+
+test("HTTP history: accepts six owned turns in chronological role pairs", async () =>
+  receiptApp(async ({ fixture, post }) => {
+    const history = Array.from({ length: 6 }, (_, index) => {
+      const snapshot = generalSnapshot();
+      snapshot.request.question = `Earlier question ${index}`;
+      snapshot.response.answer = `Earlier answer ${index}`;
+      return historyTurn(fixture, snapshot);
+    });
+    const response = await post("/assistant/chat", {
+      mode: "general",
+      message: "Follow-up",
+      history,
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.contextTurnsUsed, 6);
+    assert.equal(body.contextTruncated, false);
+    assert.deepEqual(
+      fixture.state.generations[0].conversation,
+      history.flatMap(({ snapshot }) => [
+        { role: "user", text: snapshot.request.question },
+        { role: "model", text: snapshot.response.answer },
+      ]),
+    );
+  }));
+
+test("HTTP history: document follow-up strips historic source markers and cites only current retrieved chunks", async () =>
+  receiptApp(async ({ fixture, post }) => {
+    const courseId = randomUUID();
+    const documentId = citation.documentId;
+    const snapshot = documentSnapshot({
+      courseId,
+      documentId,
+      question: "Earlier question [S1] [S1, S2]",
+    });
+    snapshot.response.answer += " [S1, S2] [S999]";
+    const oldChunk = snapshot.response.citations[0].chunkId;
+    const response = await post("/assistant/chat", {
+      mode: "documents",
+      message: "Explain that further",
+      courseId,
+      documentId,
+      history: [historyTurn(fixture, snapshot)],
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.contextTurnsUsed, 1);
+    assert.equal(body.contextTruncated, false);
+    const conversation = fixture.state.generations[0].conversation;
+    assert.deepEqual(
+      conversation.map(({ role }) => role),
+      ["user", "model"],
+    );
+    assert.match(conversation[1].text, /\*\*Earlier raw server answer\*\*/);
+    assert.doesNotMatch(
+      JSON.stringify(conversation),
+      /\[S[^\]]*\]|Earlier evidence\.pdf/,
+    );
+    assert.equal(fixture.state.retrievalCalls, 1);
+    assert.equal(fixture.state.providerCalls, 1);
+    assert.deepEqual(body.citations, [citation]);
+    assert.notEqual(body.citations[0].chunkId, oldChunk);
+  }));
+
+test("HTTP history: prior no-evidence refusal remains in the verified conversation", async () =>
+  receiptApp(async ({ fixture, post }) => {
+    const refusal = "Không đủ bằng chứng để trả lời câu hỏi trước.";
+    const snapshot = documentSnapshot(
+      {},
+      {
+        answer: refusal,
+        answerable: false,
+        reasonCode: "NO_RELEVANT_EVIDENCE",
+        citations: [],
+      },
+    );
+    const response = await post("/assistant/chat", {
+      mode: "documents",
+      message: "Try explaining this evidence",
+      history: [historyTurn(fixture, snapshot)],
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).contextTurnsUsed, 1);
+    assert.deepEqual(fixture.state.generations[0].conversation, [
+      { role: "user", text: snapshot.request.question },
+      { role: "model", text: refusal },
+    ]);
+  }));
+
+test("HTTP history: owned summary receipt can provide context for a later document question", async () =>
+  receiptApp(async ({ fixture, post }) => {
+    const snapshot = documentSnapshot({
+      operation: "summarize",
+      documentId: citation.documentId,
+    });
+    const response = await post("/assistant/chat", {
+      mode: "documents",
+      documentId: citation.documentId,
+      message: "Explain this summary",
+      history: [historyTurn(fixture, snapshot)],
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).contextTurnsUsed, 1);
+    assert.match(
+      fixture.state.generations[0].conversation[1].text,
+      /Earlier raw server answer/,
+    );
+  }));
+
+test("HTTP history: owned course-info receipt can provide context for a later document question", async () =>
+  receiptApp(async ({ fixture, post }) => {
+    const snapshot = documentSnapshot(
+      { operation: "course_info", documentId: citation.documentId },
+      {
+        answer: "Tài liệu được gắn với môn Công nghệ phần mềm.",
+        reasonCode: "DOCUMENT_METADATA",
+        provider: "workspace",
+        model: "database",
+        ragEnabled: false,
+        citations: [],
+        metadataSource: {
+          documentId: citation.documentId,
+          title: citation.title,
+          courseId: null,
+          courseSlug: null,
+          courseName: null,
+          courseCode: null,
+        },
+      },
+    );
+    const response = await post("/assistant/chat", {
+      mode: "documents",
+      documentId: citation.documentId,
+      message: "Explain this course context",
+      history: [historyTurn(fixture, snapshot)],
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).contextTurnsUsed, 1);
+    assert.equal(
+      fixture.state.generations[0].conversation[1].text,
+      snapshot.response.answer,
+    );
+  }));
+
+test("HTTP history: budget truncation reports fewer retained pairs", async () => {
+  const priorBudget = process.env.ASSISTANT_CONTEXT_MAX_CHARS;
+  process.env.ASSISTANT_CONTEXT_MAX_CHARS = "2000";
+  try {
+    await receiptApp(async ({ fixture, post }) => {
+      const history = Array.from({ length: 6 }, (_, index) => {
+        const snapshot = generalSnapshot();
+        snapshot.request.question = `Question ${index}: ${"q".repeat(250)}`;
+        snapshot.response.answer = `Answer ${index}: ${"a".repeat(250)}`;
+        return historyTurn(fixture, snapshot);
+      });
+      const response = await post("/assistant/chat", {
+        mode: "general",
+        message: "Follow-up",
+        history,
+      });
+      assert.equal(response.status, 200);
+      const body = await response.json();
+      assert.equal(body.contextTruncated, true);
+      assert.ok(body.contextTurnsUsed > 0 && body.contextTurnsUsed < 6);
+      const conversation = fixture.state.generations[0].conversation;
+      assert.equal(conversation.length, body.contextTurnsUsed * 2);
+      assert.ok(
+        conversation.reduce(
+          (total, turn) => total + [...turn.text].length,
+          0,
+        ) <= 2000,
+      );
+      assert.match(
+        conversation.at(-1).text,
+        /^Answer 5:/,
+        "most recent context is retained",
+      );
+    });
+  } finally {
+    if (priorBudget === undefined)
+      delete process.env.ASSISTANT_CONTEXT_MAX_CHARS;
+    else process.env.ASSISTANT_CONTEXT_MAX_CHARS = priorBudget;
+  }
+});
+
+test("HTTP history: oversized summary context is shortened after source markers are stripped", async () => {
+  const priorBudget = process.env.ASSISTANT_CONTEXT_MAX_CHARS;
+  process.env.ASSISTANT_CONTEXT_MAX_CHARS = "2000";
+  try {
+    await receiptApp(async ({ fixture, post }) => {
+      const snapshot = documentSnapshot(
+        { operation: "summarize", documentId: citation.documentId },
+        { answer: `${"Earlier summary [S1] ".repeat(1000)}End [S1, S2]` },
+      );
+      const response = await post("/assistant/chat", {
+        mode: "documents",
+        documentId: citation.documentId,
+        message: "Explain this summary",
+        history: [historyTurn(fixture, snapshot)],
+      });
+      assert.equal(response.status, 200);
+      const body = await response.json();
+      assert.equal(body.contextTurnsUsed, 1);
+      assert.equal(body.contextTruncated, true);
+      const conversation = fixture.state.generations[0].conversation;
+      assert.equal(conversation.length, 2);
+      assert.match(conversation[1].text, /\(đã rút gọn\)/);
+      assert.doesNotMatch(conversation[1].text, /\[S|S1\]/);
+      assert.ok(
+        conversation.reduce(
+          (total, turn) => total + [...turn.text].length,
+          0,
+        ) <= 2000,
+      );
+    });
+  } finally {
+    if (priorBudget === undefined)
+      delete process.env.ASSISTANT_CONTEXT_MAX_CHARS;
+    else process.env.ASSISTANT_CONTEXT_MAX_CHARS = priorBudget;
+  }
+});
