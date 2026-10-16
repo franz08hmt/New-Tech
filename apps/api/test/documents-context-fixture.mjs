@@ -89,6 +89,8 @@ export function documentsContextFixture(role = "member") {
         rows:
           values[0] === id(50) && values[1] === id(1) ? [{ id: id(50) }] : [],
       };
+    if (!state.role && /FROM documents/.test(sql))
+      return { rows: [], rowCount: 0 }; // A revoked membership hides committed rows under RLS.
     if (state.probeError && inserted && sql.includes("WHERE d.id"))
       throw Error("synthetic probe outage");
     const workspace = sql.includes("WHERE d.workspace_id")

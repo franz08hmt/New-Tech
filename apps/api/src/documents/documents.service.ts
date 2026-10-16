@@ -12,7 +12,11 @@ import type { StoredDocument, PilotPrincipal } from "@examate/contracts";
 import { DocumentAccessService } from "./document-access.service.js";
 import { DatabaseService } from "../database/database.service.js";
 import type { DatabaseTransaction } from "../database/database.service.js";
-import { requirePrincipal } from "../auth/principal.js";
+import {
+  requireManager,
+  requirePrincipal,
+  requireRecordWrite,
+} from "../auth/principal.js";
 import { log } from "../common/log.js";
 import { StorageService } from "./storage.service.js";
 
@@ -213,9 +217,10 @@ export class DocumentsService {
   private async checkCourse(
     courseId: string | null | undefined,
     workspaceId: string,
+    tx: DatabaseTransaction,
   ) {
     if (!courseId) return;
-    const result = await this.database.query(
+    const result = await tx.query(
       "SELECT id FROM courses WHERE id = $1 AND workspace_id = $2",
       [courseId, workspaceId],
     );
@@ -227,7 +232,10 @@ export class DocumentsService {
   }
 
   async upload(file?: PdfFile, courseId?: string, principal?: PilotPrincipal) {
-    const { workspaceId } = await this.access.authorize(principal, "write");
+    const { workspaceId } = requireRecordWrite(principal);
+    await this.database.workspaceTransaction(principal, (tx) =>
+      this.access.authorize(principal, "write", tx),
+    );
     if (!file)
       throw new BadRequestException(
         "One PDF file in the 'file' field is required",
@@ -252,8 +260,10 @@ export class DocumentsService {
       throw new BadRequestException(
         "PDF filename must contain 5..255 characters",
       );
-    await this.checkCourse(courseId, workspaceId);
-    await this.access.authorize(principal, "write");
+    await this.database.workspaceTransaction(principal, async (tx) => {
+      await this.access.authorize(principal, "write", tx);
+      await this.checkCourse(courseId, workspaceId, tx);
+    });
     const id = randomUUID();
     const key = `documents/${id}.pdf`;
     try {
@@ -267,21 +277,29 @@ export class DocumentsService {
       throw error;
     }
     try {
-      const result = await this.database.transaction(async (tx) => {
-        await this.access.authorize(principal, "write", tx);
-        return tx.query<DocumentRecord>(
-          `WITH inserted AS (
+      const document = await this.database.workspaceTransaction(
+        principal,
+        async (tx) => {
+          await this.access.authorize(principal, "write", tx);
+          const result = await tx.query<DocumentRecord>(
+            `WITH inserted AS (
            INSERT INTO documents
              (id, name, media_type, storage_key, size_bytes, storage_status, course_id, workspace_id)
            VALUES ($1, $2, 'application/pdf', $3, $4, 'stored', $5, $6)
            RETURNING *
          )
          SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM.replace("FROM documents d", "FROM inserted d")}`,
-          [id, name, key, file.size, courseId ?? null, workspaceId],
-        );
-      });
+            [id, name, key, file.size, courseId ?? null, workspaceId],
+          );
+          // A hidden JOIN/empty projection is not successful metadata. Throw
+          // inside the callback so any INSERT rolls back before reconciliation.
+          if (!result.rows[0])
+            throw new Error("Document metadata was not returned");
+          return result.rows[0];
+        },
+      );
       log("info", "document.stored", { documentId: id, sizeBytes: file.size });
-      return publicDocument(result.rows[0]);
+      return publicDocument(document);
     } catch (error) {
       // A DB timeout can mean an INSERT committed but its response was lost.
       // Confirm absence before compensating, to avoid deleting a committed file.
@@ -301,7 +319,6 @@ export class DocumentsService {
         throw uploadWriteError(error);
       }
       if (existing) {
-        await this.access.authorize(principal, "write");
         return publicDocument(existing);
       }
       // Compensation concerns only this request's newly allocated object, not
@@ -353,18 +370,13 @@ export class DocumentsService {
     courseId: string | null,
     principal?: PilotPrincipal,
   ) {
-    const { workspaceId } = await this.access.authorize(principal, "write");
-    if (
-      !(await this.database.workspaceTransaction(principal, async (tx) => {
-        await this.access.authorize(principal, "write", tx);
-        return this.find(id, workspaceId, tx);
-      }))
-    )
-      throw new NotFoundException("Document not found");
-    await this.checkCourse(courseId, workspaceId);
+    const { workspaceId } = requireRecordWrite(principal);
     const result = await this.database
-      .transaction(async (tx) => {
+      .workspaceTransaction(principal, async (tx) => {
         await this.access.authorize(principal, "write", tx);
+        if (!(await this.find(id, workspaceId, tx)))
+          throw new NotFoundException("Document not found");
+        await this.checkCourse(courseId, workspaceId, tx);
         return tx.query<DocumentRecord>(
           `WITH updated AS (
            UPDATE documents SET course_id = $2, updated_at = NOW()
@@ -384,30 +396,31 @@ export class DocumentsService {
   }
 
   async remove(id: string, principal?: PilotPrincipal) {
-    const { workspaceId } = await this.access.authorize(principal, "delete");
+    const { workspaceId } = requireManager(principal);
     const document = await this.database.workspaceTransaction(
       principal,
       async (tx) => {
         await this.access.authorize(principal, "delete", tx);
-        return this.find(id, workspaceId, tx);
+        const document = await this.find(id, workspaceId, tx);
+        if (!document) throw new NotFoundException("Document not found");
+        if (document.storage_status === "legacy")
+          throw new ConflictException(
+            "Legacy document requires manual storage reconciliation",
+          );
+        const marked = await tx.query(
+          "UPDATE documents SET storage_status = 'deleting', updated_at = NOW() WHERE id = $1 AND workspace_id = $2 RETURNING id",
+          [id, workspaceId],
+        );
+        if (!marked.rows.length)
+          throw new NotFoundException("Document not found");
+        return document;
       },
     );
-    if (!document) throw new NotFoundException("Document not found");
-    if (document.storage_status === "legacy")
-      throw new ConflictException(
-        "Legacy document requires manual storage reconciliation",
-      );
-    const marked = await this.database.transaction(async (tx) => {
-      await this.access.authorize(principal, "delete", tx);
-      return tx.query(
-        "UPDATE documents SET storage_status = 'deleting', updated_at = NOW() WHERE id = $1 AND workspace_id = $2 RETURNING id",
-        [id, workspaceId],
-      );
-    });
-    if (!marked.rows.length) throw new NotFoundException("Document not found");
-    await this.access.authorize(principal, "delete");
+    await this.database.workspaceTransaction(principal, (tx) =>
+      this.access.authorize(principal, "delete", tx),
+    );
     await this.storage.remove(document.storage_key);
-    await this.database.transaction(async (tx) => {
+    await this.database.workspaceTransaction(principal, async (tx) => {
       await this.access.authorize(principal, "delete", tx);
       return tx.query(
         "DELETE FROM documents WHERE id = $1 AND workspace_id = $2",
