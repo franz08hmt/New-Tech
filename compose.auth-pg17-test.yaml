@@ -1,0 +1,20 @@
+# Disposable compatibility tests only. Never used by app/cloud migration setup.
+# Versioned tag documented by https://github.com/pgvector/pgvector#docker
+services:
+  db:
+    image: pgvector/pgvector:0.8.7-pg17-bookworm@sha256:ac08538c6f8b9904c33c8224c5e5706dbe760aca29db1d096972b4052c22a75d
+    environment:
+      POSTGRES_DB: examate_test
+      POSTGRES_USER: examate_test
+      POSTGRES_PASSWORD: local-test-only
+    ports:
+      - "127.0.0.1:55433:5432"
+    volumes:
+      - auth-pg17-test-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U examate_test -d examate_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  auth-pg17-test-data:
