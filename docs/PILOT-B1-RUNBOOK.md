@@ -1,5 +1,20 @@
 # B1 + 015 — bootstrap và nghiệm thu Auth trên hai máy
 
+**Lượt tiếp tục sau 59b0906:** Tài đã duyệt backup public/snapshot/migrate đúng
+012–015/membership ba role/task demo/cleanup và push branch không force; ownership
+dữ liệu demo đã xác nhận. Không xin lại quyền các bước đó. Cần hoàn tất config,
+mapping Dashboard và xác nhận dừng writers hai máy trước thực thi. Các yêu cầu
+phê duyệt bên dưới là quy tắc chung; restore/rollback destructive, đổi target/
+runtime role/account/password vẫn chưa được duyệt. Xem mục tiếp tục trong report
+để phân biệt việc đã thực hiện với kế hoạch và kết quả lượt chuẩn bị.
+
+Code `59b0906` đã push không force và xác minh hash thực tế trên origin trong
+lượt tiếp tục. Thắng có thể cập nhật bằng Git sau khi bảo toàn WIP; chưa có
+bằng chứng commit/app/config trên chính máy Thắng. Không dùng `reset --hard`.
+Config/mapping/maintenance window hiện chưa hoàn tất nên chưa backup/migrate/
+cấp membership hoặc login cloud. Đừng dùng trạng thái PREPARED lịch sử bên dưới
+làm lý do xin lại quyền đã được cấp.
+
 **Checkpoint B1b, 17/10/2026: PREPARED, chưa TWO_MACHINE_AUTH_ACCEPTED.** Đọc
 [báo cáo Đợt 13](PHASE-13-B1-TWO-MACHINE-AUTH-REPORT.md) để lấy commit, inventory
 chỉ đọc, kết quả PostgreSQL 17 và danh sách việc chờ duyệt. Các lệnh ghi bên dưới

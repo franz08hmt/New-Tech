@@ -1,5 +1,78 @@
 # Đợt 13 — B1b: bootstrap Auth và đường nghiệm thu hai máy
 
+## Lượt tiếp tục sau 59b0906 — quyền đã cấp, đầu vào đang hoàn tất
+
+Tài đã xác nhận dữ liệu demo của nhóm và duyệt backup public private local,
+snapshot, pending 012–015, membership Tài manager/Thắng member/viewer, task demo
+và cleanup đúng record, commit/push không force. Không còn chờ duyệt lại các
+thao tác đó; vẫn phải kiểm đủ đầu vào và cửa sổ dừng writers trước khi thực hiện.
+Không được tự tạo/sửa account/password, đổi runtime role/Auth mode/target,
+restore/rollback destructive hoặc mở tính năng AI khác.
+
+Kiểm mới tại `59b0906`: runtime DB/Supabase resolver khớp, PG major 17,
+checksum 001–011 khớp, chỉ pending 012–015, pilot tables chưa có. TLS/CA/pool và
+quyền auth.sessions đạt; maintenance URL chưa cấu hình nên CLI dùng runtime URL
+theo fallback hiện có. Auth vẫn thiếu origin/public key/workspace/session key.
+Không có listener API3000/Vite5173 local; writers máy Thắng chưa được xác nhận.
+
+Tài trả lời chưa hoàn tất đầu vào và yêu cầu hướng dẫn từng bước. Đã giao kết
+quả hợp lệ/không hợp lệ, mẫu mapping private local và checklist dừng writers hai
+máy. Mẫu không email/password, chỉ UUID/role do người quản trị điền từ Dashboard;
+ACL đã kiểm: chặn inheritance, chỉ tài khoản Windows hiện tại và SYSTEM. Path
+private được giao trực tiếp, không commit UUID/file mapping/keys. Công cụ sinh
+giá trị còn thiếu được tạo private để chủ máy chủ động chạy nếu chưa từng có
+key/workspace; không tự sửa `.env` hoặc rotate key. Chưa sinh giá trị bằng công cụ.
+
+Chưa backup/snapshot business/migrate/cấp membership/gọi Auth thật: **BLOCKED
+do đầu vào và xác nhận maintenance window**, không phải BLOCKED_BY_APPROVAL.
+Máy Thắng vẫn REMOTE_MACHINE_NOT_VERIFIED. Bằng chứng local fixtures không thay
+Auth thật. Các kết quả và trạng thái PREPARED bên dưới là lịch sử lượt trước.
+
+### Bằng chứng mới của lượt tiếp tục
+
+- Đã review committed range 21 commit từ remote `d15afea` tới `59b0906`, gồm
+  các thay đổi N1/9.1/B2 đã review. Các file Assistant trong range là lịch sử,
+  không phải sửa FE/voice ở lượt này. Không có private paths/backup/.env thật
+  trong range; hit signed URL là fixture tổng hợp example.test ở App tests.
+- Đã push không force lên origin/feature/tai-rag-integration và đối chiếu bằng
+  `git ls-remote`: remote thực tế bằng `59b0906521c7a0810ead6611fea99d0cc28819ee`.
+  Không còn BLOCKED_BY_CODE_DELIVERY cho commit này trên origin. Commit chạy
+  trên máy Thắng vẫn chưa xác minh; không đồng nhất hai kết luận.
+- Chạy mới năm gate tuần tự: typecheck/test/build/format:check/test:database đều
+  exit 0; API Vitest 231 + Node 745 + web 308 = **1.284 pass**; PostgreSQL 17.11
+  disposable **301 pass**; tất cả fail/skip/cancelled 0. Không nhận số lịch sử
+  là kết quả mới. Không sửa runtime nên không có RED/GREEN mới cần nhận thay
+  bằng chứng diagnostic của lượt trước.
+- Đã pull image chính thức postgres:17 và kiểm pg_dump/pg_restore 17.11 với
+  network none. Chưa dùng các client đó kết nối cloud hoặc thu backup. Public
+  backup và snapshot vẫn chưa chạy vì đầu vào/maintenance chưa xác nhận.
+- PG17 dùng compose project riêng examate-phase13-execute-pg17, loopback 55433.
+  Audit guard trước kết nối: 0 DB con random, 0 role ngoài dự kiến, một role
+  fixture nền có marker đúng. Đã down đúng project, không -v; giữ một DB test
+  gốc/một role fixture trong volume local. Không còn listener 3000/5173/55433;
+  không dừng SOP stack hoặc resource lượt trước. Các container client --rm đã
+  kết thúc. Mẫu mapping/công cụ private vẫn giữ để Tài hoàn tất, không cleanup.
+
+| Hạng mục lượt tiếp tục               | Trạng thái/bằng chứng                                            |
+| ------------------------------------ | ---------------------------------------------------------------- |
+| Code delivery origin                 | PASS: push 59b0906, hash remote đối chiếu thật                   |
+| Gates local/PG17                     | PASS: số mới ở trên, không phải Supabase Auth thật               |
+| Ownership/authorization              | Đã được Tài xác nhận/cấp quyền trong chỉ thị tiếp tục            |
+| Config/mapping/maintenance window    | BLOCKED: Tài xác nhận chưa hoàn tất, đã có hướng dẫn/mẫu private |
+| Backup/snapshot/migration/membership | NOT_ATTEMPTED cho tới khi đủ điều kiện; không tự ghi cloud       |
+| Auth core máy Tài                    | BLOCKED bởi đầu vào; chưa browser/login thật                     |
+| Commit/config/Auth core máy Thắng    | REMOTE_MACHINE_NOT_VERIFIED                                      |
+| Refresh/Dashboard sign-out/revoke    | EXTENDED_PENDING; chưa quan sát thật                             |
+
+Đầu ra hiện tại **BLOCKED bởi đầu vào cần chủ máy/Dashboard**, không nhận
+TWO_MACHINE_AUTH_CORE_ACCEPTED. Sau khi người quản trị hoàn tất config/mapping
+và hai máy xác nhận dừng writers, tiếp tục đúng bootstrap đã được duyệt; không
+xin lại quyền backup/migration/membership/push. Không nhận config đúng chỉ từ
+việc file tồn tại, và không nhận pass máy Thắng từ kết quả máy Tài. Báo cáo/runbook
+được commit/push riêng sau code; hash cuối ở bàn giao Git để tránh tự tham chiếu.
+
+## Lượt chuẩn bị đã commit — bằng chứng lịch sử
+
 Ngày 17/10/2026, Asia/Saigon. Nhánh feature/tai-rag-integration, HEAD đầu lượt
 `20f804f`. **PREPARED; chưa TWO_MACHINE_AUTH_ACCEPTED.** Đã sửa diagnostic và kiểm
 local/PG17; cloud apply còn BLOCKED_BY_APPROVAL, máy Thắng chưa được xác minh.
