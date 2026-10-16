@@ -11,9 +11,39 @@ import { randomUUID } from "node:crypto";
 import { errorCode, log, requestContext } from "./log.js";
 import { httpRuntimeConfig } from "../config/config.js";
 import { normalizeIp } from "./client-ip.js";
-import type { AssistantAnswerIdHeader } from "@examate/contracts";
+import type {
+  AssistantAnswerIdHeader,
+  PilotAuthErrorCode,
+} from "@examate/contracts";
 import { AssistantChatDto } from "../assistant/assistant-chat.dto.js";
 import { boundedHistoryInput } from "../assistant/history-validation.js";
+
+// Only server-defined Auth response codes are promoted into HTTP diagnostics.
+// Keep the shared errorCode helper (and non-Auth/RAG logging semantics) intact.
+const authCodes: ReadonlySet<string> = new Set([
+  "AUTH_REQUIRED",
+  "AUTH_INVALID",
+  "SESSION_EXPIRED",
+  "SESSION_REFRESH_REQUIRED",
+  "CSRF_INVALID",
+  "WORKSPACE_ACCESS_DENIED",
+  "ROLE_FORBIDDEN",
+  "AUTH_UNAVAILABLE",
+  "LOGIN_RATE_LIMITED",
+] satisfies PilotAuthErrorCode[]);
+
+function safeRequestPath(url: string) {
+  const path = url.split("?")[0];
+  if (/^\/api\/auth\/(session|login|logout|refresh)$/i.test(path))
+    return path.toLowerCase();
+  if (/^\/api\/courses(\/[a-z0-9-]+)?$/.test(path))
+    return path === "/api/courses" ? path : "/api/courses/:slug";
+  return /^\/api\/(health|tasks|documents|assistant\/(status|chat|feedback))(\/[0-9a-f-]{36}(\/status|\/download|\/course|\/process)?)?$/i.test(
+    path,
+  )
+    ? path.replace(/[0-9a-f-]{36}/gi, ":id")
+    : "/unmatched";
+}
 
 @Catch()
 class ApiExceptionFilter implements ExceptionFilter {
@@ -24,7 +54,20 @@ class ApiExceptionFilter implements ExceptionFilter {
       error instanceof HttpException
         ? error.getResponse()
         : { message: "Internal server error", code: "INTERNAL_ERROR" };
-    log("error", "request.failed", { status, code: errorCode(error) });
+    const authCode =
+      error instanceof HttpException &&
+      typeof body === "object" &&
+      body !== null &&
+      "code" in body &&
+      typeof body.code === "string" &&
+      authCodes.has(body.code)
+        ? body.code
+        : undefined;
+    log("error", "request.failed", {
+      status,
+      code: authCode ?? errorCode(error),
+      path: safeRequestPath(host.switchToHttp().getRequest().url),
+    });
     response.status(status).json({
       statusCode: status,
       ...(typeof body === "string" ? { message: body } : body),
@@ -60,13 +103,7 @@ export function configureApp(app: INestApplication, origins: string[] = []) {
       const requestId = randomUUID();
       const start = Date.now();
       // Only known route shapes reach logs; arbitrary query strings and filenames do not.
-      const path = req.url.split("?")[0];
-      const safePath =
-        /^\/api\/(health|tasks|documents|assistant\/(status|chat|feedback))(\/[0-9a-f-]{36}(\/status|\/download|\/course|\/process)?)?$/i.test(
-          path,
-        ) || /^\/api\/courses(\/[a-z0-9-]+)?$/.test(path)
-          ? path
-          : "/unmatched";
+      const safePath = safeRequestPath(req.url);
       res.setHeader("X-Request-ID", requestId);
       res.setHeader("Cache-Control", "no-store");
       res.on("finish", () =>
