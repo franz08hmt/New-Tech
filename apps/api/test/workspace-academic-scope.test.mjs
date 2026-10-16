@@ -16,6 +16,7 @@ import { StudyPlansService } from "../dist/study-plans/study-plans.service.js";
 import { ExpensesController } from "../dist/expenses/expenses.controller.js";
 import { ExpensesService } from "../dist/expenses/expenses.service.js";
 import { DatabaseService } from "../dist/database/database.service.js";
+import { requirePrincipal } from "../dist/auth/principal.js";
 import { configureApp } from "../dist/common/http.js";
 import { authFixture } from "./auth-fixture.mjs";
 import { json } from "./helpers.mjs";
@@ -162,6 +163,10 @@ function academicDatabase() {
   }
 
   const database = {
+    async workspaceTransaction(principal, work) {
+      requirePrincipal(principal);
+      return work(database);
+    },
     async query(rawSql, values = []) {
       queries.push({ sql: rawSql, values: [...values] });
       const sql = rawSql.replace(/--[^\n]*/g, " ");

@@ -39,13 +39,15 @@ export class ExpensesService {
     const { workspaceId } = requirePrincipal(principal);
     // LEFT JOIN: an expense with no course must still appear, and it is the
     // only join in this codebase that has to be outer.
-    const result = await this.database.query<ExpenseRecord>(
-      `SELECT ${EXPENSE_COLUMNS}
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query<ExpenseRecord>(
+        `SELECT ${EXPENSE_COLUMNS}
        FROM expenses e
        LEFT JOIN courses c ON c.id = e.course_id AND c.workspace_id = e.workspace_id
        WHERE e.workspace_id = $1
        ORDER BY e.spent_on DESC, e.created_at DESC`,
-      [workspaceId],
+        [workspaceId],
+      ),
     );
     return result.rows;
   }
@@ -53,8 +55,9 @@ export class ExpensesService {
   async create(input: CreateExpenseDto, principal?: PilotPrincipal) {
     const { workspaceId } = requireRecordWrite(principal);
     const result = await this.database
-      .query<ExpenseRecord>(
-        `WITH inserted AS (
+      .workspaceTransaction(principal, (tx) =>
+        tx.query<ExpenseRecord>(
+          `WITH inserted AS (
            INSERT INTO expenses (amount, description, spent_on, category, course_id, workspace_id)
            VALUES ($1, $2, $3::date, $4, $5, $6)
            RETURNING *
@@ -62,14 +65,15 @@ export class ExpensesService {
          SELECT ${EXPENSE_COLUMNS}
          FROM inserted e
          LEFT JOIN courses c ON c.id = e.course_id AND c.workspace_id = e.workspace_id`,
-        [
-          input.amount,
-          input.description,
-          input.spentOn,
-          input.category,
-          input.courseId ?? null,
-          workspaceId,
-        ],
+          [
+            input.amount,
+            input.description,
+            input.spentOn,
+            input.category,
+            input.courseId ?? null,
+            workspaceId,
+          ],
+        ),
       )
       .catch((error: unknown) => {
         if (
@@ -89,9 +93,11 @@ export class ExpensesService {
 
   async remove(id: string, principal?: PilotPrincipal) {
     const { workspaceId } = requireManager(principal);
-    const result = await this.database.query(
-      "DELETE FROM expenses WHERE id = $1 AND workspace_id = $2",
-      [id, workspaceId],
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query("DELETE FROM expenses WHERE id = $1 AND workspace_id = $2", [
+        id,
+        workspaceId,
+      ]),
     );
     if (!result.rowCount) {
       throw new NotFoundException({

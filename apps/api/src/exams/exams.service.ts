@@ -40,13 +40,15 @@ export class ExamsService {
 
   async list(principal?: PilotPrincipal) {
     const { workspaceId } = requirePrincipal(principal);
-    const result = await this.database.query<ExamRecord>(
-      `SELECT ${EXAM_COLUMNS}
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query<ExamRecord>(
+        `SELECT ${EXAM_COLUMNS}
        FROM exams e
        JOIN courses c ON c.id = e.course_id AND c.workspace_id = e.workspace_id
        WHERE e.workspace_id = $1
        ORDER BY e.exam_date, e.exam_time, c.code`,
-      [workspaceId],
+        [workspaceId],
+      ),
     );
     return result.rows;
   }
@@ -54,8 +56,9 @@ export class ExamsService {
   async create(input: CreateExamDto, principal?: PilotPrincipal) {
     const { workspaceId } = requireRecordWrite(principal);
     const result = await this.database
-      .query<ExamRecord>(
-        `WITH inserted AS (
+      .workspaceTransaction(principal, (tx) =>
+        tx.query<ExamRecord>(
+          `WITH inserted AS (
            INSERT INTO exams (course_id, topic, exam_date, exam_time, room, revision_note, workspace_id)
            VALUES ($1, $2, $3::date, $4::time, $5, $6, $7)
            RETURNING *
@@ -63,15 +66,16 @@ export class ExamsService {
          SELECT ${EXAM_COLUMNS}
          FROM inserted e
          JOIN courses c ON c.id = e.course_id AND c.workspace_id = e.workspace_id`,
-        [
-          input.courseId,
-          input.topic,
-          input.examDate,
-          input.examTime,
-          input.room,
-          input.revisionNote ?? null,
-          workspaceId,
-        ],
+          [
+            input.courseId,
+            input.topic,
+            input.examDate,
+            input.examTime,
+            input.room,
+            input.revisionNote ?? null,
+            workspaceId,
+          ],
+        ),
       )
       .catch((error: unknown) => {
         // The foreign key is the only way a well-formed request can fail, and
@@ -94,8 +98,9 @@ export class ExamsService {
 
   async update(id: string, input: UpdateExamDto, principal?: PilotPrincipal) {
     const { workspaceId } = requireRecordWrite(principal);
-    const result = await this.database.query<ExamRecord>(
-      `WITH updated AS (
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query<ExamRecord>(
+        `WITH updated AS (
          UPDATE exams
          SET topic = $2,
              exam_date = $3::date,
@@ -109,15 +114,16 @@ export class ExamsService {
        SELECT ${EXAM_COLUMNS}
        FROM updated e
        JOIN courses c ON c.id = e.course_id AND c.workspace_id = e.workspace_id`,
-      [
-        id,
-        input.topic,
-        input.examDate,
-        input.examTime,
-        input.room,
-        input.revisionNote ?? null,
-        workspaceId,
-      ],
+        [
+          id,
+          input.topic,
+          input.examDate,
+          input.examTime,
+          input.room,
+          input.revisionNote ?? null,
+          workspaceId,
+        ],
+      ),
     );
     const exam = result.rows[0];
     if (!exam) {
@@ -131,9 +137,11 @@ export class ExamsService {
 
   async remove(id: string, principal?: PilotPrincipal) {
     const { workspaceId } = requireManager(principal);
-    const result = await this.database.query(
-      "DELETE FROM exams WHERE id = $1 AND workspace_id = $2",
-      [id, workspaceId],
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query("DELETE FROM exams WHERE id = $1 AND workspace_id = $2", [
+        id,
+        workspaceId,
+      ]),
     );
     if (!result.rowCount) {
       throw new NotFoundException({

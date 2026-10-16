@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { ExamsService } from "../dist/exams/exams.service.js";
 import { StudyPlansService } from "../dist/study-plans/study-plans.service.js";
 import { ExpensesService } from "../dist/expenses/expenses.service.js";
+import { requirePrincipal } from "../dist/auth/principal.js";
 import { DocumentsService } from "../dist/documents/documents.service.js";
 import { DocumentAccessService } from "../dist/documents/document-access.service.js";
 import { FeedbackService } from "../dist/feedback/feedback.service.js";
@@ -110,6 +111,10 @@ function insertFixture(options = {}) {
       throw new Error("Unhandled SQL in insert compatibility fixture");
     },
     async transaction(work) {
+      return work(database);
+    },
+    async workspaceTransaction(principal, work) {
+      requirePrincipal(principal);
       return work(database);
     },
   };

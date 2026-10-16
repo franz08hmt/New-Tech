@@ -497,7 +497,7 @@ for (const table of ["exams", "study_plans", "expenses"]) {
   test(`real SQL ${table} forbidden writes reject before SQL for own, foreign and missing IDs`, async (t) => {
     const d = domains.find((item) => item.table === table);
     const beforeRows = await storedRows(table);
-    const query = t.mock.method(database, "query"); // Calls through if reached.
+    const query = t.mock.method(database, "workspaceTransaction"); // Calls through if reached.
     const viewer = principal(workspaces[0], "viewer");
     const forbidden = await safeError(
       d.service.create({ ...d.create(workspaces[0]), role: "manager" }, viewer),
@@ -541,7 +541,7 @@ for (const table of ["exams", "study_plans", "expenses"]) {
 
   test(`real SQL ${table} missing or malformed principal fails closed before SQL`, async (t) => {
     const d = domains.find((item) => item.table === table);
-    const query = t.mock.method(database, "query");
+    const query = t.mock.method(database, "workspaceTransaction");
     for (const p of [
       undefined,
       { userId, role: "member" },
@@ -672,7 +672,7 @@ for (const w of workspaces) {
 }
 
 test("real records missing or malformed principal rejects every read before SQL", async (t) => {
-  const query = t.mock.method(database, "query");
+  const query = t.mock.method(database, "workspaceTransaction");
   for (const p of [
     undefined,
     { userId, role: "member" },
@@ -869,7 +869,7 @@ for (const w of workspaces) {
 }
 
 test("real assistant missing or malformed principal rejects supported and unsupported questions before SQL", async (t) => {
-  const query = t.mock.method(database, "query");
+  const query = t.mock.method(database, "workspaceTransaction");
   for (const p of [
     undefined,
     { userId, role: "member" },

@@ -38,8 +38,9 @@ export class StudyPlansService {
 
   async list(principal?: PilotPrincipal) {
     const { workspaceId } = requirePrincipal(principal);
-    const result = await this.database.query<StudyPlanRecord>(
-      `SELECT ${PLAN_COLUMNS}
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query<StudyPlanRecord>(
+        `SELECT ${PLAN_COLUMNS}
        FROM study_plans p
        JOIN courses c ON c.id = p.course_id AND c.workspace_id = p.workspace_id
        WHERE p.workspace_id = $1
@@ -47,7 +48,8 @@ export class StudyPlansService {
        -- with no deadline sort last rather than first, which is what NULLS
        -- LAST guarantees and plain ORDER BY does not.
        ORDER BY c.code, (p.completed_at IS NOT NULL), p.due_date NULLS LAST, p.created_at`,
-      [workspaceId],
+        [workspaceId],
+      ),
     );
     return result.rows;
   }
@@ -55,8 +57,9 @@ export class StudyPlansService {
   async create(input: CreateStudyPlanDto, principal?: PilotPrincipal) {
     const { workspaceId } = requireRecordWrite(principal);
     const result = await this.database
-      .query<StudyPlanRecord>(
-        `WITH inserted AS (
+      .workspaceTransaction(principal, (tx) =>
+        tx.query<StudyPlanRecord>(
+          `WITH inserted AS (
            INSERT INTO study_plans (course_id, title, detail, due_date, owner_name, workspace_id)
            VALUES ($1, $2, $3, $4::date, $5, $6)
            RETURNING *
@@ -64,14 +67,15 @@ export class StudyPlansService {
          SELECT ${PLAN_COLUMNS}
          FROM inserted p
          JOIN courses c ON c.id = p.course_id AND c.workspace_id = p.workspace_id`,
-        [
-          input.courseId,
-          input.title,
-          input.detail ?? null,
-          input.dueDate ?? null,
-          input.ownerName ?? null,
-          workspaceId,
-        ],
+          [
+            input.courseId,
+            input.title,
+            input.detail ?? null,
+            input.dueDate ?? null,
+            input.ownerName ?? null,
+            workspaceId,
+          ],
+        ),
       )
       .catch((error: unknown) => {
         if (
@@ -95,8 +99,9 @@ export class StudyPlansService {
     principal?: PilotPrincipal,
   ) {
     const { workspaceId } = requireRecordWrite(principal);
-    const result = await this.database.query<StudyPlanRecord>(
-      `WITH updated AS (
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query<StudyPlanRecord>(
+        `WITH updated AS (
          UPDATE study_plans
          SET completed_at = CASE WHEN $2 THEN NOW() ELSE NULL END,
              updated_at = NOW()
@@ -106,7 +111,8 @@ export class StudyPlansService {
        SELECT ${PLAN_COLUMNS}
        FROM updated p
        JOIN courses c ON c.id = p.course_id AND c.workspace_id = p.workspace_id`,
-      [id, completed, workspaceId],
+        [id, completed, workspaceId],
+      ),
     );
     const plan = result.rows[0];
     if (!plan) {
@@ -120,9 +126,11 @@ export class StudyPlansService {
 
   async remove(id: string, principal?: PilotPrincipal) {
     const { workspaceId } = requireManager(principal);
-    const result = await this.database.query(
-      "DELETE FROM study_plans WHERE id = $1 AND workspace_id = $2",
-      [id, workspaceId],
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query("DELETE FROM study_plans WHERE id = $1 AND workspace_id = $2", [
+        id,
+        workspaceId,
+      ]),
     );
     if (!result.rowCount) {
       throw new NotFoundException({
