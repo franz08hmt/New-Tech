@@ -11,6 +11,8 @@ import { randomUUID } from "node:crypto";
 import type { StoredDocument, PilotPrincipal } from "@examate/contracts";
 import { DocumentAccessService } from "./document-access.service.js";
 import { DatabaseService } from "../database/database.service.js";
+import type { DatabaseTransaction } from "../database/database.service.js";
+import { requirePrincipal } from "../auth/principal.js";
 import { log } from "../common/log.js";
 import { StorageService } from "./storage.service.js";
 
@@ -164,17 +166,27 @@ export class DocumentsService {
   ) {}
 
   async list(principal?: PilotPrincipal) {
-    const { workspaceId } = await this.access.authorize(principal);
-    const result = await this.database.query<DocumentRecord>(
-      `SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM}
+    requirePrincipal(principal);
+    const result = await this.database.workspaceTransaction(
+      principal,
+      async (tx) => {
+        const { workspaceId } = await this.access.authorize(
+          principal,
+          "read",
+          tx,
+        );
+        return tx.query<DocumentRecord>(
+          `SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM}
        WHERE d.workspace_id = $1 ORDER BY d.created_at DESC, d.id DESC`,
-      [workspaceId],
+          [workspaceId],
+        );
+      },
     );
     return result.rows.map(publicDocument);
   }
 
-  private async find(id: string, workspaceId: string) {
-    const result = await this.database.query<DocumentRecord>(
+  private async find(id: string, workspaceId: string, tx: DatabaseTransaction) {
+    const result = await tx.query<DocumentRecord>(
       `SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM} WHERE d.id = $1 AND d.workspace_id = $2`,
       [id, workspaceId],
     );
@@ -182,8 +194,18 @@ export class DocumentsService {
   }
 
   async get(id: string, principal?: PilotPrincipal): Promise<StoredDocument> {
-    const { workspaceId } = await this.access.authorize(principal);
-    const document = await this.find(id, workspaceId);
+    requirePrincipal(principal);
+    const document = await this.database.workspaceTransaction(
+      principal,
+      async (tx) => {
+        const { workspaceId } = await this.access.authorize(
+          principal,
+          "read",
+          tx,
+        );
+        return this.find(id, workspaceId, tx);
+      },
+    );
     if (!document) throw new NotFoundException("Document not found");
     return publicDocument(document);
   }
@@ -265,7 +287,13 @@ export class DocumentsService {
       // Confirm absence before compensating, to avoid deleting a committed file.
       let existing: DocumentRecord | undefined;
       try {
-        existing = await this.find(id, workspaceId);
+        existing = await this.database.workspaceTransaction(
+          principal,
+          async (tx) => {
+            await this.access.authorize(principal, "write", tx);
+            return this.find(id, workspaceId, tx);
+          },
+        );
       } catch {
         log("error", "document.reconciliation_required", {
           documentId: id,
@@ -294,12 +322,24 @@ export class DocumentsService {
     options: { inline?: boolean } = {},
     principal?: PilotPrincipal,
   ) {
-    const { workspaceId } = await this.access.authorize(principal);
-    const document = await this.find(id, workspaceId);
+    requirePrincipal(principal);
+    const document = await this.database.workspaceTransaction(
+      principal,
+      async (tx) => {
+        const { workspaceId } = await this.access.authorize(
+          principal,
+          "read",
+          tx,
+        );
+        return this.find(id, workspaceId, tx);
+      },
+    );
     if (!document) throw new NotFoundException("Document not found");
     if (document.storage_status !== "stored")
       throw new ConflictException("Document is not available for download");
-    await this.access.authorize(principal);
+    await this.database.workspaceTransaction(principal, (tx) =>
+      this.access.authorize(principal, "read", tx),
+    );
     return this.storage.signedDownload(
       document.storage_key,
       document.name,
@@ -314,7 +354,12 @@ export class DocumentsService {
     principal?: PilotPrincipal,
   ) {
     const { workspaceId } = await this.access.authorize(principal, "write");
-    if (!(await this.find(id, workspaceId)))
+    if (
+      !(await this.database.workspaceTransaction(principal, async (tx) => {
+        await this.access.authorize(principal, "write", tx);
+        return this.find(id, workspaceId, tx);
+      }))
+    )
       throw new NotFoundException("Document not found");
     await this.checkCourse(courseId, workspaceId);
     const result = await this.database
@@ -340,7 +385,13 @@ export class DocumentsService {
 
   async remove(id: string, principal?: PilotPrincipal) {
     const { workspaceId } = await this.access.authorize(principal, "delete");
-    const document = await this.find(id, workspaceId);
+    const document = await this.database.workspaceTransaction(
+      principal,
+      async (tx) => {
+        await this.access.authorize(principal, "delete", tx);
+        return this.find(id, workspaceId, tx);
+      },
+    );
     if (!document) throw new NotFoundException("Document not found");
     if (document.storage_status === "legacy")
       throw new ConflictException(
