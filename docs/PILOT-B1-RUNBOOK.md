@@ -1,5 +1,23 @@
 # B1 + 015 — bootstrap và nghiệm thu Auth trên hai máy
 
+**Checkpoint tiếp tục từ 5073ad3, 17/10/2026:** quyền bootstrap đã có; chỉ commit,
+không push ở lượt này. Kiểm chỉ đọc mới xác nhận auth.users có 0 user. Cần tạo
+đúng các account thực qua Dashboard/quy trình quản trị được cấp sau khi xác định
+danh tính; không giả định account đã tồn tại hoặc tự đoán email/password. Đã điền
+origin local và verification=database; public key, workspace/key, mapping và xác
+nhận dừng writers hai máy còn thiếu. Xem mục đầu báo cáo Đợt 13; các checkpoint
+PREPARED/quyền push/cấm tạo account bên dưới là lịch sử, không thay chỉ thị mới.
+
+Kết quả mới: đã kiểm native Nest HTTP với config thật, health 200 nhưng session
+503 AUTH_UNAVAILABLE; preflight exit 1/databaseChecked:false. Đây là lỗi đầu vào,
+không bỏ guard để hiện form login. Account count 0 nghĩa bước quản trị account
+phải hoàn tất trước membership. Không đưa email/password/UUID vào chat; người
+quản trị dùng đúng danh tính thực trên Dashboard và mapping private đã giao.
+Không có công cụ quản trị hoặc máy Thắng được kết nối thì cần handoff thực tế,
+không dùng credential store hoặc account tự đoán để thay thế. Sau khi config/
+mapping/writers đầy đủ, chạy tiếp backup/migrate/verify/membership đã được duyệt;
+không xin lại quyền hoặc dùng test fixture để kết luận Auth thật đạt.
+
 **Lượt tiếp tục sau 59b0906:** Tài đã duyệt backup public/snapshot/migrate đúng
 012–015/membership ba role/task demo/cleanup và push branch không force; ownership
 dữ liệu demo đã xác nhận. Không xin lại quyền các bước đó. Cần hoàn tất config,

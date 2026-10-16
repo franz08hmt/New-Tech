@@ -1,5 +1,105 @@
 # Đợt 13 — B1b: bootstrap Auth và đường nghiệm thu hai máy
 
+## Tiếp tục từ 5073ad3 — kiểm thực tế ngày 17/10/2026
+
+Đây là checkpoint mới nhất. Chỉ thị hiện tại cho phép bootstrap/account đúng danh
+tính đã xác định, nhưng **chỉ commit, không push**; không còn chờ duyệt lại backup/
+snapshot/migration 012–015/membership. Các quyền và số liệu ở những mục bên dưới
+là lịch sử từng lượt, không ghi đè checkpoint này.
+
+Kiểm lại Git: đúng nhánh, local HEAD và remote thực tế đều `5073ad3` qua
+`git ls-remote`. WIP README/HANDOFF/PROJECT-CONTEXT và bốn prompt/resume untracked
+được hash/lưu patch ignored; không stage. Node 24.13.0, npm 11.6.2, Docker 29.6.2
+Linux; đầu lượt không có listener 3000/5173/55432/55433. Không kết luận writers
+trên máy Thắng đã dừng từ phép kiểm local này.
+
+Cloud inventory mới dùng resolver và transaction read-only: runtime DB khớp
+SUPABASE_URL, maintenance không cấu hình nên dùng fallback đã có; PostgreSQL
+major 17, checksum 001–011 khớp, chỉ pending 012–015; các bảng pilot chưa có.
+Role runtime BYPASSRLS, USAGE auth/SELECT ba cột auth.sessions đạt. Chỉ đếm tổng
+Auth user được yêu cầu: **0 account**, không đọc identity/password/session rows.
+Không thể dùng giả định account demo đã tồn tại để cấp membership.
+
+Đã bổ sung `.env` local hai giá trị không chứa secret đã được chốt:
+PUBLIC_ORIGIN=http://127.0.0.1:5173 và AUTH_SESSION_VERIFICATION=database. Chỉ
+append khi thiếu, từ chối nếu khác giá trị đã có/process override; không sửa
+DATABASE_URL/key/workspace hoặc lưu `.env` vào artifact/Git. Kiểm lại origin và
+verification hợp lệ; còn thiếu Auth public key, workspace ID, session key. Không
+phát hiện process environment đang ghi đè các biến được kiểm ở inspector;
+không có API đầu lượt để suy đó là config của một process đang chạy.
+
+Mẫu mapping private hiện vẫn chưa có UUID, chưa có xác nhận Dashboard/workspace.
+ACL riêng và ignore của mapping được giữ. Không tự sinh workspace/key vì chưa
+có xác nhận về giá trị đã chốt/đang dùng ở máy khác. Không đọc credential store,
+không dùng Storage secret thay public key hoặc làm kênh tạo user khi danh tính
+chưa rõ. Phiên này không có kết nối Dashboard/management hoặc máy Thắng được
+cấp; không tự đoán email/UUID/password và không tạo account mang tên Thắng.
+Chrome/Edge có trên máy local; việc cài browser không cung cấp phiên quản trị
+Supabase hoặc quyền truy cập máy Thắng. File attachment trong IDE không có ở
+đường dẫn được cung cấp, không dùng nó làm nguồn danh tính.
+
+Đã hỏi gộp một lần đúng các đầu vào còn thiếu: public key cùng project; account
+thực và mapping từ Dashboard; workspace/key đã chốt hoặc xác nhận chưa từng có;
+writers hai máy đã dừng và Thắng sẵn sàng tự nhập password/chạy checklist. Không
+yêu cầu gửi secrets/UUID vào chat hoặc xin lại quyền các bước đã duyệt.
+
+Chưa backup/snapshot business/apply migration/cấp membership/tạo user/task demo;
+chưa có thay đổi cloud. Không có record demo cần cleanup. Không nới Auth/CSRF/
+TLS/RLS/role checks, không thay runtime code/model/prompt/dependency/migration.
+Không có lỗi code mới được tái hiện nên không nhận thêm RED/GREEN từ lỗi thiếu
+cấu hình hoặc account.
+
+### Kết quả gate/HTTP mới và giới hạn nghiệm thu
+
+Chạy tuần tự từ root trên PostgreSQL disposable **17.11** (compose project riêng
+examate-phase13-completion-pg17, loopback 55433), không nạp cloud env vào test
+process: typecheck/test/build/format:check/test:database đều **exit 0**. API Vitest
+**231**, API Node **745**, web **308** = **1.284 pass**; DB **301 pass**, fail/skip/
+cancelled **0**. PG16 là bằng chứng lịch sử, không chạy lại/nhận như kết quả mới.
+Các suite DB vẫn gồm migrate/backfill/rollback đã có; không sửa schema để đạt.
+
+Sau khi các gate dùng dist kết thúc, diagnostic khởi tạo **AppModule/Nest thật,
+config .env thật, không mock AuthStore/adapter/DB** trên 127.0.0.1:3000. Trước
+listen, xác minh target và config Auth vẫn invalid; nếu valid thì dừng diagnostic
+để tránh tự tạo pre-login session trước cửa sổ bảo trì. Chỉ GET hai đường cố định:
+
+| Request               | Kết quả mới                   | Ý nghĩa                                       |
+| --------------------- | ----------------------------- | --------------------------------------------- |
+| GET /api/health       | 200, DB ping thành công       | DB reachable, không phải Auth ready           |
+| GET /api/auth/session | 503 AUTH_UNAVAILABLE          | Config fail-closed; chưa anonymous/login được |
+| CLI pilot:preflight   | exit 1, databaseChecked:false | Config còn thiếu, không ép ready              |
+
+Request.failed ghi đúng fixed route và AUTH_UNAVAILABLE, không UNCLASSIFIED.
+Không đọc/ghi cookie, login payload, token hoặc response body vào artifact;
+diagnostic chỉ giữ status/code/requestId/latency an toàn. Source session() kiểm
+config trước admission/create; **0 Auth provider call, 0 cloud write** trong
+diagnostic. App đã close sau kiểm; không giữ API chạy hoặc tạo Vite/browser để
+giả nghiệm thu khi vẫn không có account. Desktop/375 và đăng nhập thật chưa chạy.
+
+| Kết luận được yêu cầu    | Trạng thái hiện tại                                                          |
+| ------------------------ | ---------------------------------------------------------------------------- |
+| LOCAL_REGRESSION_PASS    | PASS: gates/số mới ở trên; fixtures không phải Supabase Auth thật            |
+| CLOUD_BOOTSTRAP_VERIFIED | BLOCKED_INPUTS: chưa backup/migrate/verify/membership                        |
+| TAI_AUTH_CORE_VERIFIED   | BLOCKED_INPUTS: native session 503, account count 0, chưa login thật         |
+| THANG_AUTH_CORE_VERIFIED | REMOTE_MACHINE_NOT_VERIFIED: chưa commit/config/login evidence tại máy Thắng |
+| EXTENDED_AUTH_PENDING    | PENDING: chưa refresh/Dashboard sign-out/revoke thật                         |
+
+**Không đạt TWO_MACHINE_AUTH_CORE_ACCEPTED.** Account đúng danh tính và public
+key cần Dashboard hoặc kênh quản trị thật; quyền DB hiện có không tự cung cấp
+email/password/public key. Không có bằng chứng dừng writers máy Thắng nên chưa
+backup/migrate dù đã được duyệt. Hành động tiếp theo: chủ tài khoản/người quản
+trị hoàn tất key/account/mapping private, xác nhận workspace/key đã chốt hoặc
+chưa từng có, và hai máy xác nhận cửa sổ bảo trì. Không xin lại quyền bootstrap.
+
+Cleanup: audit qua target guard trước kết nối xác nhận **0 DB con random, 0 role
+ngoài dự kiến, 1 role fixture nền đúng marker**. Down đúng project mới, không -v;
+giữ DB test gốc/role fixture trong volume local. Không còn listener 3000/5173/
+55433, không chạm SOP stack hoặc resource lượt trước; không tạo profile browser
+mới. Private mapping/công cụ từ lượt trước vẫn giữ. WIP có trước hash khớp.
+Artifacts mới ignored riêng theo run; không commit logs/private files. Commit
+lượt này chỉ report/runbook; hash ở bàn giao cuối, **không push**. Runtime vẫn
+BYPASSRLS, budget AI/tenant RLS toàn app/semantic RAG chưa hoàn tất.
+
 ## Lượt tiếp tục sau 59b0906 — quyền đã cấp, đầu vào đang hoàn tất
 
 Tài đã xác nhận dữ liệu demo của nhóm và duyệt backup public private local,
