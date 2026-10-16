@@ -16,6 +16,7 @@ services:
       ALLOWED_ORIGINS: ${DOCKER_PUBLIC_ORIGIN:-http://127.0.0.1:8080}
     volumes:
       - ./secrets:/run/secrets:ro
+      - ./artifacts/stt-models:/app/artifacts/stt-models:ro
     init: true
     networks:
       pilot:

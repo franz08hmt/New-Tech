@@ -11,6 +11,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { AssistantMarkdown } from "./AssistantMarkdown";
 import { AssistantFeedback } from "./AssistantFeedback";
+import { SpeechInput } from "./SpeechInput";
 import { SourcePreview, useSourcePreview } from "./SourcePreview";
 import { workspaceKindLabel, workspaceSourceHref } from "./workspace-links";
 import type { AssistantCitation, AssistantState } from "./use-assistant";
@@ -750,6 +751,15 @@ export function AssistantPanel({
             setSelectionError("");
           }}
           placeholder="Ask about your course or project sources…"
+        />
+        <SpeechInput
+          active={open && !sourceScreen && assistant.status !== "sending"}
+          scope={`${pageId}:${courseId ?? ""}:${assistant.mode}:${documentId}`}
+          draft={assistant.draft}
+          onDraft={(value) => {
+            assistant.setDraft(value);
+            setSelectionError("");
+          }}
         />
         {/* A small status line of its own, announced when it changes. The
             conversation above is not a live region, so a new reply does not

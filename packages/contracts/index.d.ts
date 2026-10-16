@@ -16,6 +16,25 @@
  *    API, tied back to this file by a compile-time check (see task.types.ts).
  */
 
+/** Voice input produces a draft; it never sends an Assistant question. */
+export interface SpeechStatusResponse {
+  status:
+    | "ready"
+    | "not_configured"
+    | "media_unavailable"
+    | "model_missing"
+    | "loading"
+    | "model_error";
+  maxAudioBytes: number;
+  maxDurationMs: number;
+  supportedMimeTypes: string[];
+}
+export interface SpeechTranscriptionResponse {
+  text: string;
+  detectedLanguages: string[];
+  requestId: string;
+}
+
 /** Lifecycle of a task. Mirrored by the `tasks_status_check` constraint. */
 export type TaskStatus = "todo" | "in_progress" | "done";
 

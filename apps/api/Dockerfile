@@ -1,4 +1,4 @@
-FROM node:24-alpine AS build
+FROM node:24-slim AS build
 WORKDIR /workspace
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
@@ -9,7 +9,10 @@ COPY apps/api apps/api
 RUN npm run build --workspace @examate/api
 RUN npm prune --omit=dev
 
-FROM node:24-alpine AS runtime
+FROM node:24-slim AS runtime
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /workspace/node_modules ./node_modules

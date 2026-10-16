@@ -2913,6 +2913,10 @@
     display: grid;
     gap: 8px;
     padding: 20px 0;
+    min-height: 0;
+    max-height: 60dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .assistant-composer textarea {
     min-height: 96px;
@@ -2935,6 +2939,57 @@
     background: var(--color-ai-accent);
     font-size: 11px;
     font-weight: 600;
+  }
+  .speech-input {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid #cfd6cc;
+    border-radius: 8px;
+    background: var(--color-ai-accent-soft);
+    font-size: 11px;
+  }
+  .speech-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .speech-language-note {
+    color: var(--color-muted);
+  }
+  .speech-input button,
+  .speech-input select {
+    min-height: 44px;
+    padding: 8px 10px;
+    border: 1px solid #b9c5b5;
+    border-radius: 6px;
+    background: #fff;
+    color: var(--color-ink);
+  }
+  .speech-input button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .speech-input button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .speech-input button svg {
+    width: 18px;
+    height: 18px;
+  }
+  .speech-preview {
+    display: grid;
+    gap: 8px;
+  }
+  .speech-status {
+    color: var(--color-muted);
+  }
+  .speech-error {
+    color: #9b3434;
   }
   /* Short screens — a phone on its side, or one whose on-screen keyboard
      shrinks the viewport — left the conversation a 15px sliver between the

@@ -9,6 +9,11 @@ không đi theo Git. Chưa xác minh trực tiếp máy Thắng hoặc nghiệm 
 
 Workspace học tập dùng React + NestJS + PostgreSQL/Supabase Storage. Hiện có các luồng Tasks, Courses, Exams, study plans, chi tiêu, ghi chú trên trình duyệt và tài liệu PDF. Assistant có ba chế độ: chat thường qua Gemini, hỏi tài liệu đã lập chỉ mục (RAG) qua Gemini, và hỏi dữ liệu workspace bằng truy vấn có kiểm soát (không gọi LLM). PDF được trích xuất, chia đoạn và embedding phía API; OCR là tùy chọn và mặc định tắt.
 
+Assistant có MVP nhập câu hỏi bằng giọng nói: ghi âm ngắn → xem/sửa bản chép →
+chèn vào câu hỏi → người dùng chủ động gửi. STT dùng Whisper small ONNX local
+trong tiến trình Node con, mặc định tắt; không cần inference API key. Weights
+chưa được tải tự động. Xem [cách chuẩn bị, bật và kiểm thử STT](docs/STT-SETUP-VI.md).
+
 **Trạng thái nhánh phát triển (`feature/tai-rag-integration`):** RAG/OCR, bộ đánh giá và phản hồi câu trả lời đã có trong code. Các chặng đăng nhập/session pilot 1a–1b cũng đã được commit và push; xem [báo cáo 1a](docs/pilot-stage-1a-report.md), [báo cáo 1b](docs/pilot-stage-1b-report.md) và [thiết kế pilot](docs/pilot-stage-0-design.md). Đây là trạng thái code, **không đồng nghĩa pilot đã sẵn sàng cho dữ liệu thật hoặc truy cập công khai**.
 
 **Trạng thái Supabase và giới hạn an toàn:** lần kiểm tra chỉ đọc được ghi trong

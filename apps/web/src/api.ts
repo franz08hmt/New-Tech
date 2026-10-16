@@ -18,6 +18,8 @@ export type {
   ExpenseCategory,
   HealthStatus,
   StoredDocument,
+  SpeechStatusResponse,
+  SpeechTranscriptionResponse,
   StudyPlan,
   Task,
   TaskStatus,
@@ -59,6 +61,8 @@ import type {
   ExpenseCategory,
   HealthStatus,
   StoredDocument,
+  SpeechStatusResponse,
+  SpeechTranscriptionResponse,
   StudyPlan,
   Task,
   TaskStatus,
@@ -70,6 +74,9 @@ export async function request<T>(
 ): Promise<T> {
   const authHeaders = pilotHeaders(path, init?.method);
   const controller = new AbortController();
+  const signal = init?.signal
+    ? AbortSignal.any([init.signal, controller.signal])
+    : controller.signal;
   const timer = setTimeout(() => controller.abort(), 60000);
   const cancel = () => controller.abort();
   if (init?.signal?.aborted) cancel();
@@ -80,7 +87,7 @@ export async function request<T>(
       response = await fetch(path, {
         ...init,
         credentials: "same-origin",
-        signal: controller.signal,
+        signal,
         headers: {
           ...(init?.body && !(init.body instanceof FormData)
             ? { "Content-Type": "application/json" }
@@ -90,6 +97,8 @@ export async function request<T>(
         },
       });
     } catch {
+      if (init?.signal?.aborted)
+        throw new DOMException("Request cancelled", "AbortError");
       throw new Error(
         controller.signal.aborted
           ? "Request timed out. Reload the list before retrying; the server may have saved your changes."
@@ -125,10 +134,24 @@ export async function request<T>(
           : undefined,
       );
     }
-    if (response.status === 204) return undefined as T;
+    if (response.status === 204) {
+      if (init?.signal?.aborted)
+        throw new DOMException("Request cancelled", "AbortError");
+      return undefined as T;
+    }
     const body = (await response.json()) as T;
+    if (init?.signal?.aborted)
+      throw new DOMException("Request cancelled", "AbortError");
     onResponse?.(response.headers);
     return body;
+  } catch (error) {
+    if (init?.signal?.aborted)
+      throw new DOMException("Request cancelled", "AbortError");
+    if (controller.signal.aborted)
+      throw new Error(
+        "Request timed out. Reload the list before retrying; the server may have saved your changes.",
+      );
+    throw error;
   } finally {
     clearTimeout(timer);
     init?.signal?.removeEventListener("abort", cancel);
@@ -136,6 +159,20 @@ export async function request<T>(
 }
 
 export const api = {
+  speechStatus: (signal?: AbortSignal) =>
+    request<SpeechStatusResponse>("/api/speech/status", { signal }),
+  transcribeSpeech: (audio: Blob, signal: AbortSignal) => {
+    const mime = audio.type.split(";")[0];
+    const extension =
+      mime === "audio/webm" ? "webm" : mime.includes("wav") ? "wav" : "m4a";
+    const body = new FormData();
+    body.append("file", audio, `recording.${extension}`);
+    return request<SpeechTranscriptionResponse>("/api/speech/transcriptions", {
+      method: "POST",
+      body,
+      signal,
+    });
+  },
   pilotSession: () =>
     readPilotSession(() => request<PilotSessionResponse>("/api/auth/session")),
   pilotLogin: (input: PilotLoginRequest) =>

@@ -36,6 +36,8 @@ function safeRequestPath(url: string) {
   const path = url.split("?")[0];
   if (/^\/api\/auth\/(session|login|logout|refresh)$/i.test(path))
     return path.toLowerCase();
+  if (/^\/api\/speech\/(status|transcriptions)$/i.test(path))
+    return path.toLowerCase();
   if (/^\/api\/courses(\/[a-z0-9-]+)?$/.test(path))
     return path === "/api/courses" ? path : "/api/courses/:slug";
   return /^\/api\/(health|tasks|documents|assistant\/(status|chat|feedback))(\/[0-9a-f-]{36}(\/status|\/download|\/course|\/process)?)?$/i.test(
@@ -68,6 +70,16 @@ class ApiExceptionFilter implements ExceptionFilter {
       code: authCode ?? errorCode(error),
       path: safeRequestPath(host.switchToHttp().getRequest().url),
     });
+    if (
+      status === 429 &&
+      typeof body === "object" &&
+      body !== null &&
+      "retryAfterSeconds" in body &&
+      typeof body.retryAfterSeconds === "number" &&
+      Number.isInteger(body.retryAfterSeconds) &&
+      body.retryAfterSeconds > 0
+    )
+      response.setHeader("Retry-After", String(body.retryAfterSeconds));
     response.status(status).json({
       statusCode: status,
       ...(typeof body === "string" ? { message: body } : body),
