@@ -1,5 +1,11 @@
 # ExaMate AI — Project Context & Handoff
 
+> **Checkpoint Đợt 10 — 15/10/2026:** bản vá draft 9.1 đã triển khai tại
+> `31dfba5` và được review; xem [báo cáo 9.1](PHASE-9-1-DRAFT-HARDENING-REPORT.md).
+> Công việc hiện tại là B2 lát 6a: workspace transaction + tenant RLS PoC chỉ trên
+> DB disposable, riêng Tasks/Courses. Xem [báo cáo Đợt 10](PHASE-10-B2-CONTEXT-REPORT.md).
+> Không đánh dấu B1/B2/B3/B4 hoàn tất; bằng chứng lịch sử không thay baseline mới.
+
 > **Trạng thái mới 28/09/2026:** tích hợp chọn lọc LLM+RAG/OCR của Thắng ở nhánh `feature/tai-rag-integration`, tách từ `feature/tai`; nhánh `feature/thang` và `main` không bị sửa. Đã bổ sung pipeline trích xuất PDF, chunking, Gemini embeddings, vector retrieval/citations, xử lý OCR tùy chọn và giao diện hai chế độ Assistant. Supabase đang cấu hình trên máy Tài đã áp dụng migration `001`–`010`; upload PDF tổng hợp, gắn môn, liệt kê và xóa qua API thật đã kiểm tra thành công ngày 28/09/2026. Chưa kiểm chứng indexing và câu trả lời RAG end-to-end. Đọc README và [evaluation plan](evaluation-plan.md) trước khi tiếp tục. Các checkpoint cũ bên dưới là lịch sử.
 
 > **Mục đích:** đây là file tổng hợp bối cảnh để tiếp tục project khi chuyển sang box chat, model hoặc phiên làm việc khác. Hãy đọc file này trước, sau đó kiểm tra lại `git status` và chỉ nạp các source liên quan trực tiếp đến task đang làm.

@@ -137,6 +137,13 @@ thấy notes/chat/draft. Có bằng chứng browser và Supabase thật. **Lát 
 
 ### B2. Hoàn tất quyền và phạm vi dữ liệu — tiếp tục Chặng 2 pilot
 
+**Checkpoint Đợt 10 — lát 6a:** nền transaction-local context và tích hợp riêng
+Tasks/Courses, tenant policies chỉ trong DB disposable với LOGIN non-owner/
+NOBYPASSRLS. Bằng chứng và giới hạn tại
+[báo cáo Đợt 10](../docs/PHASE-10-B2-CONTEXT-REPORT.md).
+Business tables đã ENABLE RLS từ migrations hiện có; chưa có tenant policies/
+runtime role ít quyền toàn app trên cloud. Không đánh dấu B2 hoàn tất.
+
 **Giá trị:** thành viên đọc/ghi đúng quyền, không lấy nguồn ngoài workspace.
 
 Chốt role matrix hiện có: viewer read-only; member tạo/sửa theo quyền đã duyệt;
@@ -219,6 +226,11 @@ có bằng chứng riêng. Không dùng 562 test để thay các kiểm tra này
 ## 4. Các nâng cấp New Technologies sau nền
 
 ### N1. Hội thoại AI nhiều lượt, có ngữ cảnh và nguồn
+
+**Hardening 9.1 đã triển khai và review tại `31dfba5`:** draft đã chỉnh khi chờ
+answer được giữ, kể cả edit→revert và cùng act/batch; xem
+[báo cáo 9.1](../docs/PHASE-9-1-DRAFT-HARDENING-REPORT.md). Không thay contract
+history/receipt hay nghiệm thu semantic B4 bằng bản vá này.
 
 **Checkpoint Đợt 9 — lát 1:** general/documents dùng history tối đa 6 receipt đã
 verify user/workspace/mode/course/document/hash. FE memory-tab có reset/abort;
