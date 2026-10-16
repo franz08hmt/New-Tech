@@ -1,5 +1,11 @@
 # ExaMate AI — Project Context & Handoff
 
+> **Checkpoint Đợt 11 — 16/10/2026:** B2 lát 6a đã review đạt tại `7176246`.
+> Lát 6b.1 chuyển DB boundary của Exams/Study plans/Expenses và Workspace Records
+> sang workspace transaction; xem [báo cáo Đợt 11](PHASE-11-B2-ACADEMIC-CONTEXT-REPORT.md).
+> Tenant policies/grants vẫn chỉ là PoC disposable; Documents runtime/RAG,
+> receipts/feedback và Auth bootstrap production chưa chuyển. B1–B4 chưa hoàn tất.
+
 > **Checkpoint Đợt 10 — 15/10/2026:** bản vá draft 9.1 đã triển khai tại
 > `31dfba5` và được review; xem [báo cáo 9.1](PHASE-9-1-DRAFT-HARDENING-REPORT.md).
 > Công việc hiện tại là B2 lát 6a: workspace transaction + tenant RLS PoC chỉ trên

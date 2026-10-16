@@ -137,6 +137,13 @@ thấy notes/chat/draft. Có bằng chứng browser và Supabase thật. **Lát 
 
 ### B2. Hoàn tất quyền và phạm vi dữ liệu — tiếp tục Chặng 2 pilot
 
+**Checkpoint Đợt 11 — lát 6b.1:** sau review đạt 6a (`7176246`), chuyển riêng
+Exams/Study plans/Expenses và Workspace Records sang workspace transaction;
+SQL/HTTP tenant RLS non-owner chỉ trong disposable, Documents chỉ SELECT metadata
+cho records trong PoC. [Báo cáo Đợt 11](../docs/PHASE-11-B2-ACADEMIC-CONTEXT-REPORT.md)
+ghi rõ local fixture, gates và phần chưa nghiệm thu. Chưa chuyển Documents
+pipeline/receipts/feedback/Auth bootstrap production; không hoàn tất B2 toàn app.
+
 **Checkpoint Đợt 10 — lát 6a:** nền transaction-local context và tích hợp riêng
 Tasks/Courses, tenant policies chỉ trong DB disposable với LOGIN non-owner/
 NOBYPASSRLS. Bằng chứng và giới hạn tại
