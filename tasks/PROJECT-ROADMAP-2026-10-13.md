@@ -122,6 +122,14 @@ có pass thực, không skipped; không sửa/drop dữ liệu dùng chung. **T�
 
 ### B1. Provision và nghiệm thu Auth thật
 
+**Checkpoint Đợt 13 — B1b PREPARED:** diagnostic Auth đã có safe code/fixed path,
+DB suite kiểm riêng PostgreSQL 16 và 17. Cloud target/config/ledger mới kiểm chỉ
+đọc; còn chờ duyệt bootstrap 012–015/backup/membership và bàn giao code. Máy Thắng
+REMOTE_MACHINE_NOT_VERIFIED, chưa nghiệm thu Auth thật hai máy/B1 extended.
+Xem [runbook hai máy](../docs/PILOT-B1-RUNBOOK.md) và
+[báo cáo Đợt 13](../docs/PHASE-13-B1-TWO-MACHINE-AUTH-REPORT.md). Ingestion 6b.2b
+tạm hoãn; không đánh dấu B1/B2/B3/B4 hoàn tất.
+
 **Phụ thuộc:** B0a/B0b; target, account và authority quản trị project đã xác nhận.
 
 Quản lý cấp workspace UUID, accounts manager/member/viewer/no-membership,

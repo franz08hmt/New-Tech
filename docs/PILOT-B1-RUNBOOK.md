@@ -1,7 +1,129 @@
-# B1 + 015 — một đường áp Supabase cho demo local
+# B1 + 015 — bootstrap và nghiệm thu Auth trên hai máy
 
-Đây là hướng dẫn **Tài thực hiện sau khi nhóm duyệt**, không phải thao tác cloud
-agent đã chạy. Đợt 6 chỉ kiểm scripts/rollback trên DB disposable. Không cần
+**Checkpoint B1b, 17/10/2026: PREPARED, chưa TWO_MACHINE_AUTH_ACCEPTED.** Đọc
+[báo cáo Đợt 13](PHASE-13-B1-TWO-MACHINE-AUTH-REPORT.md) để lấy commit, inventory
+chỉ đọc, kết quả PostgreSQL 17 và danh sách việc chờ duyệt. Các lệnh ghi bên dưới
+là runbook quản trị, **không phải phê duyệt cloud** hoặc bằng chứng đã chạy.
+Một người quản trị migrate một lần; Tài và Thắng chỉ chạy app sau khi cùng code/
+schema/workspace/config. `.env`, CA, secret và session browser không đi theo Git.
+
+## Hai đường đi và checkpoint phê duyệt
+
+| Bước              | Tài/người quản trị                                                                                | Thắng trên chính máy mình                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Inventory         | Commit, ports, config effective, project khớp, ledger/grants chỉ đọc                              | Làm riêng, không lấy kết quả máy Tài thay mình                             |
+| Chốt kế hoạch     | Ownership dữ liệu demo, target, workspace/accounts/roles, backup private, giờ dừng cả hai writers | Xác nhận đúng target qua kênh riêng; dừng writers đúng cửa sổ              |
+| Schema/membership | Chỉ sau Tài duyệt rõ: backup → snapshot → 012/013/014/015 → verify → dry-run/apply membership     | Không tự migrate hoặc tạo workspace thứ hai                                |
+| Code delivery     | Xin chỉ thị push/bàn giao commit đã review nếu cần; không tự gửi repo/bundle                      | Giữ WIP rồi cập nhật theo phương án được duyệt; không reset --hard         |
+| Local setup       | Điền config qua editor/kênh an toàn; giữ key ổn định                                              | Điền `.env` riêng, cùng project/workspace đã chốt, không copy cookie       |
+| Acceptance        | Tài tự nhập password, kiểm từng case và ghi bằng chứng đã lược secrets                            | Thắng tự nhập password, tự kiểm checklist, xác nhận thực hiện tại máy mình |
+
+Trước backup/migration/grants/membership/user changes/code delivery, Tài phải
+duyệt **target riêng, pending chính xác, tác động, backup/đường lui, cửa sổ dừng
+writers hai máy và giới hạn còn lại**. Thiếu quyết định thì BLOCKED_BY_APPROVAL,
+không chạy lệnh ghi. Giả định demo của nhóm chưa được xác nhận thì dừng trước
+snapshot/backfill, không gán dữ liệu người ngoài vào một workspace.
+
+### Inventory mỗi máy, không đọc account/session rows
+
+Từ root đúng repository, chỉ đọc:
+
+```powershell
+git status --short --branch
+git rev-parse HEAD
+node -v
+npm -v
+Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+  Where-Object { $_.LocalPort -in 3000,5173 } |
+  Select-Object LocalAddress,LocalPort,OwningProcess
+npm --silent run pilot:preflight
+```
+
+Không tự kill PID. Chỉ dừng đúng process được chủ máy cho phép. Kiểm source proxy
+Vite `/api` → `127.0.0.1:3000`, browser `http://127.0.0.1:5173`, một API và một
+Vite; origin Docker 8080 không phải dev 5173. Có bảng migrations trong source
+không có nghĩa DB đã áp; có `.env` đúng không chứng minh API đang chạy đã nạp nó.
+Ghi commit của FE/API process; thay config cần restart đúng API được phép.
+
+`loadEnvironment` nạp `.env` root, **process environment có sẵn thắng giá trị
+file**. Chủ máy kiểm shadowing bằng boolean/so sánh trong công cụ local, không
+in toàn bộ env hoặc command line có secret. Không tạo key mới mỗi lần restart.
+
+| Config cần đối chiếu riêng                    | Điều kiện                                                                                             |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| PUBLIC_ORIGIN                                 | Chính xác http://127.0.0.1:5173                                                                       |
+| SUPABASE_URL / Auth publishable hoặc anon key | Cùng project; key không phải Storage secret/service-role, không placeholder                           |
+| DATABASE_URL / CA / Storage config            | Đúng project; TLS verify-full/CA khớp kết nối; key opaque không được coi đã kiểm project chỉ từ shape |
+| PILOT_WORKSPACE_ID                            | UUID hợp lệ, đúng workspace nhóm đã chốt/backfill                                                     |
+| SESSION_ENCRYPTION_KEY                        | 32 byte, Base64 canonical; ổn định, không tự rotate key đang dùng                                     |
+| DATABASE_POOL_MAX                             | 2–20 theo validator Auth; không dùng pool=1 của PoC refresh cần connection độc lập                    |
+| AUTH_SESSION_VERIFICATION                     | Giữ database; không auth_user để né grants                                                            |
+| VITE_*                                        | Không chứa server secrets                                                                             |
+
+Preflight thiếu config trả databaseChecked:false/exit 1 là đúng; **không điền
+key giả để ép DB check**. Khi config hợp lệ mới chạy lại preflight chuẩn. Kiểm
+metadata độc lập nếu được Tài giao phải BEGIN READ ONLY, chỉ catalog/ledger/grants,
+không SELECT account/session rows; không coi nó là preflight đã ready. Target
+máy Thắng khác thì dừng, đối chiếu riêng; không copy credential qua chat.
+
+### Code delivery là checkpoint riêng
+
+Không suy trạng thái GitHub mới từ local tracking ref. Không fetch/push tự động.
+Nếu chưa có bằng chứng commit cần dùng đã được bàn giao, ghi
+BLOCKED_BY_CODE_DELIVERY; không bảo Thắng “pull là xong”. Tài duyệt phương án
+delivery trước. Nếu sau này có chỉ thị push: review committed range được duyệt,
+giữ WIP unstaged, không force/merge main, xác minh remote hash; hai máy ghi cùng
+commit khi nghiệm thu. Không gửi zip/bundle/history/secrets để né checkpoint.
+
+### Chẩn đoán bootstrap 503
+
+| Quan sát an toàn                                       | Diễn giải/hành động                                                                                                                                 |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| /api/auth/session 503 AUTH_UNAVAILABLE                 | Chưa xác minh session; UI giữ khóa, chưa hiện login form. Kiểm preflight/config rồi DB/network/quyền; mã này không tự chứng minh nguyên nhân cụ thể |
+| Preflight authConfigValid:false, databaseChecked:false | Sửa config qua người quản trị; chưa query DB trong lần preflight đó                                                                                 |
+| Ledger 001–011 đúng, 012–015 pending                   | Schema mới chưa bootstrap; chuẩn bị kế hoạch rồi xin duyệt, không retry login để thay migration                                                     |
+| Auth login 401 AUTH_INVALID                            | Sai/chưa xác nhận credential hoặc phiên không hợp lệ; không mở workspace; chủ tài khoản tự kiểm Dashboard/password                                  |
+| 403 CSRF_INVALID / session-race                        | Check session trước khi người dùng gửi lại; không tự replay login/POST                                                                              |
+| Login thành công nhưng no_access                       | Chưa membership, không phải lỗi password; quản trị duyệt role/workspace riêng                                                                       |
+| 503 khi cấu hình và schema đúng                        | Có thể Auth/DB/TLS/network/permission; dùng requestId + safe code/path và preflight, không suy từ screenshot hoặc chỉ health 200                    |
+
+Log HTTP chỉ fixed Auth routes, business UUID/slug đã che, status/code/requestId;
+unknown path → /unmatched, query bị bỏ. Không log body/getResponse/stack/header/
+email/password/token. AUTH_UNAVAILABLE không đồng nghĩa quota/RAG lỗi. Không xóa
+toàn localStorage/cookies để thử; xử lý riêng cookie app cần người dùng đồng ý.
+GET auth/session có thể tạo pre-session row, nên **nghiệm thu trên DB thật vẫn là
+cloud write**, phải qua phê duyệt; không gọi nó như kiểm metadata chỉ đọc.
+
+### Phiếu nghiệm thu hai máy
+
+Ghi cho mỗi case: máy, commit FE/API, preflight boolean, status/code/requestId đã
+lược secrets, verdict và người trực tiếp thực hiện. Không HAR, payload login,
+cookie/Set-Cookie/token hoặc ảnh chứa định danh thật. Không sao chép phiên giữa máy.
+
+| Case                                                               | Tài              | Thắng                       |
+| ------------------------------------------------------------------ | ---------------- | --------------------------- |
+| Health 200; session anonymous → hiện login form                    | PENDING          | REMOTE_MACHINE_NOT_VERIFIED |
+| Tự nhập sai password → 401; đúng password → đúng role              | PENDING          | REMOTE_MACHINE_NOT_VERIFIED |
+| Reload đúng account; logout/reload khóa protected UI/API           | PENDING          | REMOTE_MACHINE_NOT_VERIFIED |
+| Tasks/Courses read; tạo/sửa task demo được duyệt                   | PENDING          | REMOTE_MACHINE_NOT_VERIFIED |
+| Viewer write/member delete bị BE từ chối; manager đúng quyền       | PENDING          | REMOTE_MACHINE_NOT_VERIFIED |
+| No-membership không thấy workspace                                 | PENDING          | REMOTE_MACHINE_NOT_VERIFIED |
+| API outage → khóa; Check session phục hồi, không replay POST       | PENDING          | REMOTE_MACHINE_NOT_VERIFIED |
+| Hai tab/account swap không lộ notes/chat/draft cũ                  | PENDING          | REMOTE_MACHINE_NOT_VERIFIED |
+| Refresh thật, Dashboard sign-out, membership revoke và delay/cache | PENDING extended | PENDING extended            |
+
+Auth verify-success cache tối đa 30s theo cấu hình hiện có; local session expiry/
+revocation và lookup auth.sessions/membership vẫn được kiểm theo source. Ghi delay
+thực, không hứa thu hồi tức thời hoặc sửa clock/token/TTL để đạt PASS. Không gọi
+Google/OCR/STT/AI thật trong nghiệm thu Auth. Dữ liệu test chỉ tiền tố đã duyệt,
+manager cleanup khi được duyệt; không nâng Thắng thành manager để dọn.
+Chưa nhận evidence Thắng thì giữ REMOTE_MACHINE_NOT_VERIFIED. Chỉ chốt
+TWO_MACHINE_AUTH_ACCEPTED khi case cốt lõi Auth thật hai máy có bằng chứng; extended
+chưa thấy vẫn PENDING. B1 không thay B2 toàn app/B3 budget/B4 semantic RAG/TTS-STT.
+
+Phần quản trị chi tiết bên dưới là hướng dẫn **Tài thực hiện sau khi duyệt**,
+không phải thao tác cloud agent đã chạy. Lịch sử Đợt 6 kiểm scripts/rollback
+disposable PG16; Đợt 13 đã kiểm lại toàn DB suite trên PG17. Không cần
 checkout commit cũ: runner hiện có đủ 012→013→014→015, 014 nhận PILOT_WORKSPACE_ID
 hợp lệ để tạo workspace/backfill. App chỉ http://127.0.0.1:5173, không hosting,
 domain/HTTPS cho app; TLS tới Supabase vẫn phải verify. TTS/STT do Thắng phụ trách.
@@ -9,7 +131,8 @@ domain/HTTPS cho app; TLS tới Supabase vẫn phải verify. TTS/STT do Thắng
 ## Đường đi nhanh
 
 1. Xác nhận đúng project/quyền quản trị, dữ liệu chỉ là demo của nhóm.
-2. Dashboard tạo manager, member, viewer, no-membership; cất password/UUID riêng.
+2. Người quản trị kiểm account có sẵn ở Dashboard; dùng lại đúng demo account.
+   Chỉ tự tạo account thiếu sau khi được duyệt, tự cất password/UUID riêng.
 3. Điền .env server (session key/workspace/origin/TLS); không in secrets.
 4. Chạy npm run pilot:preflight; thiếu 012–015 là dự kiến, lỗi khác phải xử lý.
 5. Dừng writes; backup public tên mới bằng pg_dump đúng major/TLS, kiểm archive list.
@@ -17,7 +140,8 @@ domain/HTTPS cho app; TLS tới Supabase vẫn phải verify. TTS/STT do Thắng
 7. Verify ledger/checksum 001–015, đúng 1 workspace khớp env, rows/counts/IDs/quan hệ.
 8. Dry-run rồi cấp membership 3 user; no-membership để trống.
 9. Chạy API/web local; Tài tự nhập password, nghiệm thu checklist browser.
-10. Nếu lỗi: giữ API tắt; dry-run/apply rollback 015 → 014 → 012/013 khi cần.
+10. Nếu lỗi: giữ API tắt; dry-run rollback 015 → 014 → 012/013, chỉ apply sau
+    Tài duyệt tác động/mất dữ liệu của từng bước, không tự panic restore.
 11. Guard từ chối/COMMIT không rõ: dừng, quản trị viên xác minh/duyệt phục hồi dump.
 
 **Giả định bắt buộc:** toàn bộ dữ liệu Supabase hiện có là demo của nhóm, thuộc
@@ -41,15 +165,16 @@ vẫn 24.13.0. Docker chỉ cần cho backup/test container, không phải đi�
 React/Nest với Supabase. Không sửa AssistantPanel khi chưa phối hợp Thắng.
 
 Dừng nếu target/checksum/TLS/grants không đúng, dump không đọc được hoặc dữ liệu
-không xác nhận là nhóm demo. Không nới Auth/Origin/CSRF/RLS, không sửa 001–014/
+không xác nhận là nhóm demo. Không nới Auth/Origin/CSRF/RLS, không sửa 001–015/
 ledger. Không gửi key/URI/password/token/UUID thật/full project ref vào chat/log/
 ảnh; tắt transcript khi nhập định danh. File ignored là plaintext: bảo vệ ACL.
 Không dùng VITE_* cho secrets server.
 
-## 1. Tài tự tạo bốn user
+## 1. Tài kiểm/dùng lại account; chỉ tự tạo account còn thiếu sau duyệt
 
 Trong đúng Supabase Dashboard: **Authentication → Users → Add user**,
-auto-confirm cho bốn account demo có chủ đích. Tài tự nhập/cất password và UUID
+kiểm user demo hiện có trước, không tạo trùng. Nếu thiếu và được duyệt, tạo/auto-confirm
+account demo có chủ đích. Tài tự nhập/cất password và UUID
 trong password manager; agent không đọc password/login payload. Không có CLI
 tạo user/đặt password. Auto-confirm không thay xác minh email cho app public.
 [Supabase Admin user](https://supabase.com/docs/reference/javascript/auth-admin-createuser).
@@ -57,7 +182,10 @@ tạo user/đặt password. Auto-confirm không thay xác minh email cho app pub
 ## 2. Điền .env, tạo session key/workspace tại máy
 
 Có key/workspace được duyệt thì **dùng lại**, không tạo mới khi restart. Chỉ
-tạo một lần nếu chưa có, ghi vào ignored file bằng wx, không in giá trị:
+tạo một lần nếu chưa có **và Tài đã duyệt kế hoạch**; không mỗi máy tự chạy.
+Quản trị viên chốt key/version cho hai API dùng chung pilot DB và cấp qua kênh
+bảo mật được duyệt, không chat/Git hoặc sao chép cookie. Ghi vào ignored file
+bằng wx, không in giá trị:
 
 ```powershell
 $pilotGenerateScript = @'
@@ -116,7 +244,9 @@ checksumsMatch/allSourceMigrationsApplied/stage012Applied/stage013Applied/
 
 Dừng mọi writers trong cửa sổ bảo trì. Tài kiểm PostgreSQL major trên Dashboard
 bằng metadata query: SELECT current_setting('server_version_num')::int / 10000;
-image postgres chính thức cùng major. Tạo artifacts/pilot-backup.env bằng editor:
+image postgres chính thức cùng major. Sau khi Tài duyệt đích lưu, quản trị viên
+tạo thư mục artifacts/pilot-private-backups, kiểm quyền riêng/Windows ACL và tạo
+artifacts/pilot-private-backups/pg-client.env bằng editor (không agent tạo/copy secrets):
 PGHOST/PGPORT/PGDATABASE=postgres/PGUSER/PGPASSWORD, PGSSLMODE=verify-full,
 PGSSLROOTCERT=/certs/prod-supabase.cer. Không in env. Dùng direct/session endpoint
 đã xác minh, không transaction pooler; mount CA đúng file, không bỏ TLS.
@@ -125,13 +255,16 @@ PGSSLROOTCERT=/certs/prod-supabase.cer. Không in env. Dùng direct/session endp
 $pilotPgMajor = Read-Host 'PostgreSQL major đã kiểm ở Dashboard'
 if ($pilotPgMajor -notmatch '^[0-9]{2}$') { throw 'Chưa có major hợp lệ' }
 $pilotPgImage = "postgres:$pilotPgMajor"
-$pilotBackupDir = Join-Path (Get-Location).Path 'artifacts'
+$pilotBackupDir = Join-Path (Get-Location).Path 'artifacts/pilot-private-backups'
+if (-not (Test-Path -LiteralPath $pilotBackupDir -PathType Container)) { throw 'Chưa duyệt/tạo đích backup private và kiểm ACL; không dump' }
 $pilotCertDir = Join-Path (Get-Location).Path 'secrets'
-$pilotBackupName = 'pilot-before-012-015-20261014.dump'
+$pilotBackupName = 'pilot-before-012-015-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.dump'
+$pilotArchiveListName = $pilotBackupName + '.list'
 if (Test-Path (Join-Path $pilotBackupDir $pilotBackupName)) { throw 'Backup đã tồn tại; chọn tên mới, không ghi đè' }
-docker run --rm --env-file artifacts/pilot-backup.env --mount "type=bind,source=$pilotBackupDir,target=/backup" --mount "type=bind,source=$pilotCertDir,target=/certs,readonly" $pilotPgImage pg_dump --schema=public --format=custom "--file=/backup/$pilotBackupName"
+if (Test-Path (Join-Path $pilotBackupDir $pilotArchiveListName)) { throw 'Archive list đã tồn tại; chọn tên mới' }
+docker run --rm --env-file artifacts/pilot-private-backups/pg-client.env --mount "type=bind,source=$pilotBackupDir,target=/backup" --mount "type=bind,source=$pilotCertDir,target=/certs,readonly" $pilotPgImage pg_dump --schema=public --format=custom "--file=/backup/$pilotBackupName"
 if ($LASTEXITCODE -ne 0) { throw 'Backup chưa đạt; không migrate' }
-docker run --rm --mount "type=bind,source=$pilotBackupDir,target=/backup,readonly" $pilotPgImage pg_restore --list "/backup/$pilotBackupName"
+docker run --rm --mount "type=bind,source=$pilotBackupDir,target=/backup,readonly" $pilotPgImage pg_restore --list "/backup/$pilotBackupName" > (Join-Path $pilotBackupDir $pilotArchiveListName)
 if ($LASTEXITCODE -ne 0) { throw 'Archive chưa đọc được; không migrate' }
 ```
 
@@ -140,7 +273,7 @@ không phải --schema-only; không dump auth/storage/roles/file Storage. Archiv
 có dữ liệu nhạy cảm/session encrypted, phải ignored/bảo vệ. FK public→auth nghĩa
 là đây **không phải backup Supabase đầy đủ/tự restore độc lập**. Archive đọc được
 chưa chứng minh restore; rollback hẹp đã test là đường lui chính.
-[pg_dump](https://www.postgresql.org/docs/16/app-pgdump.html).
+[pg_dump PostgreSQL 17](https://www.postgresql.org/docs/17/app-pgdump.html).
 
 ## 5. Migrate 012→013→014→015 và verify
 
@@ -309,4 +442,27 @@ docker compose -p examate-phase6-20261014 -f compose.local-db.yaml down
 Kiểm port đúng stack trước up. Guard loopback/_test/khác DATABASE_URL và .env
 trước Pool/cleanup; fixture riêng kiểm owner/exact name trước DROP. Auth fixture
 không phải Supabase Auth/tenant RLS. Down giữ volume, không -v. Số liệu thật và
-giới hạn ở báo cáo Đợt 6. Không tự push/merge/deploy ngoài yêu cầu Tài.
+giới hạn ở báo cáo từng đợt. Không tự push/merge/deploy ngoài yêu cầu Tài.
+
+### PostgreSQL 17 compatibility trước cloud apply
+
+Đợt 13 kiểm trên Linux/amd64, PostgreSQL 17.11 và image pgvector 0.8.7 được pin
+digest trong compose.auth-pg17-test.yaml. Tag/digest đã đối chiếu
+[repository chính thức pgvector](https://github.com/pgvector/pgvector#docker).
+Không thay compose/Dockerfile của app. Đây là compatibility local, không phải
+Supabase Auth thật hoặc đã áp migration cloud. Kiểm port 55433 trống, tên project
+thuộc run của mình trước các lệnh sau:
+
+```powershell
+docker compose -p examate-b1b-pg17-local -f compose.auth-pg17-test.yaml up -d --wait
+$env:TEST_DATABASE_URL = 'postgresql://examate_test:local-test-only@127.0.0.1:55433/examate_test'
+npm run test:database
+Remove-Item Env:TEST_DATABASE_URL
+docker compose -p examate-b1b-pg17-local -f compose.auth-pg17-test.yaml down
+```
+
+Suite chuẩn chạy tuần tự cả migrate/idempotency/checksum, backfill 014 và rollback
+015→014→012/013. Không thêm cờ bỏ guard, không chạy db:migrate cloud để “kiểm PG17”.
+Không nhận skip/all-filtered. Với image/architecture khác, ghi lại major/digest và
+test thật trước kết luận; không suy từ Docker Desktop đang chạy rằng Auth đã sẵn.
+Down đúng project, không -v hoặc dọn stack/DB của người khác.

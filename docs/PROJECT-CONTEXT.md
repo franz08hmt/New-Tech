@@ -1,5 +1,12 @@
 # ExaMate AI — Project Context & Handoff
 
+> **Checkpoint Đợt 13 — 17/10/2026:** B1b ở mức PREPARED: sửa diagnostic Auth,
+> kiểm DB suite riêng PG16/PG17; xem [báo cáo hai máy](PHASE-13-B1-TWO-MACHINE-AUTH-REPORT.md)
+> và [runbook](PILOT-B1-RUNBOOK.md). Cloud mới kiểm metadata/config chỉ đọc,
+> chưa duyệt backup/migrate/membership/config writes hoặc code delivery. Máy Thắng
+> chưa xác minh; chưa TWO_MACHINE_AUTH_ACCEPTED/B1 extended. Ingestion 6b.2b tạm hoãn,
+> B2 toàn app/budget AI/semantic RAG còn mở.
+
 > **Checkpoint Đợt 12 — 16/10/2026:** B2 lát 6b.2a chuyển riêng DocumentsService
 > sang workspace transaction ngắn; Storage luôn ngoài transaction. PoC non-owner
 > và FOR SHARE/reconciliation chỉ kiểm disposable local; xem
