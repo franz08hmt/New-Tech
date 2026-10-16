@@ -378,9 +378,11 @@ for (const role of ["manager", "member", "viewer"])
       "INSERT INTO workspace_memberships(workspace_id,user_id,role) VALUES($1,$2,$3)",
       [A.id, auth.userId, role],
     );
+    // Pre-principal bootstrap SELECT uses the non-owner fixture grant. These
+    // permissive bootstrap policies are not a production Auth design.
     auth.store.membership = async (w, u) =>
       (
-        await f.admin.query(
+        await f.db.query(
           "SELECT m.role FROM workspace_memberships m JOIN workspaces w ON w.id=m.workspace_id WHERE m.workspace_id=$1 AND m.user_id=$2 AND m.active AND w.active",
           [w, u],
         )
