@@ -1,0 +1,437 @@
+{
+  "schemaVersion": 1,
+  "synthetic": true,
+  "sourceRevision": "7176246",
+  "recordsSourceSha256": "1c0b76b9be329f920f74af11366cf2d31791bcaf00521739667a66f23b099f11",
+  "clock": "2026-09-28T17:30:00.000Z",
+  "provenance": "Captured from unchanged pre-6b.1 WorkspaceRecords SQL using owner connection and explicit scoped predicates, before implementation; reviewed against independent fixed IDs/counts/amounts.",
+  "rows": {
+    "courses": [
+      {
+        "id": "00000000-0000-4000-8000-000000000100",
+        "slug": "academic-a",
+        "name": "Fixture course A",
+        "code": "FX A"
+      }
+    ],
+    "tasksOpen": {
+      "rows": [
+        {
+          "id": "00000000-0000-4000-8000-000000000200",
+          "title": "A overdue task",
+          "status": "todo",
+          "due_date": "2026-09-28"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000202",
+          "title": "A no-date task",
+          "status": "in_progress",
+          "due_date": null
+        }
+      ],
+      "truncated": false
+    },
+    "tasksDone": {
+      "rows": [
+        {
+          "id": "00000000-0000-4000-8000-000000000201",
+          "title": "A done task",
+          "status": "done",
+          "due_date": "2026-09-27"
+        }
+      ],
+      "truncated": false
+    },
+    "tasksOverdue": {
+      "rows": [
+        {
+          "id": "00000000-0000-4000-8000-000000000200",
+          "title": "A overdue task",
+          "status": "todo",
+          "due_date": "2026-09-28"
+        }
+      ],
+      "truncated": false
+    },
+    "exams": {
+      "upcoming": {
+        "rows": [
+          {
+            "id": "00000000-0000-4000-8000-000000000300",
+            "topic": "A upcoming exam",
+            "exam_date": "2026-09-29",
+            "exam_time": "00:30",
+            "room": "Fixture room",
+            "course_id": "00000000-0000-4000-8000-000000000100",
+            "course_name": "Fixture course A",
+            "course_code": "FX A"
+          }
+        ],
+        "truncated": false
+      },
+      "latestPast": {
+        "id": "00000000-0000-4000-8000-000000000301",
+        "topic": "A past exam",
+        "exam_date": "2026-09-29",
+        "exam_time": "00:15",
+        "room": "Past room",
+        "course_id": "00000000-0000-4000-8000-000000000100",
+        "course_name": "Fixture course A",
+        "course_code": "FX A"
+      }
+    },
+    "plansOpen": {
+      "rows": [
+        {
+          "id": "00000000-0000-4000-8000-000000000400",
+          "title": "A overdue plan",
+          "due_date": "2026-09-28",
+          "completed": false,
+          "course_id": "00000000-0000-4000-8000-000000000100",
+          "course_name": "Fixture course A",
+          "course_code": "FX A"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000402",
+          "title": "A no-date plan",
+          "due_date": null,
+          "completed": false,
+          "course_id": "00000000-0000-4000-8000-000000000100",
+          "course_name": "Fixture course A",
+          "course_code": "FX A"
+        }
+      ],
+      "truncated": false
+    },
+    "plansDone": {
+      "rows": [
+        {
+          "id": "00000000-0000-4000-8000-000000000401",
+          "title": "A completed plan",
+          "due_date": "2026-09-27",
+          "completed": true,
+          "course_id": "00000000-0000-4000-8000-000000000100",
+          "course_name": "Fixture course A",
+          "course_code": "FX A"
+        }
+      ],
+      "truncated": false
+    },
+    "plansOverdue": {
+      "rows": [
+        {
+          "id": "00000000-0000-4000-8000-000000000400",
+          "title": "A overdue plan",
+          "due_date": "2026-09-28",
+          "completed": false,
+          "course_id": "00000000-0000-4000-8000-000000000100",
+          "course_name": "Fixture course A",
+          "course_code": "FX A"
+        }
+      ],
+      "truncated": false
+    },
+    "expenses": [
+      {
+        "id": "00000000-0000-4000-8000-000000000500",
+        "description": "A books",
+        "amount": 125000,
+        "spent_on": "2026-09-29",
+        "course_id": "00000000-0000-4000-8000-000000000100"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000501",
+        "description": "A supplies",
+        "amount": 75000,
+        "spent_on": "2026-09-28",
+        "course_id": "00000000-0000-4000-8000-000000000100"
+      }
+    ],
+    "unassigned": 1,
+    "documents": {
+      "rows": [
+        {
+          "id": "00000000-0000-4000-8000-000000000600",
+          "name": "academic-a.pdf",
+          "processing_status": "pending",
+          "course_id": "00000000-0000-4000-8000-000000000100",
+          "course_slug": "academic-a",
+          "course_name": "Fixture course A",
+          "course_code": "FX A"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000601",
+          "name": "unassigned-a.pdf",
+          "processing_status": "pending",
+          "course_id": null,
+          "course_slug": null,
+          "course_name": null,
+          "course_code": null
+        }
+      ],
+      "truncated": false
+    }
+  },
+  "answers": {
+    "tasks_open": {
+      "answer": "Có 2 task chưa xong trong danh sách chung (task không gắn với môn học nào):\n- A overdue task — Chưa bắt đầu · hạn 28/09/2026\n- A no-date task — Đang làm · chưa có hạn\n\nTính theo ngày 29/09/2026 (giờ Việt Nam), từ dữ liệu đang lưu trong workspace demo dùng chung — không qua AI.",
+      "answerable": true,
+      "workspaceIntent": "tasks_open",
+      "workspaceSources": [
+        {
+          "kind": "task",
+          "id": "00000000-0000-4000-8000-000000000200",
+          "label": "A overdue task",
+          "detail": "Chưa bắt đầu · hạn 28/09/2026"
+        },
+        {
+          "kind": "task",
+          "id": "00000000-0000-4000-8000-000000000202",
+          "label": "A no-date task",
+          "detail": "Đang làm · chưa có hạn"
+        }
+      ],
+      "reasonCode": "WORKSPACE_ANSWER",
+      "citations": [],
+      "provider": "workspace",
+      "model": "database",
+      "mode": "workspace",
+      "ragEnabled": false,
+      "promptVersion": "workspace-v1",
+      "asOf": "2026-09-29"
+    },
+    "tasks_done": {
+      "answer": "Có 1 task đã xong trong danh sách chung (task không gắn với môn học nào):\n- A done task — Đã xong · hạn 27/09/2026\n\nTính theo ngày 29/09/2026 (giờ Việt Nam), từ dữ liệu đang lưu trong workspace demo dùng chung — không qua AI.",
+      "answerable": true,
+      "workspaceIntent": "tasks_done",
+      "workspaceSources": [
+        {
+          "kind": "task",
+          "id": "00000000-0000-4000-8000-000000000201",
+          "label": "A done task",
+          "detail": "Đã xong · hạn 27/09/2026"
+        }
+      ],
+      "reasonCode": "WORKSPACE_ANSWER",
+      "citations": [],
+      "provider": "workspace",
+      "model": "database",
+      "mode": "workspace",
+      "ragEnabled": false,
+      "promptVersion": "workspace-v1",
+      "asOf": "2026-09-29"
+    },
+    "tasks_overdue": {
+      "answer": "Có 1 task đã quá hạn trong danh sách chung (task không gắn với môn học nào):\n- A overdue task — Chưa bắt đầu · hạn 28/09/2026\n\nTính theo ngày 29/09/2026 (giờ Việt Nam), từ dữ liệu đang lưu trong workspace demo dùng chung — không qua AI.",
+      "answerable": true,
+      "workspaceIntent": "tasks_overdue",
+      "workspaceSources": [
+        {
+          "kind": "task",
+          "id": "00000000-0000-4000-8000-000000000200",
+          "label": "A overdue task",
+          "detail": "Chưa bắt đầu · hạn 28/09/2026"
+        }
+      ],
+      "reasonCode": "WORKSPACE_ANSWER",
+      "citations": [],
+      "provider": "workspace",
+      "model": "database",
+      "mode": "workspace",
+      "ragEnabled": false,
+      "promptVersion": "workspace-v1",
+      "asOf": "2026-09-29"
+    },
+    "exams_upcoming": {
+      "answer": "Kỳ thi sắp tới trong workspace:\n- A upcoming exam — Fixture course A (FX A) — 29/09/2026 00:30 · Fixture room\n\nKỳ thi gần nhất đã qua: A past exam — Fixture course A (FX A) — 29/09/2026 00:15 · Past room.\n\nTính theo ngày 29/09/2026 (giờ Việt Nam), từ dữ liệu đang lưu trong workspace demo dùng chung — không qua AI.",
+      "answerable": true,
+      "workspaceIntent": "exams_upcoming",
+      "workspaceSources": [
+        {
+          "kind": "exam",
+          "id": "00000000-0000-4000-8000-000000000300",
+          "label": "A upcoming exam",
+          "detail": "Sắp tới · 29/09/2026 00:30 · Fixture room"
+        },
+        {
+          "kind": "exam",
+          "id": "00000000-0000-4000-8000-000000000301",
+          "label": "A past exam",
+          "detail": "Đã qua · 29/09/2026 00:15 · Past room"
+        }
+      ],
+      "reasonCode": "WORKSPACE_ANSWER",
+      "citations": [],
+      "provider": "workspace",
+      "model": "database",
+      "mode": "workspace",
+      "ragEnabled": false,
+      "promptVersion": "workspace-v1",
+      "asOf": "2026-09-29"
+    },
+    "study_plans_open": {
+      "answer": "Có 2 việc cần ôn chưa hoàn thành:\n- A overdue plan — Fixture course A (FX A) · hạn 28/09/2026\n- A no-date plan — Fixture course A (FX A) · chưa có hạn\n\nTính theo ngày 29/09/2026 (giờ Việt Nam), từ dữ liệu đang lưu trong workspace demo dùng chung — không qua AI.",
+      "answerable": true,
+      "workspaceIntent": "study_plans_open",
+      "workspaceSources": [
+        {
+          "kind": "study_plan",
+          "id": "00000000-0000-4000-8000-000000000400",
+          "label": "A overdue plan",
+          "detail": "Fixture course A (FX A) · hạn 28/09/2026"
+        },
+        {
+          "kind": "study_plan",
+          "id": "00000000-0000-4000-8000-000000000402",
+          "label": "A no-date plan",
+          "detail": "Fixture course A (FX A) · chưa có hạn"
+        }
+      ],
+      "reasonCode": "WORKSPACE_ANSWER",
+      "citations": [],
+      "provider": "workspace",
+      "model": "database",
+      "mode": "workspace",
+      "ragEnabled": false,
+      "promptVersion": "workspace-v1",
+      "asOf": "2026-09-29"
+    },
+    "study_plans_done": {
+      "answer": "Có 1 việc cần ôn đã hoàn thành:\n- A completed plan — Fixture course A (FX A) · hạn 27/09/2026\n\nTính theo ngày 29/09/2026 (giờ Việt Nam), từ dữ liệu đang lưu trong workspace demo dùng chung — không qua AI.",
+      "answerable": true,
+      "workspaceIntent": "study_plans_done",
+      "workspaceSources": [
+        {
+          "kind": "study_plan",
+          "id": "00000000-0000-4000-8000-000000000401",
+          "label": "A completed plan",
+          "detail": "Fixture course A (FX A) · hạn 27/09/2026"
+        }
+      ],
+      "reasonCode": "WORKSPACE_ANSWER",
+      "citations": [],
+      "provider": "workspace",
+      "model": "database",
+      "mode": "workspace",
+      "ragEnabled": false,
+      "promptVersion": "workspace-v1",
+      "asOf": "2026-09-29"
+    },
+    "study_plans_overdue": {
+      "answer": "Có 1 việc cần ôn đã quá hạn:\n- A overdue plan — Fixture course A (FX A) · hạn 28/09/2026\n\nTính theo ngày 29/09/2026 (giờ Việt Nam), từ dữ liệu đang lưu trong workspace demo dùng chung — không qua AI.",
+      "answerable": true,
+      "workspaceIntent": "study_plans_overdue",
+      "workspaceSources": [
+        {
+          "kind": "study_plan",
+          "id": "00000000-0000-4000-8000-000000000400",
+          "label": "A overdue plan",
+          "detail": "Fixture course A (FX A) · hạn 28/09/2026"
+        }
+      ],
+      "reasonCode": "WORKSPACE_ANSWER",
+      "citations": [],
+      "provider": "workspace",
+      "model": "database",
+      "mode": "workspace",
+      "ragEnabled": false,
+      "promptVersion": "workspace-v1",
+      "asOf": "2026-09-29"
+    },
+    "expenses_total": {
+      "answer": "Tổng chi cho môn Fixture course A (FX A) (môn đang mở): 200.000 ₫, từ 2 khoản chi:\n- A books — 125.000 ₫ · 29/09/2026\n- A supplies — 75.000 ₫ · 28/09/2026\n\nCó 1 khoản chi chưa gắn môn nào; chúng không được tính vào tổng này.\n\nTính theo ngày 29/09/2026 (giờ Việt Nam), từ dữ liệu đang lưu trong workspace demo dùng chung — không qua AI.",
+      "answerable": true,
+      "workspaceIntent": "expenses_total",
+      "workspaceSources": [
+        {
+          "kind": "expense",
+          "id": "00000000-0000-4000-8000-000000000500",
+          "label": "A books",
+          "detail": "125.000 ₫ · 29/09/2026"
+        },
+        {
+          "kind": "expense",
+          "id": "00000000-0000-4000-8000-000000000501",
+          "label": "A supplies",
+          "detail": "75.000 ₫ · 28/09/2026"
+        }
+      ],
+      "reasonCode": "WORKSPACE_ANSWER",
+      "citations": [],
+      "provider": "workspace",
+      "model": "database",
+      "mode": "workspace",
+      "ragEnabled": false,
+      "promptVersion": "workspace-v1",
+      "asOf": "2026-09-29"
+    },
+    "courses_list": {
+      "answer": "Workspace có 1 môn học:\n- Fixture course A (FX A)\n\nThông tin môn học trong workspace demo là dữ liệu minh họa.\n\nTính theo ngày 29/09/2026 (giờ Việt Nam), từ dữ liệu đang lưu trong workspace demo dùng chung — không qua AI.",
+      "answerable": true,
+      "workspaceIntent": "courses_list",
+      "workspaceSources": [
+        {
+          "kind": "course",
+          "id": "00000000-0000-4000-8000-000000000100",
+          "slug": "academic-a",
+          "label": "Fixture course A (FX A)"
+        }
+      ],
+      "reasonCode": "WORKSPACE_ANSWER",
+      "citations": [],
+      "provider": "workspace",
+      "model": "database",
+      "mode": "workspace",
+      "ragEnabled": false,
+      "promptVersion": "workspace-v1",
+      "asOf": "2026-09-29"
+    },
+    "document_course": {
+      "answer": "Trong workspace, tài liệu “academic-a.pdf” được gắn với môn Fixture course A (FX A). Đây là thông tin đã lưu khi gán tài liệu cho môn, không phải nội dung đọc từ PDF.\n\nTính theo ngày 29/09/2026 (giờ Việt Nam), từ dữ liệu đang lưu trong workspace demo dùng chung — không qua AI.",
+      "answerable": true,
+      "workspaceIntent": "document_course",
+      "workspaceSources": [
+        {
+          "kind": "document",
+          "id": "00000000-0000-4000-8000-000000000600",
+          "label": "academic-a.pdf"
+        },
+        {
+          "kind": "course",
+          "id": "00000000-0000-4000-8000-000000000100",
+          "slug": "academic-a",
+          "label": "Fixture course A (FX A)"
+        }
+      ],
+      "reasonCode": "WORKSPACE_ANSWER",
+      "citations": [],
+      "provider": "workspace",
+      "model": "database",
+      "mode": "workspace",
+      "ragEnabled": false,
+      "promptVersion": "workspace-v1",
+      "asOf": "2026-09-29"
+    },
+    "course_documents": {
+      "answer": "Có 1 tài liệu được gắn với môn Fixture course A (FX A) (môn đang mở) (theo thông tin đã lưu, không phải nội dung PDF):\n- academic-a.pdf — chưa lập chỉ mục\n\nTính theo ngày 29/09/2026 (giờ Việt Nam), từ dữ liệu đang lưu trong workspace demo dùng chung — không qua AI.",
+      "answerable": true,
+      "workspaceIntent": "course_documents",
+      "workspaceSources": [
+        {
+          "kind": "document",
+          "id": "00000000-0000-4000-8000-000000000600",
+          "label": "academic-a.pdf",
+          "detail": "chưa lập chỉ mục"
+        }
+      ],
+      "reasonCode": "WORKSPACE_ANSWER",
+      "citations": [],
+      "provider": "workspace",
+      "model": "database",
+      "mode": "workspace",
+      "ragEnabled": false,
+      "promptVersion": "workspace-v1",
+      "asOf": "2026-09-29"
+    }
+  }
+}

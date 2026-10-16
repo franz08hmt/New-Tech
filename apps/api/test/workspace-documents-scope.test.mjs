@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { requirePrincipal } from "../dist/auth/principal.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -112,6 +113,10 @@ function documentsDatabase() {
       });
   }
   const database = {
+    async workspaceTransaction(principal, work) {
+      requirePrincipal(principal);
+      return work(database);
+    },
     async query(sql, values = []) {
       state.queries.push({ sql, values: [...values] });
       if (

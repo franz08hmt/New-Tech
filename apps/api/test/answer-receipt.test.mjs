@@ -2,6 +2,7 @@ import { afterEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { AssistantError } from "../dist/assistant/assistant.types.js";
+import { requirePrincipal } from "../dist/auth/principal.js";
 import { authFixture } from "./auth-fixture.mjs";
 import { fakeDependencies, httpApp, json } from "./helpers.mjs";
 
@@ -121,6 +122,10 @@ function receiptDependencies(auth) {
     });
   }
   const database = {
+    async workspaceTransaction(principal, work) {
+      requirePrincipal(principal);
+      return work(database);
+    },
     async query(sql, values = []) {
       if (/\bINSERT\s+INTO\s+assistant_answer_receipts\b/i.test(sql)) {
         if (state.receiptStorageError) throw Error("synthetic receipt outage");

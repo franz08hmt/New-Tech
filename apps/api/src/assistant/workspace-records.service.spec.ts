@@ -20,6 +20,10 @@ function recording(rows: Record<string, unknown>[] = []) {
   const query = vi.fn(async (_sql: string, _values?: unknown[]) => ({ rows }));
   const records = new WorkspaceRecordsService({
     query,
+    workspaceTransaction: async (
+      _principal: unknown,
+      work: (tx: { query: typeof query }) => Promise<unknown>,
+    ) => work({ query }),
   } as unknown as DatabaseService);
   return { records, query };
 }
@@ -124,7 +128,13 @@ function tableDatabase(tables: {
     }
     return { rows: [] };
   });
-  return new WorkspaceRecordsService({ query } as unknown as DatabaseService);
+  return new WorkspaceRecordsService({
+    query,
+    workspaceTransaction: async (
+      _principal: unknown,
+      work: (tx: { query: typeof query }) => Promise<unknown>,
+    ) => work({ query }),
+  } as unknown as DatabaseService);
 }
 
 describe("WorkspaceRecordsService", () => {

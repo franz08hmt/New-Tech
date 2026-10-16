@@ -107,13 +107,15 @@ export class WorkspaceRecordsService {
 
   async courses(principal?: PilotPrincipal) {
     const { workspaceId } = requirePrincipal(principal);
-    const result = await this.database.query<CourseRow>(
-      `SELECT id, slug, name, code
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query<CourseRow>(
+        `SELECT id, slug, name, code
        FROM courses
        WHERE workspace_id = $1
        ORDER BY code
        LIMIT ${ROW_LIMIT}`,
-      [workspaceId],
+        [workspaceId],
+      ),
     );
     return result.rows;
   }
@@ -123,18 +125,20 @@ export class WorkspaceRecordsService {
     // The status condition is one of two fixed strings, never input.
     const status =
       filter.state === "done" ? "status = 'done'" : "status <> 'done'";
-    const result = await this.database.query<TaskRow>(
-      `SELECT id, title, status, to_char(due_date, 'YYYY-MM-DD') AS due_date
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query<TaskRow>(
+        `SELECT id, title, status, to_char(due_date, 'YYYY-MM-DD') AS due_date
        FROM tasks
        WHERE ${status}
          AND ($1::date IS NULL OR due_date < $1::date)
          AND workspace_id = $2
        ORDER BY due_date NULLS LAST, created_at
        LIMIT ${ROW_LIMIT + 1}`,
-      [
-        filter.state === "open" ? (filter.dueBefore ?? null) : null,
-        workspaceId,
-      ],
+        [
+          filter.state === "open" ? (filter.dueBefore ?? null) : null,
+          workspaceId,
+        ],
+      ),
     );
     return bounded(result.rows);
   }
@@ -154,8 +158,9 @@ export class WorkspaceRecordsService {
               to_char(e.exam_time, 'HH24:MI') AS exam_time,
               e.room, e.course_id,
               c.name AS course_name, c.code AS course_code`;
-    const upcoming = await this.database.query<ExamRow>(
-      `SELECT ${columns}
+    return this.database.workspaceTransaction(principal, async (tx) => {
+      const upcoming = await tx.query<ExamRow>(
+        `SELECT ${columns}
        FROM exams e
        JOIN courses c ON c.id = e.course_id AND c.workspace_id = e.workspace_id
        WHERE ($1::uuid IS NULL OR e.course_id = $1::uuid)
@@ -164,10 +169,10 @@ export class WorkspaceRecordsService {
               OR (e.exam_date = $2::date AND e.exam_time >= $3::time))
        ORDER BY e.exam_date, e.exam_time
        LIMIT ${ROW_LIMIT + 1}`,
-      [courseId, now.date, now.time, workspaceId],
-    );
-    const past = await this.database.query<ExamRow>(
-      `SELECT ${columns}
+        [courseId, now.date, now.time, workspaceId],
+      );
+      const past = await tx.query<ExamRow>(
+        `SELECT ${columns}
        FROM exams e
        JOIN courses c ON c.id = e.course_id AND c.workspace_id = e.workspace_id
        WHERE ($1::uuid IS NULL OR e.course_id = $1::uuid)
@@ -176,12 +181,13 @@ export class WorkspaceRecordsService {
               OR (e.exam_date = $2::date AND e.exam_time < $3::time))
        ORDER BY e.exam_date DESC, e.exam_time DESC
        LIMIT 1`,
-      [courseId, now.date, now.time, workspaceId],
-    );
-    return {
-      upcoming: bounded(upcoming.rows),
-      latestPast: past.rows[0] ?? null,
-    };
+        [courseId, now.date, now.time, workspaceId],
+      );
+      return {
+        upcoming: bounded(upcoming.rows),
+        latestPast: past.rows[0] ?? null,
+      };
+    });
   }
 
   async studyPlans(
@@ -198,8 +204,9 @@ export class WorkspaceRecordsService {
       filter.state === "completed"
         ? "p.completed_at DESC"
         : "p.due_date NULLS LAST, p.created_at";
-    const result = await this.database.query<StudyPlanRow>(
-      `SELECT p.id, p.title,
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query<StudyPlanRow>(
+        `SELECT p.id, p.title,
               to_char(p.due_date, 'YYYY-MM-DD') AS due_date,
               p.completed_at IS NOT NULL AS completed,
               p.course_id,
@@ -212,11 +219,12 @@ export class WorkspaceRecordsService {
          AND p.workspace_id = $3
        ORDER BY ${order}
        LIMIT ${ROW_LIMIT + 1}`,
-      [
-        courseId,
-        filter.state === "open" ? (filter.dueBefore ?? null) : null,
-        workspaceId,
-      ],
+        [
+          courseId,
+          filter.state === "open" ? (filter.dueBefore ?? null) : null,
+          workspaceId,
+        ],
+      ),
     );
     return bounded(result.rows);
   }
@@ -224,8 +232,9 @@ export class WorkspaceRecordsService {
   /** One course's spending; spending tied to no course is never included. */
   async courseExpenses(courseId: string, principal?: PilotPrincipal) {
     const { workspaceId } = requirePrincipal(principal);
-    const result = await this.database.query<ExpenseRow>(
-      `SELECT id, description, amount,
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query<ExpenseRow>(
+        `SELECT id, description, amount,
               to_char(spent_on, 'YYYY-MM-DD') AS spent_on,
               course_id
        FROM expenses
@@ -233,18 +242,21 @@ export class WorkspaceRecordsService {
          AND workspace_id = $2
        ORDER BY spent_on DESC, created_at DESC
        LIMIT ${EXPENSE_LIMIT}`,
-      [courseId, workspaceId],
+        [courseId, workspaceId],
+      ),
     );
     return result.rows;
   }
 
   async unassignedExpenseCount(principal?: PilotPrincipal) {
     const { workspaceId } = requirePrincipal(principal);
-    const result = await this.database.query<{ count: number | string }>(
-      `SELECT COUNT(*)::int AS count
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query<{ count: number | string }>(
+        `SELECT COUNT(*)::int AS count
        FROM expenses
        WHERE course_id IS NULL AND workspace_id = $1`,
-      [workspaceId],
+        [workspaceId],
+      ),
     );
     return Number(result.rows[0]?.count ?? 0);
   }
@@ -252,8 +264,9 @@ export class WorkspaceRecordsService {
   /** Metadata only: never the storage key, never the extracted text. */
   async documents(principal?: PilotPrincipal) {
     const { workspaceId } = requirePrincipal(principal);
-    const result = await this.database.query<DocumentRow>(
-      `SELECT d.id, d.name, d.processing_status, d.course_id,
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query<DocumentRow>(
+        `SELECT d.id, d.name, d.processing_status, d.course_id,
               c.slug AS course_slug, c.name AS course_name, c.code AS course_code
        FROM documents d
        LEFT JOIN courses c ON c.id = d.course_id AND c.workspace_id = d.workspace_id
@@ -261,7 +274,8 @@ export class WorkspaceRecordsService {
          AND d.workspace_id = $1
        ORDER BY d.name
        LIMIT ${ROW_LIMIT + 1}`,
-      [workspaceId],
+        [workspaceId],
+      ),
     );
     return bounded(result.rows);
   }
