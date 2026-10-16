@@ -137,6 +137,13 @@ thấy notes/chat/draft. Có bằng chứng browser và Supabase thật. **Lát 
 
 ### B2. Hoàn tất quyền và phạm vi dữ liệu — tiếp tục Chặng 2 pilot
 
+**Checkpoint Đợt 12 — lát 6b.2a:** DocumentsService dùng workspace transaction
+cho read/sign/upload/assign/delete và probe có fresh quyền trước compensation;
+Storage ngoài DB transaction. Non-owner RLS/FOR SHARE chỉ kiểm trên disposable,
+không production policies. [Báo cáo Đợt 12](../docs/PHASE-12-B2-DOCUMENTS-CONTEXT-REPORT.md)
+tách bằng chứng SQL/HTTP/browser local và giới hạn, chờ review. Ingestion/
+retrieval/summary/receipts/feedback/Auth bootstrap production chưa chuyển; B2 còn mở.
+
 **Checkpoint Đợt 11 — lát 6b.1:** sau review đạt 6a (`7176246`), chuyển riêng
 Exams/Study plans/Expenses và Workspace Records sang workspace transaction;
 SQL/HTTP tenant RLS non-owner chỉ trong disposable, Documents chỉ SELECT metadata

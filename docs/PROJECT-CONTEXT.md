@@ -1,5 +1,12 @@
 # ExaMate AI — Project Context & Handoff
 
+> **Checkpoint Đợt 12 — 16/10/2026:** B2 lát 6b.2a chuyển riêng DocumentsService
+> sang workspace transaction ngắn; Storage luôn ngoài transaction. PoC non-owner
+> và FOR SHARE/reconciliation chỉ kiểm disposable local; xem
+> [báo cáo Đợt 12](PHASE-12-B2-DOCUMENTS-CONTEXT-REPORT.md), chờ Tài review.
+> Chưa chuyển ingestion/retrieval/summary/receipts/feedback hoặc Auth bootstrap
+> production; chưa hoàn tất B2/Auth cloud/semantic RAG.
+
 > **Checkpoint Đợt 11 — 16/10/2026:** B2 lát 6a đã review đạt tại `7176246`.
 > Lát 6b.1 chuyển DB boundary của Exams/Study plans/Expenses và Workspace Records
 > sang workspace transaction; xem [báo cáo Đợt 11](PHASE-11-B2-ACADEMIC-CONTEXT-REPORT.md).
