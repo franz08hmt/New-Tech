@@ -11,6 +11,7 @@ import { TasksService } from "../dist/tasks/tasks.service.js";
 import { CoursesController } from "../dist/courses/courses.controller.js";
 import { CoursesService } from "../dist/courses/courses.service.js";
 import { DatabaseService } from "../dist/database/database.service.js";
+import { requirePrincipal } from "../dist/auth/principal.js";
 import { configureApp } from "../dist/common/http.js";
 import { authFixture } from "./auth-fixture.mjs";
 import { fakeDependencies, httpApp, json } from "./helpers.mjs";
@@ -90,6 +91,10 @@ function scopedDatabase() {
   }
 
   const database = {
+    async workspaceTransaction(principal, work) {
+      requirePrincipal(principal);
+      return work(database);
+    },
     async query(sql, values = []) {
       queries.push({ sql, values: [...values] });
       if (/\bINSERT\s+INTO\s+tasks\b/i.test(sql)) {

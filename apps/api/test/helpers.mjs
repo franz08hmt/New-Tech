@@ -11,6 +11,7 @@ import { configureApp } from "../dist/common/http.js";
 import { AuthService } from "../dist/auth/auth.service.js";
 import { AuthStore } from "../dist/auth/auth-store.js";
 import { AUTH_ADAPTER, AUTH_CONFIG } from "../dist/auth/auth-config.js";
+import { requirePrincipal } from "../dist/auth/principal.js";
 
 const fixtureWorkspaceId = "22222222-2222-4222-8222-222222222222";
 
@@ -301,6 +302,11 @@ export function fakeDependencies() {
       throw new Error("Unhandled SQL in test fixture");
     },
     async transaction(work) {
+      return work(database);
+    },
+    async workspaceTransaction(principal, work) {
+      requirePrincipal(principal);
+      // In-memory domain fake only; real client/context/RLS have a DB suite.
       return work(database);
     },
   };

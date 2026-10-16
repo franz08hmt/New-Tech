@@ -294,7 +294,7 @@ test("real SQL foreign task status updates return the same safe 404 as missing I
 
 test("viewer task writes return 403 before the real database query boundary for own, foreign and missing rows", async (t) => {
   const beforeRows = await taskRows();
-  const query = t.mock.method(database, "query"); // Calls through to the real implementation if reached.
+  const query = t.mock.method(database, "workspaceTransaction"); // Calls through if reached.
   const identity = principal(workspaceA, "viewer");
   const forbidden = await safeError(
     tasks.create(
@@ -321,7 +321,7 @@ test("viewer task writes return 403 before the real database query boundary for 
 });
 
 test("missing or malformed principals fail closed before real domain SQL", async (t) => {
-  const query = t.mock.method(database, "query");
+  const query = t.mock.method(database, "workspaceTransaction");
   for (const identity of [
     undefined,
     { userId, role: "member" },

@@ -13,23 +13,27 @@ export class CoursesService {
 
   async list(principal?: PilotPrincipal) {
     const { workspaceId } = requirePrincipal(principal);
-    const result = await this.database.query<CourseRecord>(
-      `SELECT ${COURSE_COLUMNS}
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query<CourseRecord>(
+        `SELECT ${COURSE_COLUMNS}
        FROM courses
        WHERE workspace_id = $1
        ORDER BY code`,
-      [workspaceId],
+        [workspaceId],
+      ),
     );
     return result.rows;
   }
 
   async getBySlug(slug: string, principal?: PilotPrincipal) {
     const { workspaceId } = requirePrincipal(principal);
-    const result = await this.database.query<CourseRecord>(
-      `SELECT ${COURSE_COLUMNS}
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query<CourseRecord>(
+        `SELECT ${COURSE_COLUMNS}
        FROM courses
        WHERE slug = $1 AND workspace_id = $2`,
-      [slug, workspaceId],
+        [slug, workspaceId],
+      ),
     );
     const course = result.rows[0];
     if (!course) {

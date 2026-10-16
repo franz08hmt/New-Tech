@@ -12,33 +12,37 @@ export class TasksService {
 
   async list(principal?: PilotPrincipal) {
     const { workspaceId } = requirePrincipal(principal);
-    const result = await this.database.query<TaskRecord>(
-      `SELECT id, title, owner_name, status, due_date, evidence_type, created_at, updated_at
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query<TaskRecord>(
+        `SELECT id, title, owner_name, status, due_date, evidence_type, created_at, updated_at
        FROM tasks
        WHERE workspace_id = $1
        ORDER BY
          CASE status WHEN 'in_progress' THEN 1 WHEN 'todo' THEN 2 ELSE 3 END,
          due_date NULLS LAST,
          created_at DESC`,
-      [workspaceId],
+        [workspaceId],
+      ),
     );
     return result.rows;
   }
 
   async create(input: CreateTaskDto, principal?: PilotPrincipal) {
     const { workspaceId } = requireTaskWrite(principal);
-    const result = await this.database.query<TaskRecord>(
-      `INSERT INTO tasks (title, owner_name, status, due_date, evidence_type, workspace_id)
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query<TaskRecord>(
+        `INSERT INTO tasks (title, owner_name, status, due_date, evidence_type, workspace_id)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, title, owner_name, status, due_date, evidence_type, created_at, updated_at`,
-      [
-        input.title.trim(),
-        input.ownerName?.trim() || null,
-        input.status ?? "todo",
-        input.dueDate ?? null,
-        input.evidenceType?.trim() || null,
-        workspaceId,
-      ],
+        [
+          input.title.trim(),
+          input.ownerName?.trim() || null,
+          input.status ?? "todo",
+          input.dueDate ?? null,
+          input.evidenceType?.trim() || null,
+          workspaceId,
+        ],
+      ),
     );
     log("info", "task.created", { taskId: result.rows[0].id });
     return result.rows[0];
@@ -50,12 +54,14 @@ export class TasksService {
     principal?: PilotPrincipal,
   ) {
     const { workspaceId } = requireTaskWrite(principal);
-    const result = await this.database.query<TaskRecord>(
-      `UPDATE tasks
+    const result = await this.database.workspaceTransaction(principal, (tx) =>
+      tx.query<TaskRecord>(
+        `UPDATE tasks
        SET status = $2, updated_at = NOW()
        WHERE id = $1 AND workspace_id = $3
        RETURNING id, title, owner_name, status, due_date, evidence_type, created_at, updated_at`,
-      [id, status, workspaceId],
+        [id, status, workspaceId],
+      ),
     );
 
     const task = result.rows[0];
