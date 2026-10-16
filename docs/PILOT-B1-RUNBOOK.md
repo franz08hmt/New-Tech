@@ -1,5 +1,11 @@
 # B1 + 015 — bootstrap và nghiệm thu Auth trên hai máy
 
+**Demo đã bootstrap ngày 17/10/2026:** schema cloud `001`–`015`, bốn account demo
+và ba membership đã tạo theo lựa chọn của Tài; HTTP Auth thật trên máy Tài đã đạt.
+Thắng chỉ làm theo [hướng dẫn chạy sau bootstrap](PILOT-DEMO-HANDOFF.md), không
+tạo account/workspace hoặc migrate lại. Các checkpoint thiếu đầu vào/PREPARED
+bên dưới là lịch sử; browser/máy Thắng và Auth extended vẫn chưa nghiệm thu.
+
 **Checkpoint tiếp tục từ 5073ad3, 17/10/2026:** quyền bootstrap đã có; chỉ commit,
 không push ở lượt này. Kiểm chỉ đọc mới xác nhận auth.users có 0 user. Cần tạo
 đúng các account thực qua Dashboard/quy trình quản trị được cấp sau khi xác định

@@ -1,5 +1,71 @@
 # Đợt 13 — B1b: bootstrap Auth và đường nghiệm thu hai máy
 
+## Bootstrap demo đã thực hiện — 17/10/2026
+
+Đây là checkpoint mới nhất, thay trạng thái BLOCKED/PREPARED và config/schema
+thiếu của các lượt lịch sử bên dưới. Tài đã chọn rõ **tài khoản demo riêng cho
+nhóm**, xác nhận writers trên máy Thắng đã dừng và yêu cầu agent tự hoàn tất.
+Không dùng email hoặc tuyên bố đã xác minh danh tính cá nhân Tài/Thắng.
+
+### Thao tác thật trên project đã duyệt
+
+- Publishable key đã được project chấp nhận (GET Auth settings 200). Đã sinh lần
+  đầu workspace/session key còn thiếu bằng crypto, giữ nguyên cấu hình khác.
+- Kiểm local không có listeners API/Vite trước cửa sổ; DB/Supabase resolver cùng
+  project, TLS/CA/grants hợp lệ, checksum 001–011 khớp và chỉ pending 012–015.
+- Backup public bằng postgres:17, verify-full, archive list đọc được; ghi SHA-256
+  và kiểm lại archive/target trước migrate. Backup private không gồm Auth/Storage/
+  roles hoặc bytes PDF. Windows ACL parent và các output thừa kế chỉ Dell/SYSTEM.
+- Áp 012–015 qua `npm run db:migrate`, không sửa SQL/ledger/checksum. Verify thật
+  001–015/checksum và đúng một workspace; mọi row scoped thuộc workspace đó.
+- Đối chiếu count/fingerprint toàn bộ trường cũ của 9 bảng public nghiệp vụ
+  trước/sau migration và sau cleanup: bằng nhau. Chỉ loại cột workspace và
+  attribution mới của 014/015 khi so; catalog từ chối bảng nghiệp vụ ngoài tập.
+- Tạo 4 account demo qua Auth Admin API, mật khẩu random lưu private trước POST;
+  không mail/invite, không đổi account cũ. Cấp đúng manager/member/viewer qua
+  dry-run/apply helper hiện có; no-membership không có row membership.
+- Mapping ghi nguồn `adminApiAccountsConfirmed`, không giả xác nhận Dashboard.
+  Các biến/mapping hợp lệ; preflight cloud hiện **exit 0**, tất cả stage đạt.
+
+### Bằng chứng kiểm mới
+
+- **39 check live** (38 HTTP/luồng và 1 cleanup DB), không fake Auth/provider:
+  Vite → Nest → Supabase login,
+  sai password, principal đúng user/workspace/role, reload, Tasks read/create/
+  update, viewer write 403, no-membership denied, foreign Origin 403, member
+  delete Exam 403, manager delete 204, logout và truy cập sau logout bị chặn.
+- Hai task và một exam demo riêng của lượt kiểm đã cleanup chính xác. Tasks
+  không có DELETE route; không nhận 404 của route đó thành kiểm quyền 403.
+- Browser tích hợp: form Email/Password hiện trên desktop 1280 và 375px; không
+  tràn ngang, console error/warn 0. Không nhập/đọc password hoặc cookie qua UI;
+  chưa nhận browser-login hoặc Chrome trên máy Thắng là PASS.
+- Năm gate mới tuần tự, tất cả exit 0: typecheck/test/build/format:check và
+  test:database. API Vitest 231 + Node 745 + web 308 = **1.284 pass**; PostgreSQL
+  17 disposable **301 pass**; fail/skip/cancelled 0. PG16 không chạy lại lượt này.
+- Operator account tests: RED 3 fail/1 control pass; GREEN 4/4, gồm create một
+  lần, từ chối email foreign, reconcile mất ACK không POST trùng, ID/list guards.
+- Review đối kháng trước migrate có 3 vòng; đã sửa retry-after-unknown,
+  backup-integrity và rebind-target guards. Vòng cuối không còn finding trong
+  phạm vi đã nêu. Không hỏi/chạy cross-model theo lựa chọn có trước của Tài.
+
+Không sửa FE/BE runtime, dependency, model, RAG/prompt/validator hoặc migrations.
+Không gọi Gemini/OCR/Storage object API. Runtime DB vẫn BYPASSRLS; chưa nhận B2
+toàn app, Auth extended, semantic RAG hoặc pilot dùng dữ liệu thật đã hoàn tất.
+Credential từng gửi chat được giữ theo yêu cầu Tài; rủi ro vẫn tồn tại.
+
+Artifacts private: `artifacts/pilot-private-bootstrap-20261017-013714/`, gồm
+backup/journal/hash/HTTP report/gate logs và per-account credential. Chỉ bàn giao
+hai file dành riêng Thắng, không file tổng hợp/manager hoặc backup. Xem
+[hướng dẫn chạy sau bootstrap](PILOT-DEMO-HANDOFF.md). Không có secret/UUID/
+full project ref trong tài liệu commit. Hướng dẫn đầu vào Dashboard ở các mục
+lịch sử dưới đây không còn là việc Tài phải lặp lại cho demo này.
+
+Trạng thái: **CLOUD_BOOTSTRAP_VERIFIED, LOCAL_REAL_AUTH_HTTP_VERIFIED**.
+**REMOTE_MACHINE_NOT_VERIFIED, EXTENDED_AUTH_PENDING**: agent không có truy cập
+máy Thắng; chưa có bằng chứng login/browser/commit/config tại máy đó. Không nhận
+TWO_MACHINE_AUTH_CORE_ACCEPTED. Chỉ commit tài liệu của lượt, không push/merge/deploy;
+WIP cũ được giữ. API/Vite/tab test đã dừng; container test được down, giữ volume.
+
 ## Tiếp tục từ 5073ad3 — kiểm thực tế ngày 17/10/2026
 
 Đây là checkpoint mới nhất. Chỉ thị hiện tại cho phép bootstrap/account đúng danh

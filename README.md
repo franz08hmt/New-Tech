@@ -1,5 +1,12 @@
 # ExaMate — AI-powered academic workspace
 
+**Đăng nhập demo Tài/Thắng — checkpoint 17/10/2026:** cloud đã áp `001`–`015`,
+đã có bốn user demo và ba membership. Đọc
+[hướng dẫn đăng nhập trên máy Thắng](docs/PILOT-DEMO-HANDOFF.md) trước khi chạy.
+Các mốc `001`–`011`/“chưa áp cloud” bên dưới là khảo sát trước bootstrap này.
+Không tạo workspace/user hoặc migrate lại chỉ để chạy app; `.env` và mật khẩu
+không đi theo Git. Chưa xác minh trực tiếp máy Thắng hoặc nghiệm thu Auth mở rộng.
+
 Workspace học tập dùng React + NestJS + PostgreSQL/Supabase Storage. Hiện có các luồng Tasks, Courses, Exams, study plans, chi tiêu, ghi chú trên trình duyệt và tài liệu PDF. Assistant có ba chế độ: chat thường qua Gemini, hỏi tài liệu đã lập chỉ mục (RAG) qua Gemini, và hỏi dữ liệu workspace bằng truy vấn có kiểm soát (không gọi LLM). PDF được trích xuất, chia đoạn và embedding phía API; OCR là tùy chọn và mặc định tắt.
 
 **Trạng thái nhánh phát triển (`feature/tai-rag-integration`):** RAG/OCR, bộ đánh giá và phản hồi câu trả lời đã có trong code. Các chặng đăng nhập/session pilot 1a–1b cũng đã được commit và push; xem [báo cáo 1a](docs/pilot-stage-1a-report.md), [báo cáo 1b](docs/pilot-stage-1b-report.md) và [thiết kế pilot](docs/pilot-stage-0-design.md). Đây là trạng thái code, **không đồng nghĩa pilot đã sẵn sàng cho dữ liệu thật hoặc truy cập công khai**.
