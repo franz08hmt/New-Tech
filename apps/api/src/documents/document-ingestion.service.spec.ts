@@ -47,6 +47,7 @@ function fixture() {
           document.processing_status = "failed";
           document.indexed_at = null;
           document.processing_error_code = String(values[1]);
+          return { rows: [{ id: document.id }] };
         }
         return { rows: [] };
       }
@@ -69,6 +70,12 @@ function fixture() {
         return { rows: values[0] === document.id ? [{ ...document }] : [] };
       throw new Error("Unhandled fixture query");
     }),
+    workspaceTransaction: vi.fn(
+      async (
+        _p: unknown,
+        work: (tx: { query: Function }) => unknown,
+      ): Promise<unknown> => database.transaction(work),
+    ),
     transaction: vi.fn(async (work: (tx: { query: Function }) => unknown) => {
       const beforeChunks = chunks.map((row) => ({ ...row }));
       const beforeDocument = { ...document };
@@ -220,7 +227,7 @@ describe("DocumentIngestionService", () => {
     await expect(
       item.service.process(item.document.id, principal),
     ).rejects.toMatchObject({ status: 403 });
-    expect(item.database.transaction).toHaveBeenCalledTimes(3);
+    expect(item.database.workspaceTransaction).toHaveBeenCalledTimes(7);
     expect(item.chunks).toEqual([oldChunk]);
     expect(item.insertCalls).toEqual([]);
     expect(item.document.processing_status).toBe("processing");

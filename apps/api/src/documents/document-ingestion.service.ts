@@ -11,6 +11,7 @@ import {
 import type { QueryResultRow } from "pg";
 import type { PilotPrincipal } from "@examate/contracts";
 import { DocumentAccessService } from "./document-access.service.js";
+import { requireRecordWrite } from "../auth/principal.js";
 import {
   EmbeddingError,
   GeminiEmbeddingService,
@@ -60,20 +61,21 @@ export class DocumentIngestionService {
 
   async process(documentId: string, principal?: PilotPrincipal) {
     const startedAt = Date.now();
-    const { workspaceId } = await this.access.authorize(principal, "write");
+    const { workspaceId } = requireRecordWrite(principal);
     const document = await this.claim(documentId, workspaceId, principal);
+    let persistBodyCompleted = false;
     try {
-      await this.access.authorize(principal, "write");
+      await this.authorize(principal);
       const buffer = await this.storage.downloadBuffer(document.storage_key);
-      await this.access.authorize(principal, "write");
+      await this.authorize(principal);
       const nativePages = await this.extractor.extract(buffer);
-      await this.access.authorize(principal, "write");
+      await this.authorize(principal);
       const { pages } = await this.ocr.recover(buffer, nativePages);
       const prepared = prepareDocumentPages(pages);
       const { chunks, quality } = prepared;
       if (chunks.length === 0)
         throw new DocumentChunkingError("NO_USEFUL_TEXT");
-      await this.access.authorize(principal, "write");
+      await this.authorize(principal);
       const vectors = await this.embeddings.embedDocuments(
         document.name,
         chunks.map(({ content }) => content),
@@ -81,29 +83,31 @@ export class DocumentIngestionService {
       if (vectors.length !== chunks.length)
         throw new EmbeddingError("invalid_response");
 
-      const indexedAt = await this.database.transaction(async (tx) => {
-        await this.access.authorize(principal, "write", tx);
-        // Lock the authorized parent while replacing derived chunks. A delete
-        // or state change during extraction cannot commit work to another job.
-        const locked = await tx.query(
-          "SELECT id FROM documents WHERE id = $1 AND workspace_id = $2 AND storage_status = 'stored' AND processing_status = 'processing' FOR UPDATE",
-          [document.id, workspaceId],
-        );
-        if (!locked.rows.length) throw new ProcessingStateError();
-        await tx.query(
-          "DELETE FROM document_chunks dc USING documents d WHERE dc.document_id = d.id AND d.id = $1 AND d.workspace_id = $2",
-          [document.id, workspaceId],
-        );
-        for (let start = 0; start < chunks.length; start += 50) {
-          await this.insertBatch(
-            tx,
-            document.id,
-            chunks.slice(start, start + 50),
-            vectors.slice(start, start + 50),
+      const indexedAt = await this.database.workspaceTransaction(
+        principal,
+        async (tx) => {
+          await this.access.authorize(principal, "write", tx);
+          // Lock the authorized parent while replacing derived chunks. A delete
+          // or state change during extraction cannot commit work to another job.
+          const locked = await tx.query(
+            "SELECT id FROM documents WHERE id = $1 AND workspace_id = $2 AND storage_status = 'stored' AND processing_status = 'processing' FOR UPDATE",
+            [document.id, workspaceId],
           );
-        }
-        const ready = await tx.query<IndexedAtRow>(
-          `UPDATE documents
+          if (!locked.rows.length) throw new ProcessingStateError();
+          await tx.query(
+            "DELETE FROM document_chunks dc USING documents d WHERE dc.document_id = d.id AND d.id = $1 AND d.workspace_id = $2",
+            [document.id, workspaceId],
+          );
+          for (let start = 0; start < chunks.length; start += 50) {
+            await this.insertBatch(
+              tx,
+              document.id,
+              chunks.slice(start, start + 50),
+              vectors.slice(start, start + 50),
+            );
+          }
+          const ready = await tx.query<IndexedAtRow>(
+            `UPDATE documents
            SET processing_status = 'ready',
                indexed_at = NOW(),
                processing_error_code = NULL,
@@ -121,22 +125,26 @@ export class DocumentIngestionService {
              AND storage_status = 'stored'
              AND processing_status = 'processing'
            RETURNING indexed_at::text AS indexed_at`,
-          [
-            document.id,
-            quality.totalPageCount,
-            quality.usefulTextPageCount,
-            quality.lowTextPageCount,
-            chunks.length,
-            quality.skippedPageNumbers,
-            quality.needsOcr,
-            quality.ocrPageNumbers.length,
-            quality.ocrPageNumbers,
-            workspaceId,
-          ],
-        );
-        if (!ready.rows[0]) throw new ProcessingStateError();
-        return ready.rows[0].indexed_at;
-      });
+            [
+              document.id,
+              quality.totalPageCount,
+              quality.usefulTextPageCount,
+              quality.lowTextPageCount,
+              chunks.length,
+              quality.skippedPageNumbers,
+              quality.needsOcr,
+              quality.ocrPageNumbers.length,
+              quality.ocrPageNumbers,
+              workspaceId,
+            ],
+          );
+          if (!ready.rows[0]) throw new ProcessingStateError();
+          // No later failed-state write may run if COMMIT loses its ACK: ready
+          // may be committed, and another request may already have claimed it.
+          persistBodyCompleted = true;
+          return ready.rows[0].indexed_at;
+        },
+      );
 
       log("info", "document.processing_completed", {
         documentId,
@@ -168,10 +176,17 @@ export class DocumentIngestionService {
       };
     } catch (error: unknown) {
       const code = this.processingCode(error);
+      if (persistBodyCompleted || error instanceof ProcessingStateError) {
+        log("error", "document.processing_reconciliation_required", {
+          documentId,
+          errorCode: persistBodyCompleted ? "PERSIST_OUTCOME_UNKNOWN" : code,
+        });
+        throw this.publicError(error, code);
+      }
       try {
-        await this.database.transaction(async (tx) => {
+        await this.database.workspaceTransaction(principal, async (tx) => {
           await this.access.authorize(principal, "write", tx);
-          return tx.query(
+          const failed = await tx.query(
             `UPDATE documents
            SET processing_status = 'failed',
                indexed_at = NULL,
@@ -180,9 +195,11 @@ export class DocumentIngestionService {
            WHERE id = $1
              AND workspace_id = $3
              AND storage_status = 'stored'
-             AND processing_status = 'processing'`,
+             AND processing_status = 'processing'
+           RETURNING id`,
             [document.id, code, workspaceId],
           );
+          if (!failed.rows[0]) throw new ProcessingStateError();
         });
       } catch (stateError) {
         log("error", "document.processing_reconciliation_required", {
@@ -200,15 +217,23 @@ export class DocumentIngestionService {
     }
   }
 
+  private authorize(principal?: PilotPrincipal) {
+    return this.database.workspaceTransaction(principal, (tx) =>
+      this.access.authorize(principal, "write", tx),
+    );
+  }
+
   private async claim(
     documentId: string,
     workspaceId: string,
     principal?: PilotPrincipal,
   ) {
-    return this.database.transaction(async (tx) => {
-      await this.access.authorize(principal, "write", tx);
-      const claimed = await tx.query<IngestionDocument>(
-        `UPDATE documents
+    let claimBodyCompleted = false;
+    try {
+      return await this.database.workspaceTransaction(principal, async (tx) => {
+        await this.access.authorize(principal, "write", tx);
+        const claimed = await tx.query<IngestionDocument>(
+          `UPDATE documents
        SET processing_status = 'processing',
            indexed_at = NULL,
            processing_error_code = NULL,
@@ -218,26 +243,37 @@ export class DocumentIngestionService {
          AND storage_status = 'stored'
          AND processing_status IN ('pending', 'failed', 'ready')
        RETURNING id, name, storage_key, storage_status, processing_status`,
-        [documentId, workspaceId],
-      );
-      if (claimed.rows[0]) return claimed.rows[0];
+          [documentId, workspaceId],
+        );
+        if (claimed.rows[0]) {
+          claimBodyCompleted = true;
+          return claimed.rows[0];
+        }
 
-      const current = await tx.query<IngestionDocument>(
-        `SELECT id, name, storage_key, storage_status, processing_status
+        const current = await tx.query<IngestionDocument>(
+          `SELECT id, name, storage_key, storage_status, processing_status
        FROM documents WHERE id = $1 AND workspace_id = $2`,
-        [documentId, workspaceId],
-      );
-      if (!current.rows[0]) throw new NotFoundException("Document not found");
-      if (current.rows[0].processing_status === "processing")
+          [documentId, workspaceId],
+        );
+        if (!current.rows[0]) throw new NotFoundException("Document not found");
+        if (current.rows[0].processing_status === "processing")
+          throw new ConflictException({
+            code: "DOCUMENT_PROCESSING",
+            message: "Document processing is already in progress.",
+          });
         throw new ConflictException({
-          code: "DOCUMENT_PROCESSING",
-          message: "Document processing is already in progress.",
+          code: "DOCUMENT_NOT_PROCESSABLE",
+          message: "Document is not available for processing.",
         });
-      throw new ConflictException({
-        code: "DOCUMENT_NOT_PROCESSABLE",
-        message: "Document is not available for processing.",
       });
-    });
+    } catch (error) {
+      if (claimBodyCompleted)
+        log("error", "document.processing_reconciliation_required", {
+          documentId,
+          errorCode: "CLAIM_OUTCOME_UNKNOWN",
+        });
+      throw error;
+    }
   }
 
   private async insertBatch(
