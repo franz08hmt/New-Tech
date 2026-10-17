@@ -184,6 +184,12 @@ it.each([401, 403])("GET %s never enables a write retry", async (status) => {
     card().queryByRole("button", { name: `Check index status ${item.name}` }),
   ).toBeNull();
   expect(api.processDocument).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Refresh list" }));
+  });
+  expect(
+    card().getByRole("button", { name: `Index ${item.name}` }),
+  ).toBeDisabled();
 });
 
 it.each(["legacy", "deleting"] as const)(

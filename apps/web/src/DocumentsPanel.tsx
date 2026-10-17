@@ -82,8 +82,8 @@ export function DocumentsPanel() {
       const result = await api.listDocuments();
       if (current === revision.current && owner === currentIdentity.current) {
         setDocuments(result);
-        unconfirmed.current.clear();
-        setIndexReads({});
+        // A list read does not reverify a denied session/role. Only the
+        // targeted status read (or a new account view) clears uncertainty.
       }
     } catch (caught) {
       if (current === revision.current && owner === currentIdentity.current)
