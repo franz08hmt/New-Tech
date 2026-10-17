@@ -245,7 +245,11 @@ export function DocumentsPanel() {
       return next;
     });
   }
-  async function reconcileIndex(id: string, isCurrent: () => boolean) {
+  async function reconcileIndex(
+    id: string,
+    isCurrent: () => boolean,
+    requestError: string,
+  ) {
     if (!isCurrent() || !principal) return;
     try {
       const result = await api.getDocument(id);
@@ -258,6 +262,9 @@ export function DocumentsPanel() {
     } catch (cause) {
       if (!isCurrent()) return;
       if (cause instanceof ApiError && cause.status === 404) {
+        // The card (and its local error) disappears; keep the rejected POST
+        // visible without revealing anything about the inaccessible document.
+        setError(requestError);
         setDocuments((current) => current.filter((row) => row.id !== id));
         confirmIndex(id);
         return;
@@ -276,7 +283,11 @@ export function DocumentsPanel() {
       return;
     const isCurrent = operationToken(id);
     try {
-      await reconcileIndex(id, isCurrent);
+      await reconcileIndex(
+        id,
+        isCurrent,
+        indexErrors[id] ?? "Yêu cầu lập chỉ mục trước đó chưa được xác nhận.",
+      );
     } finally {
       if (isCurrent()) finish(id);
     }
@@ -319,13 +330,14 @@ export function DocumentsPanel() {
       const denied =
         cause instanceof ApiError && [401, 403].includes(cause.status);
       setIndexReads((current) => ({ ...current, [item.id]: { denied } }));
+      const requestError = `Yêu cầu lập chỉ mục trả lỗi: ${message(cause)} Trạng thái được đối chiếu riêng.`;
       setIndexErrors((current) => ({
         ...current,
-        [item.id]: `Yêu cầu lập chỉ mục trả lỗi: ${message(cause)} Trạng thái được đối chiếu riêng.`,
+        [item.id]: requestError,
       }));
       // One safe read only; no replay of an uncertain POST. Auth transport
       // already notifies the pilot gate on session/workspace denial.
-      if (!denied) await reconcileIndex(item.id, isCurrent);
+      if (!denied) await reconcileIndex(item.id, isCurrent, requestError);
     } finally {
       if (isCurrent()) finish(item.id);
     }

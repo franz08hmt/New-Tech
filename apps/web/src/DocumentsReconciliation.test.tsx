@@ -167,6 +167,9 @@ it("404 removes only the inaccessible row", async () => {
   await start();
   expect(screen.queryByText(item.name)).toBeNull();
   expect(screen.getByText(other.name)).toBeVisible();
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Request ACK unavailable",
+  );
 });
 it.each([401, 403])("GET %s never enables a write retry", async (status) => {
   getDocument.mockRejectedValue(
