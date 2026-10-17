@@ -151,6 +151,15 @@ thấy notes/chat/draft. Có bằng chứng browser và Supabase thật. **Lát 
 
 ### B2. Hoàn tất quyền và phạm vi dữ liệu — tiếp tục Chặng 2 pilot
 
+**Checkpoint Đợt 15 — lát 6b.3:** FE đối chiếu GET khi POST index chưa rõ outcome,
+không tự failed/replay. Retrieval/summary material/document metadata và các
+generation authorization boundary dùng workspace transaction ngắn; provider
+ngoài DB, kiểm lại scope/coverage sau embedding và mỗi scan. Golden synthetic,
+non-owner RLS/HTTP, mutation và browser local được tách tại
+[báo cáo Đợt 15](../docs/PHASE-15-RETRIEVAL-CONTEXT-REPORT.md).
+Policies/grants vẫn test-only; receipts/feedback/export context và runtime least
+privilege toàn app còn mở. B1 extended/máy Thắng/B3/B4 chưa được lát này nghiệm thu.
+
 **Checkpoint Đợt 14 — lát 6b.2b:** DocumentIngestionService đã chuyển claim,
 fresh authorization trước download/extraction/OCR/embedding, atomic persist và
 failed bookkeeping sang workspace transaction; external dependencies ngoài DB.
