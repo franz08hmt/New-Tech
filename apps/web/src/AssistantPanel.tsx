@@ -8,7 +8,7 @@ import {
   SparklesIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AssistantMarkdown } from "./AssistantMarkdown";
 import { AssistantFeedback } from "./AssistantFeedback";
 import { SpeechInput } from "./SpeechInput";
@@ -30,7 +30,7 @@ function documentMentionedIn(
 
 /** The accessible name shared by a source's button and its fallback link. */
 function sourceLabel(citation: AssistantCitation) {
-  return `Open source ${citation.title}${citation.locator ? `, ${citation.locator}` : ""}`;
+  return `Mở nguồn ${citation.title}${citation.locator ? `, ${citation.locator}` : ""}`;
 }
 
 /**
@@ -97,24 +97,19 @@ interface AssistantPanelProps {
   onClose: () => void;
 }
 
-const promptsByPage: Record<string, string[]> = {
-  dashboard: [
-    "What should I focus on today?",
-    "Summarize our current project progress.",
-  ],
-  tasks: [
-    "Which tasks still need evidence?",
-    "Help us choose the next project task.",
-  ],
-  documents: [
-    "What evidence is required for the final project?",
-    "Summarize an approved document.",
-  ],
-  courses: [
-    "Create a review plan for this course.",
-    "Which concepts should I revisit first?",
-  ],
-};
+const generalPrompts = [
+  "Giải thích một khái niệm khó bằng ví dụ đơn giản.",
+  "So sánh hai khái niệm và nêu cách áp dụng từng khái niệm.",
+];
+
+function documentPrompts(selectedDocument?: StoredDocument) {
+  return [
+    selectedDocument
+      ? "Tóm tắt các ý chính trong tài liệu đã chọn."
+      : "Tìm các ý chính liên quan trong tài liệu đã lập chỉ mục.",
+    "Giải thích nội dung trong tài liệu bằng ví dụ và dẫn nguồn.",
+  ];
+}
 
 /**
  * Questions workspace mode can answer, with a real course name when the
@@ -122,7 +117,6 @@ const promptsByPage: Record<string, string[]> = {
  */
 function workspacePrompts(course?: string) {
   return [
-    "Task nào chưa xong?",
     "Task nào đã quá hạn?",
     course
       ? `Kỳ thi sắp tới của môn ${course} là khi nào?`
@@ -130,15 +124,8 @@ function workspacePrompts(course?: string) {
     course
       ? `Việc cần ôn nào của môn ${course} đã quá hạn?`
       : "Việc cần ôn nào đã quá hạn?",
-    ...(course ? [`Tổng chi của môn ${course} là bao nhiêu?`] : []),
-    "Workspace có những môn học nào?",
   ];
 }
-
-const fallbackPrompts = [
-  "Summarize this workspace section.",
-  "What should I review next?",
-];
 
 /**
  * The ExaMate AI window.
@@ -179,6 +166,9 @@ export function AssistantPanel({
   } | null>(null);
   const [selectionError, setSelectionError] = useState("");
   const [documentId, setDocumentId] = useState("");
+  const [aiSourceMode, setAiSourceMode] = useState<"general" | "documents">(
+    assistant.mode === "general" ? "general" : "documents",
+  );
   const source = useSourcePreview(loadSource ?? noSource);
   const closeSourceView = source.close;
   const sourceHeading = useRef<HTMLHeadingElement>(null);
@@ -203,10 +193,6 @@ export function AssistantPanel({
   for (const message of assistant.messages)
     if (message.role === "assistant")
       answerNumbers.set(message.id, answerNumbers.size + 1);
-  const prompts =
-    assistant.mode === "workspace"
-      ? workspacePrompts(workspaceCourse)
-      : (promptsByPage[pageId] ?? fallbackPrompts);
   const preview = assistant.status === "unavailable";
   const availableDocuments = documents.filter(
     (item) =>
@@ -217,6 +203,23 @@ export function AssistantPanel({
   const selectedDocument = availableDocuments.find(
     (item) => item.id === documentId,
   );
+  const prompts =
+    assistant.mode === "workspace"
+      ? workspacePrompts(workspaceCourse)
+      : assistant.mode === "documents"
+        ? documentPrompts(selectedDocument)
+        : generalPrompts;
+
+  useLayoutEffect(() => {
+    const field = composer.current;
+    if (!field) return;
+
+    const maxHeight = 168;
+    field.style.height = "auto";
+    const contentHeight = Math.max(field.scrollHeight, 96);
+    field.style.height = `${Math.min(contentHeight, maxHeight)}px`;
+    field.style.overflowY = contentHeight > maxHeight ? "auto" : "hidden";
+  }, [assistant.draft, expanded, open, sourceScreen]);
 
   useEffect(() => {
     assistant.syncContext({
@@ -394,13 +397,13 @@ export function AssistantPanel({
         </span>
         <span>
           <strong>ExaMate AI</strong>
-          <small>{pageName} context</small>
+          <small>Ngữ cảnh: {pageName}</small>
         </span>
         {/* One button whose name says what it will do next. A pressed state
             on top of a changing name would announce the same thing twice. */}
         <button
           type="button"
-          aria-label={expanded ? "Collapse ExaMate AI" : "Expand ExaMate AI"}
+          aria-label={expanded ? "Thu nhỏ ExaMate AI" : "Mở rộng ExaMate AI"}
           title={expanded ? "Thu nhỏ khung chat" : "Mở rộng khung chat"}
           onClick={onToggleExpanded}
         >
@@ -412,7 +415,7 @@ export function AssistantPanel({
         </button>
         <button
           type="button"
-          aria-label="Close ExaMate AI"
+          aria-label="Đóng ExaMate AI"
           title="Đóng — bản nháp vẫn được giữ"
           onClick={onClose}
         >
@@ -424,7 +427,7 @@ export function AssistantPanel({
         {!preview && (
           <section
             className="assistant-conversation-tools"
-            aria-label="Conversation context"
+            aria-label="Ngữ cảnh hội thoại"
           >
             <button
               type="button"
@@ -433,7 +436,7 @@ export function AssistantPanel({
                 composer.current?.focus();
               }}
             >
-              New conversation
+              Cuộc trò chuyện mới
             </button>
             {assistant.contextNotice && (
               <p role="status">{assistant.contextNotice}</p>
@@ -445,8 +448,8 @@ export function AssistantPanel({
             className="assistant-intro"
             aria-labelledby="assistant-title"
           >
-            <span className="preview-badge">Interface preview</span>
-            <h2 id="assistant-title">Ask with your sources in view</h2>
+            <span className="preview-badge">Xem trước giao diện</span>
+            <h2 id="assistant-title">Hỏi đáp cùng nguồn tài liệu</h2>
             <p>
               Phần AI đang được Thắng kết nối. Bạn có thể chuẩn bị câu hỏi,
               nhưng chưa gửi để nhận trả lời được.
@@ -460,28 +463,26 @@ export function AssistantPanel({
               className="assistant-mode"
               disabled={assistant.status === "sending"}
             >
-              <legend>Chế độ trả lời</legend>
-              <label>
+              <legend>Chế độ</legend>
+              <label
+                className={
+                  assistant.mode !== "workspace" ? "is-selected" : undefined
+                }
+              >
                 <input
                   type="radio"
                   name="assistant-mode"
-                  value="general"
-                  checked={assistant.mode === "general"}
-                  onChange={() => assistant.setMode("general")}
+                  value="ai-chat"
+                  checked={assistant.mode !== "workspace"}
+                  onChange={() => assistant.setMode(aiSourceMode)}
                 />
-                Chat thông thường
+                AI Chat
               </label>
-              <label>
-                <input
-                  type="radio"
-                  name="assistant-mode"
-                  value="documents"
-                  checked={assistant.mode === "documents"}
-                  onChange={() => assistant.setMode("documents")}
-                />
-                Hỏi tài liệu
-              </label>
-              <label>
+              <label
+                className={
+                  assistant.mode === "workspace" ? "is-selected" : undefined
+                }
+              >
                 <input
                   type="radio"
                   name="assistant-mode"
@@ -492,17 +493,61 @@ export function AssistantPanel({
                 Hỏi workspace
               </label>
             </fieldset>
+            {assistant.mode !== "workspace" && (
+              <fieldset
+                className="assistant-mode assistant-source-mode"
+                aria-label="Phạm vi AI Chat"
+                disabled={assistant.status === "sending"}
+              >
+                <legend>Trả lời theo</legend>
+                <label
+                  className={
+                    assistant.mode === "general" ? "is-selected" : undefined
+                  }
+                >
+                  <input
+                    type="radio"
+                    name="assistant-source-mode"
+                    value="general"
+                    checked={assistant.mode === "general"}
+                    onChange={() => {
+                      setAiSourceMode("general");
+                      assistant.setMode("general");
+                    }}
+                  />
+                  Kiến thức chung
+                </label>
+                <label
+                  className={
+                    assistant.mode === "documents" ? "is-selected" : undefined
+                  }
+                >
+                  <input
+                    type="radio"
+                    name="assistant-source-mode"
+                    value="documents"
+                    checked={assistant.mode === "documents"}
+                    onChange={() => {
+                      setAiSourceMode("documents");
+                      assistant.setMode("documents");
+                    }}
+                  />
+                  Tài liệu
+                </label>
+              </fieldset>
+            )}
             <p className="assistant-capability">
               {assistant.mode === "documents"
-                ? "Nội dung trả lời dựa trên tài liệu đã lập chỉ mục; thông tin môn học lấy từ metadata của workspace và được ghi nguồn riêng."
+                ? "AI Chat tìm trong tài liệu đã lập chỉ mục và hiển thị nguồn đã kiểm chứng. Thông tin môn học lấy từ dữ liệu metadata riêng."
                 : assistant.mode === "workspace"
-                  ? "Trả lời từ dữ liệu đang lưu trong workspace demo dùng chung: task, kỳ thi, kế hoạch ôn, khoản chi, môn học và thông tin tài liệu. Tính trực tiếp từ database, không qua AI; không đọc nội dung PDF hay ghi chú nhanh, và không thay đổi dữ liệu."
-                  : "Trả lời bằng kiến thức chung; không đọc hoặc suy đoán dữ liệu riêng trong ứng dụng."}
+                  ? "Tra cứu dữ liệu đã lưu trong workspace như môn học, task, kỳ thi, kế hoạch ôn tập và khoản chi. Không đọc nội dung PDF hoặc ghi chú nhanh, và không thay đổi dữ liệu."
+                  : "AI Chat trả lời bằng kiến thức chung; nội dung sẽ xuất hiện dần khi AI tạo câu trả lời. Không đọc hoặc suy đoán dữ liệu riêng trong ứng dụng."}
             </p>
             {open && assistant.mode === "documents" && (
               <label className="assistant-document-picker">
                 Tài liệu
                 <select
+                  aria-label="Chọn tài liệu để tra cứu"
                   value={documentId}
                   disabled={documentsLoading || assistant.status === "sending"}
                   onChange={(event) => {
@@ -526,9 +571,9 @@ export function AssistantPanel({
                   : selectedDocument?.index_quality
                     ? `${selectedDocument.name} · ${selectedDocument.index_quality.indexed_chunk_count} đoạn đã lập chỉ mục; ${selectedDocument.index_quality.useful_text_page_count}/${selectedDocument.index_quality.total_page_count} trang có văn bản dùng được.`
                     : selectedDocument
-                      ? `${selectedDocument.name} · Đã lập chỉ mục theo phiên bản cũ; chưa có thống kê độ phủ. Có thể re-index trong Documents để kiểm tra lại.`
+                      ? `${selectedDocument.name} · Đã lập chỉ mục theo phiên bản cũ; chưa có thống kê độ phủ. Hãy lập chỉ mục lại trong mục Tài liệu để kiểm tra.`
                       : availableDocuments.length
-                        ? "Đang tìm trong tất cả tài liệu. Chọn một file để xem trạng thái và dùng thông tin môn học của file đó."
+                        ? "Đang tìm trong tất cả tài liệu. Chọn một file cụ thể để xem trạng thái, tóm tắt hoặc tra cứu môn học của tài liệu đó."
                         : "Chưa có tài liệu sẵn sàng để hỏi."}
               </p>
             )}
@@ -536,7 +581,7 @@ export function AssistantPanel({
         )}
 
         {assistant.messages.length > 0 && (
-          <ol className="assistant-messages" aria-label="Conversation">
+          <ol className="assistant-messages" aria-label="Cuộc hội thoại">
             {assistant.messages.map((message, index) => (
               <li
                 key={message.id}
@@ -546,12 +591,30 @@ export function AssistantPanel({
                     reply's Markdown is rebuilt from React elements alone; what
                     the student typed is shown exactly as typed. */}
                 {message.role === "assistant" ? (
-                  <AssistantMarkdown text={message.text} />
+                  message.text ? (
+                    <AssistantMarkdown text={message.text} />
+                  ) : null
                 ) : (
                   <p>{message.text}</p>
                 )}
+                {message.streaming && (
+                  <p role="status" className="assistant-streaming-status">
+                    {assistant.streamStage === "retrieving"
+                      ? "Đang tìm bằng chứng trong tài liệu…"
+                      : "Đang tạo câu trả lời…"}
+                  </p>
+                )}
+                {message.incomplete && (
+                  <p role="status" className="assistant-streaming-status">
+                    Câu trả lời chưa hoàn tất; lượt này không được dùng làm ngữ
+                    cảnh cho câu hỏi tiếp theo.
+                  </p>
+                )}
                 {message.citations.length > 0 && (
-                  <ul className="assistant-citations" aria-label="Sources">
+                  <ul
+                    className="assistant-citations"
+                    aria-label="Nguồn tham khảo"
+                  >
                     {message.citations.map((citation) => (
                       <li
                         key={
@@ -595,11 +658,11 @@ export function AssistantPanel({
                   message.workspaceSources.length > 0 && (
                     <ul
                       className="assistant-workspace-sources"
-                      aria-label="Workspace sources"
+                      aria-label="Nguồn workspace"
                     >
                       {message.workspaceSources.map((source) => {
                         const href = workspaceSourceHref(source);
-                        const text = `${workspaceKindLabel[source.kind] ?? "Record"}: ${source.label}`;
+                        const text = `${workspaceKindLabel[source.kind] ?? "Bản ghi"}: ${source.label}`;
                         return (
                           <li key={`${source.kind}-${source.id}`}>
                             <CircleStackIcon aria-hidden="true" />
@@ -653,13 +716,26 @@ export function AssistantPanel({
           </ol>
         )}
 
+        {assistant.status === "sending" &&
+          !assistant.messages.some((message) => message.streaming) && (
+            <p role="status" className="assistant-streaming-status">
+              {assistant.streamStage === "retrieving"
+                ? "Đang tìm bằng chứng trong tài liệu…"
+                : assistant.streamStage === "querying_workspace"
+                  ? "Đang tra cứu dữ liệu workspace…"
+                  : assistant.streamStage === "generating"
+                    ? "Đang tạo câu trả lời…"
+                    : "Đang kết nối và chuẩn bị câu trả lời…"}
+            </p>
+          )}
+
         {!source.selection && tabNotice}
 
         <section
           className="assistant-suggestions"
           aria-labelledby="suggestions-title"
         >
-          <h3 id="suggestions-title">Try asking</h3>
+          <h3 id="suggestions-title">Gợi ý câu hỏi</h3>
           <ul>
             {prompts.map((prompt) => (
               <li key={prompt}>
@@ -682,19 +758,19 @@ export function AssistantPanel({
             <header>
               <DocumentMagnifyingGlassIcon aria-hidden="true" />
               <span>
-                <small>Example grounded answer</small>
-                <h3 id="answer-preview-title">Evidence stays checkable</h3>
+                <small>Ví dụ câu trả lời có nguồn</small>
+                <h3 id="answer-preview-title">Nguồn luôn có thể kiểm chứng</h3>
               </span>
             </header>
             <p>
-              Homework 3A asks for navigation, essential screens, a validated
-              form, visible UI states and a responsive layout.
+              Bài tập 3A yêu cầu điều hướng, các màn hình chính, biểu mẫu có
+              kiểm tra dữ liệu, trạng thái giao diện rõ ràng và bố cục đáp ứng.
             </p>
             <footer>
               <BookOpenIcon aria-hidden="true" />
               <span>
-                <strong>Week 3 course guide · p. 5</strong>
-                <small>Example citation · not retrieved live</small>
+                <strong>Tài liệu hướng dẫn tuần 3 · tr. 5</strong>
+                <small>Nguồn minh họa · chưa được truy xuất thực tế</small>
               </span>
             </footer>
           </section>
@@ -718,9 +794,8 @@ export function AssistantPanel({
             return;
           }
           setSelectionError("");
-          // The picker keeps its choice across a switch to ordinary chat, so it
-          // is there on the way back — but only documents mode sends it. The
-          // backend refuses a document in general mode.
+          // Keep the picker choice across a switch to general knowledge, but
+          // send the document only when the AI Chat scope is set to documents.
           const resolvedDocumentId =
             assistant.mode === "documents"
               ? mentionedDocument?.id || documentId
@@ -741,16 +816,17 @@ export function AssistantPanel({
           );
         }}
       >
-        <label htmlFor="assistant-question">Question for ExaMate</label>
+        <label htmlFor="assistant-question">Câu hỏi cho ExaMate</label>
         <textarea
           id="assistant-question"
           ref={composer}
+          rows={3}
           value={assistant.draft}
           onChange={(event) => {
             assistant.setDraft(event.target.value);
             setSelectionError("");
           }}
-          placeholder="Ask about your course or project sources…"
+          placeholder="Nhập câu hỏi của bạn…"
         />
         <SpeechInput
           active={open && !sourceScreen && assistant.status !== "sending"}
@@ -775,16 +851,30 @@ export function AssistantPanel({
           </p>
         ) : (
           <p role="status" className="assistant-status">
-            {assistant.status === "sending" ? "Đang gửi câu hỏi…" : ""}
+            {assistant.status === "sending" ? "Đang xử lý câu hỏi…" : ""}
           </p>
         )}
-        <button type="submit" disabled={!assistant.canSend}>
+        <button
+          className={`assistant-send${assistant.mode === "documents" && selectedDocument ? " has-document-actions" : ""}`}
+          type="submit"
+          disabled={!assistant.canSend}
+        >
           <PaperAirplaneIcon aria-hidden="true" />
-          Send question
+          Gửi câu hỏi
         </button>
-        {assistant.mode === "documents" && (
+        {assistant.status === "sending" && (
+          <button
+            className="assistant-secondary-action"
+            type="button"
+            onClick={assistant.cancel}
+          >
+            Dừng trả lời
+          </button>
+        )}
+        {assistant.mode === "documents" && selectedDocument && (
           <>
             <button
+              className="assistant-secondary-action"
               type="button"
               disabled={
                 !documentId ||
@@ -809,6 +899,7 @@ export function AssistantPanel({
               Tóm tắt tài liệu
             </button>
             <button
+              className="assistant-secondary-action"
               type="button"
               disabled={
                 !documentId ||

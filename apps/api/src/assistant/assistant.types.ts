@@ -28,7 +28,17 @@ export interface AssistantProvider {
   readonly model: string;
   status(): AssistantStatus;
   generate(input: AssistantGeneration): Promise<string>;
+  /** Provider-native streaming; absent providers must fail rather than fake chunks. */
+  generateStream?(
+    input: AssistantGeneration,
+    signal?: AbortSignal,
+  ): AsyncIterable<string>;
 }
+
+export type AssistantStreamResult =
+  | { type: "status"; stage: "retrieving" | "generating" }
+  | { type: "delta"; text: string }
+  | { type: "result"; answer: AssistantAnswer };
 
 export type AssistantFailure =
   | "not_configured"

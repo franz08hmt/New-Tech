@@ -100,6 +100,143 @@ export class GeminiService implements AssistantProvider {
     }
   }
 
+  async *generateStream(
+    input: AssistantGeneration,
+    signal?: AbortSignal,
+  ): AsyncGenerator<string> {
+    const startedAt = Date.now();
+    const controller = new AbortController();
+    let timedOut = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const forwardAbort = () => controller.abort();
+    signal?.addEventListener("abort", forwardAbort, { once: true });
+    const interrupted = new Promise<never>((_resolve, reject) => {
+      controller.signal.addEventListener(
+        "abort",
+        () =>
+          reject(
+            timedOut
+              ? new AssistantError("timeout")
+              : new DOMException("Request cancelled", "AbortError"),
+          ),
+        { once: true },
+      );
+    });
+
+    try {
+      if (!this.config.apiKey) throw new AssistantError("not_configured");
+      if (signal?.aborted)
+        throw new DOMException("Request cancelled", "AbortError");
+      this.client ??= new GoogleGenAI({
+        apiKey: this.config.apiKey,
+        vertexai: false,
+        httpOptions: { retryOptions: { attempts: 1 } },
+      });
+      timer = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, this.config.timeoutMs);
+
+      const stream = await Promise.race([
+        this.client.models.generateContentStream({
+          model: this.model,
+          contents: [
+            ...(input.conversation ?? []).map(({ role, text }) => ({
+              role,
+              parts: [{ text }],
+            })),
+            { role: "user", parts: input.userParts.map((text) => ({ text })) },
+          ],
+          config: {
+            systemInstruction: input.systemInstruction,
+            maxOutputTokens: this.config.maxOutputTokens,
+            candidateCount: 1,
+            responseModalities: ["TEXT"],
+            ...(input.responseMimeType
+              ? { responseMimeType: input.responseMimeType }
+              : {}),
+            ...(input.responseJsonSchema
+              ? { responseJsonSchema: input.responseJsonSchema }
+              : {}),
+            abortSignal: controller.signal,
+            httpOptions: { retryOptions: { attempts: 1 } },
+          },
+        }),
+        interrupted,
+      ]);
+      const iterator = stream[Symbol.asyncIterator]();
+      let complete = false;
+      let answer = "";
+      let pending = "";
+      try {
+        while (true) {
+          const next = await Promise.race([iterator.next(), interrupted]);
+          if (next.done) {
+            complete = true;
+            break;
+          }
+          const delta = next.value.text ?? "";
+          if (!delta) continue;
+          answer += delta;
+          pending += delta;
+          if (answer.includes(this.config.apiKey))
+            throw new AssistantError("upstream");
+          // Keep only a suffix that could still become the start of the API
+          // key. This prevents a credential split across provider chunks from
+          // leaking while allowing ordinary first tokens to reach the UI
+          // immediately instead of buffering almost the whole key length.
+          let possibleKeyPrefixLength = 0;
+          for (
+            let length = Math.min(
+              pending.length,
+              this.config.apiKey.length - 1,
+            );
+            length > 0;
+            length--
+          ) {
+            if (this.config.apiKey.startsWith(pending.slice(-length))) {
+              possibleKeyPrefixLength = length;
+              break;
+            }
+          }
+          const safeLength = pending.length - possibleKeyPrefixLength;
+          if (safeLength > 0) {
+            yield pending.slice(0, safeLength);
+            pending = pending.slice(safeLength);
+          }
+        }
+      } finally {
+        if (!complete) void iterator.return?.(undefined as never);
+      }
+      if (signal?.aborted)
+        throw new DOMException("Request cancelled", "AbortError");
+      if (!answer.trim() || answer.includes(this.config.apiKey))
+        throw new AssistantError("upstream");
+      if (pending) yield pending;
+      log("info", "assistant.request.completed", {
+        model: this.model,
+        durationMs: Date.now() - startedAt,
+        outcome: "success",
+        streaming: true,
+      });
+    } catch (error: unknown) {
+      if (signal?.aborted)
+        throw new DOMException("Request cancelled", "AbortError");
+      const failure = this.normalizeError(error, timedOut);
+      log("error", "assistant.request.failed", {
+        model: this.model,
+        durationMs: Date.now() - startedAt,
+        outcome: "failure",
+        errorType: failure.kind,
+        streaming: true,
+      });
+      throw failure;
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", forwardAbort);
+    }
+  }
+
   private normalizeError(error: unknown, timedOut: boolean): AssistantError {
     if (timedOut) return new AssistantError("timeout");
     if (error instanceof AssistantError) return error;

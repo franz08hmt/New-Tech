@@ -428,6 +428,22 @@ export type AssistantChatResponse =
       metadataSource?: never;
     });
 
+/** Server-sent events returned by `POST /api/assistant/chat/stream`. */
+export type AssistantStreamStage =
+  "retrieving" | "generating" | "querying_workspace";
+
+export type AssistantStreamEvent =
+  | { type: "start" }
+  | { type: "status"; stage: AssistantStreamStage }
+  | { type: "delta"; text: string }
+  | {
+      type: "done";
+      response: AssistantChatResponse;
+      /** Present only when the server persisted an answer receipt. */
+      answerId?: string;
+    }
+  | { type: "error"; code: string; message: string };
+
 /** Response of `GET /api/assistant/status`. */
 export type AssistantStatus = {
   provider: "google";

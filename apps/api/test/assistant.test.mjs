@@ -48,6 +48,10 @@ beforeEach(() => {
         citationIds: ["S1"],
       }),
     ),
+    generateStream: mock.fn(async function* () {
+      yield "An answer arriving in real time ";
+      yield "from the provider stream.";
+    }),
   };
   retrieval = {
     retrieve: mock.fn(async () => ({
@@ -292,6 +296,79 @@ test("HTTP general chat bypasses document retrieval and returns no citations", a
   });
   assert.equal(provider.generate.mock.callCount(), 1);
   assert.equal(retrieval.retrieve.mock.callCount(), 0);
+});
+
+test("HTTP general chat streams SSE deltas and ends with its receipted response", async () => {
+  await start();
+  const response = await server.request(
+    "/assistant/chat/stream",
+    json("POST", { message: "Explain streaming", mode: "general" }),
+  );
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type"), /^text\/event-stream/);
+  assert.equal(response.headers.get("x-accel-buffering"), "no");
+  const events = (await response.text())
+    .trim()
+    .split(/\r?\n\r?\n/)
+    .map((frame) => JSON.parse(frame.replace(/^data: /, "")));
+  assert.deepEqual(
+    events.map((event) => event.type),
+    ["start", "status", "delta", "delta", "done"],
+  );
+  assert.deepEqual(events[1], { type: "status", stage: "generating" });
+  assert.equal(events[2].text, "An answer arriving in real time ");
+  assert.equal(
+    events[4].response.answer,
+    "An answer arriving in real time from the provider stream.",
+  );
+  assert.equal(events[4].response.mode, "general");
+  assert.match(events[4].answerId, /^[0-9a-f-]{36}$/i);
+  assert.equal(provider.generateStream.mock.callCount(), 1);
+  assert.equal(provider.generate.mock.callCount(), 0);
+  assert.equal(retrieval.retrieve.mock.callCount(), 0);
+  assert.ok(
+    logs.some((line) => JSON.parse(line).path === "/api/assistant/chat/stream"),
+  );
+});
+
+test("HTTP document RAG streams answer text and returns only verified citations on done", async () => {
+  provider.generateStream = mock.fn(async function* () {
+    yield '{"answerable":true,"answer":"The report is due ';
+    yield "Friday [S1].";
+    yield '","citationIds":["S1"]}';
+  });
+  await start();
+  const response = await server.request(
+    "/assistant/chat/stream",
+    json("POST", {
+      message: "When is the report due?",
+      mode: "documents",
+    }),
+  );
+  assert.equal(response.status, 200);
+  const events = (await response.text())
+    .trim()
+    .split(/\r?\n\r?\n/)
+    .map((frame) => JSON.parse(frame.replace(/^data: /, "")));
+  assert.deepEqual(
+    events.map((event) => event.type),
+    ["start", "status", "status", "delta", "delta", "done"],
+  );
+  assert.deepEqual(events.slice(1, 3), [
+    { type: "status", stage: "retrieving" },
+    { type: "status", stage: "generating" },
+  ]);
+  assert.equal(
+    events
+      .filter((event) => event.type === "delta")
+      .map((event) => event.text)
+      .join(""),
+    "The report is due Friday .",
+  );
+  assert.equal(events.at(-1).response.answer, "The report is due Friday [S1].");
+  assert.deepEqual(events.at(-1).response.citations, [citation]);
+  assert.equal(retrieval.retrieve.mock.callCount(), 1);
+  assert.equal(provider.generate.mock.callCount(), 0);
 });
 
 for (const [name, body] of Object.entries({

@@ -9,7 +9,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { AssistantPanel } from "./AssistantPanel";
 import { useAssistant, type AskTransport } from "./use-assistant";
 
-const oldSourceLabel = "Open source Tài liệu cũ.pdf, tr. 1";
+const oldSourceLabel = "Mở nguồn Tài liệu cũ.pdf, tr. 1";
 const oldSourceUrl = "https://source.invalid/old-document?fixture=signed";
 const transport: AskTransport = async () => ({
   text: "Câu trả lời của hội thoại cũ",
@@ -45,10 +45,10 @@ function Harness({
 }
 
 async function openPreviousSource() {
-  fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+  fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
     target: { value: "Giải thích nội dung tài liệu" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Send question" }));
+  fireEvent.click(screen.getByRole("button", { name: "Gửi câu hỏi" }));
   fireEvent.click(await screen.findByRole("button", { name: oldSourceLabel }));
 }
 
@@ -64,7 +64,7 @@ it("new conversation removes the previous source's blocked-popup fallback link",
     await screen.findByRole("link", { name: oldSourceLabel }),
   ).toHaveAttribute("href", oldSourceUrl);
 
-  fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
+  fireEvent.click(screen.getByRole("button", { name: "Cuộc trò chuyện mới" }));
 
   expect(
     screen.queryByText("Câu trả lời của hội thoại cũ"),
@@ -72,7 +72,7 @@ it("new conversation removes the previous source's blocked-popup fallback link",
   expect(
     screen.queryByRole("link", { name: oldSourceLabel }),
   ).not.toBeInTheDocument();
-  expect(screen.getByLabelText("Question for ExaMate")).toHaveFocus();
+  expect(screen.getByLabelText("Câu hỏi cho ExaMate")).toHaveFocus();
 });
 
 it("a blocked-popup result arriving after new conversation cannot restore the old source link", async () => {
@@ -82,7 +82,7 @@ it("a blocked-popup result arriving after new conversation cannot restore the ol
   });
   render(<Harness openCitation={() => pending} />);
   await openPreviousSource();
-  fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
+  fireEvent.click(screen.getByRole("button", { name: "Cuộc trò chuyện mới" }));
 
   await act(async () => {
     resolve(oldSourceUrl);
@@ -95,5 +95,5 @@ it("a blocked-popup result arriving after new conversation cannot restore the ol
   expect(
     screen.queryByRole("link", { name: oldSourceLabel }),
   ).not.toBeInTheDocument();
-  expect(screen.getByLabelText("Question for ExaMate")).toHaveFocus();
+  expect(screen.getByLabelText("Câu hỏi cho ExaMate")).toHaveFocus();
 });

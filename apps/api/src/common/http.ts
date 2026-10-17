@@ -40,7 +40,7 @@ function safeRequestPath(url: string) {
     return path.toLowerCase();
   if (/^\/api\/courses(\/[a-z0-9-]+)?$/.test(path))
     return path === "/api/courses" ? path : "/api/courses/:slug";
-  return /^\/api\/(health|tasks|documents|assistant\/(status|chat|feedback))(\/[0-9a-f-]{36}(\/status|\/download|\/course|\/process)?)?$/i.test(
+  return /^\/api\/(health|tasks|documents|assistant\/(status|chat(?:\/stream)?|feedback))(\/[0-9a-f-]{36}(\/status|\/download|\/course|\/process)?)?$/i.test(
     path,
   )
     ? path.replace(/[0-9a-f-]{36}/gi, ":id")

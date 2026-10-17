@@ -230,8 +230,8 @@ function AssistantSection({
         Show ExaMate AI panel
       </button>
       <p className="page-note">
-        Chat thông thường và Hỏi tài liệu là hai chế độ riêng; câu trả lời dựa
-        trên tài liệu chỉ dùng nguồn đã lập chỉ mục.
+        Trong AI Chat, chọn kiến thức chung hoặc tài liệu đã lập chỉ mục. Hỏi
+        workspace tra cứu riêng dữ liệu đã lưu và không thay đổi dữ liệu đó.
       </p>
     </Panel>
   );

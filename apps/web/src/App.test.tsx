@@ -12,6 +12,41 @@ import { WorkspaceApp } from "./App";
 import { configurePilotClient } from "./pilot-client";
 import { NotesStorageContext } from "./NotesStorageContext";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
+function assistantSseResponse(
+  response: Record<string, any>,
+  delta = typeof response.answer === "string" ? response.answer : "",
+) {
+  const stages =
+    response.mode === "documents"
+      ? [
+          { type: "status", stage: "retrieving" },
+          { type: "status", stage: "generating" },
+        ]
+      : [
+          {
+            type: "status",
+            stage:
+              response.mode === "workspace"
+                ? "querying_workspace"
+                : "generating",
+          },
+        ];
+  return new Response(
+    [
+      { type: "start" },
+      ...stages,
+      ...(delta ? [{ type: "delta", text: delta }] : []),
+      {
+        type: "done",
+        response,
+        answerId: "77777777-7777-4777-8777-777777777777",
+      },
+    ]
+      .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+      .join(""),
+    { status: 200, headers: { "Content-Type": "text/event-stream" } },
+  );
+}
 function App() {
   return (
     <NotesStorageContext.Provider value="examate-notes:test-user:test-workspace">
@@ -320,6 +355,43 @@ beforeEach(() => {
           { status: 200 },
         );
       }
+      if (url === "/api/assistant/chat/stream" && init?.method === "POST") {
+        const mode = JSON.parse(String(init.body)).mode;
+        const answer =
+          mode === "documents"
+            ? "Chia bài thuyết trình thành mục tiêu, demo và phần hỏi đáp."
+            : mode === "workspace"
+              ? "Có 1 task chưa xong trong danh sách chung."
+              : "Chat general response.";
+        const response = {
+          answer,
+          answerable: true,
+          reasonCode:
+            mode === "workspace" ? "WORKSPACE_ANSWER" : "ANSWER_GENERATED",
+          citations: [],
+          provider: mode === "workspace" ? "workspace" : "google",
+          model: mode === "workspace" ? "database" : "gemini-2.5-flash",
+          mode,
+          ragEnabled: mode === "documents",
+          promptVersion:
+            mode === "workspace"
+              ? "workspace-v1"
+              : mode === "documents"
+                ? "rag-v1"
+                : "general-v1",
+          ...(mode === "workspace"
+            ? {
+                workspaceIntent: "tasks_open",
+                workspaceSources: [],
+                asOf: "2026-09-29",
+              }
+            : {}),
+        };
+        return assistantSseResponse(
+          response,
+          mode === "workspace" ? "" : answer,
+        );
+      }
       if (url === "/api/documents" && init?.method !== "POST") {
         return new Response(JSON.stringify(documentFixtures), { status: 200 });
       }
@@ -564,10 +636,10 @@ describe("Academic workspace", () => {
         name: "Student academic dashboard",
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Dashboard context")).toBeVisible();
+    expect(screen.getByText("Ngữ cảnh: Dashboard")).toBeVisible();
     // A chat opens to its composer: that is what the launcher is for.
     await waitFor(() =>
-      expect(screen.getByLabelText("Question for ExaMate")).toHaveFocus(),
+      expect(screen.getByLabelText("Câu hỏi cho ExaMate")).toHaveFocus(),
     );
 
     fireEvent.keyDown(window, { key: "Escape" });
@@ -577,31 +649,39 @@ describe("Academic workspace", () => {
     ).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
-  it("shows separate general and document-grounded assistant modes", () => {
+  it("shows AI Chat and workspace as the two top-level modes with nested AI scope", () => {
     window.history.replaceState(null, "", "/#documents");
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
     fireEvent.click(
       screen.getByRole("button", {
-        name: "What evidence is required for the final project?",
+        name: "Tìm các ý chính liên quan trong tài liệu đã lập chỉ mục.",
       }),
     );
 
-    expect(screen.getByText("Documents context")).toBeVisible();
-    expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
-      "What evidence is required for the final project?",
+    expect(screen.getByText("Ngữ cảnh: Documents")).toBeVisible();
+    expect(screen.getByRole("radio", { name: "AI Chat" })).toBeChecked();
+    expect(
+      screen.getByRole("radio", { name: "Hỏi workspace" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Tài liệu" })).toBeChecked();
+    expect(
+      screen.getByRole("radio", { name: "Kiến thức chung" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Câu hỏi cho ExaMate")).toHaveValue(
+      "Tìm các ý chính liên quan trong tài liệu đã lập chỉ mục.",
     );
     expect(
       screen.getByText(
-        /Nội dung trả lời dựa trên tài liệu đã lập chỉ mục.*metadata của workspace/,
+        /AI Chat tìm trong tài liệu đã lập chỉ mục.*metadata riêng/,
       ),
     ).toBeVisible();
-    expect(screen.queryByText("Interface preview")).not.toBeInTheDocument();
+    expect(screen.queryByText("Xem trước giao diện")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Week 3 course guide · p. 5"),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Send question" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Gửi câu hỏi" })).toBeEnabled();
     expect(
       vi
         .mocked(fetch)
@@ -1003,12 +1083,10 @@ describe("Academic workspace", () => {
     ).toBeInTheDocument();
     // One draft, one place to type it. The page used to have its own disabled
     // textarea, which was a second draft that could never be sent either.
-    expect(screen.getAllByRole("textbox", { name: /question/i })).toHaveLength(
+    expect(screen.getAllByRole("textbox", { name: /câu hỏi/i })).toHaveLength(
       1,
     );
-    expect(
-      screen.getByRole("button", { name: /Send question/ }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Gửi câu hỏi/ })).toBeDisabled();
   });
   it("keeps a past exam out of the upcoming list", async () => {
     window.history.replaceState(null, "", "/#exams");
@@ -2032,20 +2110,20 @@ describe("Academic workspace", () => {
     const launcher = screen.getByRole("button", { name: "Open ExaMate AI" });
 
     fireEvent.click(launcher);
-    fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+    fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
       target: { value: "C\u00e2u h\u1ecfi \u0111ang g\u00f5 d\u1edf" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Close ExaMate AI" }));
+    fireEvent.click(screen.getByRole("button", { name: "Đóng ExaMate AI" }));
     fireEvent.click(launcher);
 
-    expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+    expect(screen.getByLabelText("Câu hỏi cho ExaMate")).toHaveValue(
       "C\u00e2u h\u1ecfi \u0111ang g\u00f5 d\u1edf",
     );
   });
   it("keeps the draft when the page changes underneath it", async () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
-    fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+    fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
       target: { value: "Gi\u1eef qua chuy\u1ec3n trang" },
     });
 
@@ -2055,7 +2133,7 @@ describe("Academic workspace", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: /Small steps/ }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+    expect(screen.getByLabelText("Câu hỏi cho ExaMate")).toHaveValue(
       "Gi\u1eef qua chuy\u1ec3n trang",
     );
   });
@@ -2071,15 +2149,13 @@ describe("Academic workspace", () => {
   it("sends the question in document-grounded mode and renders the answer", async () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
-    fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+    fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
       target: { value: "Tôi nên chuẩn bị phần nào cho bài thuyết trình?" },
     });
 
-    const send = screen.getByRole("button", { name: /Send question/ });
+    const send = screen.getByRole("button", { name: /Gửi câu hỏi/ });
     expect(send).toBeEnabled();
-    expect(
-      screen.getByRole("group", { name: "Chế độ trả lời" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Chế độ" })).toBeInTheDocument();
     fireEvent.click(send);
 
     expect(
@@ -2088,7 +2164,7 @@ describe("Academic workspace", () => {
       ),
     ).toBeInTheDocument();
     expect(fetch).toHaveBeenCalledWith(
-      "/api/assistant/chat",
+      "/api/assistant/chat/stream",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
@@ -2100,7 +2176,145 @@ describe("Academic workspace", () => {
         }),
       }),
     );
-    expect(screen.queryByText("Example grounded answer")).toBeNull();
+    expect(screen.queryByText("Ví dụ câu trả lời có nguồn")).toBeNull();
+  });
+  it("uses the live SSE endpoint and replaces the partial text with the final answer", async () => {
+    const encoder = new TextEncoder();
+    let finishStream: () => void = () => {};
+    const doneResponse = {
+      answer: "Đây là câu trả lời cuối cùng.",
+      answerable: true,
+      reasonCode: "ANSWER_GENERATED",
+      citations: [],
+      provider: "google",
+      model: "gemini-2.5-flash",
+      mode: "general",
+      ragEnabled: false,
+      promptVersion: "general-v1",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/assistant/chat/stream" && init?.method === "POST")
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(
+                  encoder.encode(
+                    `data: ${JSON.stringify({ type: "start" })}\n\n` +
+                      `data: ${JSON.stringify({ type: "delta", text: "Đây là câu trả lời đang được tạo" })}\n\n`,
+                  ),
+                );
+                finishStream = () => {
+                  controller.enqueue(
+                    encoder.encode(
+                      `data: ${JSON.stringify({ type: "done", response: doneResponse, answerId: "77777777-7777-4777-8777-777777777777" })}\n\n`,
+                    ),
+                  );
+                  controller.close();
+                };
+              },
+            }),
+            { status: 200, headers: { "Content-Type": "text/event-stream" } },
+          );
+        return Response.json(url === "/api/documents" ? documentFixtures : []);
+      }),
+    );
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Kiến thức chung" }));
+    fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
+      target: { value: "Giải thích câu này" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Gửi câu hỏi/ }));
+
+    expect(
+      await screen.findByText("Đây là câu trả lời đang được tạo"),
+    ).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/assistant/chat/stream",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ Accept: "text/event-stream" }),
+        body: expect.stringContaining('"mode":"general"'),
+      }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Dừng trả lời" }),
+    ).toBeInTheDocument();
+
+    await act(async () => finishStream());
+    expect(
+      await screen.findByText("Đây là câu trả lời cuối cùng."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Đây là câu trả lời đang được tạo")).toBeNull();
+  });
+  it("streams AI Chat document questions after retrieval and applies verified citations on completion", async () => {
+    const citedResponse = {
+      answer: "Chương 2 nói về độ phức tạp thuật toán [S1].",
+      answerable: true,
+      reasonCode: "ANSWER_GENERATED",
+      citations: [
+        {
+          sourceId: "S1",
+          documentId: "doc-2",
+          chunkId: "chunk-1",
+          title: "ghi-chu-chung.pdf",
+          page: 3,
+          chunkIndex: 0,
+        },
+      ],
+      provider: "google",
+      model: "gemini-2.5-flash",
+      mode: "documents",
+      ragEnabled: true,
+      promptVersion: "rag-v1",
+    };
+    const events = [
+      { type: "start" },
+      { type: "status", stage: "retrieving" },
+      { type: "status", stage: "generating" },
+      { type: "delta", text: "Chương 2 nói về độ phức tạp thuật toán ." },
+      { type: "done", response: citedResponse },
+    ];
+    const existingFetch = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) =>
+        url === "/api/assistant/chat/stream" && init?.method === "POST"
+          ? new Response(
+              events
+                .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+                .join(""),
+              { status: 200, headers: { "Content-Type": "text/event-stream" } },
+            )
+          : existingFetch(url, init),
+      ),
+    );
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
+      target: { value: "Chương 2 nói gì?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Gửi câu hỏi/ }));
+
+    expect(
+      await screen.findByText("Chương 2 nói về độ phức tạp thuật toán [S1]."),
+    ).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/assistant/chat/stream",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"mode":"documents"'),
+      }),
+    );
+    expect(
+      screen.getByRole("button", {
+        name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
+      }),
+    ).toBeInTheDocument();
   });
   it("routes a named document's course question to verified workspace metadata", async () => {
     const existingFetch = globalThis.fetch;
@@ -2139,10 +2353,10 @@ describe("Academic workspace", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
     await screen.findByRole("option", { name: "de-cuong-thuat-toan.pdf" });
-    fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+    fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
       target: { value: "de-cuong-thuat-toan.pdf thuộc khóa học nào" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Gửi câu hỏi/ }));
 
     await waitFor(() =>
       expect(fetch).toHaveBeenCalledWith(
@@ -2180,10 +2394,10 @@ describe("Academic workspace", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
     await screen.findByRole("option", { name: "de-cuong-thuat-toan.pdf" });
-    fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+    fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
       target: { value: "de-cuong-thuat-toan.pdf có nội dung về gì" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Gửi câu hỏi/ }));
 
     await waitFor(() => {
       const chatCall = vi
@@ -2194,7 +2408,9 @@ describe("Academic workspace", () => {
         operation: "summarize",
       });
     });
-    expect(screen.getByLabelText("Tài liệu")).toHaveValue("doc-1");
+    expect(screen.getByLabelText("Chọn tài liệu để tra cứu")).toHaveValue(
+      "doc-1",
+    );
     expect(
       screen.getByText(
         /Đã lập chỉ mục theo phiên bản cũ; chưa có thống kê độ phủ/,
@@ -2216,10 +2432,10 @@ describe("Academic workspace", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
     await screen.findByRole("option", { name: "de-cuong-thuat-toan.pdf" });
-    fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+    fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
       target: { value: "tai-lieu-chua-co.pdf có nội dung về gì" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Gửi câu hỏi/ }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       /Không tìm thấy đúng tài liệu PDF này/,
@@ -2282,7 +2498,7 @@ describe("Academic workspace", () => {
     }));
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
-    const composer = screen.getByLabelText("Question for ExaMate");
+    const composer = screen.getByLabelText("Câu hỏi cho ExaMate");
     await waitFor(() => expect(composer).toHaveFocus());
 
     window.history.replaceState(null, "", "/#tasks");
@@ -2333,8 +2549,11 @@ describe("Academic workspace", () => {
       vi.stubGlobal(
         "fetch",
         vi.fn(async (url: string, init?: RequestInit) =>
-          url === "/api/assistant/chat" && init?.method === "POST"
-            ? Response.json(citedAnswer)
+          url === "/api/assistant/chat/stream" && init?.method === "POST"
+            ? assistantSseResponse(
+                citedAnswer,
+                citedAnswer.answer.replace(/\[S[^\]]*\]/g, ""),
+              )
             : existingFetch(url, init),
         ),
       );
@@ -2352,8 +2571,11 @@ describe("Academic workspace", () => {
       vi.stubGlobal(
         "fetch",
         vi.fn(async (url: string, init?: RequestInit) =>
-          url === "/api/assistant/chat" && init?.method === "POST"
-            ? Response.json({ ...citedAnswer, citations })
+          url === "/api/assistant/chat/stream" && init?.method === "POST"
+            ? assistantSseResponse(
+                { ...citedAnswer, citations },
+                citedAnswer.answer.replace(/\[S[^\]]*\]/g, ""),
+              )
             : existingFetch(url, init),
         ),
       );
@@ -2361,22 +2583,26 @@ describe("Academic workspace", () => {
     const chatBodies = () =>
       vi
         .mocked(fetch)
-        .mock.calls.filter(([url]) => url === "/api/assistant/chat")
+        .mock.calls.filter(([url]) =>
+          ["/api/assistant/chat", "/api/assistant/chat/stream"].includes(
+            String(url),
+          ),
+        )
         .map(([, init]) => JSON.parse(String(init?.body)));
     async function openWithDocument() {
       fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
       await screen.findByRole("option", { name: "ghi-chu-chung.pdf" });
-      fireEvent.change(screen.getByLabelText("Tài liệu"), {
+      fireEvent.change(screen.getByLabelText("Chọn tài liệu để tra cứu"), {
         target: { value: "doc-2" },
       });
     }
     async function ask(question: string) {
-      fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+      fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
         target: { value: question },
       });
-      fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Gửi câu hỏi/ }));
       await waitFor(() =>
-        expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(""),
+        expect(screen.getByLabelText("Câu hỏi cho ExaMate")).toHaveValue(""),
       );
     }
 
@@ -2422,8 +2648,8 @@ describe("Academic workspace", () => {
       vi.stubGlobal(
         "fetch",
         vi.fn(async (url: string, init?: RequestInit) =>
-          url === "/api/assistant/chat" && init?.method === "POST"
-            ? Response.json(response)
+          url === "/api/assistant/chat/stream" && init?.method === "POST"
+            ? assistantSseResponse(response as Record<string, any>)
             : existingFetch(url, init),
         ),
       );
@@ -2435,8 +2661,8 @@ describe("Academic workspace", () => {
       await openWithDocument();
       fireEvent.click(screen.getByRole("radio", { name: "Hỏi workspace" }));
       // Documents-only controls step aside; the mode says what it reads.
-      expect(screen.queryByLabelText("Tài liệu")).toBeNull();
-      expect(screen.getByText(/không đọc nội dung PDF/)).toBeInTheDocument();
+      expect(screen.queryByLabelText("Chọn tài liệu để tra cứu")).toBeNull();
+      expect(screen.getByText(/không đọc nội dung PDF/i)).toBeInTheDocument();
 
       await ask("Task nào chưa xong?");
 
@@ -2451,7 +2677,7 @@ describe("Academic workspace", () => {
         await screen.findByText(/Có 1 task chưa xong trong danh sách chung/),
       ).toBeInTheDocument();
 
-      const sources = screen.getByRole("list", { name: "Workspace sources" });
+      const sources = screen.getByRole("list", { name: "Nguồn workspace" });
       const links = within(sources)
         .getAllByRole("link")
         .map((link) => [link.textContent, link.getAttribute("href")]);
@@ -2467,8 +2693,10 @@ describe("Academic workspace", () => {
         within(sources).getByText("Chưa bắt đầu · hạn 28/09/2026"),
       ).toBeInTheDocument();
       // A record is not a PDF citation: no page, no preview button.
-      expect(screen.queryByRole("list", { name: "Sources" })).toBeNull();
-      expect(screen.queryByRole("button", { name: /Open source/ })).toBeNull();
+      expect(
+        screen.queryByRole("list", { name: "Nguồn tham khảo" }),
+      ).toBeNull();
+      expect(screen.queryByRole("button", { name: /Mở nguồn/ })).toBeNull();
     });
 
     it("on a phone, following a workspace source puts the record in view", async () => {
@@ -2584,7 +2812,7 @@ describe("Academic workspace", () => {
       await ask("Task nào chưa xong?");
 
       const sources = await screen.findByRole("list", {
-        name: "Workspace sources",
+        name: "Nguồn workspace",
       });
       expect(within(sources).queryAllByRole("link")).toEqual([]);
       expect(
@@ -2597,7 +2825,7 @@ describe("Academic workspace", () => {
       vi.stubGlobal(
         "fetch",
         vi.fn(async (url: string, init?: RequestInit) =>
-          url === "/api/assistant/chat" && init?.method === "POST"
+          url === "/api/assistant/chat/stream" && init?.method === "POST"
             ? Response.json(
                 {
                   statusCode: 503,
@@ -2613,15 +2841,15 @@ describe("Academic workspace", () => {
       render(<App />);
       fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
       fireEvent.click(screen.getByRole("radio", { name: "Hỏi workspace" }));
-      fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+      fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
         target: { value: "Kỳ thi sắp tới?" },
       });
-      fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Gửi câu hỏi/ }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(
         /Chưa đọc được dữ liệu workspace/,
       );
-      expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+      expect(screen.getByLabelText("Câu hỏi cho ExaMate")).toHaveValue(
         "Kỳ thi sắp tới?",
       );
     });
@@ -2644,7 +2872,7 @@ describe("Academic workspace", () => {
         vi.stubGlobal(
           "fetch",
           vi.fn(async (url: string, init?: RequestInit) =>
-            url === "/api/assistant/chat" && init?.method === "POST"
+            url === "/api/assistant/chat/stream" && init?.method === "POST"
               ? failChat()
               : existingFetch(url, init),
           ),
@@ -2654,15 +2882,15 @@ describe("Academic workspace", () => {
           screen.getByRole("button", { name: "Open ExaMate AI" }),
         );
         fireEvent.click(screen.getByRole("radio", { name: "Hỏi workspace" }));
-        fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+        fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
           target: { value: "Task nào đã quá hạn?" },
         });
-        fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
+        fireEvent.click(screen.getByRole("button", { name: /Gửi câu hỏi/ }));
 
         expect(await screen.findByRole("alert")).toHaveTextContent(
           /Chưa kết nối được máy chủ ExaMate/,
         );
-        expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+        expect(screen.getByLabelText("Câu hỏi cho ExaMate")).toHaveValue(
           "Task nào đã quá hạn?",
         );
       },
@@ -2676,14 +2904,17 @@ describe("Academic workspace", () => {
 
       answerFromWorkspace();
       fireEvent.click(screen.getByRole("radio", { name: "Hỏi workspace" }));
-      fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+      fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
         target: { value: "Task nào chưa xong?" },
       });
-      fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
-      await screen.findByRole("list", { name: "Workspace sources" });
+      fireEvent.click(screen.getByRole("button", { name: /Gửi câu hỏi/ }));
+      await screen.findByRole("list", { name: "Nguồn workspace" });
 
-      fireEvent.click(screen.getByRole("radio", { name: "Hỏi tài liệu" }));
-      expect(screen.getByLabelText("Tài liệu")).toHaveValue("doc-2");
+      fireEvent.click(screen.getByRole("radio", { name: "AI Chat" }));
+      fireEvent.click(screen.getByRole("radio", { name: "Tài liệu" }));
+      expect(screen.getByLabelText("Chọn tài liệu để tra cứu")).toHaveValue(
+        "doc-2",
+      );
       expect(
         screen.queryByText("Chương 2 nói về độ phức tạp thuật toán."),
       ).not.toBeInTheDocument();
@@ -2693,7 +2924,7 @@ describe("Academic workspace", () => {
       // Old citations must not remain in a fresh conversation scope.
       expect(
         screen.queryByRole("button", {
-          name: "Open source ghi-chu-chung.pdf, tr. 3",
+          name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
         }),
       ).not.toBeInTheDocument();
     });
@@ -2706,7 +2937,7 @@ describe("Academic workspace", () => {
       fireEvent.click(
         screen.getByRole("button", { name: "Task nào đã quá hạn?" }),
       );
-      expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+      expect(screen.getByLabelText("Câu hỏi cho ExaMate")).toHaveValue(
         "Task nào đã quá hạn?",
       );
     });
@@ -2765,7 +2996,7 @@ describe("Academic workspace", () => {
     it("leaves the selected document out of an ordinary chat request", async () => {
       render(<App />);
       await openWithDocument();
-      fireEvent.click(screen.getByRole("radio", { name: "Chat thông thường" }));
+      fireEvent.click(screen.getByRole("radio", { name: "Kiến thức chung" }));
       await ask("Xin chào");
 
       // The backend refuses a document in general mode (400), so it must not
@@ -2775,8 +3006,10 @@ describe("Academic workspace", () => {
       expect(general).not.toHaveProperty("documentId");
 
       // The choice is still there for when the student switches back.
-      fireEvent.click(screen.getByRole("radio", { name: "Hỏi tài liệu" }));
-      expect(screen.getByLabelText("Tài liệu")).toHaveValue("doc-2");
+      fireEvent.click(screen.getByRole("radio", { name: "Tài liệu" }));
+      expect(screen.getByLabelText("Chọn tài liệu để tra cứu")).toHaveValue(
+        "doc-2",
+      );
       await ask("Tài liệu này nói gì?");
       expect(chatBodies()[1]).toMatchObject({
         mode: "documents",
@@ -2789,8 +3022,8 @@ describe("Academic workspace", () => {
       vi.stubGlobal(
         "fetch",
         vi.fn(async (url: string, init?: RequestInit) =>
-          url === "/api/assistant/chat" && init?.method === "POST"
-            ? Response.json({
+          url === "/api/assistant/chat/stream" && init?.method === "POST"
+            ? assistantSseResponse({
                 ...citedAnswer,
                 answer: "**Ý chính**\n\n- Độ phức tạp\n- Cây nhị phân",
                 citations: [],
@@ -2802,7 +3035,7 @@ describe("Academic workspace", () => {
       await openWithDocument();
       await ask("Viết **đậm** giúp mình");
 
-      const conversation = screen.getByRole("list", { name: "Conversation" });
+      const conversation = screen.getByRole("list", { name: "Cuộc hội thoại" });
       // The two messages themselves, not the bullets inside the reply.
       const [question, reply] = [...conversation.children] as HTMLElement[];
       expect(within(reply).getByText("Ý chính").tagName).toBe("STRONG");
@@ -2822,66 +3055,77 @@ describe("Academic workspace", () => {
       render(<App />);
       await openWithDocument();
       await ask("Chương 2 nói gì?");
-      fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+      fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
         target: { value: "Câu hỏi tiếp theo đang soạn" },
       });
       const panel = document.getElementById("examate-ai-panel")!;
 
       fireEvent.click(
-        within(panel).getByRole("button", { name: "Expand ExaMate AI" }),
+        within(panel).getByRole("button", { name: "Mở rộng ExaMate AI" }),
       );
       expect(panel).toHaveClass("is-expanded");
       // Still the one panel, and still non-modal on a wide screen.
-      expect(
-        screen.getAllByRole("textbox", { name: /question/i }),
-      ).toHaveLength(1);
+      expect(screen.getAllByRole("textbox", { name: /câu hỏi/i })).toHaveLength(
+        1,
+      );
       expect(screen.queryByRole("dialog")).toBeNull();
       expect(
         screen.getByText("Chương 2 nói về độ phức tạp thuật toán."),
       ).toBeInTheDocument();
-      expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+      expect(screen.getByLabelText("Câu hỏi cho ExaMate")).toHaveValue(
         "Câu hỏi tiếp theo đang soạn",
       );
-      expect(screen.getByLabelText("Tài liệu")).toHaveValue("doc-2");
-      expect(screen.getByRole("radio", { name: "Hỏi tài liệu" })).toBeChecked();
+      expect(screen.getByLabelText("Chọn tài liệu để tra cứu")).toHaveValue(
+        "doc-2",
+      );
+      expect(screen.getByRole("radio", { name: "Tài liệu" })).toBeChecked();
 
-      fireEvent.click(screen.getByRole("radio", { name: "Chat thông thường" }));
+      fireEvent.click(screen.getByRole("radio", { name: "Kiến thức chung" }));
       fireEvent.click(
-        within(panel).getByRole("button", { name: "Collapse ExaMate AI" }),
+        within(panel).getByRole("button", { name: "Thu nhỏ ExaMate AI" }),
       );
       expect(panel).not.toHaveClass("is-expanded");
       expect(
-        screen.getByRole("radio", { name: "Chat thông thường" }),
+        screen.getByRole("radio", { name: "Kiến thức chung" }),
       ).toBeChecked();
-      fireEvent.click(screen.getByRole("radio", { name: "Hỏi tài liệu" }));
-      expect(screen.getByLabelText("Tài liệu")).toHaveValue("doc-2");
+      fireEvent.click(screen.getByRole("radio", { name: "Tài liệu" }));
+      expect(screen.getByLabelText("Chọn tài liệu để tra cứu")).toHaveValue(
+        "doc-2",
+      );
       expect(
         screen.queryByText("Chương 2 nói về độ phức tạp thuật toán."),
       ).not.toBeInTheDocument();
-      expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+      expect(screen.getByLabelText("Câu hỏi cho ExaMate")).toHaveValue(
         "Câu hỏi tiếp theo đang soạn",
       );
     });
 
-    it("sends the same request and shows the same source when expanded", async () => {
+    it("keeps the document scope and verified history when expanded", async () => {
       answerWithCitation();
       render(<App />);
       await openWithDocument();
       await ask("Chương 2 nói gì?");
       fireEvent.click(
-        screen.getByRole("button", { name: "Expand ExaMate AI" }),
+        screen.getByRole("button", { name: "Mở rộng ExaMate AI" }),
       );
       await ask("Chương 2 nói gì?");
 
       const [compact, expanded] = chatBodies();
-      expect(expanded).toEqual(compact);
+      const { history: compactHistory, ...compactRequest } = compact;
+      const { history: expandedHistory, ...expandedRequest } = expanded;
+      expect(expandedRequest).toEqual(compactRequest);
+      expect(compactHistory).toEqual([]);
+      expect(expandedHistory).toHaveLength(1);
+      expect(expandedHistory[0]).toMatchObject({
+        receiptId: "77777777-7777-4777-8777-777777777777",
+      });
       expect(expanded).toMatchObject({
         mode: "documents",
         documentId: "doc-2",
       });
 
       const sources = screen.getAllByRole("button", {
-        name: "Open source ghi-chu-chung.pdf, tr. 3",
+        name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
       });
       fireEvent.click(sources[sources.length - 1]);
       expect(
@@ -2897,11 +3141,11 @@ describe("Academic workspace", () => {
       render(<App />);
       await openWithDocument();
       await ask("Chương 2 nói gì?");
-      fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+      fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
         target: { value: "Câu hỏi tiếp theo" },
       });
       const citation = screen.getByRole("button", {
-        name: "Open source ghi-chu-chung.pdf, tr. 3",
+        name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
       });
 
       fireEvent.click(citation);
@@ -2943,11 +3187,13 @@ describe("Academic workspace", () => {
       expect(
         screen.getByText("Chương 2 nói về độ phức tạp thuật toán."),
       ).toBeVisible();
-      expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+      expect(screen.getByLabelText("Câu hỏi cho ExaMate")).toHaveValue(
         "Câu hỏi tiếp theo",
       );
-      expect(screen.getByRole("radio", { name: "Hỏi tài liệu" })).toBeChecked();
-      expect(screen.getByLabelText("Tài liệu")).toHaveValue("doc-2");
+      expect(screen.getByRole("radio", { name: "Tài liệu" })).toBeChecked();
+      expect(screen.getByLabelText("Chọn tài liệu để tra cứu")).toHaveValue(
+        "doc-2",
+      );
     });
 
     it("opens a source without a page number at the start, guessing none", async () => {
@@ -2967,7 +3213,7 @@ describe("Academic workspace", () => {
 
       fireEvent.click(
         screen.getByRole("button", {
-          name: "Open source de-cuong-thuat-toan.pdf, đoạn 5",
+          name: "Mở nguồn de-cuong-thuat-toan.pdf, đoạn 5",
         }),
       );
 
@@ -3001,7 +3247,7 @@ describe("Academic workspace", () => {
       await ask("Chương 2 nói gì?");
       fireEvent.click(
         screen.getByRole("button", {
-          name: "Open source ghi-chu-chung.pdf, tr. 3",
+          name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
         }),
       );
 
@@ -3074,12 +3320,12 @@ describe("Academic workspace", () => {
 
       fireEvent.click(
         screen.getByRole("button", {
-          name: "Open source ghi-chu-chung.pdf, tr. 3",
+          name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
         }),
       );
       fireEvent.click(
         screen.getByRole("button", {
-          name: "Open source de-cuong-thuat-toan.pdf, đoạn 5",
+          name: "Mở nguồn de-cuong-thuat-toan.pdf, đoạn 5",
         }),
       );
       expect(
@@ -3110,11 +3356,11 @@ describe("Academic workspace", () => {
       render(<App />);
       await openWithDocument();
       await ask("Chương 2 nói gì?");
-      fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+      fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
         target: { value: "Bản nháp còn đây" },
       });
       const citation = screen.getByRole("button", {
-        name: "Open source ghi-chu-chung.pdf, tr. 3",
+        name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
       });
       citation.focus();
       fireEvent.click(citation);
@@ -3124,7 +3370,7 @@ describe("Academic workspace", () => {
       const panel = document.getElementById("examate-ai-panel")!;
       expect(panel).toHaveClass("is-sheet", "is-source-screen");
       expect(panel).not.toHaveClass("is-split");
-      expect(screen.getByLabelText("Question for ExaMate")).not.toBeVisible();
+      expect(screen.getByLabelText("Câu hỏi cho ExaMate")).not.toBeVisible();
       const back = screen.getByRole("button", { name: "Quay lại hội thoại" });
       expect(back).toBeVisible();
 
@@ -3133,7 +3379,7 @@ describe("Academic workspace", () => {
         screen.queryByRole("region", { name: "ghi-chu-chung.pdf" }),
       ).toBeNull();
       await waitFor(() => expect(citation).toHaveFocus());
-      expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+      expect(screen.getByLabelText("Câu hỏi cho ExaMate")).toHaveValue(
         "Bản nháp còn đây",
       );
 
@@ -3157,7 +3403,7 @@ describe("Academic workspace", () => {
       await openWithDocument();
       await ask("Chương 2 nói gì?");
       const citation = screen.getByRole("button", {
-        name: "Open source ghi-chu-chung.pdf, tr. 3",
+        name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
       });
       fireEvent.click(citation);
       const source = screen.getByRole("region", { name: "ghi-chu-chung.pdf" });
@@ -3183,7 +3429,7 @@ describe("Academic workspace", () => {
       await ask("Chương 2 nói gì?");
       fireEvent.click(
         screen.getByRole("button", {
-          name: "Open source ghi-chu-chung.pdf, tr. 3",
+          name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
         }),
       );
       const source = screen.getByRole("region", { name: "ghi-chu-chung.pdf" });
@@ -3238,7 +3484,7 @@ describe("Academic workspace", () => {
       await ask("Chương 2 nói gì?");
       fireEvent.click(
         screen.getByRole("button", {
-          name: "Open source ghi-chu-chung.pdf, tr. 3",
+          name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
         }),
       );
       await screen.findByTitle("ghi-chu-chung.pdf, trang 3");
@@ -3250,7 +3496,9 @@ describe("Academic workspace", () => {
       expect(downloadRequests).toBe(2);
       expect(tab.location.replace).not.toHaveBeenCalled();
 
-      fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Cuộc trò chuyện mới" }),
+      );
 
       // Closure must happen while the old URL request is still pending.
       expect.soft(tab.close).toHaveBeenCalled();
@@ -3278,7 +3526,7 @@ describe("Academic workspace", () => {
       await ask("Chương 2 nói gì?");
       fireEvent.click(
         screen.getByRole("button", {
-          name: "Open source ghi-chu-chung.pdf, tr. 3",
+          name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
         }),
       );
       const source = screen.getByRole("region", { name: "ghi-chu-chung.pdf" });
@@ -3290,7 +3538,7 @@ describe("Academic workspace", () => {
       );
 
       const link = await within(source).findByRole("link", {
-        name: "Open source ghi-chu-chung.pdf, tr. 3",
+        name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
       });
       expect(link).toHaveAttribute(
         "href",
@@ -3321,7 +3569,7 @@ describe("Academic workspace", () => {
       await ask("Chương 2 nói gì?");
       fireEvent.click(
         screen.getByRole("button", {
-          name: "Open source ghi-chu-chung.pdf, tr. 3",
+          name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
         }),
       );
       const source = screen.getByRole("region", { name: "ghi-chu-chung.pdf" });
@@ -3355,7 +3603,7 @@ describe("Academic workspace", () => {
 
         fireEvent.click(
           screen.getByRole("button", {
-            name: "Open source ghi-chu-chung.pdf, tr. 3",
+            name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
           }),
         );
 
@@ -3380,15 +3628,15 @@ describe("Academic workspace", () => {
       const launcher = screen.getByRole("button", { name: "Open ExaMate AI" });
       fireEvent.click(launcher);
       await waitFor(() =>
-        expect(screen.getByLabelText("Question for ExaMate")).toHaveFocus(),
+        expect(screen.getByLabelText("Câu hỏi cho ExaMate")).toHaveFocus(),
       );
 
-      const toggle = screen.getByRole("button", { name: "Expand ExaMate AI" });
+      const toggle = screen.getByRole("button", { name: "Mở rộng ExaMate AI" });
       toggle.focus();
       fireEvent.click(toggle);
       // Same control, new name: resizing does not throw focus somewhere else.
       expect(toggle).toHaveFocus();
-      expect(toggle).toHaveAccessibleName("Collapse ExaMate AI");
+      expect(toggle).toHaveAccessibleName("Thu nhỏ ExaMate AI");
 
       fireEvent.keyDown(window, { key: "Escape" });
       await waitFor(() => expect(launcher).toHaveFocus());
@@ -3397,7 +3645,7 @@ describe("Academic workspace", () => {
       // The size the student chose is still there when they come back.
       fireEvent.click(launcher);
       expect(
-        screen.getByRole("button", { name: "Collapse ExaMate AI" }),
+        screen.getByRole("button", { name: "Thu nhỏ ExaMate AI" }),
       ).toBeInTheDocument();
     });
 
@@ -3411,7 +3659,7 @@ describe("Academic workspace", () => {
         "inert",
       );
 
-      const toggle = screen.getByRole("button", { name: "Expand ExaMate AI" });
+      const toggle = screen.getByRole("button", { name: "Mở rộng ExaMate AI" });
       toggle.focus();
       fireEvent.click(toggle);
       const dialog = screen.getByRole("dialog", { name: "ExaMate AI" });
@@ -3483,13 +3731,13 @@ describe("Academic workspace", () => {
       const launcher = screen.getByRole("button", { name: "Open ExaMate AI" });
       fireEvent.click(launcher);
       fireEvent.click(
-        screen.getByRole("button", { name: "Expand ExaMate AI" }),
+        screen.getByRole("button", { name: "Mở rộng ExaMate AI" }),
       );
 
       const sheet = screen.getByRole("dialog", { name: "ExaMate AI" });
       expect(sheet).toHaveClass("is-sheet", "is-expanded");
       expect(
-        within(sheet).getByRole("button", { name: /Send question/ }),
+        within(sheet).getByRole("button", { name: /Gửi câu hỏi/ }),
       ).toBeInTheDocument();
 
       fireEvent.keyDown(window, { key: "Escape" });

@@ -224,21 +224,35 @@ export function WorkspaceApp() {
       const { courseId, documentId, ...screenContext } = pageContext;
       try {
         let answerId: string | undefined;
-        const response = await api.askAssistant(
-          {
-            message: question,
-            mode,
-            operation,
-            pageContext: screenContext,
-            ...(courseId ? { courseId } : {}),
-            ...(documentId ? { documentId } : {}),
-            ...(options?.history ? { history: options.history } : {}),
-          },
-          (id) => {
-            answerId = id;
-          },
-          options?.signal,
-        );
+        const request = {
+          message: question,
+          mode,
+          operation,
+          pageContext: screenContext,
+          ...(courseId ? { courseId } : {}),
+          ...(documentId ? { documentId } : {}),
+          ...(options?.history ? { history: options.history } : {}),
+        };
+        const response =
+          operation === "question" && options?.onDelta
+            ? await api
+                .streamAssistant(
+                  request,
+                  options.onDelta,
+                  options.signal,
+                  options.onStatus,
+                )
+                .then((stream) => {
+                  answerId = stream.answerId;
+                  return stream.response;
+                })
+            : await api.askAssistant(
+                request,
+                (id) => {
+                  answerId = id;
+                },
+                options?.signal,
+              );
         // Workspace answers come from records, not a model: shown as sent,
         // with their record links instead of PDF citations.
         if (response.mode === "workspace")
@@ -277,7 +291,7 @@ export function WorkspaceApp() {
       } catch (error: unknown) {
         // Workspace answers depend on nothing but this server, so when it
         // cannot be reached say so plainly rather than in the API client's
-        // generic English. The two older modes keep their messages as they were.
+        // generic English.
         const unreachable =
           !(error instanceof ApiError) ||
           (error.code === "REQUEST_FAILED" &&

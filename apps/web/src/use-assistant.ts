@@ -7,6 +7,7 @@ import type {
   AssistantChatResponse,
   AssistantFeedbackSnapshot,
   AssistantHistoryTurn,
+  AssistantStreamStage,
 } from "@examate/contracts";
 
 /*
@@ -47,6 +48,8 @@ export interface AssistantMessage {
   workspaceSources?: AssistantWorkspaceSource[];
   feedback?: { answerId: string; snapshot: AssistantFeedbackSnapshot };
   feedbackUnavailable?: boolean;
+  streaming?: boolean;
+  incomplete?: boolean;
 }
 
 /** What the student was looking at when they asked. */
@@ -69,7 +72,12 @@ export type AskTransport = (
   context: AssistantContext,
   mode: AssistantMode,
   operation: AssistantOperation,
-  options?: { history?: AssistantHistoryTurn[]; signal?: AbortSignal },
+  options?: {
+    history?: AssistantHistoryTurn[];
+    signal?: AbortSignal;
+    onDelta?: (text: string) => void;
+    onStatus?: (stage: AssistantStreamStage) => void;
+  },
 ) => Promise<{
   text: string;
   citations: AssistantCitation[];
@@ -87,6 +95,7 @@ export interface AssistantState {
   setDraft: (value: string) => void;
   messages: AssistantMessage[];
   status: AssistantStatus;
+  streamStage: AssistantStreamStage | null;
   errorMessage: string;
   canSend: boolean;
   mode: AssistantMode;
@@ -101,6 +110,7 @@ export interface AssistantState {
     context: AssistantContext,
     options?: { operation?: AssistantOperation; message?: string },
   ) => Promise<void>;
+  cancel: () => void;
 }
 
 export function useAssistant(transport?: AskTransport): AssistantState {
@@ -116,6 +126,9 @@ export function useAssistant(transport?: AskTransport): AssistantState {
   const [status, setStatus] = useState<AssistantStatus>(
     transport ? "idle" : "unavailable",
   );
+  const [streamStage, setStreamStage] = useState<AssistantStreamStage | null>(
+    null,
+  );
   const [errorMessage, setErrorMessage] = useState("");
   // A ref, not state: a double click lands both events before React has
   // re-rendered, so a state flag would still read "not sending" on the second.
@@ -123,6 +136,11 @@ export function useAssistant(transport?: AskTransport): AssistantState {
   const nextId = useRef(0);
   const epoch = useRef(0);
   const pending = useRef<AbortController | null>(null);
+  const activeStreamMessage = useRef<{
+    userId: string;
+    assistantId: string;
+    text: string;
+  } | null>(null);
   const history = useRef<AssistantHistoryTurn[]>([]);
   const scope = useRef<string | undefined>(undefined);
   const [contextNotice, setContextNotice] = useState("");
@@ -134,10 +152,12 @@ export function useAssistant(transport?: AskTransport): AssistantState {
       setConversationVersion((value) => value + 1);
       pending.current?.abort();
       pending.current = null;
+      activeStreamMessage.current = null;
       inFlight.current = false;
       history.current = [];
       setMessages([]);
       setStatus(transport ? "idle" : "unavailable");
+      setStreamStage(null);
       setErrorMessage("");
       setContextNotice(note);
     },
@@ -186,6 +206,58 @@ export function useAssistant(transport?: AskTransport): AssistantState {
       const requestDraftRevision = draftRevision.current;
       const controller = new AbortController();
       pending.current = controller;
+      let streamedText = "";
+      let streamedUserId: string | undefined;
+      let streamedAssistantId: string | undefined;
+      const onDelta = (delta: string) => {
+        if (
+          !delta ||
+          requestEpoch !== epoch.current ||
+          controller.signal.aborted
+        )
+          return;
+        if (!streamedUserId || !streamedAssistantId) {
+          nextId.current += 2;
+          streamedUserId = `m${nextId.current - 1}`;
+          streamedAssistantId = `m${nextId.current}`;
+          activeStreamMessage.current = {
+            userId: streamedUserId,
+            assistantId: streamedAssistantId,
+            text: "",
+          };
+          setMessages((current) => [
+            ...current,
+            {
+              id: streamedUserId!,
+              role: "user",
+              text: question,
+              citations: [],
+            },
+            {
+              id: streamedAssistantId!,
+              role: "assistant",
+              text: "",
+              citations: [],
+              streaming: true,
+            },
+          ]);
+        }
+        streamedText += delta;
+        if (activeStreamMessage.current)
+          activeStreamMessage.current.text = streamedText;
+        const assistantId = streamedAssistantId;
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === assistantId
+              ? { ...message, text: streamedText, streaming: true }
+              : message,
+          ),
+        );
+      };
+      const onStatus = (stage: AssistantStreamStage) => {
+        if (requestEpoch === epoch.current && !controller.signal.aborted)
+          setStreamStage(stage);
+      };
       const prior = history.current.slice(-6);
       while (prior.length) {
         const serialized = JSON.stringify(prior);
@@ -201,6 +273,7 @@ export function useAssistant(transport?: AskTransport): AssistantState {
           "Ngữ cảnh dài nên chỉ gửi các lượt gần nhất; hội thoại hiển thị vẫn còn nguyên.",
         );
       setStatus("sending");
+      setStreamStage(null);
       setErrorMessage("");
       try {
         const reply = await transport(
@@ -213,6 +286,7 @@ export function useAssistant(transport?: AskTransport): AssistantState {
             ...(requestMode !== "workspace" && requestOperation === "question"
               ? { history: prior }
               : {}),
+            ...(requestOperation === "question" ? { onDelta, onStatus } : {}),
           },
         );
         if (requestEpoch !== epoch.current || controller.signal.aborted) return;
@@ -255,32 +329,40 @@ export function useAssistant(transport?: AskTransport): AssistantState {
           setContextNotice(
             "Ngữ cảnh dài nên server đã bỏ lượt cũ hoặc rút gọn phần dài. Nguồn trích dẫn vẫn lấy ở lượt hiện tại.",
           );
-        nextId.current += 2;
-        setMessages((current) => [
-          ...current,
-          {
-            id: `m${nextId.current - 1}`,
-            role: "user",
-            text: question,
-            citations: [],
-          },
-          {
-            id: `m${nextId.current}`,
-            role: "assistant",
-            text: reply.text,
-            citations: reply.citations,
-            ...(feedback ? { feedback } : {}),
-            ...(reply.response && !answerId
-              ? { feedbackUnavailable: true }
-              : {}),
-            ...(reply.metadataSource
-              ? { metadataSource: reply.metadataSource }
-              : {}),
-            ...(reply.workspaceSources
-              ? { workspaceSources: reply.workspaceSources }
-              : {}),
-          },
-        ]);
+        const assistantMessage: AssistantMessage = {
+          id: streamedAssistantId ?? `m${nextId.current + 2}`,
+          role: "assistant",
+          text: reply.text,
+          citations: reply.citations,
+          ...(feedback ? { feedback } : {}),
+          ...(reply.response && !answerId ? { feedbackUnavailable: true } : {}),
+          ...(reply.metadataSource
+            ? { metadataSource: reply.metadataSource }
+            : {}),
+          ...(reply.workspaceSources
+            ? { workspaceSources: reply.workspaceSources }
+            : {}),
+        };
+        if (streamedAssistantId) {
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === streamedAssistantId ? assistantMessage : message,
+            ),
+          );
+        } else {
+          nextId.current += 2;
+          setMessages((current) => [
+            ...current,
+            {
+              id: `m${nextId.current - 1}`,
+              role: "user",
+              text: question,
+              citations: [],
+            },
+            { ...assistantMessage, id: `m${nextId.current}` },
+          ]);
+        }
+        activeStreamMessage.current = null;
         // Clear only the untouched composer that supplied this successful request.
         // An explicit message override never owns the composer draft.
         if (
@@ -289,23 +371,58 @@ export function useAssistant(transport?: AskTransport): AssistantState {
         )
           setDraftState("");
         setStatus("idle");
+        setStreamStage(null);
       } catch (error: unknown) {
         if (requestEpoch !== epoch.current || controller.signal.aborted) return;
+        if (streamedAssistantId && streamedText) {
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === streamedAssistantId
+                ? { ...message, streaming: false, incomplete: true }
+                : message,
+            ),
+          );
+        }
+        activeStreamMessage.current = null;
         setErrorMessage(
           error instanceof Error
             ? error.message
             : "Chưa gửi được câu hỏi. Bản nháp vẫn còn nguyên, thử lại nhé.",
         );
         setStatus("error");
+        setStreamStage(null);
       } finally {
-        if (requestEpoch === epoch.current) {
+        if (requestEpoch === epoch.current && pending.current === controller) {
           inFlight.current = false;
           pending.current = null;
+          activeStreamMessage.current = null;
         }
       }
     },
     [draft, mode, transport, syncContext],
   );
+
+  const cancel = useCallback(() => {
+    const controller = pending.current;
+    if (!controller) return;
+    controller.abort();
+    const partial = activeStreamMessage.current;
+    if (partial?.text) {
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === partial.assistantId
+            ? { ...message, streaming: false, incomplete: true }
+            : message,
+        ),
+      );
+    }
+    activeStreamMessage.current = null;
+    pending.current = null;
+    inFlight.current = false;
+    setStatus(transport ? "idle" : "unavailable");
+    setStreamStage(null);
+    setErrorMessage("");
+  }, [transport]);
 
   const setMode = useCallback(
     (nextMode: AssistantMode) => {
@@ -322,6 +439,7 @@ export function useAssistant(transport?: AskTransport): AssistantState {
     setDraft,
     messages,
     status,
+    streamStage,
     errorMessage,
     canSend,
     mode,
@@ -331,5 +449,6 @@ export function useAssistant(transport?: AskTransport): AssistantState {
     resetConversation,
     syncContext,
     send,
+    cancel,
   };
 }

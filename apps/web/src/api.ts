@@ -5,6 +5,8 @@
 export type {
   AssistantChatRequest,
   AssistantChatResponse,
+  AssistantStreamStage,
+  AssistantStreamEvent,
   AssistantMode,
   AssistantReasonCode,
   AssistantStatus,
@@ -25,6 +27,7 @@ export type {
   Task,
   TaskStatus,
 } from "@examate/contracts";
+import { parseAssistantSse } from "./assistant-stream";
 
 export class ApiError extends Error {
   constructor(
@@ -55,6 +58,7 @@ import type {
   AssistantAnswerIdHeader,
   AssistantChatRequest,
   AssistantChatResponse,
+  AssistantStreamStage,
   Course,
   DocumentProcessingResult,
   Exam,
@@ -233,6 +237,113 @@ export const api = {
         );
       },
     ),
+  streamAssistant: async (
+    input: AssistantChatRequest,
+    onDelta: (text: string) => void,
+    signal?: AbortSignal,
+    onStatus?: (stage: AssistantStreamStage) => void,
+  ): Promise<{ response: AssistantChatResponse; answerId?: string }> => {
+    const path = "/api/assistant/chat/stream";
+    const authHeaders = pilotHeaders(path, "POST");
+    const controller = new AbortController();
+    let timedOut = false;
+    const combinedSignal = signal
+      ? AbortSignal.any([signal, controller.signal])
+      : controller.signal;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 60000);
+    try {
+      let response: Response;
+      try {
+        response = await fetch(path, {
+          method: "POST",
+          body: JSON.stringify(input),
+          credentials: "same-origin",
+          signal: combinedSignal,
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "text/event-stream",
+            ...authHeaders,
+          },
+        });
+      } catch {
+        if (signal?.aborted)
+          throw new DOMException("Request cancelled", "AbortError");
+        throw new Error(
+          timedOut
+            ? "AI phản hồi quá lâu. Bạn thử lại nhé."
+            : "Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại nhé.",
+        );
+      }
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as {
+          code?: string;
+          message?: string | string[];
+          requestId?: string;
+        } | null;
+        notifyPilotDenied(body?.code ?? "");
+        const message = Array.isArray(body?.message)
+          ? body.message.join(", ")
+          : body?.message;
+        throw new ApiError(
+          message || `Request failed (${response.status}).`,
+          body?.code || "REQUEST_FAILED",
+          response.status,
+          response.headers.get("X-Request-ID") ?? body?.requestId,
+        );
+      }
+      if (
+        !response.headers.get("Content-Type")?.startsWith("text/event-stream")
+      )
+        throw new Error("Máy chủ không mở được luồng trả lời realtime.");
+      if (!response.body)
+        throw new Error("Máy chủ không gửi dữ liệu streaming.");
+
+      let started = false;
+      let result:
+        { response: AssistantChatResponse; answerId?: string } | undefined;
+      for await (const event of parseAssistantSse(response.body)) {
+        if (signal?.aborted)
+          throw new DOMException("Request cancelled", "AbortError");
+        if (event.type === "start") {
+          if (started || result)
+            throw new Error("Máy chủ gửi trình tự streaming không hợp lệ.");
+          started = true;
+        } else if (event.type === "status") {
+          if (!started || result)
+            throw new Error("Máy chủ gửi trình tự streaming không hợp lệ.");
+          onStatus?.(event.stage);
+        } else if (event.type === "delta") {
+          if (!started || result)
+            throw new Error("Máy chủ gửi trình tự streaming không hợp lệ.");
+          if (event.text) onDelta(event.text);
+        } else if (event.type === "error") {
+          notifyPilotDenied(event.code);
+          throw new ApiError(event.message, event.code, 502);
+        } else {
+          if (!started || result)
+            throw new Error("Máy chủ gửi trình tự streaming không hợp lệ.");
+          result = {
+            response: event.response,
+            ...(event.answerId ? { answerId: event.answerId } : {}),
+          };
+        }
+      }
+      if (!result)
+        throw new Error("Luồng kết thúc trước khi hoàn tất câu trả lời.");
+      return result;
+    } catch (error) {
+      if (signal?.aborted)
+        throw new DOMException("Request cancelled", "AbortError");
+      if (controller.signal.aborted && timedOut)
+        throw new Error("AI phản hồi quá lâu. Bạn thử lại nhé.");
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  },
   listCourses: () => request<Course[]>("/api/courses"),
   getCourse: (slug: string) =>
     request<Course>(`/api/courses/${encodeURIComponent(slug)}`),

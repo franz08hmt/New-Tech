@@ -1,13 +1,12 @@
 # ExaMate Assistant — Gemini, RAG và xử lý PDF
 
-> **Cập nhật 28/09/2026:** phần hướng dẫn lịch sử bên dưới mô tả phiên bản Gemini text-only và có nhiều chỗ không còn đúng. Tính năng mới được tích hợp trên `feature/tai-rag-integration`: hai chế độ chat (`general`) và hỏi tài liệu (`documents`), lập chỉ mục PDF qua `POST /api/documents/:id/process`, citations đã kiểm chứng phía backend, và OCR tùy chọn. Supabase đang cấu hình trên máy Tài đã áp dụng migration `001`–`010`; upload PDF qua API thật đã qua kiểm tra. Hãy dùng README, `.env.example` và `docs/evaluation-plan.md` làm nguồn hiện tại. Database khác cần xác minh migration riêng.
+> **Cập nhật 18/10/2026:** giao diện có hai lựa chọn chính: **AI Chat** và **Hỏi workspace**. Trong AI Chat, người dùng chọn phạm vi **Kiến thức chung** hoặc **Tài liệu**; backend vẫn phân biệt `general` và `documents` để áp dụng đúng prompt, retrieval và kiểm chứng citation. Cả ba luồng câu hỏi đều dùng SSE qua `POST /api/assistant/chat/stream`. Hỏi workspace gửi trạng thái tra cứu rồi trả kết quả hoàn chỉnh từ truy vấn chỉ đọc, không giả lập token AI. Tóm tắt và metadata tài liệu vẫn dùng endpoint JSON. Một số ví dụ cũ bên dưới có thể phản ánh checkpoint trước; trạng thái Auth/migration mới nhất xem README và các báo cáo pilot.
 
-Để thử nhanh ở local: khởi động API và web, vào Documents, upload PDF, bấm **Index**, chờ trạng thái **Searchable content ready**, rồi mở Assistant và chọn **Hỏi tài liệu**. GET `/api/assistant/status` chỉ xác nhận cấu hình, không chứng minh Google key/quota hay truy xuất database hoạt động. Tránh gửi prompt có dữ liệu riêng tư; không dùng `--execute` trong bộ đánh giá nếu chưa sẵn sàng gọi Gemini và dùng quota.
+Để thử streaming: khởi động API và web, mở Assistant, chọn **AI Chat** rồi thử cả **Kiến thức chung** và **Tài liệu**; câu trả lời hiện dần và có thể bấm **Dừng trả lời**. Với phạm vi tài liệu, vào Documents, upload PDF, bấm **Index**, chờ **Searchable content ready**. **Hỏi workspace** hiển thị trạng thái tra cứu trước khi trả lời từ database. GET `/api/assistant/status` chỉ xác nhận cấu hình, không chứng minh Google key/quota hay truy xuất database hoạt động.
 
-Luồng: `POST /api/assistant/chat → AssistantController → AssistantService → GeminiService → Google Gemini API`.
-Controller nhận DTO đã validate và gọi service. AssistantService xây dựng system instruction cố định, tách nội dung user và trả contract. GeminiService dùng SDK chính thức `@google/genai`, chuyển lỗi provider thành loại lỗi an toàn. AssistantExceptionFilter ánh xạ loại lỗi sang HTTP, giữ request ID theo cơ chế hiện có.
+Luồng JSON: `POST /api/assistant/chat → AssistantController → AssistantService → GeminiService → Google Gemini API`. AI Chat dùng `POST /api/assistant/chat/stream → Gemini generateContentStream → SSE delta → React`; phạm vi tài liệu truy xuất trước, sau đó stream phần answer đã parse từ JSON schema. Marker citation được giữ khỏi delta và chỉ xuất hiện trong response cuối sau khi backend kiểm tra toàn bộ citation. Hỏi workspace phát `status: querying_workspace` rồi response cuối từ query read-only. AssistantService giữ lịch sử đã xác minh, timeout và logging. SSE không đưa reasoning nội bộ của model về trình duyệt.
 
-Frontend đã kết nối nút gửi với `POST /api/assistant/chat` qua `api.askAssistant()`. Khi API và Gemini key sẵn sàng, câu hỏi sẽ được gửi tới Gemini. Đây hiện chỉ là chat text: RAG chưa kết nối, nên câu trả lời không được tìm trong Tasks, Documents hay tài liệu đã tải lên. Có thể kiểm tra backend bằng PowerShell bên dưới.
+Frontend gọi `/api/assistant/chat/stream` cho câu hỏi trong AI Chat và Hỏi workspace. Tóm tắt tài liệu và tra metadata tài liệu tiếp tục dùng `/api/assistant/chat`. Tất cả yêu cầu đi qua API và dùng session/CSRF hiện có. Gemini key chỉ nằm phía server.
 
 ## Cấu hình và chạy
 
@@ -31,7 +30,7 @@ Chạy trực tiếp NestJS, React và Supabase Cloud không cần Docker. Certi
 - Timeout: số nguyên 1–60000 ms, mặc định 30000.
 - Output: số nguyên 1–8192 token, mặc định 1024. Model có thể dừng khi đạt giới hạn.
 - Giá trị số ngoài giới hạn làm startup thất bại với tên biến, không in giá trị hay credential.
-- Cấu hình PostgreSQL/Supabase đang có vẫn cần hợp lệ để chạy toàn ứng dụng; Assistant không truy cập các dịch vụ đó.
+- Cấu hình PostgreSQL/Supabase vẫn cần hợp lệ cho toàn ứng dụng và các chế độ RAG/workspace; Chat thông thường không truy vấn DB.
 
 Từ root repository:
 
@@ -57,26 +56,33 @@ HTTP 200 khi đã cấu hình:
 {
   "status": "ready",
   "provider": "google",
-  "mode": "llm",
+  "modes": ["general", "documents"],
   "model": "gemini-2.5-flash",
-  "ragEnabled": false,
+  "ragEnabled": true,
   "credentialsExposedToClient": false
 }
 ```
 
-Khi thiếu key: cùng các field trên nhưng `status: "not_configured"` và **không có field model**. `ready` chỉ cho biết có key không phải placeholder; status không gọi Google để kiểm tra quyền, quota hoặc model availability. Key bị provider từ chối sẽ cho lỗi an toàn khi gọi chat.
+Khi thiếu key: `status` là `not_configured`, không có `model`; `ready` chỉ cho biết có key không phải placeholder, không xác minh quyền, quota hay model availability.
 
 ## Chat
 
 ```powershell
 $body = @{
   message = 'Hãy giúp tôi lập kế hoạch hoàn thành bài tập tuần này'
+  mode = 'general'
   pageContext = @{ pageId = 'tasks'; pageName = 'Tasks' }
 } | ConvertTo-Json -Depth 3
 Invoke-RestMethod -Uri http://127.0.0.1:3000/api/assistant/chat `
   -Method Post -ContentType 'application/json; charset=utf-8' `
   -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
 ```
+
+## Streaming realtime
+
+Trong giao diện chọn **AI Chat**. Backend dùng `generateContentStream()` của SDK Gemini và gửi SSE `start`, các `status`, nhiều `delta` chứa phần văn bản mới, rồi `done` với response cuối cùng và answer receipt nếu đã lưu được. Frontend đọc bằng `fetch`/`ReadableStream`, cập nhật câu trả lời theo từng delta và hỗ trợ hủy request. Endpoint yêu cầu session/CSRF như các API `POST` khác.
+
+`POST /api/assistant/chat/stream` nhận `mode: "general" | "documents" | "workspace"` cho `operation: "question"`. Với `documents`, backend báo `retrieving`, truy xuất bằng chứng, báo `generating`, rồi stream answer text; marker citation được lọc khỏi delta. Backend chỉ gửi `done` sau khi parse toàn bộ JSON, xác minh marker và đối chiếu citation với evidence. Nếu bước xác minh thất bại sau một phần delta, client đánh dấu câu trả lời đó chưa hoàn tất và không dùng nó làm lịch sử. Khi không có bằng chứng, endpoint trả kết quả không khả đáp mà không gọi model. Với `workspace`, backend gửi trạng thái tra cứu rồi response JSON hoàn chỉnh; dữ liệu vẫn được tính trực tiếp và không qua LLM. `summarize` và `course_info` tiếp tục dùng `POST /api/assistant/chat`.
 
 HTTP 200:
 
@@ -89,7 +95,7 @@ HTTP 200:
 }
 ```
 
-`message` bắt buộc là string, trim trước validation, 1–4000 ký tự. `pageContext` tùy chọn (bỏ qua hoặc null); nếu có object thì `pageId` và `pageName` bắt buộc là string không rỗng sau trim, tối đa 80 và 120 ký tự. Array, sai kiểu và field lạ ở cả hai cấp bị từ chối theo ValidationPipe. Không có field nhận key, URL, file hoặc lịch sử hội thoại. URL trong văn bản người dùng chỉ là văn bản, không được backend truy cập.
+`message` bắt buộc là string, trim trước validation, 1–4000 ký tự. `pageContext` tùy chọn (bỏ qua hoặc null); nếu có object thì `pageId` và `pageName` bắt buộc là string không rỗng sau trim, tối đa 80 và 120 ký tự. `mode`, `operation` và lịch sử đã xác minh là các field contract hợp lệ; field lạ hoặc sai kiểu bị từ chối theo ValidationPipe. Không có field nhận key, URL hay file. URL trong văn bản người dùng chỉ là văn bản, backend không truy cập URL đó.
 
 | Tình huống                                               | HTTP | Message                                  |
 | -------------------------------------------------------- | ---- | ---------------------------------------- |
@@ -105,12 +111,11 @@ Tham chiếu SDK chính thức: [GenerateContentConfig.abortSignal](https://goog
 
 ## Phạm vi và giới hạn
 
-- **RAG chưa được triển khai. Assistant không đọc Tasks, Documents hoặc PDF**, không tìm trong Supabase Storage, không dùng dữ liệu project làm context.
-- Không PDF parsing, embeddings, vector search, Google Search grounding, file search, URL context, tool calling, agent actions, thực thi code, streaming hoặc chat persistence. Không sửa schema.
-- Chỉ message và metadata màn hình của request hiện tại được gửi tới Google dưới vai trò user. Không lưu hay gửi lịch sử hội thoại. Nội dung người dùng không ghép vào system instruction.
-- System instruction yêu cầu trả lời theo ngôn ngữ người dùng, đưa bước thực hiện, nói rõ chưa có RAG/context dự án, không bịa citation hay tự nhận đã cập nhật dữ liệu hoặc hoàn thành hành động bên ngoài. Đây là chỉ dẫn cho model, không phải bảo đảm mọi câu trả lời đều đúng.
-- MVP local chưa có authentication hoặc rate limiting. Không mở endpoint ra Internet trước khi bổ sung kiểm soát truy cập và quota phù hợp. Các giới hạn hiện tại áp dụng theo request, không phải tổng số request đồng thời.
-- Test dùng mock, chưa xác minh Gemini thật, chất lượng câu trả lời, billing hoặc quyền của key. Gọi chat thủ công với key hợp lệ sẽ gọi Google và có thể sử dụng quota/chi phí theo project của bạn.
+- AI Chat ở phạm vi Tài liệu dùng PDF đã lập chỉ mục, retrieval vector và citation validation phía backend. Nếu thiếu bằng chứng, hệ thống từ chối thay vì đoán. OCR là tùy chọn.
+- Hỏi workspace dùng truy vấn chỉ đọc trên dữ liệu đã scope theo principal; không gọi LLM. Không tuyên bố đây là streaming AI.
+- AI Chat và Hỏi workspace đều dùng SSE cho câu hỏi. Nếu dừng giữa chừng hoặc lỗi sau khi đã nhận một phần văn bản, UI đánh dấu lượt đó chưa hoàn tất; lượt chưa hoàn tất không nhận feedback receipt và không đi vào history đã xác minh. Trạng thái workspace biểu thị truy vấn database, không phải token sinh bởi model.
+- Nội dung AI Chat được gửi tới Google Gemini qua backend. Không gửi Gemini key xuống trình duyệt. Không chia sẻ câu hỏi nhạy cảm nếu không muốn gửi tới provider.
+- Code/test hiện không chứng minh chất lượng câu trả lời, quota/billing thực tế hay cấu hình Auth/DB cloud trên máy của người dùng. Chỉ demo với dữ liệu được phép; xem README và báo cáo pilot cho giới hạn Auth hiện tại.
 
 ## Kiểm tra
 
@@ -127,7 +132,7 @@ npm test
 npm run format:check --workspace @examate/api
 ```
 
-Unit tests mock SDK/provider. HTTP tests dùng compiled NestJS với ValidationPipe và exception filter thực, mock database/Storage và Gemini transport; không nạp `.env` thật, không gọi internet và không yêu cầu key thật. Bao phủ contract, DI, giới hạn DTO/config, prompt separation, timeout/abort, không retry, response rỗng và chống lộ credential trong lỗi/response/logs. Các test Tasks/Documents/Health cũ vẫn thuộc `npm test`.
+Unit tests mock SDK/provider. HTTP tests dùng compiled NestJS với ValidationPipe và exception filter thực, mock database/Storage và Gemini transport; không nạp `.env` thật, không gọi internet và không yêu cầu key thật. Bao phủ contract, DI, giới hạn DTO/config, prompt separation, timeout/abort, stream SSE, parser chia chunk và hủy luồng, không retry, response rỗng và chống lộ credential trong lỗi/response/logs. Các test Tasks/Documents/Health cũ vẫn thuộc `npm test`.
 
 ### Kết quả xác minh ngày 2026-09-24
 
@@ -147,4 +152,10 @@ Vitest và Vite ban đầu bị sandbox Windows chặn `spawn EPERM`; chạy l�
 
 Smoke test sau automated tests: copy riêng `apps/api/dist` vào cây thư mục tạm, dùng cấu hình giả, không có `.env`, bỏ Gemini key rồi chạy entrypoint `main.js`. Backend khởi động bằng providers thật trên loopback/cổng tạm; GET status trả 200 `not_configured`, POST chat trả 503 `AI assistant is not configured.`. Không đọc root `.env`, không gọi Gemini/Supabase và đã đóng ứng dụng sau kiểm tra. Kiểm tra này không chứng minh cấu hình Supabase thật hay quyền/quota Gemini thật.
 
-Không chạy bộ integration database thật `npm run test:database`. Các test frontend giả lập endpoint chat; chúng chứng minh request/response được nối đúng, không chứng minh key có quyền/quota hay Gemini trả lời thật. POST chat với key hợp lệ sẽ gọi Google và có thể dùng quota/chi phí. Không lặp request tự động.
+Không chạy bộ integration database thật `npm run test:database`. Automated tests dùng mock; chúng chứng minh request/response và event stream được nối đúng, không chứng minh key có quyền/quota hay Gemini trả lời thật. Chat với key hợp lệ sẽ gọi Google và có thể dùng quota/chi phí. Không lặp request tự động.
+
+### Kiểm tra streaming ngày 2026-10-18
+
+`npm run build --workspace @examate/api`, `npm run typecheck --workspace @examate/web` và `npm run build --workspace @examate/web` đều pass. 66 unit test cho controller/service/Gemini, 76 HTTP test cho assistant/auth, và toàn bộ 337 web test đều pass.
+
+Full API suite có 260 test pass và một test ngoài phần thay đổi bị fail: `local-speech-runtime.spec.ts` kỳ vọng `metrics().pid` đã được xóa ngay sau khi worker bị kill, nhưng nhận lại PID `4581`. Chạy riêng test này cũng tái hiện lỗi; file speech runtime và test của nó không thuộc thay đổi streaming. Vì vitest dừng ở đây, các Node integration test khác không được chạy theo lệnh full suite. Không gọi Gemini thật; test chỉ xác minh luồng với SDK/provider giả lập, không xác minh key/quota hoặc chi phí thực tế.

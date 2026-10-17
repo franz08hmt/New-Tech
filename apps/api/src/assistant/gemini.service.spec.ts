@@ -4,16 +4,22 @@ import type { GenerateContentParameters } from "@google/genai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GeminiService } from "./gemini.service.js";
 
-const { generateContent } = vi.hoisted(() => ({
+const { generateContent, generateContentStream } = vi.hoisted(() => ({
   generateContent:
     vi.fn<(input: GenerateContentParameters) => Promise<{ text?: string }>>(),
+  generateContentStream:
+    vi.fn<
+      (
+        input: GenerateContentParameters,
+      ) => Promise<AsyncIterable<{ text?: string }>>
+    >(),
 }));
 vi.mock("@google/genai", async (importOriginal) => {
   const sdk = await importOriginal<typeof import("@google/genai")>();
   return {
     ...sdk,
     GoogleGenAI: vi.fn(function () {
-      return { models: { generateContent } };
+      return { models: { generateContent, generateContentStream } };
     }),
   };
 });
@@ -34,6 +40,12 @@ beforeEach(() => {
   generateContent
     .mockReset()
     .mockResolvedValue({ text: "  A useful answer.  " });
+  generateContentStream.mockReset().mockImplementation(async () => ({
+    async *[Symbol.asyncIterator]() {
+      yield { text: "A useful answer that is long enough to show " };
+      yield { text: "the provider is streaming its generated text." };
+    },
+  }));
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -79,6 +91,98 @@ describe("GeminiService", () => {
     const logs = JSON.stringify(vi.mocked(console.log).mock.calls);
     expect(logs).not.toContain("Private");
     expect(logs).not.toContain(secret);
+  });
+
+  it("yields provider text incrementally using Gemini's streaming API", async () => {
+    const service = new GeminiService();
+    const parts: string[] = [];
+    for await (const part of service.generateStream(input)) parts.push(part);
+    expect(parts.join("")).toBe(
+      "A useful answer that is long enough to show the provider is streaming its generated text.",
+    );
+    expect(parts.length).toBeGreaterThan(1);
+    expect(generateContentStream).toHaveBeenCalledExactlyOnceWith({
+      model: "gemini-2.5-flash",
+      contents: [{ role: "user", parts: [{ text: "Private user message" }] }],
+      config: {
+        systemInstruction: "Private system instruction",
+        maxOutputTokens: 1024,
+        candidateCount: 1,
+        responseModalities: ["TEXT"],
+        abortSignal: expect.any(AbortSignal),
+        httpOptions: { retryOptions: { attempts: 1 } },
+      },
+    });
+    expect(generateContent).not.toHaveBeenCalled();
+  });
+
+  it("forwards ordinary first-token text without waiting for another provider chunk", async () => {
+    let nextCalls = 0;
+    generateContentStream.mockResolvedValueOnce({
+      [Symbol.asyncIterator]() {
+        return {
+          async next() {
+            nextCalls++;
+            return nextCalls === 1
+              ? { done: false as const, value: { text: "Xin chào" } }
+              : { done: true as const, value: undefined };
+          },
+        };
+      },
+    });
+
+    const iterator = new GeminiService().generateStream(input);
+    await expect(iterator.next()).resolves.toMatchObject({
+      done: false,
+      value: "Xin chào",
+    });
+    expect(nextCalls).toBe(1);
+    await iterator.return(undefined);
+  });
+
+  it("never emits a credential split across provider chunks", async () => {
+    generateContentStream.mockResolvedValueOnce({
+      async *[Symbol.asyncIterator]() {
+        yield {
+          text: `safe text that is definitely more than ${secret.length} characters long `,
+        };
+        yield { text: secret.slice(0, 12) };
+        yield { text: secret.slice(12) };
+      },
+    });
+    const service = new GeminiService();
+    const emitted: string[] = [];
+    await expect(async () => {
+      for await (const part of service.generateStream(input))
+        emitted.push(part);
+    }).rejects.toMatchObject({ kind: "upstream" });
+    expect(emitted.join("")).not.toContain(secret);
+  });
+
+  it("propagates client cancellation to the Gemini stream and stops yielding", async () => {
+    let providerSignal: AbortSignal | undefined;
+    generateContentStream.mockImplementationOnce(async ({ config }) => {
+      providerSignal = config?.abortSignal;
+      return {
+        async *[Symbol.asyncIterator]() {
+          yield {
+            text: "This first streamed answer is longer than the credential key itself ",
+          };
+          yield { text: "this should not be sent" };
+        },
+      };
+    });
+    const cancellation = new AbortController();
+    const iterator = new GeminiService().generateStream(
+      input,
+      cancellation.signal,
+    );
+    const first = await iterator.next();
+    expect(first.done).toBe(false);
+    expect(first.value).toContain("This first streamed answer");
+    cancellation.abort();
+    await expect(iterator.next()).rejects.toMatchObject({ name: "AbortError" });
+    expect(providerSignal?.aborted).toBe(true);
   });
 
   it("status never initializes the SDK or returns credentials", () => {
