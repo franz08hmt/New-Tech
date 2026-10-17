@@ -255,6 +255,8 @@ export const api = {
   deleteStudyPlan: (id: string) =>
     request<void>(`/api/study-plans/${id}`, { method: "DELETE" }),
   listDocuments: () => request<StoredDocument[]>("/api/documents"),
+  getDocument: (id: string) =>
+    request<StoredDocument>(`/api/documents/${encodeURIComponent(id)}`),
   uploadDocument: (file: File, courseId?: string) => {
     const body = new FormData();
     body.append("file", file);

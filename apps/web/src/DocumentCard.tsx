@@ -15,6 +15,8 @@ interface DocumentCardProps {
   processingStatus?: StoredDocument["processing_status"];
   indexQuality?: StoredDocument["index_quality"];
   onProcess?: () => void;
+  indexUnconfirmed?: boolean;
+  onCheckStatus?: () => void;
 }
 export function DocumentCard({
   name,
@@ -28,6 +30,8 @@ export function DocumentCard({
   processingStatus,
   indexQuality,
   onProcess,
+  indexUnconfirmed,
+  onCheckStatus,
 }: DocumentCardProps) {
   const processLabel =
     processingStatus === "failed"
@@ -63,7 +67,13 @@ export function DocumentCard({
           {state === "deleting" && "Deletion pending · Retry delete to finish"}
           {state === "legacy" && "Legacy metadata · Storage not verified"}
         </p>
-        {processingStatus && (
+        {indexUnconfirmed && (
+          <p className="document-state" role="status">
+            Chưa xác nhận được trạng thái chỉ mục. Kiểm tra trạng thái trước khi
+            lập chỉ mục lại.
+          </p>
+        )}
+        {processingStatus && !indexUnconfirmed && (
           <p
             className={`document-state document-state--${processingStatus}`}
             aria-live="polite"
@@ -77,7 +87,7 @@ export function DocumentCard({
               "AI index · Failed, retry available"}
           </p>
         )}
-        {processingStatus === "ready" && indexQuality && (
+        {!indexUnconfirmed && processingStatus === "ready" && indexQuality && (
           <p className="document-index-quality">
             Độ phủ: đọc được {indexQuality.useful_text_page_count}/
             {indexQuality.total_page_count} trang ·{" "}
@@ -88,7 +98,7 @@ export function DocumentCard({
               ` · Cảnh báo: ${indexQuality.low_text_page_count} trang có ít chữ; “sẵn sàng” không có nghĩa đã đọc hết nội dung trong ảnh`}
           </p>
         )}
-        {processingStatus === "ready" && !indexQuality && (
+        {!indexUnconfirmed && processingStatus === "ready" && !indexQuality && (
           <p className="document-index-quality">
             Chưa có thống kê độ phủ · Re-index để kiểm tra chất lượng văn bản
           </p>
@@ -128,12 +138,26 @@ export function DocumentCard({
           <button
             type="button"
             disabled={
-              busy || state !== "stored" || processingStatus === "processing"
+              busy ||
+              indexUnconfirmed ||
+              state !== "stored" ||
+              processingStatus === "processing"
             }
             aria-label={`${processLabel} ${name}`}
             onClick={onProcess}
           >
             {processingStatus === "processing" ? "Indexing…" : processLabel}
+          </button>
+        )}
+        {onCheckStatus && (
+          <button
+            type="button"
+            disabled={busy}
+            style={{ minHeight: 44 }}
+            aria-label={`Check index status ${name}`}
+            onClick={onCheckStatus}
+          >
+            Check index status
           </button>
         )}
         {onRemove && (

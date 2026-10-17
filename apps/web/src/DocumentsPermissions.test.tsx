@@ -11,7 +11,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, type Course, type StoredDocument } from "./api";
+import { api, ApiError, type Course, type StoredDocument } from "./api";
 import { CourseWorkspace } from "./CourseWorkspace";
 import { DocumentsPanel } from "./DocumentsPanel";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
@@ -433,8 +433,9 @@ describe("Document permissions from the verified principal", () => {
     },
   );
   it("keeps rejected backend writes visible without silently retrying", async () => {
+    const read = vi.spyOn(api, "getDocument");
     vi.mocked(api.processDocument).mockRejectedValue(
-      new Error("Bạn chỉ có quyền xem tài liệu này."),
+      new ApiError("Bạn chỉ có quyền xem tài liệu này.", "ROLE_FORBIDDEN", 403),
     );
     render(asRole(<DocumentsPanel />, "member"));
     await loaded();
@@ -448,8 +449,9 @@ describe("Document permissions from the verified principal", () => {
     );
     expect(api.processDocument).toHaveBeenCalledOnce();
     expect(
-      screen.getByRole("button", { name: `Retry indexing ${stored.name}` }),
-    ).toBeEnabled();
+      screen.getByRole("button", { name: `Index ${stored.name}` }),
+    ).toBeDisabled();
+    expect(read).not.toHaveBeenCalled();
   });
   it("discards pending download signing after the old account view unmounts", async () => {
     let resolveSigning!: (result: { url: string; expiresIn: number }) => void;

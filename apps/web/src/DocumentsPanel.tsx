@@ -15,7 +15,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { DocumentCard } from "./DocumentCard";
 import { useCourses } from "./use-courses";
-import { api, type StoredDocument } from "./api";
+import { api, ApiError, type StoredDocument } from "./api";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -54,6 +54,17 @@ export function DocumentsPanel() {
   const busy = useRef(new Set<string>());
   const revision = useRef(0);
   const lifetime = useRef(0);
+  const identity = `${principal?.userId ?? ""}:${principal?.workspaceId ?? ""}`;
+  // Synchronous identity check also covers a response resolving in the batch
+  // before an old view's effect cleanup runs. PilotAccess normally remounts it.
+  const currentIdentity = useRef(identity);
+  currentIdentity.current = identity;
+  const operations = useRef(new Map<string, number>());
+  const unconfirmed = useRef(new Set<string>());
+  const [indexReads, setIndexReads] = useState<
+    Record<string, { denied: boolean }>
+  >({});
+  const [indexErrors, setIndexErrors] = useState<Record<string, string>>({});
   useEffect(() => {
     if (!canWrite) {
       setSelected([]);
@@ -64,24 +75,38 @@ export function DocumentsPanel() {
   const reload = useCallback(async () => {
     if (busy.current.size) return;
     const current = ++revision.current;
+    const owner = currentIdentity.current;
     setLoading(true);
     setError("");
     try {
       const result = await api.listDocuments();
-      if (current === revision.current) setDocuments(result);
+      if (current === revision.current && owner === currentIdentity.current) {
+        setDocuments(result);
+        unconfirmed.current.clear();
+        setIndexReads({});
+      }
     } catch (caught) {
-      if (current === revision.current) setError(message(caught));
+      if (current === revision.current && owner === currentIdentity.current)
+        setError(message(caught));
     } finally {
-      if (current === revision.current) setLoading(false);
+      if (current === revision.current && owner === currentIdentity.current)
+        setLoading(false);
     }
   }, []);
   useEffect(() => {
+    busy.current.clear();
+    operations.current.clear();
+    unconfirmed.current.clear();
+    setBusyIds([]);
+    setIndexReads({});
+    setIndexErrors({});
+    setDocuments([]);
     void reload();
     return () => {
       revision.current++;
       lifetime.current++;
     };
-  }, [reload]);
+  }, [reload, identity]);
 
   function selectFiles(event: ChangeEvent<HTMLInputElement>) {
     if (!permissions.current.canWrite) {
@@ -126,6 +151,7 @@ export function DocumentsPanel() {
   function begin(id: string) {
     if (busy.current.has(id)) return false;
     busy.current.add(id);
+    operations.current.set(id, (operations.current.get(id) ?? 0) + 1);
     setBusyIds([...busy.current]);
     revision.current++;
     setLoading(false);
@@ -202,9 +228,69 @@ export function DocumentsPanel() {
     }
   }
 
+  function operationToken(id: string) {
+    const epoch = lifetime.current,
+      owner = identity,
+      operation = operations.current.get(id);
+    return () =>
+      epoch === lifetime.current &&
+      owner === currentIdentity.current &&
+      operation === operations.current.get(id);
+  }
+  function confirmIndex(id: string) {
+    unconfirmed.current.delete(id);
+    setIndexReads((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  }
+  async function reconcileIndex(id: string, isCurrent: () => boolean) {
+    if (!isCurrent() || !principal) return;
+    try {
+      const result = await api.getDocument(id);
+      if (!isCurrent()) return;
+      // Never append: an inaccessible/deleted row cannot be resurrected by GET.
+      setDocuments((current) =>
+        current.map((row) => (row.id === id ? result : row)),
+      );
+      confirmIndex(id);
+    } catch (cause) {
+      if (!isCurrent()) return;
+      if (cause instanceof ApiError && cause.status === 404) {
+        setDocuments((current) => current.filter((row) => row.id !== id));
+        confirmIndex(id);
+        return;
+      }
+      setIndexReads((current) => ({
+        ...current,
+        [id]: {
+          denied:
+            cause instanceof ApiError && [401, 403].includes(cause.status),
+        },
+      }));
+    }
+  }
+  async function checkIndex(id: string) {
+    if (!unconfirmed.current.has(id) || indexReads[id]?.denied || !begin(id))
+      return;
+    const isCurrent = operationToken(id);
+    try {
+      await reconcileIndex(id, isCurrent);
+    } finally {
+      if (isCurrent()) finish(id);
+    }
+  }
   async function process(item: StoredDocument) {
     if (!permissions.current.canWrite) return;
+    if (unconfirmed.current.has(item.id)) return;
     if (!begin(item.id)) return;
+    const isCurrent = operationToken(item.id);
+    setIndexErrors((current) => {
+      const next = { ...current };
+      delete next[item.id];
+      return next;
+    });
     setDocuments((current) =>
       current.map((row) =>
         row.id === item.id ? { ...row, processing_status: "processing" } : row,
@@ -212,6 +298,7 @@ export function DocumentsPanel() {
     );
     try {
       const result = await api.processDocument(item.id);
+      if (!isCurrent()) return;
       setDocuments((current) =>
         current.map((row) =>
           row.id === item.id
@@ -227,21 +314,20 @@ export function DocumentsPanel() {
         `Đã lập chỉ mục "${item.name}" thành ${result.chunk_count} đoạn để Assistant truy xuất.`,
       );
     } catch (cause) {
-      // The backend marks a claimed job failed before returning an error. Keep
-      // that state visible so the retry action is immediately available even
-      // if a follow-up list refresh cannot be made.
-      setDocuments((current) =>
-        current.map((row) =>
-          row.id === item.id ? { ...row, processing_status: "failed" } : row,
-        ),
-      );
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Chưa lập chỉ mục được tài liệu này. Bạn có thể thử lại.",
-      );
+      if (!isCurrent()) return;
+      unconfirmed.current.add(item.id);
+      const denied =
+        cause instanceof ApiError && [401, 403].includes(cause.status);
+      setIndexReads((current) => ({ ...current, [item.id]: { denied } }));
+      setIndexErrors((current) => ({
+        ...current,
+        [item.id]: `Yêu cầu lập chỉ mục trả lỗi: ${message(cause)} Trạng thái được đối chiếu riêng.`,
+      }));
+      // One safe read only; no replay of an uncertain POST. Auth transport
+      // already notifies the pilot gate on session/workspace denial.
+      if (!denied) await reconcileIndex(item.id, isCurrent);
     } finally {
-      finish(item.id);
+      if (isCurrent()) finish(item.id);
     }
   }
 
@@ -430,6 +516,13 @@ export function DocumentsPanel() {
                     busy={busyIds.includes(item.id)}
                     processingStatus={item.processing_status ?? "pending"}
                     indexQuality={item.index_quality}
+                    error={indexErrors[item.id]}
+                    indexUnconfirmed={!!indexReads[item.id]}
+                    onCheckStatus={
+                      indexReads[item.id] && !indexReads[item.id].denied
+                        ? () => void checkIndex(item.id)
+                        : undefined
+                    }
                     onProcess={canWrite ? () => void process(item) : undefined}
                     onDownload={() => void download(item)}
                     onRemove={canDelete ? () => void remove(item) : undefined}
