@@ -12,6 +12,7 @@ import { AnswerReceiptService } from "../dist/assistant/answer-receipt.service.j
 import { configureApp } from "../dist/common/http.js";
 import { authFixture } from "./auth-fixture.mjs";
 import { json } from "./helpers.mjs";
+import { assertGroundedAnswer } from "./retrieval-positive.mjs";
 import {
   openRetrievalTenantFixture,
   tenants,
@@ -121,6 +122,7 @@ for (const role of ["manager", "member", "viewer", "absent"])
         );
       }
       for (const operation of ["question", "summarize", "course_info"]) {
+        const generationBefore = f.state.generations.length;
         const response = await post({ ...input, operation }),
           text = await response.text();
         assert.doesNotMatch(
@@ -129,7 +131,25 @@ for (const role of ["manager", "member", "viewer", "absent"])
         );
         assert.equal(response.status, role === "absent" ? 403 : 200);
         if (role !== "absent") {
-          assert.equal(JSON.parse(text).mode, "documents");
+          const answer = JSON.parse(text);
+          assert.equal(answer.mode, "documents");
+          if (operation === "course_info") {
+            assert.equal(answer.answerable, true);
+            assert.equal(answer.reasonCode, "DOCUMENT_METADATA");
+            assert.deepEqual(answer.metadataSource, {
+              documentId: A.document,
+              title: "Synthetic 0 document.pdf",
+              courseId: A.course,
+              courseSlug: "docs-0",
+              courseName: "Synthetic course 0",
+              courseCode: "DOC 0",
+            });
+            assert.deepEqual(answer.citations, []);
+          } else assertGroundedAnswer(answer, A.document);
+          assert.equal(
+            f.state.generations.length - generationBefore,
+            operation === "course_info" ? 0 : 1,
+          );
           assert.equal(
             (
               await post({
@@ -142,6 +162,29 @@ for (const role of ["manager", "member", "viewer", "absent"])
             404,
           );
         }
+      }
+      if (role !== "absent") {
+        const before = f.state.generations.length;
+        const nullCourse = await post({
+          ...input,
+          operation: "course_info",
+          documentId: A.unassigned,
+          courseId: undefined,
+        });
+        assert.equal(nullCourse.status, 200);
+        const nullAnswer = await nullCourse.json();
+        assert.equal(nullAnswer.answerable, true);
+        assert.equal(nullAnswer.reasonCode, "DOCUMENT_METADATA");
+        assert.deepEqual(nullAnswer.citations, []);
+        assert.deepEqual(nullAnswer.metadataSource, {
+          documentId: A.unassigned,
+          title: "Synthetic 0 unassigned.pdf",
+          courseId: null,
+          courseSlug: null,
+          courseName: null,
+          courseCode: null,
+        });
+        assert.equal(f.state.generations.length, before);
       }
       if (role === "absent") {
         assert.equal(f.state.embedding, 0);

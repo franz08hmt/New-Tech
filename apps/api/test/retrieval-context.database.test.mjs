@@ -8,6 +8,7 @@ import {
   tenantPrincipal,
 } from "./retrieval-tenant-fixture.mjs";
 import { bounded, deferred } from "./retrieval-context-fixture.mjs";
+import { assertGroundedAnswer } from "./retrieval-positive.mjs";
 const [A, B, inactive] = tenants,
   scope = { documentId: A.document, courseId: A.course };
 const golden = JSON.parse(
@@ -109,15 +110,16 @@ for (const role of ["manager", "member", "viewer"])
       await f.retrieval.documentMetadata(A.unassigned, {}, p),
       golden.metadata,
     );
-    await f.assistant.chat(
+    const answer = await f.assistant.chat(
       { mode: "documents", message: "Question", ...scope },
       p,
     );
+    assertGroundedAnswer(answer, A.document);
     assert.deepEqual(f.state.generations, golden.questionPrompts);
   });
 test("summary grouping/source offsets and every provider prompt match the pre-change golden", async () => {
   await f.reset({ large: true });
-  await f.assistant.chat(
+  const answer = await f.assistant.chat(
     {
       mode: "documents",
       operation: "summarize",
@@ -126,6 +128,7 @@ test("summary grouping/source offsets and every provider prompt match the pre-ch
     },
     tenantPrincipal(A),
   );
+  assertGroundedAnswer(answer, A.document, 1);
   assert.equal(f.state.generations.length, 3);
   assert.deepEqual(f.state.generations, golden.summaryPrompts);
 });
@@ -340,6 +343,12 @@ test("coverage is read again after embedding completes under current scope", asy
       [A.document],
     );
   const r = await f.retrieval.retrieve("Question", scope, tenantPrincipal(A));
+  assert.deepEqual(
+    r.evidence,
+    golden.retrieve.evidence,
+    "coverage must accompany expected evidence, not a false-empty result",
+  );
+  assert.deepEqual(r.citations, golden.retrieve.citations);
   assert.deepEqual(r.coverage, {
     totalPageCount: 8,
     usefulTextPageCount: 4,

@@ -53,6 +53,11 @@ test("coverage is fresh after embedding, not metadata captured before it", async
     f.state.document.needs_ocr = true;
   };
   const r = await f.retrieval.retrieve("Question", scope, f.p);
+  assert.deepEqual(
+    r.evidence.map((e) => [e.chunkId, e.documentId, e.sourcePage]),
+    [[id(1000), id(100), 1]],
+  );
+  assert.equal(r.citations.length, 1);
   assert.deepEqual(r.coverage, {
     totalPageCount: 7,
     usefulTextPageCount: 3,
