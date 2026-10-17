@@ -1,5 +1,6 @@
 import { MicrophoneIcon } from "@heroicons/react/24/outline";
 import { useContext, useState } from "react";
+import type { SpeechLanguage } from "@examate/contracts";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
 import { useSpeechInput } from "./use-speech-input";
 
@@ -15,9 +16,11 @@ export function SpeechInput({
   onDraft: (value: string) => void;
 }) {
   const principal = useContext(PilotPrincipalContext);
+  const [language, setLanguage] = useState<SpeechLanguage>("auto");
   const speech = useSpeechInput(
     active,
     `${principal?.userId ?? ""}:${principal?.workspaceId ?? ""}:${scope}`,
+    language,
   );
   const [insertionError, setInsertionError] = useState("");
   const busy = [
@@ -41,6 +44,19 @@ export function SpeechInput({
   return (
     <section className="speech-input" aria-label="Nhập câu hỏi bằng giọng nói">
       <div className="speech-controls">
+        <label htmlFor="speech-language">Ngôn ngữ nhận dạng</label>
+        <select
+          id="speech-language"
+          value={language}
+          disabled={busy}
+          onChange={(event) =>
+            setLanguage(event.target.value as SpeechLanguage)
+          }
+        >
+          <option value="auto">Tự động</option>
+          <option value="vietnamese">Tiếng Việt</option>
+          <option value="english">English</option>
+        </select>
         <button
           type="button"
           disabled={busy || speech.availability?.status !== "ready"}
@@ -52,7 +68,11 @@ export function SpeechInput({
           <MicrophoneIcon aria-hidden="true" /> Ghi âm câu hỏi
         </button>
         <span className="speech-language-note">
-          Whisper tự nhận diện ngôn ngữ trong bản ghi.
+          {language === "auto"
+            ? "Whisper tự nhận diện ngôn ngữ trong bản ghi."
+            : language === "vietnamese"
+              ? "Whisper ưu tiên nhận dạng tiếng Việt."
+              : "Whisper ưu tiên nhận dạng tiếng Anh."}
         </span>
         {speech.status === "recording" && (
           <button type="button" onClick={speech.stop}>

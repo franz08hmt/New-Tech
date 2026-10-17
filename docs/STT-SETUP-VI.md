@@ -7,10 +7,12 @@ không train/fine-tune và không gọi dịch vụ Whisper hosted.
 
 Model được chọn là `onnx-community/whisper-small`, bản ONNX đa ngôn ngữ, chạy
 CPU với `q8`. Transformers.js được pin ở `3.8.1`; revision model cố định là
-`dc93399f6d0d35f7eddcb1b3f029d8684f4dfc12`. Whisper tự nhận diện ngôn ngữ và
-được yêu cầu chép lời (`transcribe`), không yêu cầu dịch sang tiếng Anh. Đây là
-lựa chọn để bắt đầu benchmark trên laptop 16 GB; tốc độ và độ chính xác tiếng
-Việt xen tiếng Anh chỉ kết luận sau khi thử audio thật.
+`dc93399f6d0d35f7eddcb1b3f029d8684f4dfc12`. Giao diện cho phép chọn Tự động,
+Tiếng Việt hoặc English. Tự động là mặc định và để Whisper tự nhận diện ngôn ngữ;
+hai lựa chọn còn lại truyền `language: "vietnamese"` hoặc `language: "english"`
+để gợi ý ngôn ngữ nguồn. Cả ba chế độ đều dùng `task: "transcribe"`, không dịch
+sang ngôn ngữ khác. Đây là cấu hình để bắt đầu benchmark trên laptop 16 GB; tốc
+độ và độ chính xác tiếng Việt xen tiếng Anh cần được kiểm tra bằng audio thật.
 
 ## Chuẩn bị model
 
@@ -126,15 +128,21 @@ Các mã lỗi STT gồm `STT_NOT_CONFIGURED`, `STT_MODEL_MISSING`,
 `STT_MEDIA_TIMEOUT`, `STT_AUDIO_REQUIRED`, `STT_AUDIO_TOO_LARGE`,
 `STT_UNSUPPORTED_AUDIO`, `STT_INVALID_AUDIO`, `STT_AUDIO_TOO_LONG`,
 `STT_NO_SPEECH`, `STT_RATE_LIMITED`, `STT_BUSY`, `STT_TIMEOUT` và
-`STT_CANCELLED`.
+`STT_CANCELLED`, `STT_LANGUAGE_INVALID`.
 
 ## Chất lượng tiếng Việt xen tiếng Anh
 
-Whisper small là model đa ngôn ngữ, nhưng q8 có thể ảnh hưởng chất lượng và
-Whisper không đảm bảo chép đúng thuật ngữ, tên riêng hoặc code-switching. Hãy
-so sánh cùng một tập audio với phần chép tay làm chuẩn, ghi các lỗi tên/ý nghĩa
-và thời gian xử lý. Không dùng một vài câu thử để khẳng định model chính xác hơn
-hoặc nhanh hơn model khác.
+Chọn Tự động cho câu nói trộn ngôn ngữ hoặc khi chưa biết chắc ngôn ngữ. Nếu
+audio chủ yếu dùng một ngôn ngữ, chọn Tiếng Việt hoặc English để gợi ý ngôn ngữ
+nguồn cho Whisper. Gợi ý sai có thể làm giảm độ chính xác; transcript vẫn cần
+được nghe lại và sửa trước khi chèn. Whisper cũng có thể tạo nội dung không được
+nói ra khi audio không rõ hoặc không có lời nói. Để so sánh chất lượng, ghi cùng
+một tập câu tiếng Việt, tiếng Anh và câu trộn Việt-Anh, đối chiếu với bản chép
+tay chuẩn, rồi ghi lỗi tên/ý nghĩa và thời gian xử lý. Không kết luận từ một vài
+câu thử rằng model chính xác hơn hoặc nhanh hơn model khác.
+
+Sau khi đổi code hoặc lựa chọn mặc định, khởi động lại API (`npm run dev:api`)
+để worker nạp cấu hình mới. Web có thể tiếp tục chạy bình thường.
 
 Tài liệu tham khảo: [Transformers.js chạy Whisper trên Node](https://huggingface.co/docs/transformers.js/guides/node-audio-processing),
 [cách khóa model local và tắt tải remote](https://huggingface.co/docs/transformers.js/v3.8.1/en/custom_usage),

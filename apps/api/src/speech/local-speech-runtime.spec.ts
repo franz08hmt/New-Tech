@@ -21,7 +21,12 @@ import {
   type SpeechWorkerProcess,
 } from "./local-speech-runtime.js";
 
-type Message = { type: string; id?: number; audioBase64?: string };
+type Message = {
+  type: string;
+  id?: number;
+  audioBase64?: string;
+  language?: string;
+};
 class FakeWorker extends EventEmitter {
   readonly stdout = new PassThrough();
   readonly stdin: Writable;
@@ -170,12 +175,17 @@ describe("local speech runtime process lifecycle", () => {
     );
     await ready(runtimeWithCount, worker);
     expect(await runtimeWithCount.status()).toBe("ready");
-    worker.onRequest = ({ id }) =>
+    const messages: Message[] = [];
+    worker.onRequest = (message) => {
+      messages.push(message);
+      const { id } = message;
       worker.send({ type: "result", id, text: "hello" });
+    };
     expect(
       await runtimeWithCount.transcribe(
         Buffer.from("wav"),
         new AbortController().signal,
+        "english",
       ),
     ).toBe("hello");
     expect(
@@ -185,6 +195,8 @@ describe("local speech runtime process lifecycle", () => {
       ),
     ).toBe("hello");
     expect(spawnCount).toBe(1);
+    expect(messages[0].language).toBe("english");
+    expect(messages[1]).not.toHaveProperty("language");
     expect(runtimeWithCount.metrics()).toMatchObject({ pid: worker.pid });
   });
 

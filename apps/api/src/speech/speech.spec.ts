@@ -163,6 +163,23 @@ describe("local Whisper adapter", () => {
     expect(runtime.transcribe).toHaveBeenCalledWith(
       audio.buffer,
       expect.anything(),
+      undefined,
+    );
+  });
+  it("passes a selected source language through to the local runtime", async () => {
+    const runtime = {
+      status: vi.fn(async () => "ready" as const),
+      transcribe: vi.fn(async () => "Database systems"),
+      metrics: () => ({}),
+      waitUntilReady: vi.fn(async () => {}),
+      close: vi.fn(async () => {}),
+    };
+    const provider = new LocalSpeechProvider(() => config, runtime);
+    await provider.transcribe(audio, signal(), "english");
+    expect(runtime.transcribe).toHaveBeenCalledWith(
+      audio.buffer,
+      expect.anything(),
+      "english",
     );
   });
   it("reports silence and safe local runtime errors without exposing internals", async () => {

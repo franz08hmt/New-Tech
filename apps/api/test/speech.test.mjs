@@ -16,7 +16,16 @@ import { configureApp } from "../dist/common/http.js";
 import { authFixture } from "./auth-fixture.mjs";
 import { fakeDependencies, json } from "./helpers.mjs";
 
-let app, base, fixture, config, cookie, csrf, calls, mediaCalls, provider;
+let app,
+  base,
+  fixture,
+  config,
+  cookie,
+  csrf,
+  calls,
+  languages,
+  mediaCalls,
+  provider;
 beforeEach(async () => {
   cookie = undefined;
   csrf = undefined;
@@ -39,13 +48,15 @@ beforeEach(async () => {
     ffprobe: "ffprobe",
   };
   calls = 0;
+  languages = [];
   mediaCalls = 0;
   provider = {
     async status() {
       return config.enabled ? "ready" : "not_configured";
     },
-    async transcribe() {
+    async transcribe(_audio, _signal, language) {
       calls++;
+      languages.push(language);
       return { text: "Private transcript fixture", detectedLanguages: ["vi"] };
     },
   };
@@ -121,6 +132,7 @@ function form(extra = {}) {
     new Blob([extra.bytes ?? "fixture-audio"], { type: "audio/wav" }),
     "private-filename.wav",
   );
+  if (extra.language !== undefined) body.append("language", extra.language);
   return { method: "POST", body };
 }
 
@@ -163,6 +175,26 @@ test("transcribes for viewers too, returns request ID and preserves membership c
   assert.equal(body.text, "Private transcript fixture");
   assert.equal(body.requestId, response.headers.get("X-Request-ID"));
   assert.equal(calls, 1);
+});
+test("validates language choices and forwards optional source-language hints", async () => {
+  for (const [value, expected] of [
+    ["auto", undefined],
+    ["vietnamese", "vietnamese"],
+    ["english", "english"],
+  ]) {
+    const response = await send(
+      "/speech/transcriptions",
+      form({ language: value }),
+    );
+    assert.equal(response.status, 200);
+    assert.equal(languages.at(-1), expected);
+  }
+  const invalid = await send(
+    "/speech/transcriptions",
+    form({ language: "vi" }),
+  );
+  assert.equal(invalid.status, 400);
+  assert.equal((await invalid.json()).code, "STT_LANGUAGE_INVALID");
 });
 test("Auth, CSRF and revoked membership deny before media/provider", async () => {
   assert.equal(

@@ -11,7 +11,38 @@ import {
   speechError,
   type AudioUpload,
   type SpeechToTextProvider,
+  type WhisperSourceLanguage,
 } from "./speech.types.js";
+
+function speechLanguageFromBody(
+  body: unknown,
+): WhisperSourceLanguage | undefined {
+  if (body === undefined || body === null) return undefined;
+  if (typeof body !== "object" || Array.isArray(body))
+    speechError(
+      400,
+      "STT_LANGUAGE_INVALID",
+      "Ngôn ngữ nhận dạng không hợp lệ. Hãy chọn Tự động, Tiếng Việt hoặc English.",
+    );
+
+  const fields = Object.entries(body);
+  if (fields.some(([key]) => key !== "language"))
+    speechError(
+      400,
+      "STT_LANGUAGE_INVALID",
+      "Yêu cầu STT chỉ được chứa lựa chọn ngôn ngữ hợp lệ.",
+    );
+  if (fields.length === 0) return undefined;
+
+  const language = fields[0][1];
+  if (language === "auto") return undefined;
+  if (language === "vietnamese" || language === "english") return language;
+  speechError(
+    400,
+    "STT_LANGUAGE_INVALID",
+    "Ngôn ngữ nhận dạng không hợp lệ. Hãy chọn Tự động, Tiếng Việt hoặc English.",
+  );
+}
 
 @Injectable()
 export class SpeechService {
@@ -88,8 +119,10 @@ export class SpeechService {
     file: AudioUpload | undefined,
     principal: PilotPrincipal | undefined,
     signal: AbortSignal,
+    body?: unknown,
   ) {
     checkSpeechAbort(signal);
+    const language = speechLanguageFromBody(body);
     if (!(await this.inspector.available()))
       speechError(
         503,
@@ -100,7 +133,7 @@ export class SpeechService {
     checkSpeechAbort(signal);
     await this.access.authorize(principal, "read");
     const start = Date.now();
-    const result = await this.provider.transcribe(audio, signal);
+    const result = await this.provider.transcribe(audio, signal, language);
     checkSpeechAbort(signal);
     await this.access.authorize(principal, "read");
     log("info", "speech.transcribed", {

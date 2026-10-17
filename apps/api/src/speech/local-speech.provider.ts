@@ -8,6 +8,7 @@ import {
   type LocalSpeechRuntime,
   type SpeechToTextProvider,
   type VerifiedAudio,
+  type WhisperSourceLanguage,
 } from "./speech.types.js";
 
 @Injectable()
@@ -21,7 +22,11 @@ export class LocalSpeechProvider implements SpeechToTextProvider {
     return this.runtime.status();
   }
 
-  async transcribe(audio: VerifiedAudio, signal: AbortSignal) {
+  async transcribe(
+    audio: VerifiedAudio,
+    signal: AbortSignal,
+    language?: WhisperSourceLanguage,
+  ) {
     if (!this.config().enabled)
       speechError(
         503,
@@ -31,7 +36,7 @@ export class LocalSpeechProvider implements SpeechToTextProvider {
     checkSpeechAbort(signal);
     let rawText: string;
     try {
-      rawText = await this.runtime.transcribe(audio.buffer, signal);
+      rawText = await this.runtime.transcribe(audio.buffer, signal, language);
     } catch (error) {
       if (error instanceof SpeechError) throw error;
       speechError(

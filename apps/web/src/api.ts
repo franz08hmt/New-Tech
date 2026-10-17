@@ -17,6 +17,7 @@ export type {
   Expense,
   ExpenseCategory,
   HealthStatus,
+  SpeechLanguage,
   StoredDocument,
   SpeechStatusResponse,
   SpeechTranscriptionResponse,
@@ -60,6 +61,7 @@ import type {
   Expense,
   ExpenseCategory,
   HealthStatus,
+  SpeechLanguage,
   StoredDocument,
   SpeechStatusResponse,
   SpeechTranscriptionResponse,
@@ -161,12 +163,17 @@ export async function request<T>(
 export const api = {
   speechStatus: (signal?: AbortSignal) =>
     request<SpeechStatusResponse>("/api/speech/status", { signal }),
-  transcribeSpeech: (audio: Blob, signal: AbortSignal) => {
+  transcribeSpeech: (
+    audio: Blob,
+    signal: AbortSignal,
+    language: SpeechLanguage = "auto",
+  ) => {
     const mime = audio.type.split(";")[0];
     const extension =
       mime === "audio/webm" ? "webm" : mime.includes("wav") ? "wav" : "m4a";
     const body = new FormData();
     body.append("file", audio, `recording.${extension}`);
+    body.append("language", language);
     return request<SpeechTranscriptionResponse>("/api/speech/transcriptions", {
       method: "POST",
       body,

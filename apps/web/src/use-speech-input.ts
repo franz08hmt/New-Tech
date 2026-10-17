@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { SpeechStatusResponse } from "@examate/contracts";
+import type { SpeechLanguage, SpeechStatusResponse } from "@examate/contracts";
 import { api } from "./api";
 
 export type SpeechInputStatus =
@@ -10,7 +10,11 @@ export type SpeechInputStatus =
   | "transcribing"
   | "ready"
   | "error";
-export function useSpeechInput(active: boolean, scope: string) {
+export function useSpeechInput(
+  active: boolean,
+  scope: string,
+  language: SpeechLanguage = "auto",
+) {
   const [status, setStatus] = useState<SpeechInputStatus>("idle");
   const [availability, setAvailability] = useState<SpeechStatusResponse | null>(
     null,
@@ -30,8 +34,8 @@ export function useSpeechInput(active: boolean, scope: string) {
     interval?: ReturnType<typeof setInterval>;
     deadline?: ReturnType<typeof setTimeout>;
   }>({});
-  const current = useRef({ active, scope, availability });
-  current.current = { active, scope, availability };
+  const current = useRef({ active, scope, availability, language });
+  current.current = { active, scope, availability, language };
 
   const transition = useCallback((next: SpeechInputStatus) => {
     state.current = next;
@@ -169,6 +173,7 @@ export function useSpeechInput(active: boolean, scope: string) {
     cancel();
     const token = generation.current;
     const scopeAtStart = settings.scope;
+    const selectedLanguage = settings.language;
     const valid = () =>
       generation.current === token &&
       current.current.active &&
@@ -244,7 +249,9 @@ export function useSpeechInput(active: boolean, scope: string) {
         recorder.onstop = null;
         recorder.onerror = null;
         resources.current.recorder = undefined;
-        const audio = new Blob(chunks, { type: recorder.mimeType || mimeType });
+        const audio = new Blob(chunks, {
+          type: recorder.mimeType || mimeType,
+        });
         chunks.length = 0;
         if (!audio.size) {
           fail("Bản ghi rỗng. Hãy nói và ghi âm lại.");
@@ -254,7 +261,7 @@ export function useSpeechInput(active: boolean, scope: string) {
         resources.current.abort = controller;
         transition("transcribing");
         void api
-          .transcribeSpeech(audio, controller.signal)
+          .transcribeSpeech(audio, controller.signal, selectedLanguage)
           .then((result) => {
             if (!valid()) return;
             if (

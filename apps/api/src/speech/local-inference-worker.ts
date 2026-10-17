@@ -1,11 +1,11 @@
 import { createInterface } from "node:readline";
 import { env, pipeline } from "@huggingface/transformers";
 import { wavToFloat32 } from "./local-audio.js";
-
-type Transcriber = (
-  audio: Float32Array,
-  options: { task: "transcribe" },
-) => Promise<unknown>;
+import {
+  isWhisperSourceLanguage,
+  transcribeLocalAudio,
+  type LocalWhisperTranscriber,
+} from "./local-inference-options.js";
 
 const writeMessage = (message: Record<string, unknown>) =>
   process.stdout.write(`${JSON.stringify(message)}\n`);
@@ -31,7 +31,7 @@ env.useFS = true;
 env.useFSCache = false;
 env.useBrowserCache = false;
 
-let transcriber: Transcriber;
+let transcriber: LocalWhisperTranscriber;
 const loadStartedAt = Date.now();
 try {
   transcriber = (await pipeline("automatic-speech-recognition", model, {
@@ -46,7 +46,7 @@ try {
       interOpNumThreads: 1,
       logSeverityLevel: 3,
     },
-  })) as unknown as Transcriber;
+  })) as unknown as LocalWhisperTranscriber;
 } catch {
   writeMessage({ type: "error", phase: "load" });
   process.exit(1);
@@ -60,28 +60,41 @@ input.on("line", (line) => {
 });
 
 async function transcribeLine(line: string) {
-  let request: { type?: string; id?: number; audioBase64?: string };
+  let request: {
+    type?: string;
+    id?: number;
+    audioBase64?: string;
+    language?: unknown;
+  };
   try {
     request = JSON.parse(line) as typeof request;
   } catch {
     writeMessage({ type: "error", phase: "request" });
     return;
   }
+  const language = request.language;
   if (
     request.type !== "transcribe" ||
     !Number.isSafeInteger(request.id) ||
     typeof request.audioBase64 !== "string" ||
-    request.audioBase64.length > 3_000_000
+    request.audioBase64.length > 3_000_000 ||
+    (language !== undefined && !isWhisperSourceLanguage(language))
   ) {
     writeMessage({ type: "error", id: request.id, phase: "request" });
     return;
   }
+  const sourceLanguage = isWhisperSourceLanguage(language)
+    ? language
+    : undefined;
 
   try {
     const wav = Buffer.from(request.audioBase64, "base64");
     const samples = wavToFloat32(wav);
-    const output = (await transcriber(samples, { task: "transcribe" })) as
-      { text?: unknown } | Array<{ text?: unknown }>;
+    const output = (await transcribeLocalAudio(
+      transcriber,
+      samples,
+      sourceLanguage,
+    )) as { text?: unknown } | Array<{ text?: unknown }>;
     const result = Array.isArray(output) ? output[0]?.text : output?.text;
     if (typeof result !== "string") throw new Error("Invalid model result");
     writeMessage({

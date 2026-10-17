@@ -1,6 +1,7 @@
 import {
   CallHandler,
   Controller,
+  Body,
   ExecutionContext,
   Get,
   HttpCode,
@@ -100,18 +101,19 @@ export class SpeechController {
       limits: {
         fileSize: 5 * 1024 * 1024,
         files: 1,
-        fields: 0,
-        parts: 1,
+        fields: 1,
+        parts: 2,
         fieldNameSize: 40,
-        fieldSize: 10,
+        fieldSize: 16,
       },
     }),
   )
   transcribe(
     @UploadedFile() file: AudioUpload | undefined,
+    @Body() body: unknown,
     @Req() req: SpeechRequest,
   ) {
     req.speechProcessing = true;
-    return this.speech.transcribe(file, req.principal, req.speechSignal);
+    return this.speech.transcribe(file, req.principal, req.speechSignal, body);
   }
 }

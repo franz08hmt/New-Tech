@@ -14,6 +14,7 @@ import {
   speechError,
   type LocalSpeechRuntime,
   type LocalSpeechState,
+  type WhisperSourceLanguage,
 } from "./speech.types.js";
 
 export const SPEECH_WORKER_FACTORY = Symbol("SPEECH_WORKER_FACTORY");
@@ -178,7 +179,11 @@ export class LocalSpeechRuntimeService
     });
   }
 
-  async transcribe(audio: Buffer, signal: AbortSignal): Promise<string> {
+  async transcribe(
+    audio: Buffer,
+    signal: AbortSignal,
+    language?: WhisperSourceLanguage,
+  ): Promise<string> {
     checkSpeechAbort(signal);
     await this.waitUntilReady(signal);
     checkSpeechAbort(signal);
@@ -230,6 +235,7 @@ export class LocalSpeechRuntimeService
         type: "transcribe",
         id,
         audioBase64: audio.toString("base64"),
+        language,
       });
       if (message.length > 3_000_000) {
         this.finishActive(

@@ -17,6 +17,8 @@
  */
 
 /** Voice input produces a draft; it never sends an Assistant question. */
+export type SpeechLanguage = "auto" | "vietnamese" | "english";
+
 export interface SpeechStatusResponse {
   status:
     | "ready"

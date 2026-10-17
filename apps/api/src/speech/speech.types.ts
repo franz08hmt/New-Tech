@@ -1,6 +1,8 @@
 import { HttpException } from "@nestjs/common";
+import type { SpeechLanguage } from "@examate/contracts";
 export const SPEECH_PROVIDER = Symbol("SPEECH_PROVIDER");
 export const LOCAL_SPEECH_RUNTIME = Symbol("LOCAL_SPEECH_RUNTIME");
+export type WhisperSourceLanguage = Exclude<SpeechLanguage, "auto">;
 export interface AudioUpload {
   buffer: Buffer;
   size: number;
@@ -17,13 +19,18 @@ export interface SpeechToTextProvider {
   transcribe(
     audio: VerifiedAudio,
     signal: AbortSignal,
+    language?: WhisperSourceLanguage,
   ): Promise<{ text: string; detectedLanguages: string[] }>;
 }
 export type LocalSpeechState =
   "not_configured" | "model_missing" | "loading" | "ready" | "model_error";
 export interface LocalSpeechRuntime {
   status(): Promise<LocalSpeechState>;
-  transcribe(audio: Buffer, signal: AbortSignal): Promise<string>;
+  transcribe(
+    audio: Buffer,
+    signal: AbortSignal,
+    language?: WhisperSourceLanguage,
+  ): Promise<string>;
   metrics(): { pid?: number; rssBytes?: number; loadMs?: number };
   waitUntilReady(signal?: AbortSignal): Promise<void>;
   close(): Promise<void>;

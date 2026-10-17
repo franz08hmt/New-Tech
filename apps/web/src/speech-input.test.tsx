@@ -127,6 +127,21 @@ async function finish() {
 }
 
 describe("voice input", () => {
+  it.each(["auto", "vietnamese", "english"] as const)(
+    "sends the selected recognition language: %s",
+    async (language) => {
+      render(<Harness />);
+      const selector = screen.getByLabelText("Ngôn ngữ nhận dạng");
+      expect(selector).toHaveValue("auto");
+      if (language !== "auto")
+        fireEvent.change(selector, { target: { value: language } });
+      await record();
+      expect(selector).toBeDisabled();
+      fireEvent.click(screen.getByRole("button", { name: "Dừng ghi âm" }));
+      await screen.findByLabelText("Bản chép giọng nói");
+      expect(transcribe.mock.calls[0][2]).toBe(language);
+    },
+  );
   it("stops oversized recordings before upload", async () => {
     vi.mocked(api.speechStatus).mockResolvedValue({
       ...ready,
@@ -365,6 +380,36 @@ describe("voice input", () => {
 });
 
 describe("API cancellation", () => {
+  it.each(["auto", "vietnamese", "english"] as const)(
+    "includes the selected language in the multipart request: %s",
+    async (language) => {
+      transcribe.mockRestore();
+      configurePilotClient("a".repeat(43), true);
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            text: "Fixture transcript",
+            detectedLanguages: [],
+            requestId: "fixture",
+          }),
+        }),
+      );
+
+      await api.transcribeSpeech(
+        new Blob(["fixture audio"], { type: "audio/webm" }),
+        new AbortController().signal,
+        language,
+      );
+
+      const init = vi.mocked(fetch).mock.calls[0][1];
+      const body = init?.body as FormData;
+      expect(body.get("language")).toBe(language);
+      expect(body.get("file")).toBeInstanceOf(File);
+    },
+  );
   it("propagates caller cancellation through fetch and distinguishes it from timeout", async () => {
     configurePilotClient("a".repeat(43), true);
     vi.stubGlobal(
