@@ -122,7 +122,13 @@ có pass thực, không skipped; không sửa/drop dữ liệu dùng chung. **T�
 
 ### B1. Provision và nghiệm thu Auth thật
 
-**Checkpoint Đợt 13 — B1b PREPARED:** diagnostic Auth đã có safe code/fixed path,
+**Checkpoint mới tại Đợt 14 (17/10/2026):** bootstrap 012–015, workspace và
+account demo đã thực hiện; Auth HTTP thật local trên máy Tài đã kiểm theo
+[checkpoint Đợt 13](../docs/PHASE-13-B1-TWO-MACHINE-AUTH-REPORT.md).
+Máy Thắng vẫn REMOTE_MACHINE_NOT_VERIFIED; B1 extended/browser-login thật chưa
+đủ bằng chứng. Đợt 14 không gọi lại cloud/Auth thật để kiểm thay hai máy.
+
+**Checkpoint lịch sử Đợt 13 — B1b PREPARED:** diagnostic Auth đã có safe code/fixed path,
 DB suite kiểm riêng PostgreSQL 16 và 17. Cloud target/config/ledger mới kiểm chỉ
 đọc; còn chờ duyệt bootstrap 012–015/backup/membership và bàn giao code. Máy Thắng
 REMOTE_MACHINE_NOT_VERIFIED, chưa nghiệm thu Auth thật hai máy/B1 extended.
@@ -144,6 +150,16 @@ no-membership/outage fail closed, draft cùng user giữ đúng, user khác khô
 thấy notes/chat/draft. Có bằng chứng browser và Supabase thật. **Lát nghiệm thu riêng.**
 
 ### B2. Hoàn tất quyền và phạm vi dữ liệu — tiếp tục Chặng 2 pilot
+
+**Checkpoint Đợt 14 — lát 6b.2b:** DocumentIngestionService đã chuyển claim,
+fresh authorization trước download/extraction/OCR/embedding, atomic persist và
+failed bookkeeping sang workspace transaction; external dependencies ngoài DB.
+COMMIT không rõ outcome không replay/ghi failed đè ready hoặc claim mới.
+[Báo cáo Đợt 14](../docs/PHASE-14-B2-INGESTION-CONTEXT-REPORT.md): 1.328 test ứng
+dụng, 331 DB PG17 pass; năm mutation bắt lỗi/restore xanh; browser fixture local
+manager/member/viewer ở desktop và 375px. Tenant policies/grants vẫn test-only;
+runtime cloud không đổi. Retrieval/summary, receipts/feedback/export và Auth
+bootstrap least privilege toàn app chưa chuyển. B2/B3/B4 chưa hoàn tất.
 
 **Checkpoint Đợt 12 — lát 6b.2a:** DocumentsService dùng workspace transaction
 cho read/sign/upload/assign/delete và probe có fresh quyền trước compensation;
