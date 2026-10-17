@@ -5,6 +5,7 @@ import { buildRagContext } from "../dist/assistant/rag-context.js";
 import { AssistantService } from "../dist/assistant/assistant.service.js";
 import { RetrievalError } from "../dist/assistant/rag-retrieval.service.js";
 import { DocumentAccessService } from "../dist/documents/document-access.service.js";
+import { requirePrincipal } from "../dist/auth/principal.js";
 
 // This is a labelled fixture, not a simulation of Gemini quality or ranking.
 // Production generation parsing, citations and coverage paths are exercised.
@@ -22,6 +23,18 @@ export async function offlineFixtureResponse(item, input) {
         ? principal.role
         : undefined,
   });
+  // DI compatibility for the labelled offline fixture only. Never construct a
+  // runtime DB connection or silently execute business SQL in this adapter.
+  const database = {
+    workspaceTransaction: async (p, work) => {
+      requirePrincipal(p);
+      return work({
+        query: async () => {
+          throw new Error("Offline fixture must not query a database");
+        },
+      });
+    },
+  };
   const start = performance.now(),
     index = [],
     chunks = [];
@@ -134,10 +147,12 @@ export async function offlineFixtureResponse(item, input) {
   try {
     response = {
       httpStatus: 200,
-      body: await new AssistantService(provider, retrieval, access).chat(
-        input,
-        principal,
-      ),
+      body: await new AssistantService(
+        provider,
+        retrieval,
+        access,
+        database,
+      ).chat(input, principal),
     };
   } catch (error) {
     response = {

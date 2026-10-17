@@ -31,6 +31,10 @@ const firstRow = {
 function fixture(rows: unknown[] = [firstRow]) {
   const database = {
     query: vi.fn().mockResolvedValue({ rows }),
+    workspaceTransaction: async (
+      _p: unknown,
+      work: (tx: unknown) => Promise<unknown>,
+    ) => work({ query: database.query }),
   };
   const embeddings = {
     model: "gemini-embedding-001",
@@ -73,7 +77,9 @@ describe("RagRetrievalService", () => {
     );
 
     expect(embeddings.embedQuery).toHaveBeenCalledWith("What is required?");
-    const [sql, values] = database.query.mock.calls[1];
+    const [sql, values] = database.query.mock.calls.find(([sql]) =>
+      sql.includes("WITH nearest"),
+    )!;
     expect(sql).toContain("dc.embedding <=> $1::vector(768)");
     expect(sql).toContain("d.storage_status = 'stored'");
     expect(sql).toContain("d.processing_status = 'ready'");
@@ -252,6 +258,10 @@ describe("RagRetrievalService", () => {
   it("checks an exact document scope before embedding and applies both boundaries", async () => {
     const documentId = firstRow.document_id;
     const database = {
+      workspaceTransaction: async (
+        _p: unknown,
+        work: (tx: unknown) => Promise<unknown>,
+      ) => work({ query: database.query }),
       query: vi
         .fn()
         .mockResolvedValueOnce({ rows: [{ id: firstRow.course_id }] })
@@ -270,7 +280,21 @@ describe("RagRetrievalService", () => {
             },
           ],
         })
-        .mockResolvedValueOnce({ rows: [firstRow] }),
+        .mockImplementation(async (sql) => ({
+          rows: sql.includes("FROM courses")
+            ? [{ id: firstRow.course_id }]
+            : sql.includes("WITH nearest")
+              ? [firstRow]
+              : [
+                  {
+                    id: documentId,
+                    name: firstRow.document_name,
+                    course_id: firstRow.course_id,
+                    storage_status: "stored",
+                    processing_status: "ready",
+                  },
+                ],
+        })),
     };
     const embeddings = {
       model: "gemini-embedding-001",
@@ -290,8 +314,11 @@ describe("RagRetrievalService", () => {
       },
       principal,
     );
-    expect(database.query.mock.calls[2][0]).toContain("d.id = $5::uuid");
-    expect(database.query.mock.calls[2][1][4]).toBe(documentId);
+    const nearest = database.query.mock.calls.find(([sql]) =>
+      sql.includes("WITH nearest"),
+    )!;
+    expect(nearest[0]).toContain("d.id = $5::uuid");
+    expect(nearest[1][4]).toBe(documentId);
   });
 
   it("reads a selected document's course metadata without embedding or chunk text", async () => {

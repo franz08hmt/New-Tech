@@ -7,6 +7,7 @@ import {
 import type { AssistantChatDto } from "./assistant-chat.dto.js";
 import type { AssistantReasonCode, PilotPrincipal } from "@examate/contracts";
 import { DocumentAccessService } from "../documents/document-access.service.js";
+import { DatabaseService } from "../database/database.service.js";
 import { log } from "../common/log.js";
 import { conversationConfig } from "../config/config.js";
 import {
@@ -91,7 +92,14 @@ export class AssistantService {
     @Inject(GeminiService) private readonly provider: AssistantProvider,
     private readonly retrieval: RagRetrievalService,
     private readonly access: DocumentAccessService,
+    private readonly database: DatabaseService,
   ) {}
+
+  private authorize(principal?: PilotPrincipal) {
+    return this.database.workspaceTransaction(principal, (tx) =>
+      this.access.authorize(principal, "read", tx),
+    );
+  }
 
   status() {
     return this.provider.status();
@@ -105,7 +113,7 @@ export class AssistantService {
     const operation = input.operation ?? "question";
     const startedAt = Date.now();
     try {
-      const verified = await this.access.authorize(principal, "read");
+      const verified = await this.authorize(principal);
       const context = buildConversationContext(
         input.history ?? [],
         conversationConfig().maxChars,
@@ -169,7 +177,7 @@ export class AssistantService {
   ): Promise<AssistantAnswer> {
     const generationStartedAt = Date.now();
     const userParts = this.userParts(input);
-    await this.access.authorize(principal, "read");
+    await this.authorize(principal);
     const answer = await this.provider.generate({
       systemInstruction:
         GENERAL_SYSTEM_INSTRUCTION + (turns.length ? HISTORY_INSTRUCTION : ""),
@@ -234,7 +242,7 @@ export class AssistantService {
     const userParts = this.userParts(input);
     userParts.push(rag.context);
     const generationStartedAt = Date.now();
-    await this.access.authorize(principal, "read");
+    await this.authorize(principal);
     const raw = await this.provider.generate({
       systemInstruction:
         SYSTEM_INSTRUCTION + (turns.length ? HISTORY_INSTRUCTION : ""),
@@ -397,7 +405,7 @@ export class AssistantService {
             "The document section exceeds the safe summary context limit.",
         });
       sourceOffset += rag.evidence.length;
-      await this.access.authorize(principal, "read");
+      await this.authorize(principal);
       const raw = await this.provider.generate({
         systemInstruction: SUMMARY_SYSTEM_INSTRUCTION,
         userParts: [
@@ -428,7 +436,7 @@ export class AssistantService {
       const uniqueCitations = [
         ...new Map(allCitations.map((item) => [item.sourceId, item])).values(),
       ];
-      await this.access.authorize(principal, "read");
+      await this.authorize(principal);
       const raw = await this.provider.generate({
         systemInstruction: SUMMARY_SYNTHESIS_INSTRUCTION,
         userParts: [

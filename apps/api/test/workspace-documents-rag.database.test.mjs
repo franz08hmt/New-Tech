@@ -171,7 +171,7 @@ before(async () => {
   };
   documents = new DocumentsService(database, storage, access);
   retrieval = new RagRetrievalService(database, embeddings, access);
-  assistant = new AssistantService(provider, retrieval, access);
+  assistant = new AssistantService(provider, retrieval, access, database);
 });
 
 async function chunk(
@@ -562,11 +562,16 @@ test("membership revoked during embedding prevents the subsequent Gemini call", 
 test("direct retrieval rechecks revoked membership after embedding before nearest SQL", async () => {
   const own = workspaces[0];
   let nearestCalls = 0;
-  const originalQuery = database.query.bind(database);
-  database.query = async (sql, values) => {
-    if (sql.includes("WITH nearest AS")) nearestCalls++;
-    return originalQuery(sql, values);
-  };
+  const originalTransaction = database.workspaceTransaction.bind(database);
+  database.workspaceTransaction = (p, work) =>
+    originalTransaction(p, (tx) =>
+      work({
+        query: (sql, values) => {
+          if (sql.includes("WITH nearest AS")) nearestCalls++;
+          return tx.query(sql, values);
+        },
+      }),
+    );
   afterEmbedding = () =>
     admin.query(
       "UPDATE workspace_memberships SET active=false WHERE workspace_id=$1 AND user_id=$2",
@@ -584,16 +589,25 @@ test("direct retrieval rechecks revoked membership after embedding before neares
       "revoked membership must prevent SQL evidence reads after embedding",
     );
   } finally {
-    database.query = originalQuery;
+    database.workspaceTransaction = originalTransaction;
   }
 });
 
 test("membership revoked after nearest SQL prevents the following Gemini dispatch", async () => {
   const own = workspaces[0];
-  const originalQuery = database.query.bind(database);
-  database.query = async (sql, values) => {
-    const result = await originalQuery(sql, values);
-    if (sql.includes("WITH nearest AS"))
+  const originalTransaction = database.workspaceTransaction.bind(database);
+  database.workspaceTransaction = async (p, work) => {
+    let nearestRead = false;
+    const result = await originalTransaction(p, (tx) =>
+      work({
+        query: (sql, values) => {
+          nearestRead ||= sql.includes("WITH nearest AS");
+          return tx.query(sql, values);
+        },
+      }),
+    );
+    // Revoke only after the short transaction has released FOR SHARE locks.
+    if (nearestRead)
       await admin.query(
         "UPDATE workspace_memberships SET active=false WHERE workspace_id=$1 AND user_id=$2",
         [own.id, userId],
@@ -620,7 +634,7 @@ test("membership revoked after nearest SQL prevents the following Gemini dispatc
       "Gemini requires its own fresh membership check after the database read",
     );
   } finally {
-    database.query = originalQuery;
+    database.workspaceTransaction = originalTransaction;
   }
 });
 

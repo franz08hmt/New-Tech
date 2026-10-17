@@ -49,6 +49,12 @@ function fixture(status: AssistantStatus) {
     new DocumentAccessService({
       membership: vi.fn().mockResolvedValue("member"),
     } as never),
+    {
+      workspaceTransaction: async (
+        _p: unknown,
+        work: (tx: unknown) => Promise<unknown>,
+      ) => work({ query: vi.fn() }),
+    } as never,
   );
   const workspace = {
     chat: vi.fn().mockResolvedValue({ mode: "workspace" }),

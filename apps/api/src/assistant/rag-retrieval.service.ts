@@ -6,7 +6,11 @@ import type {
 import type { QueryResultRow } from "pg";
 import { log } from "../common/log.js";
 import { ragConfig } from "../config/config.js";
-import { DatabaseService } from "../database/database.service.js";
+import {
+  DatabaseService,
+  type DatabaseTransaction,
+} from "../database/database.service.js";
+import { requirePrincipal } from "../auth/principal.js";
 import { MAX_DOCUMENT_CHUNKS } from "../documents/document-chunker.js";
 import { isUsefulDocumentText } from "../documents/document-text-quality.js";
 import { DocumentAccessService } from "../documents/document-access.service.js";
@@ -90,7 +94,7 @@ export class RagRetrievalService {
     scope: RetrievalScope = {},
     principal?: PilotPrincipal,
   ) {
-    const verified = await this.access.authorize(principal, "read");
+    const verified = requirePrincipal(principal);
     const normalizedQuestion = question.trim();
     const courseId = scope.courseId ?? null;
     const documentId = scope.documentId ?? null;
@@ -104,12 +108,18 @@ export class RagRetrievalService {
 
     const startedAt = Date.now();
     try {
-      if (courseId)
-        await this.courseInWorkspace(courseId, verified.workspaceId);
-      const scopedDocument = documentId
-        ? await this.documentInScope(documentId, courseId, verified.workspaceId)
-        : null;
-      await this.access.authorize(verified, "read");
+      await this.database.workspaceTransaction(verified, async (tx) => {
+        await this.access.authorize(verified, "read", tx);
+        if (courseId)
+          await this.courseInWorkspace(courseId, verified.workspaceId, tx);
+        if (documentId)
+          await this.documentInScope(
+            documentId,
+            courseId,
+            verified.workspaceId,
+            tx,
+          );
+      });
       const vector = await this.embeddings.embedQuery(normalizedQuestion);
       if (
         vector.length !== this.embeddings.dimensions ||
@@ -120,10 +130,24 @@ export class RagRetrievalService {
       let scanLimit = this.config.candidateLimit;
       let candidates: RetrievedChunk[] = [];
       let usefulCandidates: RetrievedChunk[] = [];
+      let scopedDocument: DocumentScopeRow | null = null;
       while (true) {
-        await this.access.authorize(verified, "read");
-        const result = await this.database.query<RetrievalRow>(
-          `WITH nearest AS (
+        const current = await this.database.workspaceTransaction(
+          verified,
+          async (tx) => {
+            await this.access.authorize(verified, "read", tx);
+            if (courseId)
+              await this.courseInWorkspace(courseId, verified.workspaceId, tx);
+            const document = documentId
+              ? await this.documentInScope(
+                  documentId,
+                  courseId,
+                  verified.workspaceId,
+                  tx,
+                )
+              : null;
+            const result = await tx.query<RetrievalRow>(
+              `WITH nearest AS (
            SELECT dc.id::text AS chunk_id,
                   d.id::text AS document_id,
                   d.name AS document_name,
@@ -151,17 +175,22 @@ export class RagRetrievalService {
          FROM nearest
          WHERE score >= $7
          ORDER BY score DESC, chunk_id`,
-          [
-            `[${vector.join(",")}]`,
-            this.embeddings.model,
-            this.embeddings.dimensions,
-            courseId,
-            documentId,
-            scanLimit,
-            this.config.minScore,
-            verified.workspaceId,
-          ],
+              [
+                `[${vector.join(",")}]`,
+                this.embeddings.model,
+                this.embeddings.dimensions,
+                courseId,
+                documentId,
+                scanLimit,
+                this.config.minScore,
+                verified.workspaceId,
+              ],
+            );
+            return { result, document };
+          },
         );
+        const { result } = current;
+        scopedDocument = current.document;
 
         if (result.rows.length > scanLimit)
           throw new RetrievalError("invalid_response");
@@ -237,7 +266,7 @@ export class RagRetrievalService {
     scope: { courseId?: string | null } = {},
     principal?: PilotPrincipal,
   ): Promise<DocumentSummaryMaterial> {
-    const verified = await this.access.authorize(principal, "read");
+    const verified = requirePrincipal(principal);
     const courseId = scope.courseId ?? null;
     if (
       !UUID_PATTERN.test(documentId) ||
@@ -245,15 +274,18 @@ export class RagRetrievalService {
     )
       throw new RetrievalError("invalid_input");
 
-    if (courseId) await this.courseInWorkspace(courseId, verified.workspaceId);
-    const document = await this.documentInScope(
-      documentId,
-      courseId,
-      verified.workspaceId,
-    );
-    await this.access.authorize(verified, "read");
-    const result = await this.database.query<RetrievalRow>(
-      `SELECT dc.id::text AS chunk_id,
+    return this.database.workspaceTransaction(verified, async (tx) => {
+      await this.access.authorize(verified, "read", tx);
+      if (courseId)
+        await this.courseInWorkspace(courseId, verified.workspaceId, tx);
+      const document = await this.documentInScope(
+        documentId,
+        courseId,
+        verified.workspaceId,
+        tx,
+      );
+      const result = await tx.query<RetrievalRow>(
+        `SELECT dc.id::text AS chunk_id,
               d.id::text AS document_id,
               d.name AS document_name,
               d.course_id::text AS course_id,
@@ -265,32 +297,35 @@ export class RagRetrievalService {
        INNER JOIN documents d ON d.id = dc.document_id
        WHERE d.id = $1::uuid
          AND d.workspace_id = $3::uuid
+         AND ($4::uuid IS NULL OR d.course_id = $4::uuid)
          AND d.storage_status = 'stored'
          AND d.processing_status = 'ready'
          AND char_length(dc.content) BETWEEN 1 AND 1800
        ORDER BY dc.source_page NULLS LAST, dc.chunk_index, dc.id
        LIMIT $2`,
-      [documentId, MAX_DOCUMENT_CHUNKS + 1, verified.workspaceId],
-    );
-    if (result.rows.length > MAX_DOCUMENT_CHUNKS)
-      throw new RetrievalError("document_too_large");
-    const chunks = result.rows
-      .map((row) => this.validateRow(row))
-      .filter((chunk) =>
-        isUsefulDocumentText(chunk.content, chunk.sourcePage ?? undefined),
+        [documentId, MAX_DOCUMENT_CHUNKS + 1, verified.workspaceId, courseId],
       );
-    if (!chunks.length) throw new RetrievalError("document_has_no_useful_text");
-    return {
-      documentId,
-      documentName: document.name,
-      chunks,
-      coverage: {
-        totalPageCount: document.total_page_count,
-        usefulTextPageCount: document.useful_text_page_count,
-        lowTextPageCount: document.low_text_page_count,
-        needsOcr: document.needs_ocr,
-      },
-    };
+      if (result.rows.length > MAX_DOCUMENT_CHUNKS)
+        throw new RetrievalError("document_too_large");
+      const chunks = result.rows
+        .map((row) => this.validateRow(row))
+        .filter((chunk) =>
+          isUsefulDocumentText(chunk.content, chunk.sourcePage ?? undefined),
+        );
+      if (!chunks.length)
+        throw new RetrievalError("document_has_no_useful_text");
+      return {
+        documentId,
+        documentName: document.name,
+        chunks,
+        coverage: {
+          totalPageCount: document.total_page_count,
+          usefulTextPageCount: document.useful_text_page_count,
+          lowTextPageCount: document.low_text_page_count,
+          needsOcr: document.needs_ocr,
+        },
+      };
+    });
   }
 
   async documentMetadata(
@@ -298,32 +333,40 @@ export class RagRetrievalService {
     scope: { courseId?: string | null } = {},
     principal?: PilotPrincipal,
   ): Promise<AssistantMetadataSource> {
-    const verified = await this.access.authorize(principal, "read");
+    const verified = requirePrincipal(principal);
     const courseId = scope.courseId ?? null;
     if (
       !UUID_PATTERN.test(documentId) ||
       (courseId !== null && !UUID_PATTERN.test(courseId))
     )
       throw new RetrievalError("invalid_input");
-    if (courseId) await this.courseInWorkspace(courseId, verified.workspaceId);
-    const document = await this.documentInScope(
-      documentId,
-      courseId,
-      verified.workspaceId,
-    );
-    await this.access.authorize(verified, "read");
-    return {
-      documentId: document.id,
-      title: document.name,
-      courseId: document.course_id,
-      courseSlug: document.course_slug,
-      courseName: document.course_name,
-      courseCode: document.course_code,
-    };
+    return this.database.workspaceTransaction(verified, async (tx) => {
+      await this.access.authorize(verified, "read", tx);
+      if (courseId)
+        await this.courseInWorkspace(courseId, verified.workspaceId, tx);
+      const document = await this.documentInScope(
+        documentId,
+        courseId,
+        verified.workspaceId,
+        tx,
+      );
+      return {
+        documentId: document.id,
+        title: document.name,
+        courseId: document.course_id,
+        courseSlug: document.course_slug,
+        courseName: document.course_name,
+        courseCode: document.course_code,
+      };
+    });
   }
 
-  private async courseInWorkspace(courseId: string, workspaceId: string) {
-    const result = await this.database.query(
+  private async courseInWorkspace(
+    courseId: string,
+    workspaceId: string,
+    tx: DatabaseTransaction,
+  ) {
+    const result = await tx.query(
       "SELECT id FROM courses WHERE id = $1::uuid AND workspace_id = $2::uuid",
       [courseId, workspaceId],
     );
@@ -338,8 +381,9 @@ export class RagRetrievalService {
     documentId: string,
     courseId: string | null,
     workspaceId: string,
+    tx: DatabaseTransaction,
   ) {
-    const result = await this.database.query<DocumentScopeRow>(
+    const result = await tx.query<DocumentScopeRow>(
       `SELECT d.id::text, d.name, d.course_id::text AS course_id,
               c.slug AS course_slug, c.name AS course_name,
               c.code AS course_code, d.storage_status, d.processing_status,
