@@ -151,6 +151,15 @@ thấy notes/chat/draft. Có bằng chứng browser và Supabase thật. **Lát 
 
 ### B2. Hoàn tất quyền và phạm vi dữ liệu — tiếp tục Chặng 2 pilot
 
+**Checkpoint Đợt 16 — lát 6b.4:** tăng positive assertions và thêm shared-corpus
+lifecycle 12 chu kỳ trên cùng DB/role/index; chưa tái hiện false-empty với exact
+oracle, lịch sử vẫn INCONCLUSIVE. Receipt issuance, N1 history verification và
+feedback creation chuyển sang workspace transaction; ownership/hash/idempotency
+giữ nguyên. SQL/HTTP non-owner và browser local phân lớp tại
+[báo cáo Đợt 16](../docs/PHASE-16-RECEIPT-FEEDBACK-CONTEXT-REPORT.md).
+Policies/grants vẫn fixture-only; production runtime least privilege, B3/B4,
+Auth máy Thắng và Auth extended còn mở. Không nhận B2 toàn app hoàn tất.
+
 **Checkpoint Đợt 15 — lát 6b.3:** FE đối chiếu GET khi POST index chưa rõ outcome,
 không tự failed/replay. Retrieval/summary material/document metadata và các
 generation authorization boundary dùng workspace transaction ngắn; provider
