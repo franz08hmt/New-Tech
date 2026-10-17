@@ -38,7 +38,7 @@ export class FeedbackService {
     let row: Row | undefined;
     let createdNew = false;
     try {
-      row = await this.database.transaction(async (tx) => {
+      row = await this.database.workspaceTransaction(principal, async (tx) => {
         const { workspaceId, userId } = await this.access.authorize(
           principal,
           "read",

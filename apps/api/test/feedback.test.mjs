@@ -42,6 +42,12 @@ beforeEach(async () => {
   failDatabase = false;
   loseCommit = false;
   const database = {
+    async workspaceTransaction(principal, work) {
+      // Trusted HTTP principal fixture; preserve existing commit-fault semantics.
+      const { requirePrincipal } = await import("../dist/auth/principal.js");
+      requirePrincipal(principal);
+      return database.transaction(work);
+    },
     async transaction(work) {
       const result = await work(database);
       if (loseCommit) throw new Error("SYNTHETIC lost commit response");

@@ -2,6 +2,7 @@ import { afterEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { AssistantError } from "../dist/assistant/assistant.types.js";
+import { ServiceUnavailableException } from "@nestjs/common";
 import { requirePrincipal } from "../dist/auth/principal.js";
 import { authFixture } from "./auth-fixture.mjs";
 import { fakeDependencies, httpApp, json } from "./helpers.mjs";
@@ -84,6 +85,7 @@ function receiptDependencies(auth) {
     rejectedModelResponse: false,
     noEvidence: false,
     receiptStorageError: false,
+    historyStorageError: false,
     providerCalls: 0,
     retrievalCalls: 0,
     generations: [],
@@ -124,7 +126,7 @@ function receiptDependencies(auth) {
   const database = {
     async workspaceTransaction(principal, work) {
       requirePrincipal(principal);
-      return work(database);
+      return database.transaction(work);
     },
     async query(sql, values = []) {
       if (/\bINSERT\s+INTO\s+assistant_answer_receipts\b/i.test(sql)) {
@@ -135,6 +137,11 @@ function receiptDependencies(auth) {
         return { rows: [{ ...row }], rowCount: 1 };
       }
       if (/\bFROM\s+assistant_answer_receipts\b/i.test(sql)) {
+        if (state.historyStorageError)
+          throw new ServiceUnavailableException({
+            code: "DATABASE_UNAVAILABLE",
+            message: "Synthetic history read outage",
+          });
         const rows = [...receipts.values()].filter((row) =>
           matches(row, sql, values, [
             "id",
@@ -460,6 +467,24 @@ test("HTTP answer receipt: receipt outage preserves the valid answer without an 
     assert.equal((await response.json()).answer, "Synthetic general answer");
     assert.equal(response.headers.get("X-Assistant-Answer-ID"), null);
     assert.equal(fixture.receipts.size, 0);
+  }));
+
+test("HTTP history storage outage blocks retrieval and generation instead of best-effort delivery", async () =>
+  receiptApp(async ({ fixture, post }) => {
+    const turn = historyTurn(fixture);
+    fixture.state.historyStorageError = true;
+    const before = savedState(fixture);
+    const response = await post("/assistant/chat", {
+      mode: "general",
+      message: "Follow up",
+      history: [turn],
+    });
+    assert.equal(fixture.state.providerCalls, 0);
+    assert.equal(fixture.state.retrievalCalls, 0);
+    assert.equal(response.status, 503);
+    assert.equal((await response.json()).code, "DATABASE_UNAVAILABLE");
+    assert.equal(response.headers.get("X-Assistant-Answer-ID"), null);
+    assert.deepEqual(savedState(fixture), before);
   }));
 
 test("HTTP answer receipt: membership revoked after generation still blocks the answer", async () =>

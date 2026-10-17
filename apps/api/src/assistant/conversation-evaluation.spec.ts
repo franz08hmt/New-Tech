@@ -103,7 +103,10 @@ for (const c of suite.cases)
     const expectedHash =
       c.kind === "same_course" ? digest(turn.snapshot) : storedHash;
     const database = {
-      transaction: async (work: (tx: unknown) => Promise<void>) =>
+      workspaceTransaction: async (
+        _principal: unknown,
+        work: (tx: unknown) => Promise<void>,
+      ) =>
         work({
           query: async (_sql: string, values: unknown[]) => ({
             rows:

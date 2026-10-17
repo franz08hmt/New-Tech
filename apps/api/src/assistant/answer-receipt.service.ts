@@ -28,7 +28,7 @@ export class AnswerReceiptService {
     principal: PilotPrincipal | undefined,
   ) {
     if (!input.history?.length) return;
-    await this.database.transaction(async (tx) => {
+    await this.database.workspaceTransaction(principal, async (tx) => {
       const owner = await this.access.authorize(principal, "read", tx);
       for (const turn of input.history!) {
         const snapshot = turn.snapshot;
@@ -82,7 +82,7 @@ export class AnswerReceiptService {
       .digest("hex");
     const id = randomUUID();
     try {
-      await this.database.transaction(async (tx) => {
+      await this.database.workspaceTransaction(principal, async (tx) => {
         const owner = await this.access.authorize(principal, "read", tx);
         const result = await tx.query(
           `INSERT INTO assistant_answer_receipts (id, workspace_id, user_id, mode, request_id, snapshot_hash)
