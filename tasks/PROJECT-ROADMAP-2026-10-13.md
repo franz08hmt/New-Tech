@@ -1,5 +1,14 @@
 # ExaMate — lộ trình pilot nhỏ và điểm nhấn New Technologies
 
+> **Quyết định 18/10/2026:** từ nay phát triển trên
+> `feature/tai-assistant-integration-20261018`. Nhánh gộp Tài/Thắng tại `01288ce`;
+> [context hiện tại](../docs/PROJECT-CONTEXT.md) và
+> [báo cáo tích hợp](../docs/ASSISTANT-INTEGRATION-2026-10-18.md) thay các checklist
+> plan/todo cũ. B2 đã triển khai các boundary Đợt 14–16 nhưng chưa nghiệm thu
+> tenant RLS toàn app/cloud; N1/SSE và STT có code, không suy ra B1/B3/B4 hoặc
+> chất lượng model thật đã hoàn tất. Dependency STT còn advisory cần xử lý trước
+> khi mở pilot. Các kết quả/đề xuất có ngày ở dưới là lịch sử, không chạy lại tự động.
+
 Ngày 13/10/2026. Đây là **đề xuất**, không phải lệnh triển khai tự động.
 Nguồn hiện trạng: [review FE/BE](../docs/PROJECT-REVIEW-2026-10-13.md).
 Cập nhật B0a/B0b: [báo cáo Đợt 1](../docs/PHASE-1-SESSION-ACCESS-REPORT.md)
@@ -35,7 +44,7 @@ mà web/PWA không đáp ứng. Không chọn công nghệ chỉ để tăng s�
 
 - Từng lát có spec/acceptance, test hành vi, runtime verification, báo cáo và
   commit riêng trên nhánh phát triển đã xác minh. Được push không force lên
-  origin/feature/tai-rag-integration khi Tài giao; không merge main.
+  origin/feature/tai-assistant-integration-20261018 khi Tài giao; không merge main.
 - Kiểm working tree trước làm; giữ README/prompt/WIP của người khác, stage
   đúng file của lát đó. Không thêm attribution Claude, không sửa settings.
 - Giữ React/Vite/Nest/npm workspaces, hash routing, contracts `.d.ts` chỉ chứa

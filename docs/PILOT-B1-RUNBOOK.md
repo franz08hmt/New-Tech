@@ -6,45 +6,11 @@ Thắng chỉ làm theo [hướng dẫn chạy sau bootstrap](PILOT-DEMO-HANDOFF
 tạo account/workspace hoặc migrate lại. Các checkpoint thiếu đầu vào/PREPARED
 bên dưới là lịch sử; browser/máy Thắng và Auth extended vẫn chưa nghiệm thu.
 
-**Checkpoint tiếp tục từ 5073ad3, 17/10/2026:** quyền bootstrap đã có; chỉ commit,
-không push ở lượt này. Kiểm chỉ đọc mới xác nhận auth.users có 0 user. Cần tạo
-đúng các account thực qua Dashboard/quy trình quản trị được cấp sau khi xác định
-danh tính; không giả định account đã tồn tại hoặc tự đoán email/password. Đã điền
-origin local và verification=database; public key, workspace/key, mapping và xác
-nhận dừng writers hai máy còn thiếu. Xem mục đầu báo cáo Đợt 13; các checkpoint
-PREPARED/quyền push/cấm tạo account bên dưới là lịch sử, không thay chỉ thị mới.
-
-Kết quả mới: đã kiểm native Nest HTTP với config thật, health 200 nhưng session
-503 AUTH_UNAVAILABLE; preflight exit 1/databaseChecked:false. Đây là lỗi đầu vào,
-không bỏ guard để hiện form login. Account count 0 nghĩa bước quản trị account
-phải hoàn tất trước membership. Không đưa email/password/UUID vào chat; người
-quản trị dùng đúng danh tính thực trên Dashboard và mapping private đã giao.
-Không có công cụ quản trị hoặc máy Thắng được kết nối thì cần handoff thực tế,
-không dùng credential store hoặc account tự đoán để thay thế. Sau khi config/
-mapping/writers đầy đủ, chạy tiếp backup/migrate/verify/membership đã được duyệt;
-không xin lại quyền hoặc dùng test fixture để kết luận Auth thật đạt.
-
-**Lượt tiếp tục sau 59b0906:** Tài đã duyệt backup public/snapshot/migrate đúng
-012–015/membership ba role/task demo/cleanup và push branch không force; ownership
-dữ liệu demo đã xác nhận. Không xin lại quyền các bước đó. Cần hoàn tất config,
-mapping Dashboard và xác nhận dừng writers hai máy trước thực thi. Các yêu cầu
-phê duyệt bên dưới là quy tắc chung; restore/rollback destructive, đổi target/
-runtime role/account/password vẫn chưa được duyệt. Xem mục tiếp tục trong report
-để phân biệt việc đã thực hiện với kế hoạch và kết quả lượt chuẩn bị.
-
-Code `59b0906` đã push không force và xác minh hash thực tế trên origin trong
-lượt tiếp tục. Thắng có thể cập nhật bằng Git sau khi bảo toàn WIP; chưa có
-bằng chứng commit/app/config trên chính máy Thắng. Không dùng `reset --hard`.
-Config/mapping/maintenance window hiện chưa hoàn tất nên chưa backup/migrate/
-cấp membership hoặc login cloud. Đừng dùng trạng thái PREPARED lịch sử bên dưới
-làm lý do xin lại quyền đã được cấp.
-
-**Checkpoint B1b, 17/10/2026: PREPARED, chưa TWO_MACHINE_AUTH_ACCEPTED.** Đọc
-[báo cáo Đợt 13](PHASE-13-B1-TWO-MACHINE-AUTH-REPORT.md) để lấy commit, inventory
-chỉ đọc, kết quả PostgreSQL 17 và danh sách việc chờ duyệt. Các lệnh ghi bên dưới
-là runbook quản trị, **không phải phê duyệt cloud** hoặc bằng chứng đã chạy.
-Một người quản trị migrate một lần; Tài và Thắng chỉ chạy app sau khi cùng code/
-schema/workspace/config. `.env`, CA, secret và session browser không đi theo Git.
+Nhật ký các lượt PREPARED/thiếu đầu vào và bootstrap nằm trong
+[báo cáo Đợt 13](PHASE-13-B1-TWO-MACHINE-AUTH-REPORT.md). Không dùng phê duyệt
+được ghi cho một lượt cũ làm quyền ghi cloud của task mới. App đang có schema/
+membership demo theo checkpoint trên; không lặp lại bootstrap để chữa lỗi login.
+Thay đổi cloud tiếp theo phải được giao rõ target, tác động và đường lui.
 
 ## Hai đường đi và checkpoint phê duyệt
 
@@ -193,7 +159,7 @@ chưa hoàn tất. Runtime cloud vẫn postgres/bypass RLS cho tới lát role r
 ## 0. Chuẩn bị và điều kiện dừng
 
 ```powershell
-Set-Location D:\New-Tech\Final-Project
+Set-Location D:\New-Tech\Final-Project-integration-20261018
 git status --short
 node -v
 docker info --format '{{.ServerVersion}} {{.OSType}}'

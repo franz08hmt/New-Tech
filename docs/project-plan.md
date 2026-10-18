@@ -1,5 +1,10 @@
 # Final Project Planning Baseline
 
+> Historical course/planning baseline, retained for requirement traceability.
+> Current scope/branch: [project context](PROJECT-CONTEXT.md) and
+> [roadmap](../tasks/PROJECT-ROADMAP-2026-10-13.md). Local-only scope supersedes
+> the old VM/deployment plan below; do not treat old progress statements as current.
+
 > Checkpoint update 2026-09-13: Homework 4 implements non-AI Tasks/Documents only. This document preserves the full-project plan. Use README and docs/VERIFICATION.md for current implementation and evidence; no cloud persistence, container runtime, video or commit is verified for the new ZIP workspace yet.
 
 ## Current status

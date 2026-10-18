@@ -1,6 +1,9 @@
 # Kiến trúc Homework 4 — non-AI
 
-Checkpoint 13/09/2026. Code Tasks/Documents đã triển khai; bằng chứng runtime cloud còn thiếu, xem [VERIFICATION.md](VERIFICATION.md).
+Tài liệu học kiến trúc nền tại checkpoint 13/09/2026; giữ sơ đồ để giải thích
+request/Storage. Hiện trạng và giới hạn mới xem [context](PROJECT-CONTEXT.md)
+và [báo cáo tích hợp](ASSISTANT-INTEGRATION-2026-10-18.md), không suy ra module
+đánh dấu planned bên dưới vẫn chưa được triển khai.
 
 ```mermaid
 flowchart LR

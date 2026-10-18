@@ -221,7 +221,7 @@ export function TasksPanel({
             />
             {/* Suggestions only — the column has no CHECK constraint, so any
                 text (or none) is accepted, matching evidence_type's
-                "optional, free text" contract in docs/GUIDE.md. */}
+                "optional, free text" contract in packages/contracts/index.d.ts. */}
             <datalist id="evidence-type-options">
               <option value="proposal" />
               <option value="environment" />

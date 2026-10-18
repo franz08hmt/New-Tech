@@ -1,6 +1,10 @@
 # Đọc và giải thích backend — Homework 4 non-AI
 
-Đọc theo đường đi của một request. Mở source song song; các tên hàm/đoạn SQL dưới đây là implementation hiện tại. Không học thuộc rằng “đã chạy Supabase”: phiên triển khai chỉ xác minh bằng mock, DB test đang skip. Kết quả cập nhật ở [VERIFICATION.md](VERIFICATION.md).
+Đọc theo đường đi của một request và mở source song song. Ví dụ dưới đây thuộc
+checkpoint Homework 4 non-AI, không phải implementation/quyền hiện tại đầy đủ.
+API nay có Auth/CSRF/workspace context: xem [context](PROJECT-CONTEXT.md) và
+[báo cáo tích hợp](ASSISTANT-INTEGRATION-2026-10-18.md). DB disposable hiện đã
+được kiểm, nhưng không dùng bằng chứng đó để tuyên bố Supabase/model thật đã đạt.
 
 ## 1. Bốn thành phần chịu trách nhiệm gì?
 
@@ -139,15 +143,15 @@ Restart API làm mất React/server RAM nhưng không xóa DB hoặc Storage. Đ
 
 `common/http.ts` middleware sinh requestId mới từ server, đặt X-Request-ID và Cache-Control:no-store. AsyncLocalStorage giữ request context cho service log dù nhiều request đồng thời. Chỉ route shape đã biết vào log; không query string, filename, header auth/body. Khi response finish, log status và duration. Filter dùng status của HttpException; exception khác trả 500 generic. 400/404 vẫn giữ nguyên, không biến thành 503.
 
-| Code | Cách giải thích bằng ví dụ trong app |
-|---|---|
-| 200 / 201 / 204 | GET/cập nhật; tạo task/document; delete không body |
-| 400 | title/UUID/status/ngày/field lạ hoặc thiếu file |
-| 404 | UUID hợp lệ nhưng task/download document không tồn tại |
-| 409 | document đang deleting hoặc metadata legacy chưa có Storage xác minh |
-| 413 / 415 | file quá lớn / không đạt kiểm tra PDF |
-| 503 | dependency mạng/DB/Storage không khả dụng theo phân loại |
-| 500 | lỗi nội bộ/SQL chưa phân loại; không lộ stack hoặc SQL |
+| Code            | Cách giải thích bằng ví dụ trong app                                 |
+| --------------- | -------------------------------------------------------------------- |
+| 200 / 201 / 204 | GET/cập nhật; tạo task/document; delete không body                   |
+| 400             | title/UUID/status/ngày/field lạ hoặc thiếu file                      |
+| 404             | UUID hợp lệ nhưng task/download document không tồn tại               |
+| 409             | document đang deleting hoặc metadata legacy chưa có Storage xác minh |
+| 413 / 415       | file quá lớn / không đạt kiểm tra PDF                                |
+| 503             | dependency mạng/DB/Storage không khả dụng theo phân loại             |
+| 500             | lỗi nội bộ/SQL chưa phân loại; không lộ stack hoặc SQL               |
 
 Khi FE hiện Request ID, tìm cùng chuỗi trong log API. Request không tới backend (API tắt, Nginx lỗi) không có log ứng dụng; không bịa một requestId backend cho lỗi mạng.
 

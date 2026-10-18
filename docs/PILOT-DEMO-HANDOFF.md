@@ -29,7 +29,8 @@ Credential đã từng được gửi vào chat vẫn có rủi ro; Tài yêu c�
 ## Bàn giao private — không đưa vào Git/README
 
 Trên **máy Tài**, operator đã tạo các file trong thư mục ignored:
-`artifacts/pilot-private-bootstrap-20261017-013714/`.
+`D:\New-Tech\Final-Project\artifacts\pilot-private-bootstrap-20261017-013714\`.
+Đây là vị trí ở checkout cũ, không tự được sao chép sang worktree mới.
 
 Chỉ chuyển cho Thắng qua kênh riêng được nhóm cho phép:
 
@@ -47,9 +48,12 @@ không tự tạo user trùng hoặc reset password khi chưa xác định đún
 
 ## Thắng chạy trên máy của mình
 
-1. Mở đúng repository `Final-Project`, dùng nhánh `feature/tai-rag-integration`
-   với code đã bàn giao. Kiểm `git status` trước cập nhật; bảo toàn WIP, không
-   `reset --hard`. Code Auth/schema 015 đã có tại checkpoint `5073ad3`.
+1. Mở đúng repository, dùng nhánh **`feature/tai-assistant-integration-20261018`**
+   đã được push sau tích hợp. Kiểm `git status` trước cập nhật; bảo toàn WIP,
+   không `reset --hard` hoặc pull đè nhánh đang phân kỳ. Nếu checkout cũ đang có
+   WIP, dùng worktree/checkout riêng. Trên máy Tài, folder phát triển mới là
+   `D:\New-Tech\Final-Project-integration-20261018`; máy Thắng dùng root clone của
+   mình trên đúng nhánh. Xem [context hiện tại](PROJECT-CONTEXT.md).
 2. Giữ `.env` riêng đang có cho DB/Storage/Gemini và CA đúng máy. Gộp năm biến
    từ `thang-auth.private.env` vào `.env` **root repository**, mỗi biến một dòng;
    không copy đè cả file, không để biến trùng, không tạo lại session/workspace key.
@@ -65,7 +69,7 @@ AUTH_SESSION_VERIFICATION=database
 TRUSTED_PROXY_IP=
 ```
 
-4. Nếu chưa có dependencies, chạy `npm ci`. Node khuyến nghị 24.15+ thuộc nhánh
+4. Nếu chưa có dependencies, chạy `npm ci --ignore-scripts`. Node khuyến nghị 24.15+ thuộc nhánh
    24 theo README; máy kiểm lần này dùng 24.13.0. Không tự đổi dependency/lockfile.
 5. Chạy từ root, preflight phải exit 0:
 

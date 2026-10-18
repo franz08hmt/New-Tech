@@ -1,5 +1,11 @@
 # Tích hợp Tài + Thắng — 18/10/2026
 
+> Sau checkpoint: merge `01288ce` đã được push lên
+> `origin/feature/tai-assistant-integration-20261018` theo yêu cầu Tài. Từ nay
+> phát triển trên nhánh đó. Đọc [context rút gọn](PROJECT-CONTEXT.md) và
+> [mục lục docs](README.md); các ghi chú “chưa push”/WIP bên dưới mô tả lúc bàn
+> giao commit tích hợp, không phải trạng thái Git hiện tại.
+
 ## Kết luận và checkout tiếp tục
 
 Đây là checkpoint tích hợp local, không phải nghiệm thu toàn app hoặc release.

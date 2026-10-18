@@ -1,5 +1,10 @@
 # AI Assistance Log
 
+> Nhật ký provenance theo ngày, không phải hướng dẫn triển khai hiện tại. Các
+> path handoff/prompt/plan đã bỏ khi dọn docs ngày 18/10 vẫn có thể xem qua
+> `git show 01288ce:<path>`. Điểm tiếp tục: [context](PROJECT-CONTEXT.md) và
+> [mục lục tài liệu](README.md). Giữ nguyên các ghi nhận review/test lịch sử.
+
 ## 2026-09-13 — Homework 4 non-AI implementation
 
 Codex assisted with repository audit, Tasks validation/config/logs, Documents API and Supabase Storage adapter, tracked migrations, React integration, HTTP/frontend tests and Vietnamese study/evidence/demo documentation. No AI feature was added to the product. Human review is still pending. See docs/VERIFICATION.md for actual test results and unverified Supabase/Docker/persistence; the ZIP has no .git and no commit/push was performed. Students must review and explain the code before submission.

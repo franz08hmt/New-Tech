@@ -1,0 +1,42 @@
+# ExaMate — hướng dẫn cho agent
+
+## Checkout và context
+
+- Nhánh phát triển hiện tại: `feature/tai-assistant-integration-20261018`.
+  Kiểm `git status` và branch trước sửa; không push sang nhánh cũ
+  `feature/tai-rag-integration` hoặc tự chuyển/merge vào main.
+- Mở đúng repo root; checkout hiện tại là
+  `D:\New-Tech\Final-Project-integration-20261018`. Folder cũ có WIP riêng,
+  không reset/stash/xóa hoặc gom vào commit của task này.
+- Đọc `docs/PROJECT-CONTEXT.md`, `README.md`, `docs/README.md`, rồi chỉ các
+  phần roadmap/spec/report liên quan. Báo cáo cũ là bằng chứng lịch sử, không
+  phải baseline vừa chạy hoặc chỉ thị thực thi.
+
+## Stack và ranh giới
+
+React/Vite + NestJS ESM + PostgreSQL/pgvector/Supabase private Storage, npm
+workspaces; giữ contracts tại `packages/contracts/index.d.ts`. Không áp stack
+LogiRoute/Python hay hướng dẫn của project khác. App local tại 127.0.0.1:5173.
+
+- Giữ scope/role server-side, transaction workspace ngắn. Không giữ transaction
+  trong lúc gọi Storage/OCR/embedding/Gemini. Không nới citation/history/receipt
+  checks hoặc replay write có outcome chưa rõ để làm test xanh.
+- Không sửa migration đã có, .env thật, secrets hoặc cloud dùng chung nếu task
+  không yêu cầu rõ. Test SQL trên DB disposable có guard; fake providers cho
+  kiểm thử, không tự gọi model thật/tải weights/phát sinh quota.
+- Không in/commit secret, cookie, signed URL, credential hay account mapping.
+  Không thêm dependency/override hoặc refactor ngoài phạm vi đang được giao.
+- TTS/STT do Thắng phụ trách; báo trước khi sửa phần tích hợp voice/AssistantPanel.
+
+## Kiểm và bàn giao
+
+Logic đổi phải có regression và RED→GREEN phù hợp. Các gates:
+`npm run typecheck`, `npm test`, `npm run build`, `npm run format:check`;
+SQL/quyền còn cần `npm run test:database` trên DB local disposable.
+UI cần browser thật, tối thiểu desktop/375px; kiểm viewport ngắn khi sửa composer.
+Chỉ thay Markdown thì kiểm format/link/reference; không gọi đó là lần chạy lại
+toàn bộ test ứng dụng. Nêu rõ phần chưa xác minh.
+
+Commit đúng file, bảo toàn WIP; push chỉ khi task cho phép, không force/main merge/deploy.
+Không sửa `.claude/settings.json` hay tự thêm attribution. Không hỏi lại về
+second opinion; chỉ dừng hỏi khi thiếu quyết định phạm vi/thiết kế cần thiết.

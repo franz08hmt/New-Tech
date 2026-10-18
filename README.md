@@ -10,6 +10,11 @@ và quyền cuối lượt; Workspace phát trạng thái rồi kết quả SQL,
 STT mặc định tắt; dependency audit còn finding cần xử lý trước khi mở rộng sử dụng.
 Checkout này không tự sao chép `.env`, secrets, weights hoặc WIP từ folder cũ.
 
+**Điểm bắt đầu:** [context hiện tại](docs/PROJECT-CONTEXT.md),
+[mục lục tài liệu học/vận hành/báo cáo](docs/README.md) và
+[roadmap duy nhất](tasks/PROJECT-ROADMAP-2026-10-13.md).
+Từ nay Tài/Thắng phát triển tại nhánh mới; không push tiếp vào nhánh cũ.
+
 **Đăng nhập demo Tài/Thắng — checkpoint 17/10/2026:** cloud đã áp `001`–`015`,
 đã có bốn user demo và ba membership. Đọc
 [hướng dẫn đăng nhập trên máy Thắng](docs/PILOT-DEMO-HANDOFF.md) trước khi chạy.
@@ -24,52 +29,20 @@ chèn vào câu hỏi → người dùng chủ động gửi. STT dùng Whisper 
 trong tiến trình Node con, mặc định tắt; không cần inference API key. Weights
 chưa được tải tự động. Xem [cách chuẩn bị, bật và kiểm thử STT](docs/STT-SETUP-VI.md).
 
-**Trạng thái nhánh phát triển (`feature/tai-rag-integration`):** RAG/OCR, bộ đánh giá và phản hồi câu trả lời đã có trong code. Các chặng đăng nhập/session pilot 1a–1b cũng đã được commit và push; xem [báo cáo 1a](docs/pilot-stage-1a-report.md), [báo cáo 1b](docs/pilot-stage-1b-report.md) và [thiết kế pilot](docs/pilot-stage-0-design.md). Đây là trạng thái code, **không đồng nghĩa pilot đã sẵn sàng cho dữ liệu thật hoặc truy cập công khai**.
+**Phân quyền và giới hạn:** scope workspace/role đã có ở các module nghiệp vụ,
+Documents/RAG và receipt/feedback. N1 dùng history được server xác minh, không
+đưa citation cũ thành evidence. Ingestion/retrieval/receipt đã chuyển workspace
+transaction ngắn; bằng chứng non-owner/RLS là DB disposable, **không phải đã
+rollout tenant policies/grants lên Supabase**. Runtime cloud chỉ dùng demo;
+Auth máy Thắng, budget AI, live semantic RAG và STT thật còn cần nghiệm thu.
+Không public app, chia sẻ server keys hoặc chạy lại bootstrap chỉ để đăng nhập.
 
-**Trạng thái Supabase và giới hạn an toàn:** lần kiểm tra chỉ đọc được ghi trong
-[báo cáo khảo sát pilot](docs/pilot-stage-0-report.md) xác nhận migration
-`001`–`011` trên project đã kiểm tra. Migration `012` (workspace/session) và
-`013` (giới hạn thử đăng nhập/refresh), `014` (nền workspace nghiệp vụ) và
-`015` (answer receipt/feedback ownership) hiện mới có trong repository, **chưa áp
-dụng thật**. Không chạy migration trên project dùng chung cho tới khi Thắng/Tài
-xác nhận đúng target, quyền DB và kế hoạch cấp workspace/user. Đăng nhập trong
-code chưa thay thế phân quyền theo từng workspace/bản ghi: phase triển khai
-membership/scope dữ liệu và hạn mức sử dụng AI chưa hoàn tất. Auth, database
-grants và đăng nhập Supabase thật chưa được nghiệm thu. Gate đã kiểm trên browser
-ở 320–1440px; luồng workspace sau đăng nhập Supabase thật vẫn chưa nghiệm thu.
-Xem [báo cáo Đợt 1 — session và access gate](docs/PHASE-1-SESSION-ACCESS-REPORT.md).
-Chuẩn bị nghiệm thu Auth thật: [runbook B1](docs/PILOT-B1-RUNBOOK.md) và
-[báo cáo B1a](docs/PHASE-4-B1A-REPORT.md). Có CLI `pilot:preflight` chỉ đọc và
-`pilot:membership` mặc định dry-run; khi cấp quyền dùng `npm --silent` để npm
-không echo UUID/project ref trong arguments. B1a chưa tạo user, backup,
-migrate hay ghi membership cloud. B2 lát 1–4 đã scope API Tasks/Courses,
-Exams/Study plans/Expenses và các truy vấn chỉ đọc của chế độ Hỏi workspace.
-Viewer chỉ đọc các mục này; member/manager tạo và cập nhật, chỉ manager xóa
-exam/study plan/expense/document. Documents, signing, indexing, retrieval,
-summary và metadata đã scope theo principal; member/manager upload/gán môn/index,
-viewer chỉ xem/tải. B2 lát 5 có server answer receipt cho cả ba mode; feedback
-kiểm user/workspace/hash, viewer được phản hồi câu trả lời của chính mình.
-Runtime `postgres`/bypass RLS chưa được
-thay bằng role B2: chỉ dùng dữ liệu demo. Xem [báo cáo B2 lát 1–2](docs/PHASE-5-B2-SCOPE-REPORT.md)
-và [Đợt 6 — lát 3, runbook và rollback 014](docs/PHASE-6-REPORT.md),
-[Đợt 7 — Documents/RAG boundary](docs/PHASE-7-DOCUMENTS-RAG-SCOPE-REPORT.md) và
-[Đợt 8 — receipt/feedback ownership](docs/PHASE-8-RECEIPT-REPORT.md).
-N1 lát 1 đã bổ sung lịch sử general/documents được server xác minh qua receipt;
-xem [Đợt 9 — hội thoại có ngữ cảnh](docs/PHASE-9-N1-CONVERSATION-REPORT.md).
-Vì vậy chỉ thử với dữ liệu demo, không public ứng dụng hoặc đưa dữ
-liệu/API key thật cho người dùng khác.
-
-Khi tài liệu khác nhau, ưu tiên báo cáo pilot mới nhất cho trạng thái Auth và
-quyền truy cập; [SUPABASE-SETUP.md](docs/SUPABASE-SETUP.md) là hướng dẫn nền
-cho cấu hình ban đầu, không tự cấp membership hay grants cho pilot. Xem thêm
-[hướng dẫn Assistant](docs/ASSISTANT-SETUP.md),
-[kế hoạch đánh giá](docs/evaluation-plan.md),
-[báo cáo đánh giá Đợt 4](docs/phase-4-evaluation-report.md) và
-[báo cáo phản hồi Đợt 5](docs/phase-5-feedback-report.md).
-
-Hướng dẫn Assistant và contract mới: [Gemini Assistant setup](docs/ASSISTANT-SETUP.md). Các tài liệu Homework 4A/4B bên dưới ghi nhận checkpoint non-AI trước khi bổ sung Assistant.
-
-Code có automated HTTP/frontend tests. [VERIFICATION.md](docs/VERIFICATION.md) và [AUDIT-BASELINE.md](docs/AUDIT-BASELINE.md) ghi nhận kiểm tra của checkpoint trước, không chứng minh thay đổi Gemini hiện tại đã pass. Phạm vi và cách kiểm tra Assistant nằm trong [ASSISTANT-SETUP.md](docs/ASSISTANT-SETUP.md).
+Đăng nhập: [handoff demo](docs/PILOT-DEMO-HANDOFF.md). Tác vụ quản trị có backup,
+target/confirm và maintenance window: [runbook B1](docs/PILOT-B1-RUNBOOK.md).
+Cấu hình nền: [Supabase](docs/SUPABASE-SETUP.md),
+[Assistant](docs/ASSISTANT-SETUP.md), [evaluation](docs/evaluation-plan.md),
+[feedback review](docs/feedback-review.md). Tài liệu Homework giữ mốc cũ để học
+và đối chiếu môn học, không mô tả tiến độ hiện tại.
 
 ## Kiến trúc và phạm vi
 
@@ -354,9 +327,10 @@ PDF kiểm tra extension + MIME + 5 bytes `%PDF-`; đây không phải parser đ
 
 Giới hạn còn lại: login/session đã kiểm bằng test và browser với dependency mock;
 gate đã kiểm ở 320–1440px; UI ba role đã thử với fixture local ở desktop/375px.
-Migration `012`–`015`, Auth/DB grants, membership thật
-và luồng workspace sau đăng nhập Supabase thật chưa nghiệm thu; chưa thử trên
-điện thoại vật lý. Documents/RAG đã scope ở service và kiểm role; chưa hoàn thành
+Migration `001`–`015` và membership demo đã được đối chiếu trong bootstrap
+17/10; extended Auth, rollout runtime role/grants/RLS và luồng browser trên máy
+Thắng vẫn chưa nghiệm thu; chưa thử trên điện thoại vật lý.
+Documents/RAG đã scope ở service và kiểm role; chưa hoàn thành
 tenant RLS hoặc quota/usage budget AI. Receipt/feedback ownership đã kiểm local,
 không chứng minh tenant RLS hoặc Supabase Auth thật.
 `eval:rag --execute` hiện **BLOCKED**, exit 3: runner live chưa có principal
