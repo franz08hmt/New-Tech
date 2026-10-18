@@ -70,10 +70,10 @@ function Harness({
   );
 }
 async function ask(question = "Task quá hạn?") {
-  fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+  fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
     target: { value: question },
   });
-  fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Gửi câu hỏi/ }));
   await screen.findByRole("button", { name: /Hữu ích.*câu trả lời 1/ });
 }
 const receipt = {
@@ -387,25 +387,23 @@ it("feedback draft and question draft survive source preview and Back", async ()
   fireEvent.change(screen.getByLabelText(/Ghi chú/), {
     target: { value: "Keep feedback draft" },
   });
-  fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+  fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
     target: { value: "Keep question draft" },
   });
-  fireEvent.click(
-    screen.getByRole("button", { name: /Open source synthetic/ }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: /Mở nguồn synthetic/ }));
   await waitFor(() => expect(loadSource).toHaveBeenCalledTimes(1));
   const back = screen.getByRole("button", { name: /Quay lại/ });
   fireEvent.click(back);
   expect(screen.getByLabelText(/Ghi chú/)).toHaveValue("Keep feedback draft");
   expect(screen.getByLabelText("Thiếu ý")).toBeChecked();
-  expect(screen.getByLabelText("Question for ExaMate")).toHaveValue(
+  expect(screen.getByLabelText("Câu hỏi cho ExaMate")).toHaveValue(
     "Keep question draft",
   );
 });
 it("feedback attaches controls only to successful assistant answers", async () => {
   render(<Harness />);
   await ask();
-  const list = screen.getByRole("list", { name: "Conversation" });
+  const list = screen.getByRole("list", { name: "Cuộc hội thoại" });
   const messages = within(list).getAllByRole("listitem");
   expect(
     within(messages[0]).queryByRole("button", { name: /Hữu ích/ }),
@@ -523,10 +521,10 @@ it("feedback drafts survive hide and expand and stay separate between answers", 
 });
 it("HTTP errors do not get feedback controls", async () => {
   render(<Harness fail />);
-  fireEvent.change(screen.getByLabelText("Question for ExaMate"), {
+  fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
     target: { value: "Fail" },
   });
-  fireEvent.click(screen.getByRole("button", { name: /Send question/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Gửi câu hỏi/ }));
   await screen.findByRole("alert");
   expect(screen.queryByRole("button", { name: /Hữu ích/ })).toBeNull();
 });

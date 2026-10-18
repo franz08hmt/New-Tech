@@ -27,7 +27,9 @@ import {
   AssistantError,
   type AssistantAnswer,
   type AssistantProvider,
+  type AssistantStreamResult,
 } from "./assistant.types.js";
+import { StructuredAnswerStream } from "./structured-answer-stream.js";
 
 const SYSTEM_INSTRUCTION = `You are ExaMate, a document-grounded study assistant.
 Reply in the user's language and use only facts supported by the retrieved evidence.
@@ -165,6 +167,272 @@ export class AssistantService {
           error instanceof AssistantError ? error.rejection : undefined,
         durationMs: Date.now() - startedAt,
       });
+      throw error;
+    }
+  }
+
+  async *streamGeneralChat(
+    input: AssistantChatDto,
+    principal: PilotPrincipal | undefined,
+    signal?: AbortSignal,
+  ): AsyncGenerator<AssistantStreamResult> {
+    const startedAt = Date.now();
+    try {
+      if (
+        input.mode !== "general" ||
+        (input.operation !== undefined && input.operation !== "question") ||
+        input.documentId
+      )
+        throw new BadRequestException({
+          code: "STREAM_GENERAL_ONLY",
+          message:
+            "Streaming hiện hỗ trợ Chat thông thường; Hỏi tài liệu giữ xác minh citation trước khi trả lời.",
+        });
+
+      const verified = await this.authorize(principal);
+      const context = buildConversationContext(
+        input.history ?? [],
+        conversationConfig().maxChars,
+      );
+      const generateStream = this.provider.generateStream;
+      if (!generateStream) throw new AssistantError("unavailable");
+      const generationStartedAt = Date.now();
+      const parts = this.userParts(input);
+      await this.authorize(verified);
+      yield { type: "status", stage: "generating" };
+
+      let answer = "";
+      for await (const delta of generateStream.call(
+        this.provider,
+        {
+          systemInstruction:
+            GENERAL_SYSTEM_INSTRUCTION +
+            (context.turns.length ? HISTORY_INSTRUCTION : ""),
+          userParts: parts,
+          ...this.conversation(context.turns),
+        },
+        signal,
+      )) {
+        if (signal?.aborted)
+          throw new DOMException("Request cancelled", "AbortError");
+        answer += delta;
+        yield { type: "delta", text: delta };
+      }
+
+      answer = answer.trim();
+      if (!answer) throw new AssistantError("upstream");
+      const result: AssistantAnswer = {
+        answer,
+        answerable: true,
+        reasonCode: "ANSWER_GENERATED",
+        citations: [],
+        provider: "google",
+        model: this.provider.model,
+        mode: "general",
+        ragEnabled: false,
+        promptVersion: input.history?.length
+          ? "general-conversation-v2"
+          : GENERAL_PROMPT_VERSION,
+        ...(input.history?.length
+          ? {
+              contextTurnsUsed: context.turns.length,
+              contextTruncated: context.truncated,
+            }
+          : {}),
+      };
+      if (input.history?.length)
+        log("info", "assistant.context.applied", {
+          mode: "general",
+          promptVersion: result.promptVersion,
+          contextTurnsUsed: context.turns.length,
+          contextTruncated: context.truncated,
+        });
+      this.logCompleted("general", "question", result.reasonCode, startedAt, {
+        evidenceCount: 0,
+        generationMs: Date.now() - generationStartedAt,
+        streaming: true,
+      });
+      yield { type: "result", answer: result };
+    } catch (error: unknown) {
+      if (!signal?.aborted)
+        log("error", "assistant.chat.failed", {
+          mode: "general",
+          operation: "question",
+          reasonCode: this.failureReasonCode(error),
+          durationMs: Date.now() - startedAt,
+          streaming: true,
+        });
+      throw error;
+    }
+  }
+
+  async *streamDocumentChat(
+    input: AssistantChatDto,
+    principal: PilotPrincipal | undefined,
+    signal?: AbortSignal,
+  ): AsyncGenerator<AssistantStreamResult> {
+    const startedAt = Date.now();
+    try {
+      if (
+        input.mode !== "documents" ||
+        (input.operation !== undefined && input.operation !== "question")
+      )
+        throw new BadRequestException({
+          code: "STREAM_QUESTION_ONLY",
+          message:
+            "Streaming chỉ hỗ trợ câu hỏi; tóm tắt và thông tin môn học dùng thao tác riêng.",
+        });
+
+      const verified = await this.authorize(principal);
+      const context = buildConversationContext(
+        input.history ?? [],
+        conversationConfig().maxChars,
+      );
+      yield { type: "status", stage: "retrieving" };
+
+      const retrievalStartedAt = Date.now();
+      let rag: RagContext;
+      try {
+        rag = await this.retrieval.retrieve(
+          retrievalQuestion(input.message, context.turns),
+          {
+            courseId: input.courseId,
+            ...(input.documentId ? { documentId: input.documentId } : {}),
+          },
+          verified,
+        );
+      } catch (error: unknown) {
+        throw this.normalizeRetrievalError(error);
+      }
+      const retrievalMs = Date.now() - retrievalStartedAt;
+      if (signal?.aborted)
+        throw new DOMException("Request cancelled", "AbortError");
+      if (!rag.context) {
+        let answer = this.response(
+          UNANSWERABLE,
+          false,
+          [],
+          rag.promptVersion,
+          "NO_RELEVANT_EVIDENCE",
+        );
+        if (input.history?.length)
+          answer = {
+            ...answer,
+            contextTurnsUsed: context.turns.length,
+            contextTruncated: context.truncated,
+            promptVersion: "rag-conversation-v2",
+          };
+        this.logCompleted(
+          "documents",
+          "question",
+          answer.reasonCode,
+          startedAt,
+          {
+            evidenceCount: 0,
+            retrievalMs,
+            streaming: true,
+          },
+        );
+        yield { type: "result", answer };
+        return;
+      }
+
+      const generateStream = this.provider.generateStream;
+      if (!generateStream) throw new AssistantError("unavailable");
+      const userParts = this.userParts(input);
+      userParts.push(rag.context);
+      const generationStartedAt = Date.now();
+      await this.authorize(verified);
+      yield { type: "status", stage: "generating" };
+
+      const parser = new StructuredAnswerStream();
+      for await (const chunk of generateStream.call(
+        this.provider,
+        {
+          systemInstruction:
+            SYSTEM_INSTRUCTION +
+            (context.turns.length ? HISTORY_INSTRUCTION : ""),
+          userParts,
+          ...this.conversation(context.turns),
+          responseMimeType: "application/json",
+          responseJsonSchema: RESPONSE_SCHEMA,
+        },
+        signal,
+      )) {
+        if (signal?.aborted)
+          throw new DOMException("Request cancelled", "AbortError");
+        try {
+          // Document output stays private until the complete citation validator
+          // and the controller's fresh receipt authorization have both passed.
+          // Removing source markers alone cannot make an unverified claim safe.
+          parser.push(chunk);
+        } catch {
+          throw new AssistantError("upstream", "answer_not_json");
+        }
+      }
+      if (signal?.aborted)
+        throw new DOMException("Request cancelled", "AbortError");
+
+      const parsed = this.parseStructuredAnswer(parser.completeRaw);
+      let answer: AssistantAnswer;
+      if (!parsed.answerable) {
+        if (
+          parsed.citationIds.length > 0 ||
+          this.sourceMarkers(parsed.answer).length ||
+          [...parsed.answer.matchAll(/\[S[^\]]*\]/g)].length
+        )
+          throw new AssistantError("upstream", "unanswerable_with_citations");
+        answer = this.response(
+          UNANSWERABLE,
+          false,
+          [],
+          rag.promptVersion,
+          "NO_RELEVANT_EVIDENCE",
+        );
+      } else {
+        const citations = this.validateCitations(parsed, rag);
+        const partial = this.isPartialCoverage(rag.coverage);
+        answer = this.response(
+          parsed.answer,
+          true,
+          citations,
+          rag.promptVersion,
+          partial ? "PARTIAL_COVERAGE" : "ANSWER_GENERATED",
+        );
+      }
+      if (input.history?.length) {
+        answer = {
+          ...answer,
+          contextTurnsUsed: context.turns.length,
+          contextTruncated: context.truncated,
+          promptVersion: "rag-conversation-v2",
+        };
+        log("info", "assistant.context.applied", {
+          mode: "documents",
+          promptVersion: answer.promptVersion,
+          contextTurnsUsed: context.turns.length,
+          contextTruncated: context.truncated,
+        });
+      }
+      this.logCompleted("documents", "question", answer.reasonCode, startedAt, {
+        evidenceCount: rag.evidence.length,
+        retrievalMs,
+        generationMs: Date.now() - generationStartedAt,
+        streaming: true,
+        ...(rag.coverage ?? {}),
+      });
+      yield { type: "result", answer };
+    } catch (error: unknown) {
+      if (!signal?.aborted)
+        log("error", "assistant.chat.failed", {
+          mode: "documents",
+          operation: "question",
+          reasonCode: this.failureReasonCode(error),
+          rejection:
+            error instanceof AssistantError ? error.rejection : undefined,
+          durationMs: Date.now() - startedAt,
+          streaming: true,
+        });
       throw error;
     }
   }

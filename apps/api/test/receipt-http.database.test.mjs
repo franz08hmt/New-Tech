@@ -28,7 +28,22 @@ import {
   digest,
 } from "./receipt-context-fixture.mjs";
 import { assertGroundedAnswer } from "./retrieval-positive.mjs";
-const [A] = tenants;
+const [A, B] = tenants;
+
+async function readSse(response) {
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type"), /^text\/event-stream\b/);
+  const body = await response.text();
+  const events = body
+    .trim()
+    .split(/\r?\n\r?\n/)
+    .map((frame) => {
+      assert.match(frame, /^data: /);
+      return JSON.parse(frame.slice(6));
+    });
+  assert.equal(events[0].type, "start");
+  return { events, body };
+}
 async function withApp(role, run) {
   const f = await openReceiptTenantFixture(),
     auth = authFixture();
@@ -302,6 +317,217 @@ test("HTTP no membership never reaches retrieval, embedding, generation or recei
         )
       ).rows[0].n,
       0,
+    );
+  });
+});
+
+test("SSE non-owner: general and documents issue owned receipts, verify history and reject foreign receipts", async (t) => {
+  t.mock.method(console, "log", () => {});
+  await withApp("viewer", async ({ f, auth, post }) => {
+    const runtime = (
+      await f.db.query(
+        "SELECT current_user AS role,session_user AS session_role,r.rolsuper,r.rolbypassrls,pg_get_userbyid(c.relowner) AS table_owner FROM pg_roles r CROSS JOIN pg_class c WHERE r.rolname=current_user AND c.oid='assistant_answer_receipts'::regclass",
+      )
+    ).rows[0];
+    assert.equal(runtime.role, f.role);
+    assert.equal(runtime.session_role, f.role);
+    assert.equal(runtime.rolsuper, false);
+    assert.equal(runtime.rolbypassrls, false);
+    assert.notEqual(runtime.table_owner, f.role);
+    // Override only this disposable app's provider. Retrieval, authorization,
+    // receipt persistence/history and feedback still use real non-owner SQL.
+    f.provider.generateStream = async function* (input) {
+      assert.equal(
+        f.active.count,
+        0,
+        "stream generation holds no workspace client",
+      );
+      f.state.generations.push(input);
+      const source =
+        /"sourceId":"(S\d+)"/.exec(input.userParts.join("\n"))?.[1] ?? "S1";
+      const output =
+        input.responseMimeType === "application/json"
+          ? JSON.stringify({
+              answerable: true,
+              answer: `Synthetic answer [${source}].`,
+              citationIds: [source],
+            })
+          : "Synthetic streamed general answer.";
+      const midpoint = Math.floor(output.length / 2);
+      yield output.slice(0, midpoint);
+      yield output.slice(midpoint);
+    };
+
+    for (const mode of ["general", "documents"]) {
+      const input = {
+        mode,
+        message: "Question",
+        ...(mode === "documents"
+          ? { documentId: A.document, courseId: A.course }
+          : {}),
+      };
+      const { events } = await readSse(
+        await post("/assistant/chat/stream", input),
+      );
+      assert.equal(
+        events.some((event) => event.type === "error"),
+        false,
+      );
+      const completed = events.filter((event) => event.type === "done");
+      assert.equal(completed.length, 1);
+      const { response: answer, answerId: id } = completed[0];
+      assert.equal(answer.mode, mode);
+      assert.match(id, /^[0-9a-f-]{36}$/);
+      if (mode === "documents") {
+        assertGroundedAnswer(answer, A.document);
+        assert.equal(
+          events.some((event) => event.type === "delta"),
+          false,
+        );
+      } else {
+        assert.equal(answer.answer, "Synthetic streamed general answer.");
+        assert.equal(answer.answerable, true);
+        assert.equal(
+          events
+            .filter((event) => event.type === "delta")
+            .map((event) => event.text)
+            .join(""),
+          answer.answer,
+        );
+      }
+      const snapshot = snapshotOf(input, answer);
+      const row = (
+        await f.admin.query(
+          "SELECT * FROM assistant_answer_receipts WHERE id=$1",
+          [id],
+        )
+      ).rows[0];
+      assert.equal(row.workspace_id, A.id);
+      assert.equal(row.user_id, auth.userId);
+      assert.equal(row.mode, mode);
+      assert.equal(row.snapshot_hash, digest(snapshot));
+      const prior = { receiptId: id, snapshot };
+      const follow = await readSse(
+        await post("/assistant/chat/stream", {
+          ...input,
+          message: "Follow up",
+          history: [prior],
+        }),
+      );
+      assert.equal(
+        follow.events.some((event) => event.type === "error"),
+        false,
+      );
+      assert.equal(follow.events.at(-1).type, "done");
+      assert.equal(follow.events.at(-1).response.contextTurnsUsed, 1);
+      assert.match(follow.events.at(-1).answerId, /^[0-9a-f-]{36}$/);
+      assert.deepEqual(f.state.generations.at(-1).conversation, [
+        { role: "user", text: input.message },
+        {
+          role: "model",
+          text: answer.answer.replace(/\[S[^\]]*\]/g, "(nguồn ở lượt trước)"),
+        },
+      ]);
+      const feedback = await post(
+        "/assistant/feedback",
+        feedbackInput(id, snapshot),
+      );
+      assert.equal(feedback.status, 201);
+      const foreignIds = [];
+      for (const workspace of [A, B]) {
+        const foreignId = randomUUID();
+        foreignIds.push(foreignId);
+        await f.admin.query(
+          "INSERT INTO assistant_answer_receipts(id,workspace_id,user_id,mode,request_id,snapshot_hash) VALUES($1,$2,$3,$4,$5,$6)",
+          [
+            foreignId,
+            workspace.id,
+            people.viewer,
+            mode,
+            randomUUID(),
+            digest(snapshot),
+          ],
+        );
+        const before = f.state.generations.length;
+        const rejected = await post("/assistant/chat/stream", {
+          ...input,
+          history: [{ receiptId: foreignId, snapshot }],
+        });
+        assert.equal(rejected.status, 400);
+        assert.equal((await rejected.json()).code, "HISTORY_INVALID");
+        assert.equal(f.state.generations.length, before);
+        const foreignFeedback = await post(
+          "/assistant/feedback",
+          feedbackInput(foreignId, snapshot),
+        );
+        assert.equal(foreignFeedback.status, 404);
+      }
+      const visible = await f.db.workspaceTransaction(
+        { workspaceId: A.id, userId: auth.userId, role: "viewer" },
+        (tx) =>
+          tx.query(
+            "SELECT id FROM assistant_answer_receipts WHERE id=ANY($1::uuid[])",
+            [[id, ...foreignIds]],
+          ),
+      );
+      assert.deepEqual(visible.rows, [{ id }]);
+    }
+  });
+});
+
+test("SSE non-owner: document revocation during generation releases no answer or receipt", async (t) => {
+  t.mock.method(console, "log", () => {});
+  await withApp("member", async ({ f, auth, post }) => {
+    let generatedChunks = 0;
+    f.provider.generateStream = async function* (input) {
+      assert.equal(
+        f.active.count,
+        0,
+        "stream generation holds no workspace client",
+      );
+      f.state.generations.push(input);
+      generatedChunks++;
+      yield '{"answerable":true,"answer":"Synthetic answer [';
+      await f.admin.query(
+        "UPDATE workspace_memberships SET active=false WHERE workspace_id=$1 AND user_id=$2",
+        [A.id, auth.userId],
+      );
+      generatedChunks++;
+      yield 'S1].","citationIds":["S1"]}';
+    };
+    const { events, body } = await readSse(
+      await post("/assistant/chat/stream", {
+        mode: "documents",
+        documentId: A.document,
+        courseId: A.course,
+        message: "Question",
+      }),
+    );
+    assert.equal(generatedChunks, 2);
+    assert.equal(f.state.generations.length, 1);
+    assert.equal(f.state.embedding, 1);
+    assert.deepEqual(
+      events.map((event) => event.type),
+      ["start", "status", "status", "error"],
+    );
+    assert.equal(events.at(-1).code, "WORKSPACE_ACCESS_DENIED");
+    assert.doesNotMatch(body, /Synthetic answer/);
+    assert.equal(
+      (
+        await f.admin.query(
+          "SELECT count(*)::int AS n FROM assistant_answer_receipts",
+        )
+      ).rows[0].n,
+      0,
+    );
+    assert.equal(
+      (
+        await f.admin.query(
+          "SELECT active FROM workspace_memberships WHERE workspace_id=$1 AND user_id=$2",
+          [A.id, auth.userId],
+        )
+      ).rows[0].active,
+      false,
     );
   });
 });

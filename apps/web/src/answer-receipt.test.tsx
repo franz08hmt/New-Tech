@@ -124,3 +124,29 @@ it("HTTP assistant abort follows conversation cancellation without losing the ti
   expect(received?.aborted).toBe(true);
   await expect(pending).rejects.toThrow();
 });
+
+it("SSE errors retain the response request ID for server log correlation", async () => {
+  configurePilotClient("synthetic-csrf", true);
+  const requestId = "stream-failure-fixture";
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      new Response(
+        'data: {"type":"start"}\n\ndata: {"type":"error","code":"AI_UPSTREAM","message":"Invalid provider response"}\n\n',
+        {
+          headers: {
+            "Content-Type": "text/event-stream",
+            "X-Request-ID": requestId,
+          },
+        },
+      ),
+    ),
+  );
+  await expect(
+    api.streamAssistant({ mode: "general", message: "Câu hỏi?" }, () => {}),
+  ).rejects.toMatchObject({
+    code: "AI_UPSTREAM",
+    requestId,
+    message: `Invalid provider response (Request ID: ${requestId})`,
+  });
+});

@@ -1,5 +1,10 @@
 # Handoff — Homework 4A/4B non-AI
 
+> **Đây là handoff lịch sử tháng 9.** Tiếp tục công việc từ
+> [checkpoint tích hợp 18/10/2026](ASSISTANT-INTEGRATION-2026-10-18.md),
+> [báo cáo Đợt 16](PHASE-16-RECEIPT-FEEDBACK-CONTEXT-REPORT.md) và roadmap.
+> Không dùng các mô tả thiếu RAG/Auth bên dưới làm hiện trạng.
+
 Ngày cập nhật: 13/09/2026 (Asia/Saigon)
 
 Trong lượt này chỉ tổng hợp tiến độ vào handoff; không chạy lại toàn bộ tests, không triển khai tính năng, không commit và không push.

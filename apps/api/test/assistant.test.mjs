@@ -8,6 +8,7 @@ import {
 import { AssistantService } from "../dist/assistant/assistant.service.js";
 import { GeminiService } from "../dist/assistant/gemini.service.js";
 import { AssistantError } from "../dist/assistant/assistant.types.js";
+import { AuthStore } from "../dist/auth/auth-store.js";
 import { fakeDependencies, httpApp, json } from "./helpers.mjs";
 
 const nativeFetch = globalThis.fetch;
@@ -48,6 +49,10 @@ beforeEach(() => {
         citationIds: ["S1"],
       }),
     ),
+    generateStream: mock.fn(async function* () {
+      yield "An answer arriving in real time ";
+      yield "from the provider stream.";
+    }),
   };
   retrieval = {
     retrieve: mock.fn(async () => ({
@@ -292,6 +297,108 @@ test("HTTP general chat bypasses document retrieval and returns no citations", a
   });
   assert.equal(provider.generate.mock.callCount(), 1);
   assert.equal(retrieval.retrieve.mock.callCount(), 0);
+});
+
+test("HTTP general chat streams SSE deltas and ends with its receipted response", async () => {
+  await start();
+  const response = await server.request(
+    "/assistant/chat/stream",
+    json("POST", { message: "Explain streaming", mode: "general" }),
+  );
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type"), /^text\/event-stream/);
+  assert.equal(response.headers.get("x-accel-buffering"), "no");
+  const events = (await response.text())
+    .trim()
+    .split(/\r?\n\r?\n/)
+    .map((frame) => JSON.parse(frame.replace(/^data: /, "")));
+  assert.deepEqual(
+    events.map((event) => event.type),
+    ["start", "status", "delta", "delta", "done"],
+  );
+  assert.deepEqual(events[1], { type: "status", stage: "generating" });
+  assert.equal(events[2].text, "An answer arriving in real time ");
+  assert.equal(
+    events[4].response.answer,
+    "An answer arriving in real time from the provider stream.",
+  );
+  assert.equal(events[4].response.mode, "general");
+  assert.match(events[4].answerId, /^[0-9a-f-]{36}$/i);
+  assert.equal(provider.generateStream.mock.callCount(), 1);
+  assert.equal(provider.generate.mock.callCount(), 0);
+  assert.equal(retrieval.retrieve.mock.callCount(), 0);
+  assert.ok(
+    logs.some((line) => JSON.parse(line).path === "/api/assistant/chat/stream"),
+  );
+});
+
+test("HTTP document SSE exposes only status until its validated receipted answer", async () => {
+  provider.generateStream = mock.fn(async function* () {
+    yield '{"answerable":true,"answer":"The report is due ';
+    yield "Friday [S1].";
+    yield '","citationIds":["S1"]}';
+  });
+  await start();
+  const response = await server.request(
+    "/assistant/chat/stream",
+    json("POST", {
+      message: "When is the report due?",
+      mode: "documents",
+    }),
+  );
+  assert.equal(response.status, 200);
+  const events = (await response.text())
+    .trim()
+    .split(/\r?\n\r?\n/)
+    .map((frame) => JSON.parse(frame.replace(/^data: /, "")));
+  assert.deepEqual(
+    events.map((event) => event.type),
+    ["start", "status", "status", "done"],
+  );
+  assert.deepEqual(events.slice(1, 3), [
+    { type: "status", stage: "retrieving" },
+    { type: "status", stage: "generating" },
+  ]);
+  assert.equal(
+    events
+      .filter((event) => event.type === "delta")
+      .map((event) => event.text)
+      .join(""),
+    "",
+  );
+  assert.equal(events.at(-1).response.answer, "The report is due Friday [S1].");
+  assert.deepEqual(events.at(-1).response.citations, [citation]);
+  assert.equal(retrieval.retrieve.mock.callCount(), 1);
+  assert.equal(provider.generate.mock.callCount(), 0);
+});
+
+test("HTTP revocation during document generation releases no document text or receipt", async () => {
+  provider.generateStream = mock.fn(async function* () {
+    // Revoke after provider admission but before any generated private content.
+    mock.method(server.app.get(AuthStore), "membership", async () => undefined);
+    yield '{"answerable":true,"answer":"Private generated document fact [S1].",';
+    yield '"citationIds":["S1"]}';
+  });
+  await start();
+  const response = await server.request(
+    "/assistant/chat/stream",
+    json("POST", { message: "Question", mode: "documents" }),
+  );
+  const text = await response.text();
+  const events = text
+    .trim()
+    .split(/\r?\n\r?\n/)
+    .map((frame) => JSON.parse(frame.replace(/^data: /, "")));
+  assert.equal(events.at(-1).type, "error");
+  assert.equal(events.at(-1).code, "WORKSPACE_ACCESS_DENIED");
+  assert.ok(!events.some((event) => ["delta", "done"].includes(event.type)));
+  assert.ok(!text.includes("Private generated document fact"));
+  assert.equal(
+    fixture.database.query.mock.calls.filter((call) =>
+      call.arguments[0].startsWith("INSERT INTO assistant_answer_receipts"),
+    ).length,
+    0,
+  );
 });
 
 for (const [name, body] of Object.entries({

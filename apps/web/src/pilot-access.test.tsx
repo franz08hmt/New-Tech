@@ -1,4 +1,4 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   act,
   cleanup,
@@ -29,6 +29,26 @@ const unavailable = () =>
   );
 let drain: (() => void) | undefined;
 const originalTitle = document.title;
+let tabChannel: { onmessage: ((event: MessageEvent) => void) | null };
+
+beforeEach(() => {
+  // Each test represents its own browser tab. Native Node channels cross
+  // Vitest worker boundaries, unlike this test's isolated DOM and HTTP fake.
+  vi.stubGlobal(
+    "BroadcastChannel",
+    class {
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      constructor() {
+        tabChannel = this;
+      }
+      postMessage() {}
+      close() {
+        this.onmessage = null;
+      }
+    },
+  );
+});
+
 afterEach(async () => {
   cleanup();
   await act(async () => drain?.());
@@ -148,6 +168,34 @@ it("moves focus from hidden workspace content to the access heading on a session
   expect(screen.getByLabelText("Workspace draft")).toHaveValue(
     "Keep this draft",
   );
+});
+
+it("locks the sign-in gate when its own tab receives a session change", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => Response.json(anonymous)),
+  );
+  render(
+    <PilotAccess>
+      <p>Protected fixture</p>
+    </PilotAccess>,
+  );
+  const password = await screen.findByLabelText("Password");
+  password.focus();
+  await act(async () => {
+    tabChannel.onmessage?.(
+      new MessageEvent("message", { data: { type: "session_changed" } }),
+    );
+  });
+  expect(
+    screen.getByText(
+      "Phiên đã đổi ở tab khác. Kiểm tra lại trước khi tiếp tục.",
+    ),
+  ).toBeInTheDocument();
+  expect(password).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
+  fireEvent.click(screen.getByRole("button", { name: "Check session" }));
+  expect(await screen.findByLabelText("Password")).toBeEnabled();
 });
 
 it("uses English control labels and a sign-in document title on the access page", async () => {

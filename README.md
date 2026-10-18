@@ -1,5 +1,15 @@
 # ExaMate — AI-powered academic workspace
 
+**Checkpoint tích hợp 18/10/2026:** phát triển tiếp trên
+`feature/tai-assistant-integration-20261018`, checkout riêng tại
+`D:\New-Tech\Final-Project-integration-20261018`. Nhánh gộp lịch sử Tài đến
+`8b62f1a` và Thắng đến `2249abf`, giữ cả workspace boundaries, receipt/history,
+UI hai tầng, STT và SSE. Xem [báo cáo tích hợp](docs/ASSISTANT-INTEGRATION-2026-10-18.md).
+General phát text dần; Documents chỉ phát trạng thái rồi kết quả đã kiểm citation
+và quyền cuối lượt; Workspace phát trạng thái rồi kết quả SQL, không giả token AI.
+STT mặc định tắt; dependency audit còn finding cần xử lý trước khi mở rộng sử dụng.
+Checkout này không tự sao chép `.env`, secrets, weights hoặc WIP từ folder cũ.
+
 **Đăng nhập demo Tài/Thắng — checkpoint 17/10/2026:** cloud đã áp `001`–`015`,
 đã có bốn user demo và ba membership. Đọc
 [hướng dẫn đăng nhập trên máy Thắng](docs/PILOT-DEMO-HANDOFF.md) trước khi chạy.
@@ -7,7 +17,12 @@ Các mốc `001`–`011`/“chưa áp cloud” bên dưới là khảo sát trư
 Không tạo workspace/user hoặc migrate lại chỉ để chạy app; `.env` và mật khẩu
 không đi theo Git. Chưa xác minh trực tiếp máy Thắng hoặc nghiệm thu Auth mở rộng.
 
-Workspace học tập dùng React + NestJS + PostgreSQL/Supabase Storage. Hiện có các luồng Tasks, Courses, Exams, study plans, chi tiêu, ghi chú trên trình duyệt và tài liệu PDF. Assistant có ba chế độ: chat thường qua Gemini, hỏi tài liệu đã lập chỉ mục (RAG) qua Gemini, và hỏi dữ liệu workspace bằng truy vấn có kiểm soát (không gọi LLM). PDF được trích xuất, chia đoạn và embedding phía API; OCR là tùy chọn và mặc định tắt.
+Workspace học tập dùng React + NestJS + PostgreSQL/Supabase Storage. Hiện có các luồng Tasks, Courses, Exams, study plans, chi tiêu, ghi chú trên trình duyệt và tài liệu PDF. Assistant có hai lựa chọn giao diện: **AI Chat** (chọn kiến thức chung hoặc tài liệu đã lập chỉ mục/RAG) và **Hỏi workspace** (truy vấn dữ liệu có kiểm soát, không gọi LLM). Cả ba kiểu câu hỏi đều hỗ trợ SSE; PDF được trích xuất, chia đoạn và embedding phía API; OCR là tùy chọn và mặc định tắt.
+
+Assistant có MVP nhập câu hỏi bằng giọng nói: ghi âm ngắn → xem/sửa bản chép →
+chèn vào câu hỏi → người dùng chủ động gửi. STT dùng Whisper small ONNX local
+trong tiến trình Node con, mặc định tắt; không cần inference API key. Weights
+chưa được tải tự động. Xem [cách chuẩn bị, bật và kiểm thử STT](docs/STT-SETUP-VI.md).
 
 **Trạng thái nhánh phát triển (`feature/tai-rag-integration`):** RAG/OCR, bộ đánh giá và phản hồi câu trả lời đã có trong code. Các chặng đăng nhập/session pilot 1a–1b cũng đã được commit và push; xem [báo cáo 1a](docs/pilot-stage-1a-report.md), [báo cáo 1b](docs/pilot-stage-1b-report.md) và [thiết kế pilot](docs/pilot-stage-0-design.md). Đây là trạng thái code, **không đồng nghĩa pilot đã sẵn sàng cho dữ liệu thật hoặc truy cập công khai**.
 
@@ -87,7 +102,7 @@ Chưa xác thực operator CLI bằng Supabase Auth manager; quyền dựa vào 
 DB quản trị được cất riêng. Không cấp credential này cho member/viewer.
 
 ```text
-Browser React ── /api JSON hoặc multipart ──> NestJS
+Browser React ── /api JSON, SSE hoặc multipart ──> NestJS
                                              ├── pg.Pool ──> Supabase PostgreSQL (records + chunks + vectors)
                                              ├── HTTPS ────> private Supabase Storage (PDF)
                                              └── HTTPS ────> Gemini (chat + embeddings; OCR nếu bật)
@@ -121,7 +136,7 @@ Không nâng cấp toàn bộ dependencies. `npm ci` dùng package-lock v3.
 Tại root repository:
 
 ```powershell
-npm ci
+npm ci --ignore-scripts
 # Chỉ copy khi chưa có .env; không ghi đè cấu hình đang có.
 Copy-Item .env.example .env
 ```
@@ -177,7 +192,7 @@ trong cả dev/production; không suy ra địa chỉ bind từ `PUBLIC_ORIGIN` 
 cookie Secure. Muốn nghe mọi interface phải đặt `HOST=0.0.0.0` tường minh và
 tự kiểm soát network/firewall; không dùng cấu hình đó cho dev trực tiếp.
 
-Mở http://127.0.0.1:5173. Sau khi Auth pilot được cấu hình và workspace có membership hợp lệ, đăng nhập rồi dùng các trang `#tasks`, `#documents` hoặc `#assistant`. API http://127.0.0.1:3000/api. Vite proxy `/api` đến 127.0.0.1:3000; nếu đổi API PORT phải sửa proxy tương ứng. Không mở web bằng hostname `localhost` vì đó là origin khác. Để hỏi tài liệu: upload PDF, bấm **Index** trên tài liệu, đợi trạng thái **Searchable content ready**, rồi mở Assistant và chọn **Hỏi tài liệu**. Chỉ tài liệu đã lập chỉ mục được truy xuất; nếu không có bằng chứng phù hợp, Assistant cần báo không tìm thấy thay vì đoán. Nếu thiếu migration/config/grants hoặc membership, API phải fail closed; không tắt Auth để “cho chạy”.
+Mở http://127.0.0.1:5173. Sau khi Auth pilot được cấu hình và workspace có membership hợp lệ, đăng nhập rồi dùng các trang `#tasks`, `#documents` hoặc `#assistant`. API http://127.0.0.1:3000/api. Vite proxy `/api` đến 127.0.0.1:3000; nếu đổi API PORT phải sửa proxy tương ứng. Không mở web bằng hostname `localhost` vì đó là origin khác. Để hỏi tài liệu: upload PDF, bấm **Index** trên tài liệu, đợi trạng thái **Searchable content ready**, rồi mở Assistant, chọn **AI Chat → Tài liệu**. Chỉ tài liệu đã lập chỉ mục được truy xuất; nếu không có bằng chứng phù hợp, Assistant cần báo không tìm thấy thay vì đoán. Nếu thiếu migration/config/grants hoặc membership, API phải fail closed; không tắt Auth để “cho chạy”.
 
 ```powershell
 curl.exe -i http://127.0.0.1:3000/api/health
@@ -303,22 +318,23 @@ CREATE DATABASE cho các fixture này. Không gọi owner-domain tests là tenan
 
 ## API contract
 
-| Method/path                     | Thành công                                   | Lỗi chính                                                              |
-| ------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------- |
-| GET /api/tasks                  | 200 array                                    | 503 DB offline                                                         |
-| POST /api/tasks                 | 201 task                                     | 400 DTO                                                                |
-| PATCH /api/tasks/:id/status     | 200 task                                     | 400 UUID/status, 404                                                   |
-| GET /api/documents              | 200 metadata array                           | 503 DB offline                                                         |
-| POST /api/documents             | 201 metadata                                 | 400 missing/fields, 413 size, 415 type/signature, 503 Storage          |
-| GET /api/documents/:id/download | 200 {url, expiresIn:60}                      | 400 UUID, 404, 409 pending/legacy, 503                                 |
-| DELETE /api/documents/:id       | 204, idempotent khi đã xóa                   | 400 UUID, 409 legacy, 503 partial failure                              |
-| GET /api/health                 | 200 DB connected                             | 503 DB unavailable                                                     |
-| GET /api/auth/session           | 200 trạng thái session/pre-session + CSRF    | 401/403/429/503 theo trạng thái Auth, CSRF, admission                  |
-| POST /api/auth/login            | 200 session pilot                            | 400/401/403/429/503                                                    |
-| POST /api/auth/refresh, /logout | 200 trạng thái session                       | 401/403/429/503                                                        |
-| GET /api/assistant/status       | 200 modes general/documents; ragEnabled true | Route có Auth; chỉ báo cấu hình, không chứng minh upstream/quota       |
-| POST /api/assistant/chat        | 200 theo mode general/documents/workspace    | 400 DTO, lỗi AI/RAG, 401/403 Auth; xem contract và Assistant setup     |
-| POST /api/assistant/feedback    | 201 receipt/idempotent result                | 400 input; 401/403 Auth; 404 receipt/owner/hash; không phải nhãn chuẩn |
+| Method/path                     | Thành công                                                    | Lỗi chính                                                                   |
+| ------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| GET /api/tasks                  | 200 array                                                     | 503 DB offline                                                              |
+| POST /api/tasks                 | 201 task                                                      | 400 DTO                                                                     |
+| PATCH /api/tasks/:id/status     | 200 task                                                      | 400 UUID/status, 404                                                        |
+| GET /api/documents              | 200 metadata array                                            | 503 DB offline                                                              |
+| POST /api/documents             | 201 metadata                                                  | 400 missing/fields, 413 size, 415 type/signature, 503 Storage               |
+| GET /api/documents/:id/download | 200 {url, expiresIn:60}                                       | 400 UUID, 404, 409 pending/legacy, 503                                      |
+| DELETE /api/documents/:id       | 204, idempotent khi đã xóa                                    | 400 UUID, 409 legacy, 503 partial failure                                   |
+| GET /api/health                 | 200 DB connected                                              | 503 DB unavailable                                                          |
+| GET /api/auth/session           | 200 trạng thái session/pre-session + CSRF                     | 401/403/429/503 theo trạng thái Auth, CSRF, admission                       |
+| POST /api/auth/login            | 200 session pilot                                             | 400/401/403/429/503                                                         |
+| POST /api/auth/refresh, /logout | 200 trạng thái session                                        | 401/403/429/503                                                             |
+| GET /api/assistant/status       | 200 modes general/documents; ragEnabled true                  | Route có Auth; chỉ báo cấu hình, không chứng minh upstream/quota            |
+| POST /api/assistant/chat        | 200 theo mode general/documents/workspace                     | 400 DTO, lỗi AI/RAG, 401/403 Auth; xem contract và Assistant setup          |
+| POST /api/assistant/chat/stream | 200 SSE cho general, RAG, workspace; trạng thái/delta phù hợp | 400 ngoài question; lỗi sau khi mở luồng là SSE error; Auth/CSRF giữ nguyên |
+| POST /api/assistant/feedback    | 201 receipt/idempotent result                                 | 400 input; 401/403 Auth; 404 receipt/owner/hash; không phải nhãn chuẩn      |
 
 Title trim trước check 3–160. status có todo/in_progress/done, bỏ qua thì todo, null là 400. ownerName/dueDate/evidenceType bỏ qua hoặc null được lưu NULL; owner/evidence trống sau trim cũng NULL. dueDate chỉ ngày YYYY-MM-DD thực sự tồn tại, không timestamp. Field lạ bị 400. SQL dùng placeholders. Response lỗi có requestId; chưa phân loại là 500, không tự chuyển mọi lỗi thành 503.
 

@@ -16,6 +16,27 @@
  *    API, tied back to this file by a compile-time check (see task.types.ts).
  */
 
+/** Voice input produces a draft; it never sends an Assistant question. */
+export type SpeechLanguage = "auto" | "vietnamese" | "english";
+
+export interface SpeechStatusResponse {
+  status:
+    | "ready"
+    | "not_configured"
+    | "media_unavailable"
+    | "model_missing"
+    | "loading"
+    | "model_error";
+  maxAudioBytes: number;
+  maxDurationMs: number;
+  supportedMimeTypes: string[];
+}
+export interface SpeechTranscriptionResponse {
+  text: string;
+  detectedLanguages: string[];
+  requestId: string;
+}
+
 /** Lifecycle of a task. Mirrored by the `tasks_status_check` constraint. */
 export type TaskStatus = "todo" | "in_progress" | "done";
 
@@ -406,6 +427,22 @@ export type AssistantChatResponse =
       asOf: string;
       metadataSource?: never;
     });
+
+/** Server-sent events returned by `POST /api/assistant/chat/stream`. */
+export type AssistantStreamStage =
+  "retrieving" | "generating" | "querying_workspace";
+
+export type AssistantStreamEvent =
+  | { type: "start" }
+  | { type: "status"; stage: AssistantStreamStage }
+  | { type: "delta"; text: string }
+  | {
+      type: "done";
+      response: AssistantChatResponse;
+      /** Present only when the server persisted an answer receipt. */
+      answerId?: string;
+    }
+  | { type: "error"; code: string; message: string };
 
 /** Response of `GET /api/assistant/status`. */
 export type AssistantStatus = {

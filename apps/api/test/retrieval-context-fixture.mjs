@@ -128,6 +128,11 @@ export function retrievalFixture() {
       });
     },
   };
+  provider.generateStream = async function* (input) {
+    yield input.responseMimeType
+      ? await provider.generate(input)
+      : "Synthetic general answer.";
+  };
   const retrieval = new RagRetrievalService(database, embeddings, access);
   return {
     p,

@@ -133,6 +133,24 @@ test("generation boundaries use short workspace authorization outside every prov
   assert.equal(f.state.generations.length, 1);
   assert.ok(f.state.auth.every((a) => a.tx && a.active === 1));
 });
+for (const mode of ["general", "documents"])
+  test(`streaming ${mode} retains short workspace authorization boundaries`, async () => {
+    const f = retrievalFixture();
+    const events = [];
+    const stream =
+      mode === "general" ? "streamGeneralChat" : "streamDocumentChat";
+    for await (const event of f.assistant[stream](
+      { mode, message: "Question", ...(mode === "documents" ? scope : {}) },
+      f.p,
+    ))
+      events.push(event);
+    assert.ok(events.some((e) => e.type === "result"));
+    assert.ok(
+      f.state.auth.every((a) => a.tx && a.active === 1),
+      "stream membership reads require workspace tx",
+    );
+    assert.equal(f.state.active, 0);
+  });
 for (const revokeAfter of [1, 2])
   test(`summary revoke after section ${revokeAfter} blocks the next section or synthesis`, async () => {
     const f = retrievalFixture();

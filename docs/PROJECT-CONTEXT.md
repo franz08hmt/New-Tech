@@ -1,5 +1,13 @@
 # ExaMate AI — Project Context & Handoff
 
+> **Checkpoint tích hợp 18/10/2026:** nhánh mới
+> `feature/tai-assistant-integration-20261018` gộp Tài `8b62f1a` và Thắng `2249abf`.
+> Ingestion/retrieval/summary/receipt/feedback đã được chuyển boundary ở Đợt 14–16;
+> SSE mới phải giữ những boundary đó. Xem
+> [báo cáo tích hợp và cách tiếp tục](ASSISTANT-INTEGRATION-2026-10-18.md).
+> Không đồng nhất test fixture local với nghiệm thu Auth máy Thắng, semantic RAG,
+> STT microphone thật hoặc B2 toàn app. Các checkpoint bên dưới là lịch sử.
+
 > **Checkpoint Đợt 13 — 17/10/2026:** B1b ở mức PREPARED: sửa diagnostic Auth,
 > kiểm DB suite riêng PG16/PG17; xem [báo cáo hai máy](PHASE-13-B1-TWO-MACHINE-AUTH-REPORT.md)
 > và [runbook](PILOT-B1-RUNBOOK.md). Cloud mới kiểm metadata/config chỉ đọc,
@@ -246,25 +254,25 @@ Final-Project/
 
 File quan trọng:
 
-| File | Vai trò |
-| --- | --- |
-| `apps/web/src/App.tsx` | Shell, hash navigation và state mở/đóng AI panel |
-| `apps/web/src/AssistantPanel.tsx` | UI preview AI theo page context; chưa gọi RAG/LLM |
-| `apps/web/src/api.ts` | REST client của frontend |
-| `apps/web/vite.config.ts` | Dev proxy `/api` sang port 3000 |
-| `apps/api/src/main.ts` | NestJS bootstrap, prefix `/api`, validation và CORS |
-| `apps/api/src/app.module.ts` | Đăng ký controller/service |
-| `apps/api/src/tasks/` | DTO, type, controller và service của task |
-| `apps/api/src/database/database.service.ts` | PostgreSQL pool và query helper |
-| `apps/api/src/health/health.controller.ts` | API/database health check |
-| `apps/api/src/assistant/assistant.controller.ts` | Chỉ là AI status placeholder |
-| `infra/postgres/init/001_init.sql` | Schema tasks, documents, chunks và evaluations |
-| `infra/nginx/default.conf` | Serve React và proxy API |
-| `docs/GUIDE.md` | Onboarding và backlog chi tiết cho Tài/Thắng |
-| `docs/project-plan.md` | Scope, tiến độ tuần 1–8, ownership và risk |
-| `docs/architecture.md` | Kiến trúc hiện tại và luồng RAG dự kiến |
-| `docs/evaluation-plan.md` | 10 acceptance cases cho AI |
-| `docs/ai-usage-log.md` | Nhật ký AI assistance và human review |
+| File                                             | Vai trò                                             |
+| ------------------------------------------------ | --------------------------------------------------- |
+| `apps/web/src/App.tsx`                           | Shell, hash navigation và state mở/đóng AI panel    |
+| `apps/web/src/AssistantPanel.tsx`                | UI preview AI theo page context; chưa gọi RAG/LLM   |
+| `apps/web/src/api.ts`                            | REST client của frontend                            |
+| `apps/web/vite.config.ts`                        | Dev proxy `/api` sang port 3000                     |
+| `apps/api/src/main.ts`                           | NestJS bootstrap, prefix `/api`, validation và CORS |
+| `apps/api/src/app.module.ts`                     | Đăng ký controller/service                          |
+| `apps/api/src/tasks/`                            | DTO, type, controller và service của task           |
+| `apps/api/src/database/database.service.ts`      | PostgreSQL pool và query helper                     |
+| `apps/api/src/health/health.controller.ts`       | API/database health check                           |
+| `apps/api/src/assistant/assistant.controller.ts` | Chỉ là AI status placeholder                        |
+| `infra/postgres/init/001_init.sql`               | Schema tasks, documents, chunks và evaluations      |
+| `infra/nginx/default.conf`                       | Serve React và proxy API                            |
+| `docs/GUIDE.md`                                  | Onboarding và backlog chi tiết cho Tài/Thắng        |
+| `docs/project-plan.md`                           | Scope, tiến độ tuần 1–8, ownership và risk          |
+| `docs/architecture.md`                           | Kiến trúc hiện tại và luồng RAG dự kiến             |
+| `docs/evaluation-plan.md`                        | 10 acceptance cases cho AI                          |
+| `docs/ai-usage-log.md`                           | Nhật ký AI assistance và human review               |
 
 Không đọc hoặc sửa trực tiếp:
 
@@ -286,13 +294,13 @@ Không đọc hoặc sửa trực tiếp:
 
 ### Backend API
 
-| Method | Endpoint | Trạng thái |
-| --- | --- | --- |
-| `GET` | `/api/health` | Đã triển khai |
-| `GET` | `/api/tasks` | Đã triển khai |
-| `POST` | `/api/tasks` | Đã triển khai |
-| `PATCH` | `/api/tasks/:id/status` | Đã triển khai |
-| `GET` | `/api/assistant/status` | Đã triển khai dưới dạng placeholder |
+| Method  | Endpoint                | Trạng thái                          |
+| ------- | ----------------------- | ----------------------------------- |
+| `GET`   | `/api/health`           | Đã triển khai                       |
+| `GET`   | `/api/tasks`            | Đã triển khai                       |
+| `POST`  | `/api/tasks`            | Đã triển khai                       |
+| `PATCH` | `/api/tasks/:id/status` | Đã triển khai                       |
+| `GET`   | `/api/assistant/status` | Đã triển khai dưới dạng placeholder |
 
 Validation hiện có:
 
@@ -470,26 +478,26 @@ Phân công có thể đổi nếu kỹ năng thực tế yêu cầu, nhưng ph�
 
 ## 16. Backlog tuần 4–8
 
-| ID | Tuần | Task | Owner | Reviewer | Trạng thái snapshot |
-| --- | --- | --- | --- | --- | --- |
-| CM-001 | 4 | Clone, chạy và xác minh baseline | Cả hai | Cả hai | In progress |
-| CM-002 | 4 | Vẽ lại và trình bày luồng tạo task | Thắng/Tài | Chéo | In progress |
-| CM-003 | 4 | Một thay đổi nhỏ xuyên frontend–API–DB | Tài | Thắng | Not started |
-| CM-101 | 4 | Document module và API metadata/upload | Thắng | Tài | Not started |
-| CM-102 | 4–5 | Documents page và upload UI | Tài | Thắng | FE local preview implemented; API pending |
-| CM-201 | 5 | PDF extraction và processing status | Thắng | Tài | Not started |
-| CM-202 | 5 | Chunking có source page | Thắng | Tài | Not started |
-| CM-203 | 5 | Upload loading/error/failed UI | Tài | Thắng | FE mock states implemented; integration pending |
-| CM-301 | 5–6 | Embedding adapter và pgvector retrieval | Thắng | Tài | Not started |
-| CM-302 | 6 | Ask endpoint và structured output | Thắng | Tài | Not started |
-| CM-303 | 6 | Assistant UI và citation viewer | Tài | Thắng | Responsive UI shell/sample citation implemented; RAG integration pending |
-| CM-304 | 6 | Unanswerable, timeout và unavailable fallback | Cả hai | Cả hai | Not started |
-| CM-401 | 6–7 | Chạy và ghi 10 evaluation cases | Tài | Thắng | Not started |
-| CM-402 | 7 | Integration test và failure test | Thắng | Tài | Not started |
-| CM-403 | 7 | Deploy Compose lên VM | Thắng | Tài | Not started |
-| CM-404 | 7 | Kiểm tra demo và feature freeze | Cả hai | Cả hai | Not started |
-| CM-501 | 8 | Slide, architecture và backup demo | Tài | Thắng | Not started |
-| CM-502 | 8 | Luyện vấn đáp và giải thích code chéo | Cả hai | Cả hai | Not started |
+| ID     | Tuần | Task                                          | Owner     | Reviewer | Trạng thái snapshot                                                      |
+| ------ | ---- | --------------------------------------------- | --------- | -------- | ------------------------------------------------------------------------ |
+| CM-001 | 4    | Clone, chạy và xác minh baseline              | Cả hai    | Cả hai   | In progress                                                              |
+| CM-002 | 4    | Vẽ lại và trình bày luồng tạo task            | Thắng/Tài | Chéo     | In progress                                                              |
+| CM-003 | 4    | Một thay đổi nhỏ xuyên frontend–API–DB        | Tài       | Thắng    | Not started                                                              |
+| CM-101 | 4    | Document module và API metadata/upload        | Thắng     | Tài      | Not started                                                              |
+| CM-102 | 4–5  | Documents page và upload UI                   | Tài       | Thắng    | FE local preview implemented; API pending                                |
+| CM-201 | 5    | PDF extraction và processing status           | Thắng     | Tài      | Not started                                                              |
+| CM-202 | 5    | Chunking có source page                       | Thắng     | Tài      | Not started                                                              |
+| CM-203 | 5    | Upload loading/error/failed UI                | Tài       | Thắng    | FE mock states implemented; integration pending                          |
+| CM-301 | 5–6  | Embedding adapter và pgvector retrieval       | Thắng     | Tài      | Not started                                                              |
+| CM-302 | 6    | Ask endpoint và structured output             | Thắng     | Tài      | Not started                                                              |
+| CM-303 | 6    | Assistant UI và citation viewer               | Tài       | Thắng    | Responsive UI shell/sample citation implemented; RAG integration pending |
+| CM-304 | 6    | Unanswerable, timeout và unavailable fallback | Cả hai    | Cả hai   | Not started                                                              |
+| CM-401 | 6–7  | Chạy và ghi 10 evaluation cases               | Tài       | Thắng    | Not started                                                              |
+| CM-402 | 7    | Integration test và failure test              | Thắng     | Tài      | Not started                                                              |
+| CM-403 | 7    | Deploy Compose lên VM                         | Thắng     | Tài      | Not started                                                              |
+| CM-404 | 7    | Kiểm tra demo và feature freeze               | Cả hai    | Cả hai   | Not started                                                              |
+| CM-501 | 8    | Slide, architecture và backup demo            | Tài       | Thắng    | Not started                                                              |
+| CM-502 | 8    | Luyện vấn đáp và giải thích code chéo         | Cả hai    | Cả hai   | Not started                                                              |
 
 Chi tiết acceptance criteria nằm trong `docs/GUIDE.md`.
 

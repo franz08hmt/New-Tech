@@ -13,6 +13,7 @@ import { AssistantError } from "./assistant.types.js";
 import type {
   AssistantGeneration,
   AssistantProvider,
+  AssistantStreamResult,
 } from "./assistant.types.js";
 
 const citation = {
@@ -51,6 +52,12 @@ function fixture(
   const generate = vi
     .fn<(input: AssistantGeneration) => Promise<string>>()
     .mockResolvedValue(JSON.stringify(output));
+  const generateStream = vi
+    .fn<NonNullable<AssistantProvider["generateStream"]>>()
+    .mockImplementation(async function* () {
+      yield "A streamed general answer that is long enough to be visible ";
+      yield "in separate chunks.";
+    });
   const provider: AssistantProvider = {
     model: "gemini-custom-model",
     status: () => ({
@@ -62,6 +69,7 @@ function fixture(
       credentialsExposedToClient: false,
     }),
     generate,
+    generateStream,
   };
   const retrieval = {
     retrieve: vi.fn().mockResolvedValue(rag),
@@ -87,6 +95,7 @@ function fixture(
   };
   return {
     generate,
+    generateStream,
     retrieval,
     service: new AssistantService(
       provider,
@@ -105,6 +114,203 @@ function fixture(
 }
 
 describe("AssistantService grounded orchestration", () => {
+  it("streams general chat while retaining its final answer contract", async () => {
+    const f = fixture();
+    const events = [];
+    for await (const event of f.service.streamGeneralChat(
+      {
+        message: "How should I review?",
+        mode: "general",
+        pageContext: { pageId: "tasks", pageName: "Tasks" },
+      },
+      principal,
+    ))
+      events.push(event);
+
+    expect(events).toEqual([
+      { type: "status", stage: "generating" },
+      {
+        type: "delta",
+        text: "A streamed general answer that is long enough to be visible ",
+      },
+      { type: "delta", text: "in separate chunks." },
+      {
+        type: "result",
+        answer: {
+          answer:
+            "A streamed general answer that is long enough to be visible in separate chunks.",
+          answerable: true,
+          reasonCode: "ANSWER_GENERATED",
+          citations: [],
+          provider: "google",
+          model: "gemini-custom-model",
+          mode: "general",
+          ragEnabled: false,
+          promptVersion: "general-v1",
+        },
+      },
+    ]);
+    expect(f.generateStream).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        systemInstruction: expect.stringContaining("helpful study assistant"),
+        userParts: [
+          'Untrusted UI page metadata: {"pageId":"tasks","pageName":"Tasks"}',
+          "Question: How should I review?",
+        ],
+      }),
+      undefined,
+    );
+    expect(f.generate).not.toHaveBeenCalled();
+    expect(f.retrieval.retrieve).not.toHaveBeenCalled();
+  });
+
+  it("does not stream RAG or document operations through the general path", async () => {
+    const f = fixture();
+    const events = f.service.streamGeneralChat(
+      { message: "What does the PDF say?", mode: "documents" },
+      principal,
+    );
+    await expect(async () => {
+      for await (const _event of events) void _event;
+    }).rejects.toMatchObject({ status: 400 });
+    expect(f.generateStream).not.toHaveBeenCalled();
+    expect(f.retrieval.retrieve).not.toHaveBeenCalled();
+  });
+
+  it("buffers document text until validation and the controller completion authorization", async () => {
+    const f = fixture();
+    f.generateStream.mockImplementationOnce(async function* () {
+      yield '{"answerable":true,"answer":"The report is due ';
+      yield "Friday [S";
+      yield '1].","citationIds":["S1"]}';
+    });
+    const events = [];
+    for await (const event of f.service.streamDocumentChat(
+      { message: "When is the report due?", mode: "documents" },
+      principal,
+    ))
+      events.push(event);
+
+    expect(events.map((event) => event.type)).toEqual([
+      "status",
+      "status",
+      "result",
+    ]);
+    expect(events[0]).toEqual({ type: "status", stage: "retrieving" });
+    expect(events[1]).toEqual({ type: "status", stage: "generating" });
+    expect(events.filter((event) => event.type === "delta")).toEqual([]);
+    expect(events.at(-1)).toMatchObject({
+      type: "result",
+      answer: {
+        mode: "documents",
+        answer: "The report is due Friday [S1].",
+        citations: [citation],
+      },
+    });
+    expect(f.generate).not.toHaveBeenCalled();
+    expect(f.retrieval.retrieve).toHaveBeenCalledOnce();
+  });
+
+  it("does not call the model when retrieval has no relevant evidence", async () => {
+    const f = fixture();
+    f.retrieval.retrieve.mockResolvedValueOnce({
+      ...rag,
+      context: null,
+      evidence: [],
+      citations: [],
+    });
+    const events = [];
+    for await (const event of f.service.streamDocumentChat(
+      { message: "Question without evidence", mode: "documents" },
+      principal,
+    ))
+      events.push(event);
+
+    expect(events.map((event) => event.type)).toEqual(["status", "result"]);
+    expect(events.at(-1)).toMatchObject({
+      type: "result",
+      answer: { answerable: false, reasonCode: "NO_RELEVANT_EVIDENCE" },
+    });
+    expect(f.generateStream).not.toHaveBeenCalled();
+  });
+
+  it("never streams unverified source markers and refuses citations outside the retrieved evidence", async () => {
+    const f = fixture();
+    f.generateStream.mockImplementationOnce(async function* () {
+      yield '{"answerable":true,"answer":"An unsupported claim ';
+      yield "[S9].";
+      yield '","citationIds":["S9"]}';
+    });
+    const events: AssistantStreamResult[] = [];
+    await expect(async () => {
+      for await (const event of f.service.streamDocumentChat(
+        { message: "Question", mode: "documents" },
+        principal,
+      ))
+        events.push(event);
+    }).rejects.toMatchObject({ rejection: "citation_not_in_evidence" });
+
+    expect(
+      events
+        .filter((event) => event.type === "delta")
+        .map((event) => event.text)
+        .join(""),
+    ).not.toContain("[S9]");
+    expect(events.some((event) => event.type === "delta")).toBe(false);
+    expect(events.some((event) => event.type === "result")).toBe(false);
+  });
+
+  it("retains N1 context accounting in streamed no-evidence refusals without calling the provider", async () => {
+    const f = fixture();
+    const previous = await f.service.chat(
+      { mode: "documents", message: "Previous question" },
+      principal,
+    );
+    f.generate.mockClear();
+    f.retrieval.retrieve.mockResolvedValueOnce({
+      ...rag,
+      context: null,
+      evidence: [],
+      citations: [],
+    });
+    const events = [];
+    for await (const event of f.service.streamDocumentChat(
+      {
+        mode: "documents",
+        message: "Follow-up question",
+        history: [
+          {
+            receiptId: "77777777-7777-4777-8777-777777777777",
+            snapshot: {
+              schemaVersion: 1,
+              request: {
+                mode: "documents",
+                operation: "question",
+                question: "Previous question",
+              },
+              response: previous,
+            },
+          },
+        ],
+      },
+      principal,
+    ))
+      events.push(event);
+    expect(events.at(-1)).toMatchObject({
+      type: "result",
+      answer: {
+        answerable: false,
+        reasonCode: "NO_RELEVANT_EVIDENCE",
+        contextTurnsUsed: 1,
+        contextTruncated: false,
+        promptVersion: "rag-conversation-v2",
+      },
+    });
+    expect(events.some((e) => e.type === "delta")).toBe(false);
+    expect(f.generate).not.toHaveBeenCalled();
+    expect(f.generateStream).not.toHaveBeenCalled();
+  });
+
   it.each(["general", "documents"] as const)(
     "no-history %s prompt and retrieval match the d15afea golden",
     async (mode) => {

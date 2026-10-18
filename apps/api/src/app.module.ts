@@ -35,6 +35,20 @@ import { StudyPlansController } from "./study-plans/study-plans.controller.js";
 import { StudyPlansService } from "./study-plans/study-plans.service.js";
 import { ExpensesController } from "./expenses/expenses.controller.js";
 import { ExpensesService } from "./expenses/expenses.service.js";
+import {
+  SpeechController,
+  SpeechAdmissionInterceptor,
+} from "./speech/speech.controller.js";
+import { SpeechService } from "./speech/speech.service.js";
+import { AudioInspector } from "./speech/audio-inspector.js";
+import { SpeechLimiter } from "./speech/speech-limiter.js";
+import { LocalSpeechProvider } from "./speech/local-speech.provider.js";
+import {
+  localSpeechRuntimeProvider,
+  localSpeechWorkerFactoryProvider,
+} from "./speech/local-speech-runtime.js";
+import { SPEECH_CONFIG, speechConfig } from "./speech/speech-config.js";
+import { SPEECH_PROVIDER } from "./speech/speech.types.js";
 
 @Module({
   controllers: [
@@ -48,6 +62,7 @@ import { ExpensesService } from "./expenses/expenses.service.js";
     ExamsController,
     StudyPlansController,
     ExpensesController,
+    SpeechController,
   ],
   providers: [
     AuthService,
@@ -75,6 +90,14 @@ import { ExpensesService } from "./expenses/expenses.service.js";
     RagRetrievalService,
     WorkspaceRecordsService,
     WorkspaceAssistantService,
+    SpeechService,
+    SpeechAdmissionInterceptor,
+    AudioInspector,
+    SpeechLimiter,
+    { provide: SPEECH_CONFIG, useValue: speechConfig },
+    localSpeechRuntimeProvider,
+    localSpeechWorkerFactoryProvider,
+    { provide: SPEECH_PROVIDER, useClass: LocalSpeechProvider },
   ],
 })
 export class AppModule {}

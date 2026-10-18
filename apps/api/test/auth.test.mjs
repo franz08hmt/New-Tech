@@ -795,7 +795,7 @@ test("encrypted token envelope accepts both maximum 16000-character Auth tokens"
   assert.ok(Buffer.byteLength(JSON.stringify(encrypted)) < 65536);
   assert.deepEqual(openTokens(encrypted, hash, f.config), tokens);
 });
-test("direct requests to all 25 business routes require a session before any provider/Storage action", async () =>
+test("direct requests to all 26 business routes require a session before any provider/Storage action", async () =>
   pilot(async (p) => {
     const id = "11111111-1111-4111-8111-111111111111",
       routes = [
@@ -823,6 +823,7 @@ test("direct requests to all 25 business routes require a session before any pro
         ["DELETE", "/documents/" + id],
         ["GET", "/assistant/status"],
         ["POST", "/assistant/chat"],
+        ["POST", "/assistant/chat/stream"],
         ["POST", "/assistant/feedback"],
       ];
     for (const [method, path] of routes) {
