@@ -2,7 +2,7 @@
 
 > **Tích hợp 18/10/2026:** cài bằng `npm ci --ignore-scripts`; Docker cũng bỏ
 > lifecycle scripts để không tự tải CUDA. STT vẫn mặc định tắt. Runtime audit
-> còn advisory chưa xử lý; đọc [báo cáo tích hợp](ASSISTANT-INTEGRATION-2026-10-18.md)
+> còn advisory chưa xử lý; đọc [context và giới hạn](PROJECT-CONTEXT.md)
 > trước khi bật cho pilot. Native imports/media đã kiểm, không đồng nghĩa đã
 > benchmark nhận dạng giọng nói thật.
 

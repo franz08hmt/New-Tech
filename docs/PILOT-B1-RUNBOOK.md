@@ -6,8 +6,8 @@ Thắng chỉ làm theo [hướng dẫn chạy sau bootstrap](PILOT-DEMO-HANDOFF
 tạo account/workspace hoặc migrate lại. Các checkpoint thiếu đầu vào/PREPARED
 bên dưới là lịch sử; browser/máy Thắng và Auth extended vẫn chưa nghiệm thu.
 
-Nhật ký các lượt PREPARED/thiếu đầu vào và bootstrap nằm trong
-[báo cáo Đợt 13](PHASE-13-B1-TWO-MACHINE-AUTH-REPORT.md). Không dùng phê duyệt
+Nhật ký PREPARED/bootstrap xem bằng
+`git show e9ac2af:docs/PHASE-13-B1-TWO-MACHINE-AUTH-REPORT.md`. Không dùng phê duyệt
 được ghi cho một lượt cũ làm quyền ghi cloud của task mới. App đang có schema/
 membership demo theo checkpoint trên; không lặp lại bootstrap để chữa lỗi login.
 Thay đổi cloud tiếp theo phải được giao rõ target, tác động và đường lui.

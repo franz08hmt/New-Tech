@@ -2,8 +2,9 @@
 
 > Nhật ký provenance theo ngày, không phải hướng dẫn triển khai hiện tại. Các
 > path handoff/prompt/plan đã bỏ khi dọn docs ngày 18/10 vẫn có thể xem qua
-> `git show 01288ce:<path>`. Điểm tiếp tục: [context](PROJECT-CONTEXT.md) và
-> [mục lục tài liệu](README.md). Giữ nguyên các ghi nhận review/test lịch sử.
+> `git show e9ac2af:<path>`. Điểm tiếp tục: [context](PROJECT-CONTEXT.md) và
+> [README](../README.md). Giữ nguyên các ghi nhận review/test lịch sử; những câu
+> “chưa có AI/Auth/Git” bên dưới chỉ đúng tại checkpoint được ghi, không phải hiện tại.
 
 ## 2026-09-13 — Homework 4 non-AI implementation
 

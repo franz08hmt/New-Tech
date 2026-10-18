@@ -123,4 +123,4 @@ giữa chừng vẫn là checklist Auth mở rộng, không nhận PASS từ uni
 - Gửi lại status/code/Request ID và commit, không gửi `.env` hoặc ảnh chứa key.
 
 Nguồn API quản trị: [Supabase createUser](https://supabase.com/docs/reference/javascript/auth-admin-createuser).
-Kết quả chi tiết: [báo cáo Đợt 13](PHASE-13-B1-TWO-MACHINE-AUTH-REPORT.md).
+Nhật ký cũ: `git show e9ac2af:docs/PHASE-13-B1-TWO-MACHINE-AUTH-REPORT.md`.

@@ -10,10 +10,13 @@ Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong 
 - Không phát triển hoặc push tiếp vào `feature/tai-rag-integration`; không tự merge main.
 - Checkout cũ `D:\New-Tech\Final-Project` có WIP riêng: không reset/stash/xóa hoặc
   mang chúng sang commit của task mới. Không chép .env/secrets vào Git.
-- Đọc [README](../README.md), [mục lục docs](README.md),
-  [báo cáo tích hợp](ASSISTANT-INTEGRATION-2026-10-18.md), rồi
-  [roadmap](../tasks/PROJECT-ROADMAP-2026-10-13.md) và báo cáo đúng module đang sửa.
-  Không nạp toàn bộ báo cáo lịch sử vào mọi task.
+- Đọc [README](../README.md), context này và source/test đúng module.
+  [Hướng dẫn học](FINAL-STUDY-GUIDE-VI.md) giữ kiến trúc/role matrix;
+  [checklist demo](FINAL-DEMO-CHECKLIST.md) giữ việc nghiệm thu cuối kỳ.
+  Báo cáo/roadmap theo đợt đã gộp, xem lịch sử bằng
+  `git show e9ac2af:docs/<tên-file>.md` hoặc
+  `git show e9ac2af:tasks/PROJECT-ROADMAP-2026-10-13.md` khi cần chi tiết.
+  Không nạp mọi báo cáo cũ hoặc thực thi prompt cũ như nhiệm vụ mới.
 
 ## Sản phẩm và kiến trúc
 
@@ -62,8 +65,48 @@ không nhận là kết quả chạy mới của task sau.
 - STT audit còn 2 high/4 moderate package entries; remediation chưa xong. Không
   thấy đường image decode/format-string tương ứng trong audio path đã review,
   nhưng không gọi audit sạch hoặc chứng minh không thể khai thác.
+  Các finding gồm Sharp và chuỗi sprintf/transitive; review lại trước 25/10/2026
+  hoặc trước mở pilot, tùy mốc nào sớm hơn. Không tự nâng/override packages.
 - Không có nghiệm thu microphone/Whisper accuracy/tốc độ CPU hoặc Gemini thật
   trong lượt tích hợp. Model template 3.5 Flash-Lite không tự đổi .env cũ.
+
+Shared-corpus false-empty từng thấy ở fixture dùng chung còn INCONCLUSIVE:
+Đợt 16 thêm positive oracle/lifecycle 12 chu kỳ, chưa tái hiện nguyên nhân.
+Không coi tách DB từng case là bằng chứng đã chữa lỗi; giữ regression và theo dõi.
+
+## Roadmap còn lại — không triển khai tất cả trong một lượt
+
+Thứ tự đã chọn: B1 → B2 → B3 → B4 → N1 → N3 → N2 → N5; N6 tùy chọn.
+N1 lát 1/SSE đã có code, không phải quay lại làm mới; cần nghiệm thu và hardening.
+
+1. **Ổn định tích hợp:** xử lý dependency STT có kiểm soát; benchmark mic/CPU;
+   tiếp tục theo dõi shared-corpus oracle, không đổi thuật toán để né test.
+2. **B1:** Thắng tự login trên máy thật, extended refresh/revoke/account swap/
+   2 tab/API offline; không thay bằng kết quả HTTP máy Tài. Bootstrap không lặp lại.
+3. **B2:** inventory mọi đường DB và Auth bootstrap/export; thiết kế/duyệt role
+   runtime NOBYPASSRLS không owner, grants tối thiểu và tenant policies toàn app.
+   Thiếu context deny, context transaction-local không rò pool, non-owner tests.
+   Chưa tự rollout cloud/đổi credential chung; cần target/backup/maintenance/rollback.
+4. **B3, 1–2 lát:** cap lượt AI/user/ngày và cap fan-out summary/index; admission
+   nguyên tử trước provider, concurrency không vượt cap, từ chối gọi provider 0 lần.
+   Không dựng dashboard billing. Context/token/timeout hiện tại không phải cost cap.
+5. **B4:** nối live runner bằng principal đã chọn và hạn mức (chưa chọn service
+   principal CLI hay account test HTTP); không thêm bypass. Đánh giá PDF Việt có
+   dấu/scan/bảng/thiếu evidence/scope, từng claim có human review độc lập; giữ
+   corpus/gold/run lịch sử. Chỉ chạy Gemini/cloud khi task được giao rõ quyền/chi phí.
+6. **N1 phần sau:** hội thoại persistence/retention có thiết kế riêng, không nhét
+   text vào receipt; giữ receipt ownership và chất lượng follow-up qua B4.
+7. **N3:** PWA localhost, chỉ cache app shell/public assets; không cache API/Auth/
+   PDF/signed URL, xóa dữ liệu account khi logout. Android dự kiến adb reverse
+   tcp:5173 tcp:5173; kiểm thật riêng, iOS không có đường adb tương đương.
+8. **N2/N5:** quiz/flashcards có nguồn và review; rồi benchmark nhiều model theo
+   quality/latency/cost trên cùng corpus, không chọn theo tên mới hơn.
+9. **N4:** TTS/STT của Thắng, chỉ tích hợp text đã verify/transcript có user duyệt.
+   **N6 WASM** chỉ PoC sau profiling có mục tiêu CPU cụ thể, không cam kết làm.
+
+Ưu tiên final: nền B1–B4, N1 đã có và demo đủ chắc; PWA/flashcards chỉ sau khi
+nền đạt. Không hosting/domain/HTTPS/deploy hoặc native mobile ngoài phạm vi local.
+Migrations hiện đến 015, số mới dự kiến 016 nhưng phải kiểm source/ledger trước.
 
 ## Quy tắc khi triển khai tiếp
 

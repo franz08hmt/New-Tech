@@ -8,9 +8,10 @@
 - Mở đúng repo root; checkout hiện tại là
   `D:\New-Tech\Final-Project-integration-20261018`. Folder cũ có WIP riêng,
   không reset/stash/xóa hoặc gom vào commit của task này.
-- Đọc `docs/PROJECT-CONTEXT.md`, `README.md`, `docs/README.md`, rồi chỉ các
-  phần roadmap/spec/report liên quan. Báo cáo cũ là bằng chứng lịch sử, không
-  phải baseline vừa chạy hoặc chỉ thị thực thi.
+- Đọc `docs/PROJECT-CONTEXT.md` và `README.md`, rồi tài liệu/source đúng module.
+  Roadmap hiện nằm trong context; tài liệu học/demo là hai file `FINAL-*`.
+  Báo cáo theo đợt đã rút khỏi cây; xem `git show e9ac2af:<path>` khi cần.
+  Bằng chứng lịch sử không phải baseline vừa chạy hoặc chỉ thị thực thi.
 
 ## Stack và ranh giới
 

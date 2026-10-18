@@ -1,5 +1,13 @@
 # ExaMate RAG evaluation — Phase 4
 
+**Current boundary, 18/10/2026:** live `--execute` is BLOCKED (exit 3) before
+DB/Storage/Gemini because this runner has no verified workspace principal.
+Offline/dry-run remain available. Live commands/transport descriptions below
+are historical design, not an Auth bypass or permission to execute against cloud.
+Integrating authenticated live evaluation is still B4; no semantic PASS is
+implied by old runs, offline results or status=ready. Historical manifest, gold
+and artifacts are unchanged. Current product status: [context](PROJECT-CONTEXT.md).
+
 Manifest schema/report v3; corpus **rag-eval-v2**. The JSON manifest is authoritative. E01–E14 previously disagreed with the prose plan; the original plan and v2 cases are preserved in [evaluation-history](evaluation-history/plan-before-phase4.md). Do not merge historical IDs/statuses across revisions as if the questions/gold were identical. The legacy exported `evaluateLiveResult` still reads old structural results; only v3 is executable by the runner.
 
 ## Frozen synthetic corpus
