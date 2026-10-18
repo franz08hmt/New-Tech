@@ -91,7 +91,9 @@ async function fixture(t) {
 }
 
 test("015 adds private text-free receipts and rollback preserves schema/legacy rows with replayable chain", async (t) => {
-  const source = await loadMigrations();
+  // This historical rollback chain deliberately stops at 015. Newer migrations
+  // have independent apply/rollback guards and tests (OAuth 016 included).
+  const source = await sourceThrough(15);
   assert.ok(
     source.some((f) => f.name === entry),
     "server answer receipt migration must exist",
