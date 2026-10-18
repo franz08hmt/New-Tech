@@ -247,7 +247,10 @@ export type PilotAuthErrorCode =
   | "WORKSPACE_ACCESS_DENIED"
   | "ROLE_FORBIDDEN"
   | "AUTH_UNAVAILABLE"
-  | "LOGIN_RATE_LIMITED";
+  | "LOGIN_RATE_LIMITED"
+  | "OAUTH_NOT_CONFIGURED"
+  | "OAUTH_RESTART_REQUIRED"
+  | "OAUTH_LOGOUT_REQUIRED";
 export interface PilotAuthErrorResponse {
   code: PilotAuthErrorCode;
   message: string;
@@ -489,3 +492,16 @@ export interface AssistantFeedbackReceipt {
   rating: AssistantFeedbackRating;
   createdAt: string;
 }
+
+/** Fixed Google-only BFF routes. No tokens/verifiers are HTTP response fields. */
+export interface PilotGoogleStatus {
+  status: "enabled" | "not_configured";
+}
+/** POST /api/auth/google/start, empty body; prelogin + Origin + CSRF required. */
+export interface PilotGoogleStart {
+  authorizationUrl: string;
+}
+/** GET /api/auth/google/callback accepts attempt and code (or provider error),
+ * then 303 to PUBLIC_ORIGIN /?oauth=<allowlisted result>. Never reflects errors. */
+export type PilotGoogleResult =
+  "success" | "cancelled" | "restart_required" | "unavailable";

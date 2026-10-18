@@ -99,8 +99,8 @@ test("015 adds private text-free receipts and rollback preserves schema/legacy r
   const { pool, url, workspaceId } = await fixture(t);
   const before = await schema(pool);
   const oldRows = (await pool.query("SELECT id FROM tasks ORDER BY id")).rows;
-  await migrate(url);
-  await migrate(url);
+  await migrate(url, { loadSource: () => sourceThrough(15) });
+  await migrate(url, { loadSource: () => sourceThrough(15) });
   const ledger = (
     await pool.query(
       "SELECT name,checksum FROM schema_migrations ORDER BY name",
@@ -231,7 +231,7 @@ test("015 adds private text-free receipts and rollback preserves schema/legacy r
   } finally {
     client.release();
   }
-  await migrate(url);
+  await migrate(url, { loadSource: () => sourceThrough(15) });
   assert.equal(
     (await pool.query("SELECT count(*)::int AS n FROM schema_migrations"))
       .rows[0].n,

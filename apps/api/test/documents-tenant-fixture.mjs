@@ -168,7 +168,7 @@ export async function openDocumentsTenantFixture() {
     assert.equal(
       (await admin.query("SELECT count(*)::int AS n FROM schema_migrations"))
         .rows[0].n,
-      15,
+      16,
     );
     for (const user of Object.values(people))
       await admin.query("INSERT INTO auth.users(id) VALUES($1)", [user]);

@@ -6,6 +6,13 @@ import {
   HttpException,
 } from "@nestjs/common";
 import { timingSafeEqual, createHmac } from "node:crypto";
+import { openVerifier, sealVerifier } from "./oauth-crypto.js";
+import type { SessionTokens } from "./session-crypto.js";
+import type {
+  PilotGoogleStart,
+  PilotGoogleStatus,
+  PilotGoogleResult,
+} from "@examate/contracts";
 import { normalizeIp } from "../common/client-ip.js";
 import type { PilotSessionResponse, PilotPrincipal } from "@examate/contracts";
 import {
@@ -344,6 +351,16 @@ export class AuthService {
       if (e instanceof UnauthorizedException) throw e;
       return authUnavailable();
     }
+    return this.completeLogin(req, res, previous, tokens, identity);
+  }
+  private async completeLogin(
+    req: AuthRequest,
+    res: AuthResponse,
+    previous: SessionRow,
+    tokens: SessionTokens,
+    identity: VerifiedIdentity,
+    oauthAttempt?: string,
+  ) {
     const raw = randomToken(),
       hash = tokenHash(raw),
       settings = this.config();
@@ -368,7 +385,11 @@ export class AuthService {
         ))
       )
         return authInvalid();
-      await this.store.replacePreSession(previous.cookie_hash, row);
+      await this.store.replacePreSession(
+        previous.cookie_hash,
+        row,
+        oauthAttempt,
+      );
     } catch (e) {
       await this.adapter.logout(tokens.accessToken).catch(() => {});
       if (e instanceof UnauthorizedException) throw e;
@@ -377,6 +398,126 @@ export class AuthService {
     this.setCookie(res, raw, 28800);
     req.headers.cookie = `${this.cookieName()}=${raw}`;
     return this.session(req, res);
+  }
+  googleDestination(result: PilotGoogleResult) {
+    return `${this.config().origin}/?oauth=${result}`;
+  }
+  googleStatus(): PilotGoogleStatus {
+    try {
+      return {
+        status:
+          this.config().googleEnabled &&
+          typeof this.adapter.exchangeCode === "function"
+            ? "enabled"
+            : "not_configured",
+      };
+    } catch {
+      return { status: "not_configured" };
+    }
+  }
+  async googleStart(req: AuthRequest): Promise<PilotGoogleStart> {
+    const previous = await this.local(req);
+    this.csrf(req, previous);
+    if (previous.kind !== "prelogin")
+      throw new HttpException(
+        {
+          code: "OAUTH_LOGOUT_REQUIRED",
+          message: "Hãy đăng xuất trước khi chọn tài khoản Google khác.",
+        },
+        409,
+      );
+    if (this.googleStatus().status !== "enabled")
+      throw new HttpException(
+        {
+          code: "OAUTH_NOT_CONFIGURED",
+          message:
+            "Đăng nhập Google chưa được bật. Bạn vẫn có thể dùng email và mật khẩu.",
+        },
+        503,
+      );
+    await this.admission(req, "oauth-google");
+    const config = this.config(),
+      attempt = randomToken(),
+      id = tokenHash(attempt),
+      verifier = randomToken();
+    try {
+      await this.store.startOAuth(previous.cookie_hash, {
+        id,
+        origin: config.origin,
+        verifier: sealVerifier(verifier, id, previous.cookie_hash, config),
+        expiresAt: new Date(Date.now() + 300000),
+      });
+    } catch {
+      return authUnavailable();
+    }
+    const redirect = new URL("/api/auth/google/callback", config.origin);
+    redirect.searchParams.set("attempt", attempt);
+    const url = new URL("/auth/v1/authorize", config.url);
+    url.searchParams.set("provider", "google");
+    url.searchParams.set("redirect_to", redirect.href);
+    url.searchParams.set(
+      "code_challenge",
+      Buffer.from(tokenHash(verifier), "hex").toString("base64url"),
+    );
+    url.searchParams.set("code_challenge_method", "s256");
+    return { authorizationUrl: url.href };
+  }
+  async googleCallback(
+    req: AuthRequest,
+    res: AuthResponse,
+    rawQuery: string,
+  ): Promise<PilotGoogleResult> {
+    try {
+      if (this.googleStatus().status !== "enabled") return "unavailable";
+      if (rawQuery.length > 4096) return "restart_required";
+      const q = new URLSearchParams(rawQuery),
+        allowed = new Set([
+          "attempt",
+          "code",
+          "error",
+          "error_code",
+          "error_description",
+        ]);
+      if (
+        [...q.keys()].some((k) => !allowed.has(k) || q.getAll(k).length !== 1)
+      )
+        return "restart_required";
+      const attempt = q.get("attempt"),
+        code = q.get("code");
+      if (
+        !attempt ||
+        !/^[A-Za-z0-9_-]{43}$/.test(attempt) ||
+        !!code === q.has("error") ||
+        (code && !/^[A-Za-z0-9._~-]{1,2048}$/.test(code))
+      )
+        return "restart_required";
+      const previous = await this.local(req);
+      if (previous.kind !== "prelogin") return "restart_required";
+      const config = this.config(),
+        id = tokenHash(attempt);
+      const encrypted = await this.store.claimOAuth(
+        previous.cookie_hash,
+        id,
+        config.origin,
+      );
+      if (!encrypted) return "restart_required";
+      if (q.has("error"))
+        return q.get("error") === "access_denied"
+          ? "cancelled"
+          : "restart_required";
+      const verifier = openVerifier(
+        encrypted,
+        id,
+        previous.cookie_hash,
+        config,
+      );
+      const tokens = await this.adapter.exchangeCode!(code!, verifier);
+      const identity = await this.adapter.verify(tokens.accessToken);
+      await this.completeLogin(req, res, previous, tokens, identity, id);
+      return "success";
+    } catch {
+      return "restart_required";
+    }
   }
   async refresh(
     req: AuthRequest,

@@ -35,6 +35,7 @@ export function authAvailability() {
       Buffer.from(key, "base64").length === 32 &&
       Buffer.from(key, "base64").toString("base64") === key,
     authConfigValid,
+    googleRequested: process.env.AUTH_GOOGLE_ENABLED === "true",
     publicOriginMatchesDev:
       process.env.PUBLIC_ORIGIN === "http://127.0.0.1:5173",
     databaseSessionVerification:

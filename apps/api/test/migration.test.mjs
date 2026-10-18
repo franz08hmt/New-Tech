@@ -27,6 +27,7 @@ const expectedMigrationNames = [
   "013_pilot_auth_limits.sql",
   "014_workspace_scope.sql",
   "015_assistant_answer_receipts.sql",
+  "016_pilot_oauth_attempts.sql",
 ];
 
 const saved = { ...process.env };

@@ -13,6 +13,7 @@ export interface VerifiedIdentity {
   expiresAt: number;
 }
 export interface AuthAdapter {
+  exchangeCode?(code: string, verifier: string): Promise<SessionTokens>;
   login(email: string, password: string): Promise<SessionTokens>;
   refresh(token: string): Promise<SessionTokens>;
   verify(token: string): Promise<VerifiedIdentity>;
@@ -90,6 +91,17 @@ export class SupabaseAuthAdapter implements AuthAdapter {
       email,
       password,
     });
+    return this.tokens(response);
+  }
+  async exchangeCode(code: string, verifier: string): Promise<SessionTokens> {
+    return this.tokens(
+      await this.request("/token?grant_type=pkce", {
+        auth_code: code,
+        code_verifier: verifier,
+      }),
+    );
+  }
+  private tokens(response: any): SessionTokens {
     if (
       typeof response?.access_token !== "string" ||
       !response.access_token ||
@@ -112,23 +124,7 @@ export class SupabaseAuthAdapter implements AuthAdapter {
     const response = await this.request("/token?grant_type=refresh_token", {
       refresh_token: token,
     });
-    if (
-      typeof response?.access_token !== "string" ||
-      !response.access_token ||
-      response.access_token.length > 16000 ||
-      typeof response.refresh_token !== "string" ||
-      !response.refresh_token ||
-      response.refresh_token.length > 16000 ||
-      !Number.isInteger(response.expires_in) ||
-      response.expires_in <= 0 ||
-      response.expires_in > 86400
-    )
-      return authUnavailable();
-    return {
-      accessToken: response.access_token,
-      refreshToken: response.refresh_token,
-      expiresAt: Date.now() + response.expires_in * 1000,
-    };
+    return this.tokens(response);
   }
   async verify(token: string): Promise<VerifiedIdentity> {
     const user = await this.request("/user", undefined, token);
@@ -142,6 +138,11 @@ export class SupabaseAuthAdapter implements AuthAdapter {
       if (
         !uuid.test(user?.id) ||
         claims.sub !== user.id ||
+        claims.iss !== `${this.settings().url}/auth/v1` ||
+        !(
+          claims.aud === "authenticated" ||
+          (Array.isArray(claims.aud) && claims.aud.includes("authenticated"))
+        ) ||
         !uuid.test(claims.session_id) ||
         !Number.isInteger(claims.exp) ||
         claims.exp * 1000 <= Date.now() ||

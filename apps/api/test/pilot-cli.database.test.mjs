@@ -23,7 +23,7 @@ before(async () => {
   pool = new pg.Pool({ connectionString: url, ssl: false, max: 3 });
   const ledger = await pool.query("SELECT name FROM schema_migrations");
   sourceMigrationCount = (await loadMigrations()).length;
-  assert.equal(sourceMigrationCount, 15);
+  assert.equal(sourceMigrationCount, 16);
   assert.equal(ledger.rows.length, sourceMigrationCount);
   for (const name of [
     "012_pilot_access.sql",

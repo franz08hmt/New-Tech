@@ -229,3 +229,40 @@ test("Auth diagnostics: unknown HttpException response code is never promoted in
       sameId(logs, r, "UNCLASSIFIED");
     });
   }));
+
+test("Google callback logs a fixed path only; query/headers/provider description stay private", async () =>
+  capture(async (logs) => {
+    const f = authFixture();
+    f.config.googleEnabled = true;
+    f.adapter.exchangeCode = async () => {
+      throw Error(sentinel);
+    };
+    await appFor(f, async (s) => {
+      const response = await s.request(
+        "/auth/google/callback?attempt=invalid&code=" +
+          sentinel +
+          "&error_description=" +
+          sentinel,
+        { headers: { Authorization: sentinel }, redirect: "manual" },
+      );
+      assert.equal(response.status, 303);
+      assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      assert.equal(
+        new URL(response.headers.get("location")).search,
+        "?oauth=restart_required",
+      );
+      assert.equal(completed(logs, "/api/auth/google/callback").length, 1);
+    });
+    const { readFile } = await import("node:fs/promises");
+    const nginx = await readFile(
+      new URL("../../../infra/nginx/default.conf", import.meta.url),
+      "utf8",
+    );
+    assert.match(nginx, /log_format examate_safe/);
+    assert.match(nginx, /default \/redacted/);
+    assert.doesNotMatch(
+      nginx,
+      /\$request_uri|\$args|\$http_authorization|\$request[;' ]/,
+    );
+  }));

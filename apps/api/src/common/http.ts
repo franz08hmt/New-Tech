@@ -30,11 +30,18 @@ const authCodes: ReadonlySet<string> = new Set([
   "ROLE_FORBIDDEN",
   "AUTH_UNAVAILABLE",
   "LOGIN_RATE_LIMITED",
+  "OAUTH_NOT_CONFIGURED",
+  "OAUTH_RESTART_REQUIRED",
+  "OAUTH_LOGOUT_REQUIRED",
 ] satisfies PilotAuthErrorCode[]);
 
 function safeRequestPath(url: string) {
   const path = url.split("?")[0];
-  if (/^\/api\/auth\/(session|login|logout|refresh)$/i.test(path))
+  if (
+    /^\/api\/auth\/(session|login|logout|refresh|google\/(?:status|start|callback))$/i.test(
+      path,
+    )
+  )
     return path.toLowerCase();
   if (/^\/api\/speech\/(status|transcriptions)$/i.test(path))
     return path.toLowerCase();

@@ -22,6 +22,28 @@ export class EmptyAuthDto {}
 @Controller("auth")
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
+  @Get("google/status") googleStatus() {
+    return this.auth.googleStatus();
+  }
+  @Post("google/start") @HttpCode(200) googleStart(
+    @Req() req: AuthRequest,
+    @Body() _body: EmptyAuthDto,
+  ) {
+    return this.auth.googleStart(req);
+  }
+  @Get("google/callback") async googleCallback(
+    @Req() req: AuthRequest & { originalUrl: string },
+    @Res() res: AuthResponse & { redirect(status: number, url: string): void },
+  ) {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    const result = await this.auth.googleCallback(
+      req,
+      res,
+      req.originalUrl.split("?").slice(1).join("?"),
+    );
+    res.redirect(303, this.auth.googleDestination(result));
+  }
   @Get("session") session(
     @Req() req: AuthRequest,
     @Res({ passthrough: true }) res: AuthResponse,

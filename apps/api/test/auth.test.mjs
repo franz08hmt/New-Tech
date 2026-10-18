@@ -256,7 +256,7 @@ test("AES-GCM rejects ciphertext/AAD/key/version tampering and randomizes IVs", 
 test("REST adapter verifies remotely before decoding, rejects identity spoofing and sanitizes provider errors", async (t) => {
   const f = authFixture(),
     adapter = new SupabaseAuthAdapter(() => f.config),
-    token = `e30.${Buffer.from(JSON.stringify({ sub: f.userId, session_id: f.sessionId, exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url")}.synthetic-signature`,
+    token = `e30.${Buffer.from(JSON.stringify({ iss: f.config.url + "/auth/v1", aud: "authenticated", sub: f.userId, session_id: f.sessionId, exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url")}.synthetic-signature`,
     calls = [];
   let response = () => Response.json({ id: f.userId });
   t.mock.method(globalThis, "fetch", async (url, options) => {

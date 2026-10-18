@@ -5,6 +5,7 @@ export const AUTH_ADAPTER = Symbol("AUTH_ADAPTER");
 export const uuid =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export interface AuthSettings {
+  googleEnabled?: boolean;
   origin: string;
   url: string;
   apiKey: string;
@@ -96,6 +97,7 @@ export function authConfig(): AuthSettings {
     )
       throw new Error();
     return {
+      googleEnabled: process.env.AUTH_GOOGLE_ENABLED === "true",
       origin: origin.origin,
       url: url.origin,
       apiKey,

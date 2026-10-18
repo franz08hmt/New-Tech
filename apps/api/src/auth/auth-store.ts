@@ -102,13 +102,81 @@ export class AuthStore {
       ],
     );
   }
-  async replacePreSession(oldHash: string, row: SessionRow) {
+  async startOAuth(
+    pre: string,
+    attempt: {
+      id: string;
+      origin: string;
+      verifier: EncryptedTokens;
+      expiresAt: Date;
+    },
+  ) {
+    return this.db.transaction(async (tx) => {
+      // Serialize bounded admission/cleanup; this lock never spans a network call.
+      await tx.query("SELECT pg_advisory_xact_lock(424205)");
+      const p = await tx.query(
+        "SELECT cookie_hash FROM pilot_sessions WHERE cookie_hash=$1 AND kind='prelogin' AND revoked_at IS NULL AND expires_at>NOW() AND idle_expires_at>NOW() FOR UPDATE",
+        [pre],
+      );
+      if (!p.rowCount) throw Error("OAUTH_ATTEMPT_INVALID");
+      await tx.query(
+        "DELETE FROM pilot_oauth_attempts WHERE prelogin_hash IN (SELECT prelogin_hash FROM pilot_oauth_attempts WHERE expires_at<=NOW() LIMIT 1000)",
+      );
+      const count = await tx.query<{ count: number }>(
+        "SELECT COUNT(*)::int AS count FROM pilot_oauth_attempts",
+      );
+      if (count.rows[0].count >= 10000) throw Error("OAUTH_CAPACITY");
+      await tx.query(
+        `INSERT INTO pilot_oauth_attempts(prelogin_hash,attempt_hash,provider,origin,verifier,expires_at)
+        VALUES($1,$2,'google',$3,$4::jsonb,LEAST($5::timestamptz,NOW()+INTERVAL '5 minutes'))
+        ON CONFLICT(prelogin_hash) DO UPDATE SET attempt_hash=EXCLUDED.attempt_hash,origin=EXCLUDED.origin,verifier=EXCLUDED.verifier,expires_at=EXCLUDED.expires_at,claimed_at=NULL`,
+        [
+          pre,
+          attempt.id,
+          attempt.origin,
+          JSON.stringify(attempt.verifier),
+          attempt.expiresAt,
+        ],
+      );
+    });
+  }
+  async claimOAuth(pre: string, id: string, origin: string) {
+    return this.db.transaction(async (tx) => {
+      const p = await tx.query(
+        "SELECT cookie_hash FROM pilot_sessions WHERE cookie_hash=$1 AND kind='prelogin' AND revoked_at IS NULL AND expires_at>NOW() AND idle_expires_at>NOW() FOR UPDATE",
+        [pre],
+      );
+      if (!p.rowCount) return undefined;
+      const a = await tx.query<{ verifier: EncryptedTokens }>(
+        "SELECT verifier FROM pilot_oauth_attempts WHERE prelogin_hash=$1 AND attempt_hash=$2 AND provider='google' AND origin=$3 AND claimed_at IS NULL AND expires_at>NOW() FOR UPDATE",
+        [pre, id, origin],
+      );
+      if (!a.rowCount) return undefined;
+      await tx.query(
+        "UPDATE pilot_oauth_attempts SET claimed_at=NOW(),verifier=NULL WHERE prelogin_hash=$1 AND attempt_hash=$2",
+        [pre, id],
+      );
+      return a.rows[0].verifier;
+    });
+  }
+  async replacePreSession(
+    oldHash: string,
+    row: SessionRow,
+    oauthAttempt?: string,
+  ) {
     await this.db.transaction(async (tx) => {
       const old = await tx.query(
         "SELECT cookie_hash FROM pilot_sessions WHERE cookie_hash=$1 AND kind='prelogin' AND revoked_at IS NULL AND expires_at>NOW() FOR UPDATE",
         [oldHash],
       );
       if (!old.rows.length) throw new Error("PRESESSION_CONSUMED");
+      if (oauthAttempt) {
+        const attempt = await tx.query(
+          "SELECT attempt_hash FROM pilot_oauth_attempts WHERE prelogin_hash=$1 AND attempt_hash=$2 AND claimed_at IS NOT NULL AND expires_at>NOW() FOR UPDATE",
+          [oldHash, oauthAttempt],
+        );
+        if (!attempt.rowCount) throw Error("OAUTH_ATTEMPT_INVALID");
+      }
       await tx.query(
         "UPDATE pilot_sessions SET revoked_at=NOW() WHERE cookie_hash=$1",
         [oldHash],

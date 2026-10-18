@@ -15,6 +15,7 @@
     "pilot:rollback-012-013": "npm run build --workspace @examate/api && npm run --silent pilot:rollback-012-013 --workspace @examate/api --",
     "pilot:rollback-014": "npm run build --workspace @examate/api && npm run --silent pilot:rollback-014 --workspace @examate/api --",
     "pilot:rollback-015": "npm run build --workspace @examate/api && npm run --silent pilot:rollback-015 --workspace @examate/api --",
+    "pilot:rollback-016": "npm run build --workspace @examate/api && node apps/api/scripts/pilot-rollback-016.mjs",
     "dev:web": "npm run dev --workspace @examate/web",
     "dev:api": "npm run dev --workspace @examate/api",
     "build": "npm run build --workspaces --if-present",
