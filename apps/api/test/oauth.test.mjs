@@ -2,6 +2,9 @@ import { test as nodeTest } from "node:test";
 const test = (name, fn) => nodeTest(name, { timeout: 15000 }, fn);
 import assert from "node:assert/strict";
 import { authFixture } from "./auth-fixture.mjs";
+import { createHash } from "node:crypto";
+import { openVerifier } from "../dist/auth/oauth-crypto.js";
+import { openTokens, tokenHash } from "../dist/auth/session-crypto.js";
 import { fakeDependencies, httpApp, json } from "./helpers.mjs";
 
 export function oauthFixture() {
@@ -90,6 +93,23 @@ export async function oauthPilot(run) {
     assert.equal(url.searchParams.get("code_challenge_method"), "s256");
     assert.equal(url.searchParams.has("state"), false);
     assert.equal(url.searchParams.has("code_verifier"), false);
+    const record = f.oauthAttempts.get(tokenHash(cookie.split("=")[1]));
+    const verifier = openVerifier(
+      record.verifier,
+      record.id,
+      tokenHash(cookie.split("=")[1]),
+      f.config,
+    );
+    assert.equal(
+      url.searchParams.get("code_challenge"),
+      createHash("sha256").update(verifier).digest("base64url"),
+    );
+    assert.throws(
+      () =>
+        openTokens(record.verifier, tokenHash(cookie.split("=")[1]), f.config),
+      (e) => e.getStatus() === 503,
+      "OAuth verifier has a different encryption purpose from session tokens",
+    );
     return (
       callback.pathname.replace("/api", "") +
       callback.search +
@@ -104,6 +124,30 @@ export async function oauthPilot(run) {
     await s.app.close();
   }
 }
+
+test("server URLs ignore forged Host/forwarded host and callback rejects client returnTo", async () =>
+  oauthPilot(async (p) => {
+    const response = await p.post("/auth/google/start", {
+      Host: "evil.test",
+      "X-Forwarded-Host": "evil.test",
+      "X-Forwarded-Proto": "https",
+    });
+    assert.equal(response.status, 200);
+    const authorization = new URL((await response.json()).authorizationUrl);
+    assert.equal(authorization.origin, p.f.config.url);
+    const callback = new URL(authorization.searchParams.get("redirect_to"));
+    assert.equal(callback.origin, p.f.config.origin);
+    const result = await p.callback(
+      callback.pathname.replace("/api", "") +
+        callback.search +
+        "&code=synthetic-code&returnTo=https://evil.test",
+    );
+    assert.equal(
+      result.headers.get("location"),
+      p.f.config.origin + "/?oauth=restart_required",
+    );
+    assert.equal(p.f.state.exchangeCalls, 0);
+  }));
 
 test("Google start binds PKCE; callback rotates opaque cookie, CSRF and verified membership", async () =>
   oauthPilot(async (p) => {

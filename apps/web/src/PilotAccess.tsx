@@ -4,11 +4,34 @@ import {
   ArrowPathIcon,
   LockClosedIcon,
 } from "@heroicons/react/24/outline";
+import { api } from "./api";
 import { usePilotSession } from "./use-pilot-session";
 import { NotesStorageContext } from "./NotesStorageContext";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
 export function PilotAccess({ children }: { children: ReactNode }) {
   const session = usePilotSession();
+  const [googleStatus, setGoogleStatus] = useState<
+    "loading" | "enabled" | "not_configured"
+  >("loading");
+  useEffect(() => {
+    if (session.state !== "anonymous") return;
+    let current = true;
+    setGoogleStatus("loading");
+    void api.pilotGoogleStatus().then(
+      (value) => {
+        if (current)
+          setGoogleStatus(
+            value.status === "enabled" ? "enabled" : "not_configured",
+          );
+      },
+      () => {
+        if (current) setGoogleStatus("not_configured");
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [session.state]);
   const [email, setEmail] = useState(""),
     [password, setPassword] = useState("");
   const [lastSettledState, setLastSettledState] = useState(session.state);
@@ -121,6 +144,28 @@ export function PilotAccess({ children }: { children: ReactNode }) {
                 {session.busy ? "Signing in…" : "Sign in"}
               </button>
             </form>
+          )}
+          {showLogin && (
+            <div className="pilot-google">
+              <button
+                type="button"
+                disabled={blocked || googleStatus !== "enabled"}
+                aria-describedby="pilot-google-status"
+                onClick={() => {
+                  if (!blocked) void session.googleLogin();
+                }}
+              >
+                <ArrowRightOnRectangleIcon aria-hidden="true" /> Đăng nhập bằng
+                Google
+              </button>
+              <p id="pilot-google-status" role="status">
+                {googleStatus === "loading"
+                  ? "Đang kiểm tra đăng nhập Google…"
+                  : googleStatus === "not_configured"
+                    ? "Google chưa được bật. Bạn vẫn có thể đăng nhập bằng email và mật khẩu."
+                    : "Chỉ tài khoản đã được cấp quyền workspace mới truy cập được dữ liệu."}
+              </p>
+            </div>
           )}
           <footer className="pilot-access-actions">
             <button

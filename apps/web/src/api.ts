@@ -50,6 +50,8 @@ import type {
   PilotSessionResponse,
   PilotLoginRequest,
   PilotLogoutResponse,
+  PilotGoogleStart,
+  PilotGoogleStatus,
 } from "@examate/contracts";
 
 import type {
@@ -184,6 +186,15 @@ export const api = {
       signal,
     });
   },
+  pilotGoogleStatus: () =>
+    request<PilotGoogleStatus>("/api/auth/google/status"),
+  pilotGoogleStart: () =>
+    changePilotSession(() =>
+      request<PilotGoogleStart>("/api/auth/google/start", {
+        method: "POST",
+        body: "{}",
+      }),
+    ),
   pilotSession: () =>
     readPilotSession(() => request<PilotSessionResponse>("/api/auth/session")),
   pilotLogin: (input: PilotLoginRequest) =>

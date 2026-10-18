@@ -1,4 +1,4 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   cleanup,
   render,
@@ -15,6 +15,18 @@ import { useContext } from "react";
 import { NotesStorageContext } from "./NotesStorageContext";
 import { NotesPanel } from "./AcademicPanels";
 
+// Each suite represents isolated browser tabs. Native Node channels otherwise
+// cross Vitest workers and inject another fixture's identity events.
+beforeEach(() =>
+  vi.stubGlobal(
+    "BroadcastChannel",
+    class {
+      onmessage = null;
+      postMessage() {}
+      close() {}
+    },
+  ),
+);
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -51,9 +63,11 @@ it("production App stays locked and sends no workspace request before login", as
   await waitFor(() =>
     expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument(),
   );
-  expect(fetcher.mock.calls.every(([url]) => url === "/api/auth/session")).toBe(
-    true,
-  );
+  expect(
+    fetcher.mock.calls.every(([url]) =>
+      ["/api/auth/session", "/api/auth/google/status"].includes(String(url)),
+    ),
+  ).toBe(true);
 });
 it("authorized production App records a mock initial page-load request inventory", async () => {
   window.history.replaceState(null, "", "/#dashboard");

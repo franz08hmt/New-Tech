@@ -2,6 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PilotPrincipal, PilotSessionResponse } from "@examate/contracts";
 import { api, ApiError } from "./api";
 import { configurePilotClient, notifyPilotDenied } from "./pilot-client";
+import {
+  navigateGoogle,
+  consumeGoogleResult,
+  googleResultMessage,
+} from "./pilot-google";
 import { invalidatePilotSession } from "./pilot-session-transport";
 export type AccessState =
   | "verifying"
@@ -65,7 +70,8 @@ export function usePilotSession() {
     epoch = useRef(0),
     refreshing = useRef<Promise<void> | undefined>(undefined),
     channel = useRef<BroadcastChannel | undefined>(undefined),
-    csrf = useRef<string | undefined>(undefined);
+    csrf = useRef<string | undefined>(undefined),
+    googleResult = useRef<string | null | undefined>(undefined);
   const apply = useRef<(value: PilotSessionResponse) => void>(() => {}),
     refresh = useRef<() => Promise<void>>(async () => {});
   const denied = useCallback((code: string) => {
@@ -100,6 +106,10 @@ export function usePilotSession() {
       setState("authenticated");
       setAccessExpiresAt(Date.parse(value.accessExpiresAt));
       setMessage("");
+      if (googleResult.current === "success") {
+        googleResult.current = undefined;
+        emitEvent(channel.current, "session_changed");
+      }
     } else {
       setAccessExpiresAt(undefined);
       setState(value.status === "refresh_required" ? "expired" : value.status);
@@ -108,7 +118,7 @@ export function usePilotSession() {
           ? "Bạn đã đăng nhập nhưng chưa được cấp quyền workspace. Liên hệ nhóm để được cấp quyền."
           : value.status === "refresh_required"
             ? "Phiên cần được làm mới. Bản nháp trong tab vẫn được giữ."
-            : "",
+            : googleResultMessage(googleResult.current ?? undefined),
       );
     }
   };
@@ -167,6 +177,8 @@ export function usePilotSession() {
   }, [denied]);
   useEffect(() => {
     alive.current = true;
+    const result = consumeGoogleResult();
+    if (result) googleResult.current = result;
     void verify();
     const onFocus = () => {
       if (document.visibilityState === "visible") void verify();
@@ -274,6 +286,36 @@ export function usePilotSession() {
       if (alive.current) setBusy(false);
     }
   }
+  async function googleLogin() {
+    if (state !== "anonymous" || running.current || refreshing.current) return;
+    running.current = true;
+    const generation = ++epoch.current;
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await api.pilotGoogleStart();
+      if (alive.current && generation === epoch.current)
+        navigateGoogle(result.authorizationUrl);
+    } catch (error) {
+      if (alive.current && generation === epoch.current) {
+        if (
+          error instanceof ApiError &&
+          ["CSRF_INVALID", "AUTH_REQUIRED", "SESSION_EXPIRED"].includes(
+            error.code,
+          )
+        )
+          setState("expired");
+        setMessage(
+          error instanceof ApiError && error.code === "OAUTH_NOT_CONFIGURED"
+            ? "Đăng nhập Google chưa được bật. Bạn vẫn có thể dùng email và mật khẩu."
+            : "Chưa bắt đầu được đăng nhập Google. Hãy kiểm tra phiên rồi bắt đầu lại đăng nhập Google; yêu cầu không được tự gửi lại.",
+        );
+      }
+    } finally {
+      running.current = false;
+      if (alive.current) setBusy(false);
+    }
+  }
   async function logout() {
     if (running.current) return;
     running.current = true;
@@ -309,5 +351,14 @@ export function usePilotSession() {
       if (alive.current) setBusy(false);
     }
   }
-  return { state, principal, message, busy, verify, login, logout };
+  return {
+    state,
+    principal,
+    message,
+    busy,
+    verify,
+    login,
+    googleLogin,
+    logout,
+  };
 }

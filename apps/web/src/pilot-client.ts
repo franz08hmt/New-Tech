@@ -18,6 +18,8 @@ export function pilotHeaders(
   if (!path.startsWith("/api/") || path.startsWith("//"))
     throw new Error("Đích gửi yêu cầu không hợp lệ.");
   const authRoute = [
+    "/api/auth/google/status",
+    "/api/auth/google/start",
     "/api/auth/session",
     "/api/auth/login",
     "/api/auth/logout",

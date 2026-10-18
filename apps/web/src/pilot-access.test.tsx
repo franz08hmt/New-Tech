@@ -136,7 +136,7 @@ it("preserves an editable sign-in draft and its focus while background verificat
   expect(password).toHaveFocus();
   expect(password).toBeEnabled();
   expect(password).toHaveValue("synthetic-draft");
-  const signIn = screen.getByRole("button", { name: /Đăng nhập|Sign in/ });
+  const signIn = screen.getByRole("button", { name: "Sign in" });
   expect(signIn).toHaveAttribute("aria-disabled", "true");
   fireEvent.submit(password.closest("form")!);
   expect(paths).not.toContain("/api/auth/login");
@@ -263,11 +263,14 @@ it.each([
     expect(
       screen.queryByRole("button", { name: "Sign in" }),
     ).not.toBeInTheDocument();
-    expect(paths).toEqual(["/api/auth/session", "/api/auth/login"]);
+    expect(paths.filter((p) => p !== "/api/auth/google/status")).toEqual([
+      "/api/auth/session",
+      "/api/auth/login",
+    ]);
     fireEvent.click(screen.getByRole("button", { name: "Check session" }));
     await screen.findByRole("button", { name: "Sign in" });
     expect(screen.getByLabelText("Password")).toHaveValue("");
-    expect(paths).toEqual([
+    expect(paths.filter((p) => p !== "/api/auth/google/status")).toEqual([
       "/api/auth/session",
       "/api/auth/login",
       "/api/auth/session",

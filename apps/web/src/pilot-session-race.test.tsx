@@ -1,5 +1,5 @@
 import { StrictMode } from "react";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   act,
   cleanup,
@@ -101,6 +101,18 @@ function browserBoundary() {
 }
 
 let boundary: ReturnType<typeof browserBoundary> | undefined;
+// Each suite represents isolated browser tabs. Native Node channels otherwise
+// cross Vitest workers and inject another fixture's identity events.
+beforeEach(() =>
+  vi.stubGlobal(
+    "BroadcastChannel",
+    class {
+      onmessage = null;
+      postMessage() {}
+      close() {}
+    },
+  ),
+);
 afterEach(async () => {
   cleanup();
   // Drain unresolved boundary promises even after a failing assertion so
