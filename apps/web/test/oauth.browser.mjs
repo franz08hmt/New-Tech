@@ -398,6 +398,26 @@ try {
     });
     await context.close();
   }
+  if (!compose) {
+    // The callback query must stay private even when Vite cannot reach Nest.
+    await childStop(api);
+    const errorLogged = new Promise((done) => vite.stderr.once("data", done));
+    const failed = await fetch(
+      `${origin}/api/auth/google/callback?attempt=synthetic-attempt&code=synthetic-code`,
+      { signal: AbortSignal.timeout(10000), redirect: "error" },
+    );
+    assert.equal(failed.status, 502);
+    await Promise.race([
+      errorLogged,
+      new Promise((_, reject) => {
+        const timer = setTimeout(
+          () => reject(Error("proxy error log missing")),
+          10000,
+        );
+        timer.unref();
+      }),
+    ]);
+  }
   assert.ok(
     !/synthetic-code|synthetic-access|synthetic-refresh|code_verifier/.test(
       logs,
