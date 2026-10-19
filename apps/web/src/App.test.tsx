@@ -3799,8 +3799,11 @@ describe("Academic workspace", () => {
       expect(citation).not.toHaveAttribute("aria-current");
     });
 
-    it("opens the loaded citation preview through a direct accessible link", async () => {
+    it("opens a citation preview in a user-initiated tab with a fresh signed URL", async () => {
       answerWithCitation();
+      const tab = fakeTab();
+      const open = vi.fn(() => tab);
+      vi.stubGlobal("open", open);
       render(<App />);
       await openWithDocument();
       await ask("Chương 2 nói gì?");
@@ -3811,22 +3814,85 @@ describe("Academic workspace", () => {
       );
       const source = screen.getByRole("region", { name: "ghi-chu-chung.pdf" });
       await within(source).findByTitle("ghi-chu-chung.pdf, trang 3");
-      const link = within(source).getByRole("link", {
-        name: "Mở trong tab mới",
-      });
-      expect(link).toHaveAttribute(
-        "href",
-        "https://storage.example.test/source.pdf?token=signed#page=3",
+      fireEvent.click(
+        within(source).getByRole("button", { name: /trong tab/ }),
       );
-      expect(link).toHaveAttribute("target", "_blank");
-      expect(link).toHaveAttribute("rel", "noopener noreferrer");
-      // The link uses the signed URL the preview already fetched.
+      expect(open).toHaveBeenCalledWith("", "_blank");
+      await waitFor(() =>
+        expect(tab.location.replace).toHaveBeenCalledWith(
+          "https://storage.example.test/source.pdf?token=signed#page=3",
+        ),
+      );
+      // Opening signs again through the API instead of reusing preview state.
       expect(
         vi
           .mocked(fetch)
           .mock.calls.map(([url]) => String(url))
           .filter((url) => url.includes("/download")),
-      ).toEqual(["/api/documents/doc-2/download?disposition=inline"]);
+      ).toEqual([
+        "/api/documents/doc-2/download?disposition=inline",
+        "/api/documents/doc-2/download?disposition=inline",
+      ]);
+    });
+
+    it("gets a newly authorized signed URL when opening a preview after its TTL", async () => {
+      answerWithCitation();
+      const normalFetch = globalThis.fetch;
+      let signCount = 0;
+      const signedExpiries: number[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: RequestInit) => {
+          if (url === "/api/documents/doc-2/download?disposition=inline") {
+            signCount += 1;
+            signedExpiries.push(Date.now() + 60_000);
+            return Response.json({
+              url: `https://storage.example.test/source.pdf?token=signed-${signCount}`,
+              expiresIn: 60,
+            });
+          }
+          return normalFetch(url, init);
+        }),
+      );
+      const tab = fakeTab();
+      const open = vi.fn(() => tab);
+      vi.stubGlobal("open", open);
+
+      render(<App />);
+      await openWithDocument();
+      await ask("Chương 2 nói gì?");
+      fireEvent.click(
+        screen.getByRole("button", { name: /ghi-chu-chung\.pdf, tr\. 3/ }),
+      );
+      const source = screen.getByRole("region", { name: "ghi-chu-chung.pdf" });
+      await within(source).findByTitle("ghi-chu-chung.pdf, trang 3");
+      expect(signCount).toBe(1);
+
+      // The preview URL has now outlived Storage's 60-second signature.
+      vi.setSystemTime(new Date(Date.now() + 61_000));
+      expect(signedExpiries[0]).toBeLessThanOrEqual(Date.now());
+      fireEvent.click(
+        within(source).getByRole("button", { name: /trong tab/ }),
+      );
+
+      // Open synchronously in the user gesture, then replace it only with the
+      // URL freshly signed after the click and current authorization check.
+      expect(open).toHaveBeenCalledWith("", "_blank");
+      await waitFor(() =>
+        expect(tab.location.replace).toHaveBeenCalledWith(
+          "https://storage.example.test/source.pdf?token=signed-2#page=3",
+        ),
+      );
+      expect(signCount).toBe(2);
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.map(([url]) => String(url))
+          .filter((url) => url.includes("/download")),
+      ).toEqual([
+        "/api/documents/doc-2/download?disposition=inline",
+        "/api/documents/doc-2/download?disposition=inline",
+      ]);
     });
 
     it("closes the unsupported-browser source popup on new conversation and ignores its late signed URL", async () => {

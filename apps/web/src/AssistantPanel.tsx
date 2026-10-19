@@ -288,6 +288,10 @@ export function AssistantPanel({
   // Reading a source is part of this visit; closing the assistant ends it.
   useEffect(() => {
     if (open) return;
+    sourceEpoch.current++;
+    pendingSource.current?.abort();
+    pendingSource.current = null;
+    setOpeningCitation(null);
     closeSourceView();
     sourceOpener.current = null;
   }, [open, closeSourceView]);
@@ -312,6 +316,7 @@ export function AssistantPanel({
     messageId: string,
     opener: HTMLElement,
   ) {
+    cancelPendingCitationOpen();
     if (!loadSource || inlinePdfUnsupported()) {
       void openCitation(citation);
       return;
@@ -329,7 +334,15 @@ export function AssistantPanel({
     });
   }
 
+  function cancelPendingCitationOpen() {
+    sourceEpoch.current++;
+    pendingSource.current?.abort();
+    pendingSource.current = null;
+    setOpeningCitation(null);
+  }
+
   function closeSource() {
+    cancelPendingCitationOpen();
     restoreSourceFocus.current = true;
     setSourcePaneDismissed(true);
     setCitationError("");
@@ -970,6 +983,16 @@ export function AssistantPanel({
           headingRef={sourceHeading}
           onClose={closeSource}
           onReload={source.reload}
+          onOpenInTab={() => {
+            const citation = source.selection?.citation;
+            if (citation) void openCitation(citation);
+          }}
+          openingInTab={Boolean(
+            source.selection &&
+            openingCitation ===
+              (source.selection.citation.id ??
+                source.selection.citation.documentId),
+          )}
           tabNotice={source.selection ? tabNotice : undefined}
         />
       )}
