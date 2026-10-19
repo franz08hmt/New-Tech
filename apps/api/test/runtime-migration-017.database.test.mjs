@@ -4,6 +4,7 @@ import { openDocumentsTenantFixture } from "./documents-tenant-fixture.mjs";
 import { loadMigrations, migrate } from "../scripts/migrate.mjs";
 import { runPilotApply017 } from "../scripts/pilot-apply-017.mjs";
 import { runPilotRollback017 } from "../scripts/pilot-rollback-017.mjs";
+import { runPilotRollback016 } from "../scripts/pilot-rollback-016.mjs";
 
 let fixture;
 before(async () => {
@@ -138,9 +139,12 @@ async function snapshot(client) {
   };
 }
 
-test("017 apply dry-run, exact confirmation, ACL/RLS round-trip, dependency refusal and standard reapply", async () => {
+test("017 apply/rollback preserves 016, then 016 rollback and full reapply remain usable", async () => {
   const source = await loadMigrations();
   const options = { apply: false };
+  await fixture.admin.query(`INSERT INTO public.pilot_sessions
+    (cookie_hash,kind,csrf_token,expires_at,idle_expires_at)
+    VALUES(repeat('f',64),'prelogin',repeat('F',43),NOW()+INTERVAL '10 minutes',NOW()+INTERVAL '10 minutes')`);
   // These two ACLs are deliberately unusual in a fresh disposable database.
   // Migration 017 revokes them, so rollback must snapshot and restore them.
   await fixture.admin.query(
@@ -249,6 +253,34 @@ test("017 apply dry-run, exact confirmation, ACL/RLS round-trip, dependency refu
     baseline,
     "rollback must restore schema, ACL, policies, RLS and data",
   );
+
+  const rollback016 = await withClient((client) =>
+    runPilotRollback016(client, {
+      apply: true,
+      projectRef: "a1b2c3d4e5f6g7h8i9j0",
+      confirmProject: "a1b2c3d4e5f6g7h8i9j0",
+    }),
+  );
+  assert.equal(rollback016.applied, true);
+  const after016Rollback = await withClient((client) =>
+    client.query(`SELECT
+      to_regclass('public.pilot_sessions') IS NOT NULL AS sessions_table,
+      to_regclass('public.workspaces') IS NOT NULL AS workspaces_table,
+      to_regclass('public.assistant_answer_receipts') IS NOT NULL AS receipts_table,
+      to_regclass('public.pilot_oauth_attempts') IS NULL AS attempts_removed,
+      (SELECT count(*) FROM public.pilot_sessions WHERE cookie_hash=repeat('f',64))::int AS session_rows,
+      (SELECT count(*) FROM public.schema_migrations)::int AS ledger_count,
+      (SELECT name FROM public.schema_migrations ORDER BY name DESC LIMIT 1) AS last_migration`),
+  );
+  assert.deepEqual(after016Rollback.rows[0], {
+    sessions_table: true,
+    workspaces_table: true,
+    receipts_table: true,
+    attempts_removed: true,
+    session_rows: 1,
+    ledger_count: 15,
+    last_migration: "015_assistant_answer_receipts.sql",
+  });
 
   const through017 = source.filter(
     (file) => Number(file.name.slice(0, 3)) <= 17,
