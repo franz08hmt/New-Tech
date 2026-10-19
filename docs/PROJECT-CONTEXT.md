@@ -62,6 +62,9 @@ dẫn của project khác trong folder cha.
   về trễ sang hội thoại mới. Giữ draft người dùng sửa trong lúc chờ.
 - Feedback thuộc receipt của chính người gửi; dữ liệu là candidate cần review,
   không tự thành gold/PASS. Receipt không lưu nội dung hội thoại.
+- F02-A tách pool business/Auth và maintenance; `DatabaseService`/`AuthDatabaseService`
+  kiểm capability trước listen. Migration 017 là source có version cho local
+  grants/RLS; Auth bootstrap không dùng business pool và business không có owner fallback.
 - STT Whisper small ONNX local do Thắng phụ trách: auto/Việt/Anh, sửa transcript
   trước khi chèn/gửi; mặc định tắt, không tự tải weights. Có cửa sổ 30s/stride 5s.
 
@@ -95,28 +98,30 @@ Không coi tách DB từng case là bằng chứng đã chữa lỗi; giữ regr
 Bảng do Tài xác nhận trong F01.1 thay thứ tự B/N cũ; các nhãn B/N vẫn là tham
 chiếu lịch sử. Không chạy lại phần đã có hoặc biến kế hoạch thành nghiệm thu.
 
-| Đợt | Phạm vi đã chọn                                                                                                            | Trạng thái / điều kiện                                                                                              |
-| --- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| F01 | Google PKCE, JWT-backed phiên hiện có, membership/role, replay/account race                                                | Local đã triển khai; F01.1 rollback/preflight local hardening accepted. Google live, Thắng và Auth extended pending |
-| F02 | Hoàn tất B2: runtime non-owner/NOBYPASSRLS, grants tối thiểu, tenant RLS toàn app, rollout/rollback cloud                  | Chưa triển khai production; workspace transactions/PoC hiện có không thay nghiệm thu toàn app                       |
-| F03 | Prompt tập trung/version; metadata request/provider calls, token, latency, outcome, chi phí ước tính                       | Pending; không log prompt/nội dung riêng hoặc coi unknown usage là 0                                                |
-| F04 | B3: cap user/ngày, concurrency, fan-out summary/index/OCR; admission nguyên tử và bền vững                                 | Pending; timeout/context cap/Auth throttle không thay budget AI                                                     |
-| F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Pending; chưa có vertical slice được nghiệm thu                                                                     |
-| F06 | Dashboard AI cho admin đúng workspace: request/provider calls, token/cost/latency/lỗi/từ chối và filters                   | Pending; đây là yêu cầu usage dashboard, không phải Finances hay billing                                            |
-| F07 | N1 lưu bền, mở lại/xóa, retention/quyền; receipt/history/reset/account isolation                                           | Pending persistence; history trong tab/SSE và draft revision đã có, không viết lại                                  |
-| F08 | N2 Study Coach: structured quiz/flashcards, nguồn, preview/xác nhận lưu, luyện tập/tiến độ cá nhân                         | Pending                                                                                                             |
-| F09 | B4: ít nhất 20 case thực thi có expected, cùng corpus/gold trước/sau, human review/guardrails/fallback/latency/cost        | Chưa nghiệm thu semantic/live; live runner còn BLOCKED, principal CLI hay HTTP chưa chốt                            |
-| F10 | Voice của Thắng: STT thật, dependency/benchmark, phát triển/nghiệm thu TTS                                                 | STT có implementation và bằng chứng lịch sử; acceptance thật/TTS còn pending, không chuyển ownership                |
-| F11 | PWA/mobile thật: manifest/install/update/offline shell, Android và giới hạn iOS                                            | Pending; không cache dữ liệu riêng hoặc tự queue write                                                              |
-| F12 | Registry/allowlist nhiều model, lựa chọn kiểm soát, benchmark quality–latency–cost                                         | Pending; đổi embedding/re-index cần quyết định riêng                                                                |
-| F13 | WASM PoC có profiling/benchmark, cancel/fallback/license; chỉ tích hợp nếu chứng minh lợi ích                              | Nhánh mở rộng, không bắt buộc rubric; tác vụ cụ thể chưa chốt                                                       |
-| F14 | Native client tái sử dụng API: OAuth/deep link, secure storage, build/thiết bị                                             | Nhánh mở rộng, không bắt buộc rubric; stack chưa chốt                                                               |
-| F15 | Tool-using agent: ít nhất 3 tools được LLM gọi, quyền/scope/idempotency/logs và xác nhận trước write                       | Nhánh mở rộng, không bắt buộc rubric; không SQL/lệnh tùy ý; thiết kế tools chưa chốt                                |
-| F16 | Compose E2E/traceability, ít nhất 3 ADR, AI_USAGE, PDF 10–20 trang, slide tối đa 15 trang, video 3–5 phút, live change/Q&A | Pending bộ nộp; hiện có ADR-001, không nhận đã đủ 3 ADR                                                             |
+| Đợt | Phạm vi đã chọn                                                                                                            | Trạng thái / điều kiện                                                                                                                 |
+| --- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| F01 | Google PKCE, JWT-backed phiên hiện có, membership/role, replay/account race                                                | Local đã triển khai; F01.1 rollback/preflight local hardening accepted. Google live, Thắng và Auth extended pending                    |
+| F02 | Hoàn tất B2: runtime non-owner/NOBYPASSRLS, grants tối thiểu, tenant RLS toàn app, rollout/rollback cloud                  | F02-A implementation và API/DB PG17 disposable đã kiểm; browser evidence chưa có. F02-B cloud provisioning/rollout và toàn B2 chưa đạt |
+| F03 | Prompt tập trung/version; metadata request/provider calls, token, latency, outcome, chi phí ước tính                       | Pending; không log prompt/nội dung riêng hoặc coi unknown usage là 0                                                                   |
+| F04 | B3: cap user/ngày, concurrency, fan-out summary/index/OCR; admission nguyên tử và bền vững                                 | Pending; timeout/context cap/Auth throttle không thay budget AI                                                                        |
+| F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Pending; chưa có vertical slice được nghiệm thu                                                                                        |
+| F06 | Dashboard AI cho admin đúng workspace: request/provider calls, token/cost/latency/lỗi/từ chối và filters                   | Pending; đây là yêu cầu usage dashboard, không phải Finances hay billing                                                               |
+| F07 | N1 lưu bền, mở lại/xóa, retention/quyền; receipt/history/reset/account isolation                                           | Pending persistence; history trong tab/SSE và draft revision đã có, không viết lại                                                     |
+| F08 | N2 Study Coach: structured quiz/flashcards, nguồn, preview/xác nhận lưu, luyện tập/tiến độ cá nhân                         | Pending                                                                                                                                |
+| F09 | B4: ít nhất 20 case thực thi có expected, cùng corpus/gold trước/sau, human review/guardrails/fallback/latency/cost        | Chưa nghiệm thu semantic/live; live runner còn BLOCKED, principal CLI hay HTTP chưa chốt                                               |
+| F10 | Voice của Thắng: STT thật, dependency/benchmark, phát triển/nghiệm thu TTS                                                 | STT có implementation và bằng chứng lịch sử; acceptance thật/TTS còn pending, không chuyển ownership                                   |
+| F11 | PWA/mobile thật: manifest/install/update/offline shell, Android và giới hạn iOS                                            | Pending; không cache dữ liệu riêng hoặc tự queue write                                                                                 |
+| F12 | Registry/allowlist nhiều model, lựa chọn kiểm soát, benchmark quality–latency–cost                                         | Pending; đổi embedding/re-index cần quyết định riêng                                                                                   |
+| F13 | WASM PoC có profiling/benchmark, cancel/fallback/license; chỉ tích hợp nếu chứng minh lợi ích                              | Nhánh mở rộng, không bắt buộc rubric; tác vụ cụ thể chưa chốt                                                                          |
+| F14 | Native client tái sử dụng API: OAuth/deep link, secure storage, build/thiết bị                                             | Nhánh mở rộng, không bắt buộc rubric; stack chưa chốt                                                                                  |
+| F15 | Tool-using agent: ít nhất 3 tools được LLM gọi, quyền/scope/idempotency/logs và xác nhận trước write                       | Nhánh mở rộng, không bắt buộc rubric; không SQL/lệnh tùy ý; thiết kế tools chưa chốt                                                   |
+| F16 | Compose E2E/traceability, ít nhất 3 ADR, AI_USAGE, PDF 10–20 trang, slide tối đa 15 trang, video 3–5 phút, live change/Q&A | Pending bộ nộp; hiện có ADR-001, không nhận đã đủ 3 ADR                                                                                |
 
 Tài liệu/traceability cập nhật xuyên suốt, không đợi F16. F01.1 thuộc F01,
 không phải đợt lớn thứ 17. Bảng này không cấp quyền cloud writes, push hoặc
-thực hiện F02–F16. Lượt F01.1 chỉ rollback/docs/readiness chỉ đọc; app vẫn local.
+thực hiện F02-B/F03–F16. F02-A chỉ áp source 017 lên disposable PG17; không đổi
+Supabase, runtime credentials, role hay membership. Cloud rollout/rollback cần
+F02-B với role provisioning, preflight, maintenance window và đường lui riêng.
 Source hiện có migration 016 cho OAuth attempt; F01 chỉ áp trên disposable.
 Cloud bootstrap lịch sử đến 015; chưa áp 016 hoặc xác minh lại cloud trong F01.
 Đợt tiếp theo phải kiểm source/ledger thực tế trước mọi thao tác schema.
@@ -136,6 +141,41 @@ hoặc thiết kế thực sự chặn công việc.
 
 Commit theo lát đã kiểm; push chỉ khi được giao. Phê duyệt push lượt dọn docs
 cũ là lịch sử, không áp dụng F01/F01.1; không force-push/merge/deploy/cloud writes.
+
+## F02-A — local capability/RLS checkpoint (2026-10-19)
+
+Trên HEAD `9195317` bắt đầu lượt này, F02-A tách business runtime (`DATABASE_URL`),
+Auth bootstrap/session (`AUTH_DATABASE_URL`) và maintenance CLI
+(`MIGRATION_DATABASE_URL`, không được đưa vào API process). Migration 017 và
+`infra/postgres/runtime-roles.sql` là source versioned cho capability grants,
+tenant policies và policy helper. API kiểm role capability trước khi mở cổng;
+không có owner fallback. LOGIN/password provisioning ở ngoài migration và
+chỉ được thử trên disposable. Không có cloud connection/write trong lượt này.
+Implementation/test commit: `f850114`.
+
+Lần chạy mới: Node 24.13.0, npm 11.6.2, Docker 29.6.2 Linux. Baseline gates
+đạt: typecheck/build/format exit 0, 1.505 app tests và 423 PG17 DB tests; final:
+typecheck/build/format exit 0, API Vitest 288 + API Node 846 + web 374 = 1.508
+app tests; database 430 pass trong 27 suite. Tất cả final suites 0 fail/skip/
+cancelled. Format check đầu tiên báo đúng một file test chưa format; file đó
+được format bằng Prettier hiện có và gate chạy lại đạt. Final logs nằm trong
+ignored `artifacts/f02-a-20261019/`.
+
+Disposable PG17 chứng minh LOGIN runtime riêng non-owner/NOBYPASSRLS, role/group
+capability, HTTP paths dùng business/Auth pools khác nhau, tenant policies,
+apply/rollback/reapply 017, restore ACL snapshot và guard chống owner capability.
+Mutation policies/context/owner/viewer đều bị test hành vi bắt rồi được restore.
+Browser/desktop/mobile chưa được kiểm: không có browser automation tooling sẵn
+trong môi trường và không cài dependency; vì vậy đây chưa phải nghiệm thu đầy đủ
+mọi luồng UI/Compose. Trạng thái là **LOCAL_API_DB_VERIFIED + BROWSER_BLOCKED +
+CLOUD_ROLLOUT_PENDING + GOOGLE_LIVE_PENDING**; không gọi toàn B2 hoặc cloud RLS
+hoàn tất. Máy Thắng vẫn `REMOTE_MACHINE_NOT_VERIFIED`, Auth extended pending.
+
+Tiếp theo F02-B phải chốt target/role provisioning, credential delivery riêng,
+pool budget, backup, maintenance window, source migration rollout/rollback và
+preflight trên môi trường thật. Không dùng kết quả PG17 disposable làm cloud
+readiness. Các findings/hạn chế và lệnh tái chạy nằm ở [demo checklist](FINAL-DEMO-CHECKLIST.md),
+[runbook](PILOT-B1-RUNBOOK.md) và [ADR-002](DECISIONS.md).
 
 # F01 — implementation checkpoint (2026-10-18)
 

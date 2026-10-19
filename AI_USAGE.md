@@ -139,3 +139,28 @@ is claimed. Final read-only readiness still has invalid/missing effective Auth
 and target config, so no cloud/provider connection was opened. Owned disposable
 DB/roles/container/volume were cleaned after marker/project checks; unrelated
 SOP containers remain. No push, cloud write, key rotation or migration edit.
+
+## 2026-10-19 — F02-A runtime capability and tenant RLS (Codex)
+
+Tools: local Git/PowerShell/Node, existing npm/Prettier/test tooling, guarded
+disposable PostgreSQL 17/Docker. No source or private data was sent to an
+external coding service; no cloud, Google, Gemini or Storage calls were made.
+No dependency, lockfile or prior migration changed.
+
+The implementation split business and Auth connections, added startup capability
+checks, and added source migration 017 plus local apply/rollback tooling. Review
+found that rollback did not restore legacy ACL rows for `ai_evaluations` and
+`schema_migrations`; a PostgreSQL regression went RED on those exact ACLs, then
+GREEN after the existing migration snapshot mechanism was extended. Additional
+viewer-write and owner-role mutations built successfully and failed on behavioral
+assertions, then were restored and rerun green. Policy scope, WITH CHECK and
+transaction-local context mutations were also tested against the disposable DB.
+The implementation/test commit is `f850114`.
+
+Final gates: typecheck/build/format exit 0; app 288 API Vitest + 846 API Node +
+374 web = 1,508 pass; PG17 database 430 pass across 27 serial suites; no
+fail/skip/cancelled. The initial format check identified one formatting-only
+issue in an existing test file; Prettier fixed it and the gate passed on rerun.
+No claim of browser UI acceptance is made because browser automation was not
+available without adding a dependency. The local HTTP/SQL integration is not
+Google live, cloud rollout, machine Thắng, or semantic RAG acceptance.

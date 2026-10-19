@@ -72,13 +72,21 @@ không coi install thành công là audit sạch. Xem [context](docs/PROJECT-CON
 
 Điền `.env` root bằng editor riêng, không gửi vào chat/Git hoặc `VITE_*`:
 
-| Nhóm       | Cấu hình cần có                                                                                                  |
-| ---------- | ---------------------------------------------------------------------------------------------------------------- |
-| DB         | `DATABASE_URL`, TLS và CA đúng máy/project; pool mặc định 5                                                      |
-| Storage    | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` hoặc legacy service-role fallback, bucket private                          |
-| Auth       | `SUPABASE_PUBLISHABLE_KEY`, `PILOT_WORKSPACE_ID`, `SESSION_ENCRYPTION_KEY`, `AUTH_SESSION_VERIFICATION=database` |
-| AI         | `GEMINI_API_KEY`, model/timeouts theo template; thiếu AI không được bỏ Auth                                      |
-| Dev origin | Cấu hình công khai dưới đây                                                                                      |
+| Nhóm        | Cấu hình cần có                                                                                                                       |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Business DB | `DATABASE_URL` dùng LOGIN non-owner thuộc capability `examate_business`; TLS/CA đúng target; pool mặc định 5                          |
+| Auth DB     | `AUTH_DATABASE_URL` là LOGIN riêng thuộc `examate_auth`, cùng endpoint/database nhưng khác role; `AUTH_DATABASE_POOL_MAX` tối thiểu 2 |
+| Maintenance | `MIGRATION_DATABASE_URL` chỉ dành cho migrate/operator CLI; để trống trong API process/container, không fallback từ hai runtime URL   |
+| Storage     | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` hoặc legacy service-role fallback, bucket private                                               |
+| Auth        | `SUPABASE_PUBLISHABLE_KEY`, `PILOT_WORKSPACE_ID`, `SESSION_ENCRYPTION_KEY`, `AUTH_SESSION_VERIFICATION=database`                      |
+| AI          | `GEMINI_API_KEY`, model/timeouts theo template; thiếu AI không được bỏ Auth                                                           |
+| Dev origin  | Cấu hình công khai dưới đây                                                                                                           |
+
+F02-A local đã thêm capability groups, migration 017 và kiểm tra startup để API
+từ chối owner/BYPASSRLS hoặc privilege drift. Đây **không** phải quyền đã được
+provision trên Supabase: không dùng chung một owner/service credential cho hai
+URL runtime và không chạy `f02:apply-017` lên cloud. Cần chuẩn bị roles/credentials
+qua checkpoint riêng F02-B trước khi chuyển môi trường thật.
 
 ```dotenv
 HOST=127.0.0.1
@@ -120,6 +128,10 @@ Assistant status chỉ báo cấu hình, không chứng minh key/quota/model ho�
 
 Main Compose dùng Supabase bên ngoài, origin **http://127.0.0.1:8080**,
 chỉ publish web trên loopback; API không publish port 3000.
+Container API cần cả `DATABASE_URL` business và `AUTH_DATABASE_URL` Auth riêng;
+`MIGRATION_DATABASE_URL` được ép rỗng trong API container. Migration 017 và
+login roles F02-A chỉ được kiểm trên DB disposable local ở lượt này; cấu hình
+runtime owner hiện có không được âm thầm dùng làm fallback.
 Nginx ghi đè XFF; chỉ trust peer cố định `172.30.250.10` trên subnet
 `172.30.250.0/24`. Kiểm mạng/route không trùng trước chạy; không tự đổi trust.
 Trong Docker CA mount dùng `/run/secrets/prod-supabase.cer`, API bind nội bộ

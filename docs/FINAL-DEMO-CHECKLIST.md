@@ -304,3 +304,53 @@ nhất có đúng marker/source được dọn cùng volume parent của run. Đ
 volume `examate-f011-20261019_auth-pg17-test-data`. Không còn DB/container/role/
 volume/server do F01.1 giữ; artifacts ignored được giữ để review. Hai container
 SOP có trước không bị dừng/xóa. Không push, cloud writes, .env/key changes.
+
+## F02-A — least-privilege runtime / tenant RLS local (2026-10-19)
+
+Kết quả chỉ trên PostgreSQL 17 disposable: business và Auth là LOGIN riêng,
+non-owner/NOBYPASSRLS; maintenance URL chỉ thuộc operator CLI. Migration 017
+version hóa group grants, RLS và policy helper; runtime startup kiểm capability
+và từ chối quyền thừa/fallback owner. Apply, rollback, snapshot ACL/policies,
+reapply và HTTP integration qua hai runtime capability được kiểm. Không có
+Supabase/cloud writes, đổi credentials, role hoặc membership.
+Implementation/test commit: `f850114`.
+
+| Gate                        | Baseline mới    | Final mới                                                   |
+| --------------------------- | --------------- | ----------------------------------------------------------- |
+| `npm run typecheck`         | exit 0          | exit 0                                                      |
+| API Vitest / API Node / web | 288 / 843 / 374 | 288 / 846 / 374 pass                                        |
+| Tổng app                    | 1.505 pass      | 1.508 pass                                                  |
+| `npm run build`             | exit 0          | exit 0                                                      |
+| `npm run format:check`      | exit 0          | lần đầu fail đúng 1 file format; sau format chạy lại exit 0 |
+| `npm run test:database`     | 423 pass        | 430 pass, 27 suite, PG17                                    |
+
+Final gates: 0 fail, skip, cancelled; all exit 0. Format failure được sửa chỉ
+bằng formatter hiện có, không nới assertion. API/Node tests dùng synthetic
+Auth/provider và disposable PG17; các DB login test kết nối bằng role LOGIN
+thật, không `SET ROLE` từ owner. App integration kiểm capability startup,
+Auth bootstrap/session và HTTP business paths. Browser/desktop/375px và Compose
+UI chưa chạy do browser automation tooling không được cài sẵn; không nhận SQL/
+HTTP integration thay bằng chứng browser. Đây là giới hạn nghiệm thu local.
+
+RED/GREEN: thiếu phục hồi ACL legacy cho `ai_evaluations` và
+`schema_migrations` làm rollback regression đỏ; snapshot/restore 017 được sửa,
+focused migration suite xanh. Viewer INSERT mutation và owner capability guard
+mutation đều build được nhưng thất bại ở assertion quyền; policy/context
+mutations trước đó bắt được bởi cross-workspace, WITH CHECK và pool-reuse tests.
+Mọi mutation được khôi phục và focused suites xanh lại. Gate cuối ghi nhận 430
+DB tests và 1.508 app tests, không dùng số lịch sử.
+
+Disposable run dùng project `examate-f02a-20261019` và loopback DB target
+`examate_test:55433`; final database suite hoàn tất với 430 pass trong 27 file
+suite, không fail/skip/cancelled. Sau khi đối chiếu compose project labels và
+không còn container tham chiếu, container/network cùng volume
+`examate-f02a-20261019_auth-pg17-test-data` do lượt này tạo đã được dọn.
+Không còn container/volume thuộc project; ignored logs trong
+`artifacts/f02-a-20261019/` được giữ để review. Cloud readiness, Google
+live, Auth extended, máy Thắng, browser UI, production RLS/runtime least
+privilege và B2 toàn app chưa được nghiệm thu.
+
+Chạy lại theo [F02-A runbook](PILOT-B1-RUNBOOK.md#f02-a--local-runtime-capability-v%C3%A0-tenant-rls-kh%C3%B4ng-ph%E1%BA%A3i-cloud-rollout).
+Final log files: `artifacts/f02-a-20261019/final-typecheck.log`,
+`final-test.log`, `final-build.log`, `final-format.log`, `final-database.log`.
+Logs là local ignored artifacts, không thuộc commit.

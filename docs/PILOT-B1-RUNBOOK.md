@@ -608,6 +608,56 @@ Dấu hiệu live đúng: về URL sạch của ExaMate, session API xác nhận
 no_access, reload/logout/role checks đạt. Tiếp tục hai tab/account swap/callback
 cũ/API outage/refresh/revoke trên dev và Compose; Thắng chạy trên chính máy mình.
 Chưa có evidence các bước đó thì LIVE_ACCEPTANCE_PENDING, không nhận fixture PASS.
+
+## F02-A — local runtime capability và tenant RLS (không phải cloud rollout)
+
+Migration 017 cùng `infra/postgres/runtime-roles.sql` là bundle versioned cho
+grants/policies. LOGIN/password không nằm trong migration. Local harness tạo
+NOLOGIN capability groups trên disposable PG17; test suite tạo LOGIN roles
+ngẫu nhiên, mỗi role thuộc đúng một group. Business dùng `DATABASE_URL`, Auth
+bootstrap/session dùng `AUTH_DATABASE_URL` riêng, maintenance dùng
+`MIGRATION_DATABASE_URL` chỉ ở operator CLI; API từ chối biến maintenance nếu
+được nạp. Auth pool tối thiểu 2 để refresh intent có kết nối độc lập.
+
+Chạy tay chỉ trên project/database disposable có marker. Xác nhận port loopback
+trống trước khi start; không đưa `.env` thật vào Compose:
+
+```powershell
+docker compose --env-file infra/test/compose-empty.env -p examate-f02a-local -f compose.auth-pg17-test.yaml up -d --wait
+$env:TEST_DATABASE_URL='postgresql://examate_test:local-test-only@127.0.0.1:55433/examate_test'
+$env:DATABASE_SSL='false'
+npm run build --workspace @examate/api
+node apps/api/scripts/prepare-runtime-roles.mjs
+# Gate disposable trước; suite apply/rollback 017 tự tạo DB random, parent giữ 016.
+npm run test:database
+# Mặc định chỉ dry-run; target phải là loopback *_test.
+npm run f02:apply-017 -- --confirm-database=examate_test
+# Apply disposable: exact confirmation là bắt buộc.
+npm run f02:apply-017 -- --apply --confirm-database=examate_test
+# Dry-run rollback trước; apply chỉ sau khi xem plan của disposable.
+npm run f02:rollback-017 -- --confirm-database=examate_test
+npm run f02:rollback-017 -- --apply --confirm-database=examate_test
+npm run f02:apply-017 -- --apply --confirm-database=examate_test
+Remove-Item Env:TEST_DATABASE_URL
+Remove-Item Env:DATABASE_SSL
+docker compose --env-file infra/test/compose-empty.env -p examate-f02a-local -f compose.auth-pg17-test.yaml down
+```
+
+Guard từ chối URL không loopback/không `*_test`; dry-run read-only. Apply khóa
+ledger và các relation liên quan rồi đọc lại checksum/prerequisite trong cùng
+transaction. Rollback 017 chỉ khôi phục ACL/RLS/policy/helper đã snapshot, không
+xóa row nghiệp vụ; dependency ngoài phạm vi, drift hoặc migration sau 017 sẽ bị
+từ chối, không `CASCADE`. Capability groups vẫn là object cấp cluster; role/login
+cleanup phải đối chiếu marker và ownership riêng, không dùng `DROP OWNED`.
+
+Không chạy `db:migrate`, preflight cloud, apply/rollback 016/017 trên Supabase
+trong F02-A. F02-B cần owner/operator chốt project, provision LOGIN/group
+membership và mật khẩu qua kênh bảo mật, tổng pool budget, backup/maintenance
+window, rollout, verify và rollback. Không dùng owner credential làm hai runtime
+URL. `f02:apply-017`/`f02:rollback-017` chỉ nhận TEST_DATABASE_URL, không phải
+công cụ rollout production. Policies kiểm membership/role trong DB; transaction
+GUC chỉ là scope context do backend đặt, không xác minh JWT và không chống được
+process/credential đã bị chiếm.
 Callback thành công phải chứng minh correlation động tới đúng Nest và session
 đúng; chỉ nhìn allowlist path hoặc public settings không chứng minh điều này.
 
