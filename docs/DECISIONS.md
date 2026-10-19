@@ -146,7 +146,7 @@ business/Auth pool.
 | `workspaces`, `workspace_memberships`, `examate_workspace_role(uuid)`                   | `DocumentAccessService`, `AuthStore`, RLS policies                                                                                    | Cùng DB identity → business LOGIN cho service scope; Auth LOGIN riêng sau verified provider identity; policy helper NOLOGIN | Business đọc và lock hàng active trong transaction; column UPDATE chỉ phục vụ `FOR SHARE`, policy `WITH CHECK(false)` chặn sửa. Auth chỉ SELECT membership/workspace sau khi đã biết user; helper owner chỉ đọc để tránh policy recursion; không tin role từ client. |
 | `pilot_sessions`, `pilot_auth_limits`, `pilot_refresh_attempts`, `pilot_oauth_attempts` | `AuthStore`/`AuthService` trước principal                                                                                             | Shared runtime → Auth LOGIN thuộc riêng `examate_auth`                                                                      | Session/admission/OAuth operations theo grants cụ thể; Auth-only RLS dùng `USING(true)` vì chưa có principal/workspace, service truy cập bằng opaque cookie/attempt hashes; Auth credential có thể đọc server-side Auth state, còn business không có quyền.          |
 | `auth.sessions`; `auth.users`                                                           | `AuthStore.authSessionActive`; provider adapter xác minh user qua HTTPS                                                               | Shared DB login → Auth LOGIN chỉ có `SELECT(id,user_id,not_after)`; không SQL vào `auth.users`                              | Kiểm session revocation/expiry trong Auth boundary; không đọc session token cột khác, không đọc `auth.users`; business/Auth capability assertions fail nếu quyền rộng hơn.                                                                                           |
-| `schema_migrations`, migration 001–017, `f02_runtime_*` snapshots                       | `migrate.mjs`, pilot preflight/apply/rollback CLI                                                                                     | Runtime connection/fallback → maintenance-only `MIGRATION_DATABASE_URL`                                                     | DDL/ledger/snapshot chỉ operator; API từ chối biến maintenance. Apply/rollback 017 chỉ hỗ trợ local disposable qua target guard; cloud chưa áp.                                                                                                                      |
+| `schema_migrations`, migration 001–018, `f02_runtime_*`/`f02a1_runtime_*` snapshots     | `migrate.mjs`, pilot preflight/apply/rollback CLI                                                                                     | Runtime connection/fallback → maintenance-only `MIGRATION_DATABASE_URL`                                                     | DDL/ledger/snapshot chỉ operator; 017/018 apply/rollback chỉ hỗ trợ local disposable qua target guard; cloud chưa áp.                                                                                                                                                |
 | `ai_evaluations`, legacy/evaluation artifacts và `assistant_feedback` export            | Không có business API caller trực tiếp cho `ai_evaluations`; evaluation runner gọi HTTP và lưu report local; feedback exporter là CLI | Runtime grants rộng/không tách → business/Auth không đọc; export chỉ maintenance read-only                                  | `ai_evaluations` bị thu hồi quyền runtime; export lọc workspace rõ ràng, candidate `UNREVIEWED`, credential maintenance riêng và output private. Không cấp quyền export cho manager/member app.                                                                      |
 
 Connection roles không có quyền `SET ROLE` sang capability khác; migration/operator
@@ -172,3 +172,30 @@ HTTP flows, RLS, apply/rollback và ACL snapshot. F02-B còn phải quyết đ�
 LOGIN role/password qua kênh quản trị, mapping grants, pool budget, target/project,
 backup, maintenance window, rollback và preflight trên môi trường thật. F02-A
 không thay credentials, roles, policies, grants hoặc cloud data.
+
+### F02-A.1 — contract v18 và policy correction
+
+Migration 018 là source versioned sửa đúng năm policy đã snapshot trong 017:
+workspace/membership visibility và lock checks yêu cầu membership/workspace
+active; chunk SELECT cho phép manager/member đọc old chunks chỉ khi parent đang
+`stored+processing` để re-index atomic có thể xóa/thay chunks. Viewer, failed
+documents và tenant khác không được mở rộng. `f02a1_runtime_database_acl_state`
+ghi trạng thái PUBLIC CONNECT trước 018 để rollback khôi phục database ACL cùng
+policy snapshot; nó không lưu business rows.
+
+Startup contract v18 so catalog digest với hằng số được tạo độc lập từ pristine
+PG17 + migration source; không tự học target state. Nó bao gồm membership/role
+inheritance, owner/role attributes, table/column/schema/database ACLs, protected
+table RLS/policies và helper function definition/owner/config/EXECUTE ACL, cộng
+quyền `auth.sessions`. Startup từ chối khi catalog lệch và không tự sửa. Apply
+017/018 qua runner chuẩn khóa các relation được quản lý và từ chối policy ngoài
+bundle có thể ảnh hưởng PUBLIC/business/Auth trước khi ghi. Policy cho role không
+liên quan không bị xóa. Catalog guard không phát hiện mọi dynamic SQL/reference
+trong ứng dụng, và startup không ngăn DBA đổi ACL sau khi process chạy.
+
+Migration 018 được kiểm apply/rollback/reapply và rollback chain 018→017→016 trên
+PG17 disposable. Baseline 017 có thể còn trong ledger nhưng không đáp ứng contract
+v18; phải dừng runtime business/Auth cho tới khi 018 được áp và startup guard đạt.
+Rollback 018 trả về lịch sử 017 và khôi phục ACL/policies; runtime contract v18
+sẽ tiếp tục từ chối baseline đó, do vậy phải dừng API trước rollback và không coi
+rollback là trạng thái có thể chạy.

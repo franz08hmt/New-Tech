@@ -358,3 +358,66 @@ Chạy lại theo [F02-A runbook](PILOT-B1-RUNBOOK.md#f02-a--local-runtime-capab
 Final log files: `artifacts/f02-a-20261019/final-typecheck.log`,
 `final-test.log`, `final-build.log`, `final-format.log`, `final-database.log`.
 Logs là local ignored artifacts, không thuộc commit.
+
+## F02-A.1 — re-index và capability/RLS hardening (2026-10-19)
+
+Điểm bắt đầu `9c5ee38`. WIP trước task không có; source changes chỉ thuộc lượt
+này. Tái hiện trên PostgreSQL 17 disposable bằng LOGIN `examate_business`
+non-owner/NOBYPASSRLS và `DocumentIngestionService` thật, với Storage/extractor/
+OCR/embedding fake hợp lệ (page `{page:1,text}`, model `gemini-fixture-v1`, vector
+768 chiều): index pending thành công, re-index lần hai đỏ `23505` vì policy SELECT
+không cho đọc/xóa chunks cũ khi document `processing`. Test cũng tái hiện business
+SELECT `workspaces` khi thiếu membership; capability guard chấp nhận TRUNCATE,
+tắt RLS và Auth SELECT business; policy `PUBLIC USING(true)` mở đọc nhiều tenant;
+apply 017 chấp nhận policy mở; BEGIN đã chạy nhưng ACK mất làm CLI không cleanup.
+
+Migration nguồn 018 cập nhật workspace/membership read+lock policy fail-closed và
+chỉ cho manager/member thấy chunks cũ của document `stored+processing` để re-index
+atomic. Viewer/failed/other tenant không được mở scope; không grant DELETE trên
+documents cho member. Re-index hai lần và retry sau lỗi rollback được test với
+content/order/vector/quality ổn định, không duplicate chunks, tenant B không đổi.
+Migration cũng snapshot/thu hồi PUBLIC CONNECT và rollback khôi phục ACL cũ.
+
+Capability contract v18 lấy expected catalog digest từ pristine PG17 + source
+migrations, không học từ target. Startup kiểm LOGIN/capability inheritance,
+ownership/attributes, grants trên database/schema/table/column, PUBLIC và inherited
+grants, RLS/policies, helper definition/owner/config/EXECUTE ACL và auth.sessions.
+Policy không thuộc bundle có thể tác động runtime bị từ chối trước apply `db:migrate`
+017/018 hoặc startup; API không tự grant/repair. Hạn chế: guard là startup-time,
+không ngăn DBA đổi ACL sau đó; không tìm được mọi dynamic SQL trong app; không
+chống được toàn bộ server/process đã chiếm quyền.
+
+Mutation: 1) bỏ chunk processing visibility → re-index lỗi unique assertion; 2) bỏ PUBLIC conflict check → dry-run không reject; 3) bỏ RLS catalog check → disabled-RLS guard không reject; 4) bỏ membership scope ở 018 → no-membership workspace query trả row; 5) set transaction tracking chỉ sau ACK BEGIN → BEGIN lost-ACK tests không thấy
+ROLLBACK. Từng mutation được khôi phục chính xác; migration 017/018 và runtime RLS
+focused suites sau restore đều pass. Mất ACK BEGIN được phân biệt với COMMIT unknown;
+COMMIT unknown discard connection và không replay.
+
+| Gate/suite                                           | Kết quả lượt F02-A.1                                                                                                                                                                                          |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Baseline typecheck / app / build / format / database | typecheck 0; API Vitest 288 + API Node 846 + web 374 = 1,508 pass; build 0; format 0; PG17 DB 430 pass/27 suites; fail/skip/cancelled 0; tất cả exit 0. Raw logs: `artifacts/f02-a1-20261019/baseline-*.log`. |
+| Final typecheck / API Vitest / API Node / web        | exit 0; 288 / 846 / 374 = 1,508 pass                                                                                                                                                                          |
+| Final build / format                                 | exit 0 / exit 0; format check ban đầu thấy 8 file code/test thuộc lượt cần Prettier, đã format đúng các file đó và chạy lại xanh                                                                              |
+| Final database (PG17)                                | exit 0; 446 pass/28 serial suites; fail/skip/cancelled 0                                                                                                                                                      |
+| Browser desktop / 375px                              | BROWSER_BLOCKED: Edge/Chrome binaries có sẵn, nhưng Playwright/Puppeteer/driver automation không có trong project/global; không cài package. SQL/HTTP suite không được tính browser.                          |
+
+DB gate đầu tiên phát hiện stale fixture filter: legacy `database.test.mjs` loại
+017 nhưng quên loại 018. Gate kế tiếp phát hiện hard-coded source/ledger count 017
+trong `pilot-cli.database.test.mjs` và fixture đếm schema mới. Đây là harness
+compatibility failures do version mới; giữ logs fail riêng, sửa filter/counts
+đúng phạm vi, rồi chạy toàn bộ gate lại thành công. Không bỏ suite hoặc đổi guard.
+
+Apply/rollback 018, rollback 017→016, rollback 016, rồi standard migration reapply
+được kiểm trên disposable. Snapshot policies/ACL/catalog/ledger/business/Auth
+session fixture giữ nguyên qua rollback/reapply. F02 baseline 017 sau rollback 018
+không đủ contract v18: dừng API trước rollback và không khởi động lại tới khi 018
+được apply, preflight/startup đạt. Đây không phải migration/role provisioning
+hoặc policy rollout trên Supabase. Code/test commit: `65e24e49b4deaad1f03246caa81321396b646564`.
+
+Artifacts/logs mới: `artifacts/f02-a1-20261019/` (ignored, local only). Chạy lại theo
+[F02-A runbook](PILOT-B1-RUNBOOK.md#f02-a--local-runtime-capability-v%C3%A0-tenant-rls-kh%C3%B4ng-ph%E1%BA%A3i-cloud-rollout),
+gồm `npm run f02:apply-018`/`npm run f02:rollback-018` với guard disposable.
+Google live, Auth extended, máy Thắng và cloud rollout vẫn pending. Không push,
+không cloud writes. Cleanup đã dừng/xóa container và network thuộc compose
+project `examate-f02a1-20261019`, xác minh không còn container tham chiếu rồi xóa
+đúng volume có label project đó. Không còn DB/role/container/volume của lượt chạy;
+giữ artifacts ignored cho review và không đụng các SOP containers.

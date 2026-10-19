@@ -617,7 +617,10 @@ NOLOGIN capability groups trên disposable PG17; test suite tạo LOGIN roles
 ngẫu nhiên, mỗi role thuộc đúng một group. Business dùng `DATABASE_URL`, Auth
 bootstrap/session dùng `AUTH_DATABASE_URL` riêng, maintenance dùng
 `MIGRATION_DATABASE_URL` chỉ ở operator CLI; API từ chối biến maintenance nếu
-được nạp. Auth pool tối thiểu 2 để refresh intent có kết nối độc lập.
+được nạp. Auth pool tối thiểu 2 để refresh intent có kết nối độc lập. Migration
+018 sửa re-index và policy boundary phát hiện sau 017; startup capability
+contract v18 yêu cầu catalog khớp hằng số source sinh từ pristine PG17. Chỉ áp
+017 là chưa đủ để khởi động API với contract hiện hành.
 
 Chạy tay chỉ trên project/database disposable có marker. Xác nhận port loopback
 trống trước khi start; không đưa `.env` thật vào Compose:
@@ -628,7 +631,7 @@ $env:TEST_DATABASE_URL='postgresql://examate_test:local-test-only@127.0.0.1:5543
 $env:DATABASE_SSL='false'
 npm run build --workspace @examate/api
 node apps/api/scripts/prepare-runtime-roles.mjs
-# Gate disposable trước; suite apply/rollback 017 tự tạo DB random, parent giữ 016.
+# Gate disposable trước; suite migration tự tạo DB random và giữ parent chain.
 npm run test:database
 # Mặc định chỉ dry-run; target phải là loopback *_test.
 npm run f02:apply-017 -- --confirm-database=examate_test
@@ -638,6 +641,14 @@ npm run f02:apply-017 -- --apply --confirm-database=examate_test
 npm run f02:rollback-017 -- --confirm-database=examate_test
 npm run f02:rollback-017 -- --apply --confirm-database=examate_test
 npm run f02:apply-017 -- --apply --confirm-database=examate_test
+# 018 cần baseline 001–017 và capability groups có marker. Dry-run trước.
+npm run f02:apply-018 -- --confirm-database=examate_test
+npm run f02:apply-018 -- --apply --confirm-database=examate_test
+# Rollback 018 trả về 017 lịch sử; contract v18 sẽ từ chối API trên baseline đó.
+# Dừng API trước rollback; chỉ apply lại sau khi xem dry-run.
+npm run f02:rollback-018 -- --confirm-database=examate_test
+npm run f02:rollback-018 -- --apply --confirm-database=examate_test
+npm run f02:apply-018 -- --apply --confirm-database=examate_test
 Remove-Item Env:TEST_DATABASE_URL
 Remove-Item Env:DATABASE_SSL
 docker compose --env-file infra/test/compose-empty.env -p examate-f02a-local -f compose.auth-pg17-test.yaml down
@@ -645,19 +656,25 @@ docker compose --env-file infra/test/compose-empty.env -p examate-f02a-local -f 
 
 Guard từ chối URL không loopback/không `*_test`; dry-run read-only. Apply khóa
 ledger và các relation liên quan rồi đọc lại checksum/prerequisite trong cùng
-transaction. Rollback 017 chỉ khôi phục ACL/RLS/policy/helper đã snapshot, không
-xóa row nghiệp vụ; dependency ngoài phạm vi, drift hoặc migration sau 017 sẽ bị
-từ chối, không `CASCADE`. Capability groups vẫn là object cấp cluster; role/login
-cleanup phải đối chiếu marker và ownership riêng, không dùng `DROP OWNED`.
+transaction. Apply 018 cũng từ chối policy không thuộc bundle có thể mở quyền
+cho PUBLIC/business/Auth; kiểm tra lại dưới lock trước ghi. Runner `db:migrate`
+có boundary tương tự trước 017/018. Không tự xóa policy ngoài bundle. Apply và
+rollback theo dõi transaction từ lúc gửi BEGIN: mất ACK BEGIN sẽ thử rollback
+và chứng minh kết nối sạch, rollback lỗi thì discard; COMMIT mất ACK là outcome
+unknown và không được retry. Rollback 017/018 chỉ khôi phục state đã snapshot,
+không xóa row nghiệp vụ; dependency ngoài phạm vi, drift hoặc migration mới hơn
+sẽ bị từ chối, không `CASCADE`. Capability groups vẫn là object cấp cluster;
+role/login cleanup phải đối chiếu marker và ownership riêng, không dùng `DROP OWNED`.
 
 Không chạy `db:migrate`, preflight cloud, apply/rollback 016/017 trên Supabase
 trong F02-A. F02-B cần owner/operator chốt project, provision LOGIN/group
 membership và mật khẩu qua kênh bảo mật, tổng pool budget, backup/maintenance
 window, rollout, verify và rollback. Không dùng owner credential làm hai runtime
-URL. `f02:apply-017`/`f02:rollback-017` chỉ nhận TEST_DATABASE_URL, không phải
-công cụ rollout production. Policies kiểm membership/role trong DB; transaction
-GUC chỉ là scope context do backend đặt, không xác minh JWT và không chống được
-process/credential đã bị chiếm.
+URL. `f02:apply-017`/`f02:rollback-017`/`f02:apply-018`/`f02:rollback-018` chỉ
+nhận TEST_DATABASE_URL, không phải công cụ rollout production. Policies kiểm
+membership/role trong DB; transaction GUC chỉ là scope context do backend đặt,
+không xác minh JWT và không chống được process/credential đã bị chiếm. Startup
+guard chỉ kiểm lúc mở ứng dụng, không ngăn DBA đổi ACL sau đó.
 Callback thành công phải chứng minh correlation động tới đúng Nest và session
 đúng; chỉ nhìn allowlist path hoặc public settings không chứng minh điều này.
 

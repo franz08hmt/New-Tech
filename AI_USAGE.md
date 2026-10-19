@@ -164,3 +164,33 @@ issue in an existing test file; Prettier fixed it and the gate passed on rerun.
 No claim of browser UI acceptance is made because browser automation was not
 available without adding a dependency. The local HTTP/SQL integration is not
 Google live, cloud rollout, machine Thắng, or semantic RAG acceptance.
+
+## 2026-10-19 — F02-A.1 re-index and capability contract correction (Codex)
+
+Tools: local Git/PowerShell/Node, existing npm/Prettier, Docker PostgreSQL 17
+disposable with real LOGIN capability roles. No source was sent to an external
+coding service; no cloud, Gemini, Storage, credential or user data was accessed.
+No dependency or lockfile was added/changed.
+
+The task regressions first reproduced: re-index reached PostgreSQL unique
+constraint `23505` because old chunks were hidden while the document was
+`processing`; an unmapped business session could read workspace rows; capability
+startup accepted TRUNCATE/disabled RLS and Auth access to business data; a PUBLIC
+open policy passed apply/startup; and a lost BEGIN acknowledgement left the
+transaction open. Migration 018 now limits old-chunk visibility to authorized
+manager/member processing of a stored document, tightens workspace membership
+policies, snapshots/restores pre-018 PUBLIC CONNECT, and uses capability catalog
+contract v18. Apply/preflight rejects effective unmanaged policy; runtime checks
+catalog state on startup without auto-repair. CLI transaction tracking begins
+before sending BEGIN.
+
+Five isolated mutations were built and failed on their intended assertions:
+chunk visibility, PUBLIC-policy detection, RLS catalog check, membership scope,
+and BEGIN lifecycle tracking. Each mutation was restored and focused suites rerun.
+The capability digest was verified stable across two independently prepared
+pristine PG17 disposable databases; it is a source constant, not target-derived.
+Browser automation remains blocked because no Playwright/Puppeteer/driver is
+installed; no dependency was fetched and no browser PASS is claimed. Final gates
+were rerun sequentially: 1,508 app tests and 446 PG17 tests/28 suites, no
+fail/skip/cancelled. The code/test commit is `65e24e49b4deaad1f03246caa81321396b646564`;
+details are in the existing demo checklist. Cloud writes/push are outside this task.
