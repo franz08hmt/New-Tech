@@ -600,3 +600,9 @@ F03 backend instrumentation thay đổi sau lần browser F02-A. Một browser s
 riêng sau F03 chưa chạy được: công cụ thực thi từ chối khởi chạy Chrome với
 profile cô lập theo policy. Profile cá nhân không được dùng và không thử workaround;
 vì vậy 86/86 là bằng chứng F02-A trước F03, không phải browser acceptance F03.
+
+Cleanup: API fixture/Vite của lượt này đã dừng. Database và ba LOGIN role của
+fixture browser bị ngắt được xóa sau khi xác nhận marker, membership, ownership,
+thứ tự tạo và không còn session. Compose PG17 được tái sử dụng từ trước, còn chạy.
+Catalog còn các database/role có marker test cũ nhưng không thể quy chính xác cho
+lượt này; chúng không bị xóa hàng loạt.

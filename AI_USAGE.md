@@ -291,3 +291,10 @@ launching Chrome with a fresh isolated profile under its policy. I did not use a
 personal browser profile or try an alternate launch path. The F03 browser smoke
 therefore remains pending; the current F03 runtime evidence is from the unit,
 HTTP/integration, and PostgreSQL disposable suites only.
+
+The API fixture and Vite server were stopped. The interrupted browser fixture's
+exact marked database and three LOGIN roles were removed after ownership,
+membership, creation-order, and zero-active-session checks. The PG17 Compose
+service was reused and left running. Other marked test databases/roles remained
+in the disposable cluster without reliable attribution to this run, so they were
+not bulk-cleaned.
