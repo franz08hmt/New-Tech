@@ -9,6 +9,8 @@ import { AuthDatabaseService } from "../dist/database/auth-database.service.js";
 import { AuthStore } from "../dist/auth/auth-store.js";
 import { DocumentAccessService } from "../dist/documents/document-access.service.js";
 import { DocumentIngestionService } from "../dist/documents/document-ingestion.service.js";
+import { DocumentOcrService } from "../dist/documents/document-ocr.service.js";
+import { StorageService } from "../dist/documents/storage.service.js";
 import { AppModule } from "../dist/app.module.js";
 import { GeminiService } from "../dist/assistant/gemini.service.js";
 import { GeminiEmbeddingService } from "../dist/assistant/gemini-embedding.service.js";
@@ -22,6 +24,7 @@ import {
   tenants,
   fixedId,
 } from "./documents-tenant-fixture.mjs";
+import { vector } from "./retrieval-context-fixture.mjs";
 
 const saved = { ...process.env };
 const [A, B] = tenants;
@@ -50,6 +53,27 @@ const passwords = {
   business: randomBytes(24).toString("hex"),
   auth: randomBytes(24).toString("hex"),
 };
+
+function blankPdfFixture() {
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 72 72] /Contents 4 0 R >>",
+    "<< /Length 0 >>\nstream\n\nendstream",
+  ];
+  let bytes = "%PDF-1.4\n";
+  const offsets = [0];
+  for (const [index, object] of objects.entries()) {
+    offsets.push(Buffer.byteLength(bytes));
+    bytes += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  }
+  const xref = Buffer.byteLength(bytes);
+  bytes += `xref\n0 ${offsets.length}\n0000000000 65535 f \n`;
+  for (const offset of offsets.slice(1))
+    bytes += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  bytes += `trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(bytes, "ascii");
+}
 let fixture,
   business,
   authDb,
@@ -666,6 +690,10 @@ test("business capability rejects disabled RLS on a managed table", async () => 
 });
 
 test("Auth capability rejects excess business data access", async () => {
+  await assert.rejects(
+    authDb.query("SELECT operation_id FROM ai_usage_operations"),
+    { code: "42501" },
+  );
   await fixture.admin.query("GRANT SELECT ON courses TO examate_auth");
   try {
     await assert.rejects(authDb.assertCapability("examate_auth"));
@@ -1011,12 +1039,33 @@ test("FOR SHARE works without granting mutable membership/workspace columns; poo
   );
 });
 
-test("HTTP uses split non-owner pools for academic, workspace chat, receipt and feedback paths", async () => {
+test("HTTP instruments real provider wrappers through split non-owner pools", async (t) => {
   const auth = authFixture();
   auth.config.workspaceId = A.id;
   auth.config.origin = "http://127.0.0.1:5173";
   auth.config.userId = people.member;
   const sessionId = randomUUID();
+  let verifiedUserId = people.member;
+  let verifiedSessionId = sessionId;
+  Object.assign(process.env, {
+    GEMINI_API_KEY: "synthetic-f031-key",
+    GEMINI_MODEL: "gemini-2.5-flash",
+    GEMINI_TIMEOUT_MS: "500",
+    GEMINI_EMBEDDING_MODEL: "gemini-embedding-001",
+    DOCUMENT_OCR_ENABLED: "true",
+  });
+  await fixture.admin.query(
+    `UPDATE documents SET storage_status='stored',processing_status='pending',
+      indexed_at=NULL,processing_error_code=NULL,total_page_count=NULL,
+      useful_text_page_count=NULL,low_text_page_count=NULL,indexed_chunk_count=NULL,
+      skipped_page_numbers=NULL,needs_ocr=NULL,ocr_page_count=0,ocr_page_numbers='{}'
+     WHERE id=$1`,
+    [A.unassigned],
+  );
+  await fixture.admin.query(
+    "DELETE FROM document_chunks WHERE document_id=$1",
+    [A.unassigned],
+  );
   await fixture.admin.query(
     "INSERT INTO auth.sessions(id,user_id) VALUES($1,$2)",
     [sessionId, people.member],
@@ -1065,8 +1114,8 @@ test("HTTP uses split non-owner pools for academic, workspace chat, receipt and 
     },
     async verify() {
       return {
-        userId: people.member,
-        sessionId,
+        userId: verifiedUserId,
+        sessionId: verifiedSessionId,
         expiresAt: Date.now() + 3600000,
       };
     },
@@ -1080,21 +1129,155 @@ test("HTTP uses split non-owner pools for academic, workspace chat, receipt and 
     },
     async logout() {},
   };
-  const aiCalls = { embed: 0, generate: 0 };
-  const provider = {
-    model: "synthetic-only",
-    status: () => ({ configured: false }),
-    async generate() {
-      aiCalls.generate++;
-      throw Error("unexpected generation");
+  const sdkCalls = {
+    generation: [],
+    streams: [],
+    embeddings: [],
+    ocrPages: 0,
+    cancelObserved: 0,
+  };
+  const logs = [];
+  t.mock.method(console, "log", (...values) => logs.push(String(values[0])));
+  const fakeUsage = {
+    promptTokenCount: 10,
+    candidatesTokenCount: 5,
+    totalTokenCount: 15,
+  };
+  const inconsistentUsage = {
+    promptTokenCount: 10,
+    candidatesTokenCount: 100,
+    totalTokenCount: 20,
+  };
+  const requestText = (request) => JSON.stringify(request.contents);
+  const fakeModels = {
+    async generateContent(request) {
+      const serialized = requestText(request);
+      sdkCalls.generation.push(request);
+      if (serialized.includes("F031_TIMEOUT_SENTINEL"))
+        return new Promise(() => {});
+      if (serialized.includes("F031_PROVIDER_FAIL_SENTINEL"))
+        throw new Error("synthetic provider transport error");
+      if (
+        request.contents?.some((part) =>
+          part.parts?.some((entry) => entry.inlineData),
+        )
+      ) {
+        sdkCalls.ocrPages++;
+        return {
+          text: "Synthetic OCR recovered useful evidence from this PDF page. ".repeat(
+            3,
+          ),
+          usageMetadata: fakeUsage,
+          modelVersion: "gemini-2.5-flash-001",
+        };
+      }
+      if (request.config?.responseMimeType === "application/json") {
+        const sourceId =
+          /sourceId.{0,8}(S[1-9][0-9]*)/.exec(serialized)?.[1] ?? "S1";
+        return {
+          text: JSON.stringify({
+            answerable: true,
+            answer: `Synthetic grounded answer [${sourceId}].`,
+            citationIds: serialized.includes("F031_INVALID_CITATION_SENTINEL")
+              ? ["S999"]
+              : [sourceId],
+          }),
+          usageMetadata: serialized.includes("F031_MISSING_USAGE_SENTINEL")
+            ? undefined
+            : serialized.includes("F031_INVALID_USAGE_JSON_SENTINEL")
+              ? inconsistentUsage
+              : fakeUsage,
+          modelVersion: "gemini-2.5-flash-001",
+        };
+      }
+      return {
+        text: "Synthetic general answer.",
+        usageMetadata: serialized.includes("F031_MISSING_USAGE_SENTINEL")
+          ? undefined
+          : serialized.includes("F031_INVALID_USAGE_JSON_SENTINEL")
+            ? inconsistentUsage
+            : fakeUsage,
+        modelVersion: "gemini-2.5-flash-001",
+      };
+    },
+    async generateContentStream(request) {
+      sdkCalls.streams.push(request);
+      const serialized = requestText(request);
+      if (serialized.includes("F031_CANCEL_SENTINEL")) {
+        const signal = request.config?.abortSignal;
+        signal?.addEventListener("abort", () => sdkCalls.cancelObserved++, {
+          once: true,
+        });
+        return {
+          async *[Symbol.asyncIterator]() {
+            yield {
+              text: "Synthetic cancellation chunk.",
+              usageMetadata: fakeUsage,
+            };
+            await new Promise((resolve) =>
+              signal?.addEventListener("abort", resolve, { once: true }),
+            );
+          },
+        };
+      }
+      return {
+        async *[Symbol.asyncIterator]() {
+          const structured =
+            request.config?.responseMimeType === "application/json";
+          const sourceId =
+            /sourceId.{0,8}(S[1-9][0-9]*)/.exec(serialized)?.[1] ?? "S1";
+          const text = structured
+            ? JSON.stringify({
+                answerable: true,
+                answer: `Synthetic grounded stream answer [${sourceId}].`,
+                citationIds: [sourceId],
+              })
+            : "Synthetic stream answer.";
+          const midpoint = Math.ceil(text.length / 2);
+          yield {
+            text: text.slice(0, midpoint),
+            usageMetadata: {
+              promptTokenCount: 10,
+              candidatesTokenCount: 2,
+              totalTokenCount: 12,
+            },
+          };
+          yield {
+            text: text.slice(midpoint),
+            ...(serialized.includes("F031_MISSING_USAGE_SENTINEL")
+              ? {}
+              : {
+                  usageMetadata: serialized.includes(
+                    "F031_INVALID_FINAL_USAGE_SENTINEL",
+                  )
+                    ? inconsistentUsage
+                    : fakeUsage,
+                }),
+          };
+        },
+      };
+    },
+    async embedContent(request) {
+      sdkCalls.embeddings.push(request);
+      return {
+        embeddings: request.contents.map(() => ({ values: vector() })),
+      };
     },
   };
-  const embeddings = {
-    model: "synthetic-only",
-    dimensions: 768,
-    async embedQuery() {
-      aiCalls.embed++;
-      throw Error("unexpected embedding");
+  const storage = {
+    async downloadBuffer() {
+      return blankPdfFixture();
+    },
+    async upload() {
+      throw new Error("unexpected upload in usage instrumentation fixture");
+    },
+    async signedDownload() {
+      throw new Error("unexpected signing in usage instrumentation fixture");
+    },
+    async remove() {
+      throw new Error(
+        "unexpected Storage removal in usage instrumentation fixture",
+      );
     },
   };
   appModule = await Test.createTestingModule({ imports: [AppModule] })
@@ -1106,11 +1289,12 @@ test("HTTP uses split non-owner pools for academic, workspace chat, receipt and 
     .useValue(() => auth.config)
     .overrideProvider(AUTH_ADAPTER)
     .useValue(adapter)
-    .overrideProvider(GeminiService)
-    .useValue(provider)
-    .overrideProvider(GeminiEmbeddingService)
-    .useValue(embeddings)
+    .overrideProvider(StorageService)
+    .useValue(storage)
     .compile();
+  appModule.get(GeminiService).client = { models: fakeModels };
+  appModule.get(GeminiEmbeddingService).client = { models: fakeModels };
+  appModule.get(DocumentOcrService).client = { models: fakeModels };
   app = appModule.createNestApplication({ logger: false });
   configureApp(app);
   await app.listen(0, "127.0.0.1");
@@ -1132,6 +1316,69 @@ test("HTTP uses split non-owner pools for academic, workspace chat, receipt and 
   let nextCookie = login.headers.getSetCookie()[0].split(";")[0];
   let session = await login.json();
   assert.equal(session.principal.role, "member", JSON.stringify(session));
+  const writeHeaders = () => ({
+    "Content-Type": "application/json",
+    Cookie: nextCookie,
+    Origin: auth.config.origin,
+    "X-CSRF-Token": session.csrfToken,
+  });
+  const postChat = (body) =>
+    fetch(`${base}/api/assistant/chat`, {
+      method: "POST",
+      headers: writeHeaders(),
+      body: JSON.stringify(body),
+    });
+  const postStream = (body, signal) =>
+    fetch(`${base}/api/assistant/chat/stream`, {
+      method: "POST",
+      headers: writeHeaders(),
+      body: JSON.stringify(body),
+      signal,
+    });
+  const telemetryFor = async (response) => {
+    const requestId = response.headers.get("x-request-id");
+    assert.match(requestId ?? "", /^[0-9a-f-]{36}$/i);
+    let operation;
+    for (let attempt = 0; attempt < 25 && !operation; attempt++) {
+      operation = (
+        await fixture.admin.query(
+          `SELECT operation_id::text,request_id::text,workspace_id::text,user_id::text,
+            operation,mode,prompt_id,prompt_version,outcome,provider_call_count
+           FROM ai_usage_operations WHERE request_id=$1`,
+          [requestId],
+        )
+      ).rows[0];
+      if (!operation) await new Promise((resolve) => setImmediate(resolve));
+    }
+    assert.ok(
+      operation,
+      "usage operation is persisted after the HTTP request settles",
+    );
+    assert.equal(operation.request_id, requestId);
+    const calls = operation
+      ? (
+          await fixture.admin.query(
+            `SELECT call_id::text,operation_id::text,workspace_id::text,user_id::text,
+              call_type,provider,model,prompt_id,prompt_version,
+              outcome,usage_status,input_tokens,output_tokens,total_tokens,cost_status,
+              estimated_cost::text,duration_ms
+             FROM ai_usage_provider_calls WHERE operation_id=$1 ORDER BY started_at,call_id`,
+            [operation.operation_id],
+          )
+        ).rows
+      : [];
+    assert.equal(new Set(calls.map((call) => call.call_id)).size, calls.length);
+    assert.ok(
+      calls.every(
+        (call) =>
+          call.operation_id === operation.operation_id &&
+          call.workspace_id === operation.workspace_id &&
+          call.user_id === operation.user_id,
+      ),
+      "provider calls inherit the verified operation's tenant and owner",
+    );
+    return { operation, calls, requestId };
+  };
   const refreshed = await fetch(`${base}/api/auth/refresh`, {
     ...json("POST", {}),
     headers: {
@@ -1199,6 +1446,12 @@ test("HTTP uses split non-owner pools for academic, workspace chat, receipt and 
     },
   });
   assert.equal(chat.status, 200);
+  assert.equal(sdkCalls.generation.length, 0);
+  assert.equal(sdkCalls.streams.length, 0);
+  assert.equal(sdkCalls.embeddings.length, 0);
+  const workspaceTelemetry = await telemetryFor(chat);
+  assert.equal(workspaceTelemetry.operation.provider_call_count, 0);
+  assert.deepEqual(workspaceTelemetry.calls, []);
   const answerId = chat.headers.get("x-assistant-answer-id");
   assert.match(answerId, /^[0-9a-f-]{36}$/i);
   const answer = await chat.json();
@@ -1249,6 +1502,565 @@ test("HTTP uses split non-owner pools for academic, workspace chat, receipt and 
     ).rows[0].n,
     1,
   );
+
+  const generalJson = await postChat({
+    mode: "general",
+    message: "F031_GENERAL_SENTINEL: explain a synthetic study concept.",
+  });
+  assert.equal(generalJson.status, 200);
+  assert.equal((await generalJson.json()).answer, "Synthetic general answer.");
+  const generalTelemetry = await telemetryFor(generalJson);
+  assert.deepEqual(
+    [
+      generalTelemetry.operation.workspace_id,
+      generalTelemetry.operation.user_id,
+      generalTelemetry.operation.mode,
+      generalTelemetry.operation.prompt_id,
+      generalTelemetry.operation.prompt_version,
+      generalTelemetry.operation.outcome,
+      generalTelemetry.operation.provider_call_count,
+    ],
+    [
+      A.id,
+      people.member,
+      "general",
+      "assistant.general",
+      "general-v1",
+      "success",
+      1,
+    ],
+  );
+  assert.equal(generalTelemetry.calls.length, 1);
+  assert.deepEqual(
+    [
+      generalTelemetry.calls[0].call_type,
+      generalTelemetry.calls[0].outcome,
+      generalTelemetry.calls[0].usage_status,
+      generalTelemetry.calls[0].input_tokens,
+      generalTelemetry.calls[0].output_tokens,
+      generalTelemetry.calls[0].total_tokens,
+      generalTelemetry.calls[0].cost_status,
+    ],
+    ["generation", "success", "complete", "10", "5", "15", "unknown_price"],
+  );
+
+  const callsBeforeInvalidJsonUsage = sdkCalls.generation.length;
+  const invalidJsonUsage = await postChat({
+    mode: "general",
+    message: "F031_INVALID_USAGE_JSON_SENTINEL: preserve this answer.",
+  });
+  assert.equal(invalidJsonUsage.status, 200);
+  assert.equal(
+    (await invalidJsonUsage.json()).answer,
+    "Synthetic general answer.",
+  );
+  assert.equal(sdkCalls.generation.length - callsBeforeInvalidJsonUsage, 1);
+  const invalidJsonUsageTelemetry = await telemetryFor(invalidJsonUsage);
+  assert.equal(invalidJsonUsageTelemetry.operation.outcome, "success");
+  assert.equal(invalidJsonUsageTelemetry.operation.provider_call_count, 1);
+  assert.equal(invalidJsonUsageTelemetry.calls[0].usage_status, "invalid");
+  assert.equal(invalidJsonUsageTelemetry.calls[0].cost_status, "invalid");
+  assert.equal(invalidJsonUsageTelemetry.calls[0].estimated_cost, null);
+
+  const callsBeforeTimeout = sdkCalls.generation.length;
+  const timedOut = await postChat({
+    mode: "general",
+    message: "F031_TIMEOUT_SENTINEL: classify a real provider timeout.",
+  });
+  assert.equal(timedOut.status, 504);
+  assert.equal((await timedOut.json()).code, "AI_TIMEOUT");
+  assert.equal(sdkCalls.generation.length - callsBeforeTimeout, 1);
+  const timeoutTelemetry = await telemetryFor(timedOut);
+  assert.equal(timeoutTelemetry.operation.outcome, "timeout");
+  assert.equal(timeoutTelemetry.operation.provider_call_count, 1);
+  assert.equal(timeoutTelemetry.calls.length, 1);
+  assert.equal(timeoutTelemetry.calls[0].outcome, "timeout");
+  assert.equal(timeoutTelemetry.calls[0].usage_status, "missing");
+  assert.equal(timeoutTelemetry.calls[0].cost_status, "unknown_usage");
+  assert.equal(timeoutTelemetry.calls[0].estimated_cost, null);
+
+  const streamBefore = sdkCalls.streams.length;
+  const generalStream = await postStream({
+    mode: "general",
+    message: "F031_STREAM_SENTINEL: synthetic stream question.",
+  });
+  assert.equal(generalStream.status, 200);
+  assert.match(await generalStream.text(), /Synthetic stream answer\./);
+  assert.equal(sdkCalls.streams.length - streamBefore, 1);
+  const streamTelemetry = await telemetryFor(generalStream);
+  assert.equal(streamTelemetry.operation.provider_call_count, 1);
+  assert.equal(streamTelemetry.calls.length, 1);
+  assert.deepEqual(
+    [
+      streamTelemetry.calls[0].call_type,
+      streamTelemetry.calls[0].usage_status,
+      streamTelemetry.calls[0].input_tokens,
+      streamTelemetry.calls[0].output_tokens,
+      streamTelemetry.calls[0].total_tokens,
+    ],
+    ["generation_stream", "complete", "10", "5", "15"],
+    "repeated cumulative usage is stored once from the final snapshot",
+  );
+
+  const missingFinalUsage = await postStream({
+    mode: "general",
+    message: "F031_MISSING_USAGE_SENTINEL: deliver answer without final usage.",
+  });
+  assert.equal(missingFinalUsage.status, 200);
+  assert.match(await missingFinalUsage.text(), /Synthetic stream answer\./);
+  const missingFinalTelemetry = await telemetryFor(missingFinalUsage);
+  assert.equal(missingFinalTelemetry.operation.provider_call_count, 1);
+  assert.equal(missingFinalTelemetry.operation.outcome, "unknown");
+  assert.equal(missingFinalTelemetry.calls[0].outcome, "unknown");
+  assert.equal(missingFinalTelemetry.calls[0].usage_status, "partial");
+  assert.equal(missingFinalTelemetry.calls[0].input_tokens, "10");
+  assert.equal(missingFinalTelemetry.calls[0].output_tokens, "2");
+  assert.equal(missingFinalTelemetry.calls[0].total_tokens, "12");
+  assert.equal(missingFinalTelemetry.calls[0].estimated_cost, null);
+
+  const invalidFinalUsage = await postStream({
+    mode: "general",
+    message: "F031_INVALID_FINAL_USAGE_SENTINEL: keep answer, reject usage.",
+  });
+  assert.equal(invalidFinalUsage.status, 200);
+  assert.match(await invalidFinalUsage.text(), /Synthetic stream answer\./);
+  const invalidFinalTelemetry = await telemetryFor(invalidFinalUsage);
+  assert.equal(invalidFinalTelemetry.operation.provider_call_count, 1);
+  assert.equal(invalidFinalTelemetry.operation.outcome, "unknown");
+  assert.equal(invalidFinalTelemetry.calls[0].outcome, "unknown");
+  assert.equal(invalidFinalTelemetry.calls[0].usage_status, "invalid");
+  assert.equal(invalidFinalTelemetry.calls[0].cost_status, "invalid");
+  assert.equal(invalidFinalTelemetry.calls[0].estimated_cost, null);
+
+  const streamsBeforeCancellation = sdkCalls.streams.length;
+  const clientCancellation = new AbortController();
+  const cancelledStream = await postStream(
+    {
+      mode: "general",
+      message: "F031_CANCEL_SENTINEL: cancel after the first provider chunk.",
+    },
+    clientCancellation.signal,
+  );
+  assert.equal(cancelledStream.status, 200);
+  const reader = cancelledStream.body.getReader();
+  const decoder = new TextDecoder();
+  let receivedStream = "";
+  const readBounded = async () => {
+    let timer;
+    try {
+      return await Promise.race([
+        reader.read(),
+        new Promise((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error("synthetic stream read timed out")),
+            5000,
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  while (!receivedStream.includes("Synthetic cancellation chunk.")) {
+    const part = await readBounded();
+    assert.equal(part.done, false);
+    receivedStream += decoder.decode(part.value, { stream: true });
+  }
+  assert.equal(sdkCalls.streams.length - streamsBeforeCancellation, 1);
+  clientCancellation.abort();
+  await reader.cancel().catch(() => {});
+  const cancellationTelemetry = await telemetryFor(cancelledStream);
+  assert.equal(cancellationTelemetry.operation.outcome, "cancelled");
+  assert.equal(cancellationTelemetry.operation.provider_call_count, 1);
+  assert.equal(cancellationTelemetry.calls.length, 1);
+  assert.equal(cancellationTelemetry.calls[0].outcome, "cancelled");
+  assert.equal(sdkCalls.cancelObserved, 1);
+
+  const indexedDocumentId = A.unassigned;
+  const tenantBChunksBefore = (
+    await fixture.admin.query(
+      `SELECT id::text,document_id::text,chunk_index,source_page,content,
+        embedding::text,embedding_model,embedding_dimensions
+       FROM document_chunks WHERE document_id=$1 ORDER BY chunk_index,id`,
+      [B.document],
+    )
+  ).rows;
+  const indexDocument = () =>
+    fetch(`${base}/api/documents/${indexedDocumentId}/process`, {
+      method: "POST",
+      headers: writeHeaders(),
+    });
+  const indexed = await indexDocument();
+  assert.equal(indexed.status, 200);
+  const indexedBody = await indexed.json();
+  assert.equal(indexedBody.processing_status, "ready");
+  assert.deepEqual(indexedBody.index_quality.ocr_page_numbers, [1]);
+  assert.equal(
+    sdkCalls.ocrPages,
+    1,
+    "one OCR provider call per recovered page",
+  );
+  assert.equal(sdkCalls.embeddings.length, 1, "one document embedding batch");
+  const indexTelemetry = await telemetryFor(indexed);
+  assert.equal(indexTelemetry.operation.operation, "document_index");
+  assert.equal(indexTelemetry.operation.provider_call_count, 2);
+  assert.deepEqual(indexTelemetry.calls.map((call) => call.call_type).sort(), [
+    "embedding_document_batch",
+    "ocr_page",
+  ]);
+  assert.ok(indexTelemetry.calls.every((call) => call.outcome === "success"));
+  assert.equal(
+    indexTelemetry.calls.find((call) => call.call_type === "ocr_page")
+      ?.prompt_id,
+    "documents.ocr.page",
+  );
+  const firstIndexedChunks = (
+    await fixture.admin.query(
+      `SELECT chunk_index,source_page,content,embedding::text,embedding_model,
+        embedding_dimensions FROM document_chunks WHERE document_id=$1 ORDER BY chunk_index`,
+      [indexedDocumentId],
+    )
+  ).rows;
+  assert.equal(firstIndexedChunks.length, 1);
+  assert.match(
+    firstIndexedChunks[0].content,
+    /Synthetic OCR recovered useful evidence/,
+  );
+
+  const reindexed = await indexDocument();
+  assert.equal(reindexed.status, 200);
+  const reindexedBody = await reindexed.json();
+  assert.equal(reindexedBody.processing_status, "ready");
+  assert.equal(sdkCalls.ocrPages, 2);
+  assert.equal(sdkCalls.embeddings.length, 2);
+  assert.deepEqual(
+    (
+      await fixture.admin.query(
+        `SELECT chunk_index,source_page,content,embedding::text,embedding_model,
+          embedding_dimensions FROM document_chunks WHERE document_id=$1 ORDER BY chunk_index`,
+        [indexedDocumentId],
+      )
+    ).rows,
+    firstIndexedChunks,
+  );
+  assert.deepEqual(
+    (
+      await fixture.admin.query(
+        `SELECT id::text,document_id::text,chunk_index,source_page,content,
+          embedding::text,embedding_model,embedding_dimensions
+         FROM document_chunks WHERE document_id=$1 ORDER BY chunk_index,id`,
+        [B.document],
+      )
+    ).rows,
+    tenantBChunksBefore,
+  );
+  assert.equal(
+    (await telemetryFor(reindexed)).operation.provider_call_count,
+    2,
+  );
+
+  const rag = await postChat({
+    mode: "documents",
+    operation: "question",
+    documentId: indexedDocumentId,
+    message: "Which evidence did the synthetic page provide?",
+  });
+  const ragTelemetry = await telemetryFor(rag);
+  const ragStatus = rag.status;
+  const ragErrorCode =
+    ragStatus === 200
+      ? undefined
+      : (
+          await rag
+            .clone()
+            .json()
+            .catch(() => ({}))
+        ).code;
+  assert.equal(
+    ragStatus,
+    200,
+    `RAG status=${ragStatus} code=${ragErrorCode ?? "unknown"} operation=${ragTelemetry.operation.outcome} calls=${JSON.stringify(ragTelemetry.calls.map(({ call_type, outcome, usage_status }) => ({ call_type, outcome, usage_status })))}`,
+  );
+  const ragAnswer = await rag.json();
+  assert.equal(ragAnswer.answerable, true);
+  assert.equal(ragAnswer.citations.length, 1);
+  assert.equal(ragAnswer.citations[0].documentId, indexedDocumentId);
+  assert.equal(ragAnswer.citations[0].page, 1);
+  const ragAnswerId = rag.headers.get("x-assistant-answer-id");
+  assert.match(ragAnswerId ?? "", /^[0-9a-f-]{36}$/i);
+  assert.equal(
+    (
+      await fixture.admin.query(
+        "SELECT count(*)::int AS n FROM assistant_answer_receipts WHERE id=$1 AND user_id=$2 AND workspace_id=$3",
+        [ragAnswerId, people.member, A.id],
+      )
+    ).rows[0].n,
+    1,
+    "grounded RAG answer keeps its receipt bound to the verified user and workspace",
+  );
+  assert.deepEqual(
+    [
+      ragTelemetry.operation.prompt_id,
+      ragTelemetry.operation.prompt_version,
+      ragTelemetry.operation.outcome,
+    ],
+    ["assistant.documents.question", "rag-v1", "success"],
+  );
+  assert.equal(ragTelemetry.operation.provider_call_count, 2);
+  assert.deepEqual(ragTelemetry.calls.map((call) => call.call_type).sort(), [
+    "embedding_query",
+    "generation",
+  ]);
+  const ragGenerationCall = ragTelemetry.calls.find(
+    (call) => call.call_type === "generation",
+  );
+  assert.ok(ragGenerationCall);
+  assert.deepEqual(
+    [
+      ragGenerationCall.provider,
+      ragGenerationCall.model,
+      ragGenerationCall.prompt_id,
+      ragGenerationCall.prompt_version,
+    ],
+    [
+      "google",
+      "gemini-2.5-flash-001",
+      "assistant.documents.question",
+      "rag-v1",
+    ],
+  );
+  assert.equal(
+    ragTelemetry.calls.find((call) => call.call_type === "embedding_query")
+      ?.model,
+    "gemini-embedding-001",
+  );
+  const partialProviderFailure = await postChat({
+    mode: "documents",
+    documentId: indexedDocumentId,
+    message: "F031_PROVIDER_FAIL_SENTINEL: fail after query embedding.",
+  });
+  assert.equal(partialProviderFailure.status, 502);
+  const partialFailureTelemetry = await telemetryFor(partialProviderFailure);
+  assert.equal(partialFailureTelemetry.operation.provider_call_count, 2);
+  assert.equal(partialFailureTelemetry.operation.outcome, "error");
+  assert.deepEqual(
+    partialFailureTelemetry.calls
+      .map(({ call_type, outcome }) => ({ call_type, outcome }))
+      .sort((left, right) => left.call_type.localeCompare(right.call_type)),
+    [
+      { call_type: "embedding_query", outcome: "success" },
+      { call_type: "generation", outcome: "error" },
+    ],
+    "partial provider success and failure remain distinct without replay",
+  );
+
+  const summaryContent =
+    "Synthetic summary evidence contains a useful factual sentence. "
+      .repeat(40)
+      .slice(0, 1700);
+  await fixture.admin.query(
+    "DELETE FROM document_chunks WHERE document_id=$1",
+    [indexedDocumentId],
+  );
+  for (let index = 0; index < 36; index++)
+    await fixture.admin.query(
+      `INSERT INTO document_chunks(id,document_id,chunk_index,source_page,content,
+        embedding,embedding_model,embedding_dimensions)
+       VALUES($1,$2,$3,$4,$5,$6::vector(768),'gemini-embedding-001',768)`,
+      [
+        fixedId(5000 + index),
+        indexedDocumentId,
+        index,
+        index + 1,
+        summaryContent,
+        `[${vector().join(",")}]`,
+      ],
+    );
+  const generationBeforeSummary = sdkCalls.generation.length;
+  const summary = await postChat({
+    mode: "documents",
+    operation: "summarize",
+    documentId: indexedDocumentId,
+    message: "Summarize the synthetic document sections.",
+  });
+  const summaryTelemetry = await telemetryFor(summary);
+  const summaryRequestId = summary.headers.get("x-request-id");
+  const summaryFailure = logs
+    .map((line) => JSON.parse(line))
+    .find(
+      (entry) =>
+        entry.event === "assistant.chat.failed" &&
+        entry.requestId === summaryRequestId,
+    );
+  const summaryErrorCode =
+    summary.status === 200
+      ? undefined
+      : (
+          await summary
+            .clone()
+            .json()
+            .catch(() => ({}))
+        ).code;
+  assert.equal(
+    summary.status,
+    200,
+    `summary status=${summary.status} code=${summaryErrorCode ?? "unknown"} rejection=${summaryFailure?.rejection ?? "unknown"} operation=${summaryTelemetry.operation.outcome} calls=${JSON.stringify(summaryTelemetry.calls.map(({ call_type, outcome, usage_status }) => ({ call_type, outcome, usage_status })))}`,
+  );
+  const summaryAnswer = await summary.json();
+  assert.equal(summaryAnswer.answerable, true);
+  assert.ok(summaryAnswer.citations.length > 0);
+  assert.equal(sdkCalls.generation.length - generationBeforeSummary, 3);
+  assert.equal(summaryTelemetry.operation.operation, "assistant_summary");
+  assert.deepEqual(
+    [
+      summaryTelemetry.operation.prompt_id,
+      summaryTelemetry.operation.prompt_version,
+    ],
+    ["assistant.documents.summary", "rag-summary-v1"],
+  );
+  assert.equal(summaryTelemetry.operation.provider_call_count, 3);
+  assert.equal(summaryTelemetry.calls.length, 3);
+  assert.ok(
+    summaryTelemetry.calls.every(
+      (call) => call.call_type === "generation" && call.outcome === "success",
+    ),
+  );
+  assert.deepEqual(
+    summaryTelemetry.calls.map((call) => call.prompt_id),
+    [
+      "assistant.documents.summary.section",
+      "assistant.documents.summary.section",
+      "assistant.documents.summary.synthesis",
+    ],
+  );
+  assert.ok(
+    summaryTelemetry.calls.every(
+      (call) => call.prompt_version === "rag-summary-v1",
+    ),
+  );
+
+  const invalidCitation = await postChat({
+    mode: "documents",
+    documentId: indexedDocumentId,
+    message: "F031_INVALID_CITATION_SENTINEL: verify this source.",
+  });
+  assert.equal(invalidCitation.status, 502);
+  const rejectedCitationTelemetry = await telemetryFor(invalidCitation);
+  assert.equal(rejectedCitationTelemetry.operation.outcome, "rejected");
+  assert.equal(rejectedCitationTelemetry.operation.provider_call_count, 2);
+  assert.equal(
+    rejectedCitationTelemetry.calls.find(
+      (call) => call.call_type === "generation",
+    )?.outcome,
+    "success",
+    "provider success is retained separately from application citation rejection",
+  );
+
+  const missingUsage = await postChat({
+    mode: "general",
+    message: "F031_MISSING_USAGE_SENTINEL: provider omitted usage.",
+  });
+  assert.equal(missingUsage.status, 200);
+  const missingUsageTelemetry = await telemetryFor(missingUsage);
+  assert.equal(missingUsageTelemetry.operation.outcome, "success");
+  assert.equal(missingUsageTelemetry.calls[0].usage_status, "missing");
+  assert.equal(missingUsageTelemetry.calls[0].input_tokens, null);
+  assert.equal(missingUsageTelemetry.calls[0].estimated_cost, null);
+
+  const callsBeforeProviderFailure = sdkCalls.generation.length;
+  const providerFailure = await postChat({
+    mode: "general",
+    message: "F031_PROVIDER_FAIL_SENTINEL: no automatic retry.",
+  });
+  assert.equal(providerFailure.status, 502);
+  assert.equal(sdkCalls.generation.length - callsBeforeProviderFailure, 1);
+  const failedProviderTelemetry = await telemetryFor(providerFailure);
+  assert.equal(failedProviderTelemetry.operation.provider_call_count, 1);
+  assert.equal(failedProviderTelemetry.operation.outcome, "error");
+  assert.equal(failedProviderTelemetry.calls[0].outcome, "error");
+
+  const operationCountBeforeTelemetryFault = (
+    await fixture.admin.query(
+      "SELECT count(*)::int AS n FROM ai_usage_operations",
+    )
+  ).rows[0].n;
+  const providerCallsBeforeTelemetryFault = sdkCalls.generation.length;
+  await fixture.admin.query(
+    "REVOKE INSERT ON ai_usage_operations,ai_usage_provider_calls FROM examate_business",
+  );
+  let telemetryFault;
+  try {
+    telemetryFault = await postChat({
+      mode: "general",
+      message: "F031_TELEMETRY_FAILURE_SENTINEL: preserve the answer.",
+    });
+    assert.equal(telemetryFault.status, 200);
+    assert.equal(
+      (await telemetryFault.json()).answer,
+      "Synthetic general answer.",
+    );
+  } finally {
+    await fixture.admin.query(
+      "GRANT INSERT ON ai_usage_operations,ai_usage_provider_calls TO examate_business",
+    );
+  }
+  assert.equal(
+    sdkCalls.generation.length - providerCallsBeforeTelemetryFault,
+    1,
+  );
+  assert.equal(
+    (
+      await fixture.admin.query(
+        "SELECT count(*)::int AS n FROM ai_usage_operations",
+      )
+    ).rows[0].n,
+    operationCountBeforeTelemetryFault,
+  );
+  assert.ok(
+    logs.some((line) => line.includes('"event":"ai.usage.persistence_failed"')),
+  );
+  assert.ok(
+    logs.every(
+      (line) =>
+        !/F031_(?:GENERAL|STREAM|TIMEOUT|CANCEL|INVALID_CITATION|MISSING_USAGE|INVALID_USAGE_JSON|INVALID_FINAL_USAGE|PROVIDER_FAIL|TELEMETRY_FAILURE)_SENTINEL/.test(
+          line,
+        ),
+    ),
+  );
+  assert.ok(
+    !logs.some((line) => line.includes("synthetic provider transport error")),
+  );
+  assert.ok(
+    !logs.some((line) =>
+      line.includes("Synthetic OCR recovered useful evidence"),
+    ),
+  );
+  const persistedTelemetry = await fixture.admin.query(
+    `SELECT
+       (SELECT COALESCE(jsonb_agg(to_jsonb(o)),'[]'::jsonb) FROM ai_usage_operations o) AS operations,
+       (SELECT COALESCE(jsonb_agg(to_jsonb(c)),'[]'::jsonb) FROM ai_usage_provider_calls c) AS calls`,
+  );
+  const persistedMetadata = JSON.stringify(persistedTelemetry.rows[0]);
+  for (const privateValue of [
+    "F031_GENERAL_SENTINEL",
+    "F031_STREAM_SENTINEL",
+    "F031_TIMEOUT_SENTINEL",
+    "F031_CANCEL_SENTINEL",
+    "F031_INVALID_USAGE_JSON_SENTINEL",
+    "Synthetic OCR recovered useful evidence",
+    "synthetic-f031-key",
+  ])
+    assert.ok(!persistedMetadata.includes(privateValue));
+  const afterTelemetryFailure = await business.query(
+    "SELECT NULLIF(current_setting('examate.workspace_id',true),'') AS workspace",
+  );
+  assert.equal(afterTelemetryFailure.rows[0].workspace, null);
+
+  const beforeInvalidHistory = {
+    generation: sdkCalls.generation.length,
+    streams: sdkCalls.streams.length,
+    embeddings: sdkCalls.embeddings.length,
+  };
   const invalidHistory = {
     mode: "documents",
     message: "Synthetic history request",
@@ -1289,9 +2101,13 @@ test("HTTP uses split non-owner pools for academic, workspace chat, receipt and 
   assert.equal(rejectedHistory.status, 400);
   assert.equal((await rejectedHistory.json()).code, "HISTORY_INVALID");
   assert.deepEqual(
-    aiCalls,
-    { embed: 0, generate: 0 },
-    "workspace mode never calls AI and rejected history stops before retrieval/generation",
+    {
+      generation: sdkCalls.generation.length,
+      streams: sdkCalls.streams.length,
+      embeddings: sdkCalls.embeddings.length,
+    },
+    beforeInvalidHistory,
+    "history is verified before embedding or provider generation",
   );
   assert.equal(
     (
@@ -1300,6 +2116,94 @@ test("HTTP uses split non-owner pools for academic, workspace chat, receipt and 
       ])
     ).rowCount,
     1,
+  );
+
+  const logout = await fetch(`${base}/api/auth/logout`, {
+    ...json("POST", {}),
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: nextCookie,
+      Origin: auth.config.origin,
+      "X-CSRF-Token": session.csrfToken,
+    },
+  });
+  assert.equal(logout.status, 200);
+  assert.equal((await logout.json()).status, "signed_out");
+
+  // Switch to another verified synthetic account and tenant through a new
+  // prelogin session; never carry the prior authenticated cookie forward.
+  auth.config.workspaceId = B.id;
+  verifiedUserId = people.manager;
+  verifiedSessionId = randomUUID();
+  await fixture.admin.query(
+    "INSERT INTO auth.sessions(id,user_id) VALUES($1,$2)",
+    [verifiedSessionId, people.manager],
+  );
+  const managerAnonymous = await fetch(`${base}/api/auth/session`);
+  assert.equal(managerAnonymous.status, 200);
+  const managerPreCookie = managerAnonymous.headers
+    .getSetCookie()[0]
+    .split(";")[0];
+  const managerPreSession = await managerAnonymous.json();
+  const managerLogin = await fetch(`${base}/api/auth/login`, {
+    ...json("POST", {
+      email: "synthetic-manager@example.test",
+      password: "synthetic",
+    }),
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: managerPreCookie,
+      Origin: auth.config.origin,
+      "X-CSRF-Token": managerPreSession.csrfToken,
+    },
+  });
+  assert.equal(managerLogin.status, 200);
+  nextCookie = managerLogin.headers.getSetCookie()[0].split(";")[0];
+  session = await managerLogin.json();
+  assert.deepEqual(
+    [
+      session.principal.workspaceId,
+      session.principal.userId,
+      session.principal.role,
+    ],
+    [B.id, people.manager, "manager"],
+  );
+  const managerChat = await postChat({
+    mode: "general",
+    message: "Synthetic account-switch isolation check.",
+  });
+  assert.equal(managerChat.status, 200);
+  const managerTelemetry = await telemetryFor(managerChat);
+  assert.deepEqual(
+    [
+      managerTelemetry.operation.workspace_id,
+      managerTelemetry.operation.user_id,
+    ],
+    [B.id, people.manager],
+  );
+  await assert.rejects(
+    context(
+      { workspaceId: B.id, userId: people.manager, role: "manager" },
+      (tx) => tx.query("SELECT workspace_id,user_id FROM ai_usage_operations"),
+    ),
+    { code: "42501" },
+    "business runtime can record telemetry but cannot read it back",
+  );
+  const isolatedWrites = await fixture.admin.query(
+    `SELECT workspace_id,user_id,request_id::text FROM ai_usage_operations
+     WHERE request_id=ANY($1::uuid[]) ORDER BY workspace_id`,
+    [[generalTelemetry.requestId, managerTelemetry.requestId]],
+  );
+  assert.deepEqual(
+    isolatedWrites.rows.map(({ workspace_id, user_id }) => ({
+      workspace_id,
+      user_id,
+    })),
+    [
+      { workspace_id: A.id, user_id: people.member },
+      { workspace_id: B.id, user_id: people.manager },
+    ],
+    "each account's verified server principal scopes its telemetry insert",
   );
 });
 
