@@ -199,3 +199,52 @@ v18; phải dừng runtime business/Auth cho tới khi 018 được áp và star
 Rollback 018 trả về lịch sử 017 và khôi phục ACL/policies; runtime contract v18
 sẽ tiếp tục từ chối baseline đó, do vậy phải dừng API trước rollback và không coi
 rollback là trạng thái có thể chạy.
+
+## ADR-003 — Prompt registry và metadata telemetry AI (F03)
+
+### Trạng thái
+
+Accepted cho local implementation; migration 019, contract v19, apply/rollback
+được kiểm trên PostgreSQL 17 disposable. Đây không phải phê duyệt rollout cloud,
+F04 budget/admission hoặc F06 dashboard.
+
+### Quyết định
+
+Prompt tĩnh do ứng dụng sở hữu được đặt trong một registry TypeScript có `PromptId`
+và version rõ. Version phản ánh prompt semantics; telemetry-only thay đổi không
+tự tăng version. Registry chỉ chứa static instructions. Golden tests giữ nguyên
+nội dung, thứ tự/context/schema gửi provider, summary grouping và citation behavior;
+prompt reference đi riêng thành metadata nội bộ, không thêm field lạ vào SDK request.
+
+Mỗi HTTP AI operation có một logical operation ID và mỗi lần gọi provider có call
+ID riêng. Migration `019_ai_usage_telemetry.sql` tạo hai bảng metadata không lưu
+prompt, câu hỏi/câu trả lời, document text, transcript hoặc raw provider errors.
+Principal/workspace lấy từ guard server; business LOGIN chỉ có INSERT trên các
+cột usage cho phép, tenant RLS kiểm transaction context, Auth LOGIN không đọc usage.
+Workspace SQL ghi operation với zero provider calls; không ước tính token hoặc cost
+cho SQL.
+
+Provider, embedding batch, OCR page và generation ghi outcome/latency riêng. SDK
+usage chỉ được chấp nhận khi field hiện có trong phiên bản đã cài hợp lệ; stream
+usage lặp là snapshot tích lũy mới nhất, không cộng dồn. Thiếu/partial/invalid/
+cached usage giữ unknown/partial. Giá được ước tính chỉ khi có pricing mapping
+chính xác; mapping hiện có là Gemini 2.5 Flash với giả định Google Gemini Developer
+API Standard Paid Tier, versioned 2026-10-19. Đây không phải invoice/billing thực;
+model chưa map, cached breakdown hoặc không rõ tier thì cost unknown.
+
+Telemetry được persist sau network/provider trong workspace transaction ngắn với
+fresh `DocumentAccessService.authorize(..., tx)`. Provider không chạy trong DB
+transaction. Persist có statement timeout và caller deadline. Failure/timeout
+ghi mã an toàn, không retry provider/INSERT, không đổi response nghiệp vụ đã xác
+định; do đó có thể thiếu metadata và đây không phải primitive admission cho F04.
+Bảng có expiry 90 ngày/index; deletion scheduler chưa có và phải được giải quyết
+trước khi coi retention vận hành hoàn chỉnh.
+
+### Phương án loại trừ và giới hạn
+
+Không lưu nội dung/prompt trong DB hoặc logs; không dùng một log line gộp cho
+operation và provider attempts; không thêm public endpoint hoặc dashboard trước
+F06; không thêm queue/retry; không cho Auth capability xem dữ liệu usage. Startup
+capability contract v19 so source/catalog đã quản lý, nhưng local PG17 pass không
+chứng minh cloud role provisioning. RLS bảo vệ lỗi scope SQL theo context đã xác
+thực, không xác minh JWT từ custom GUC và không chống toàn bộ process/server takeover.

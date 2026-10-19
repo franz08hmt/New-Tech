@@ -520,3 +520,83 @@ Lệnh tái chạy regression:
 `npm run test --workspace @examate/web -- src/App.test.tsx src/use-documents.test.tsx src/DocumentsPermissions.test.tsx`.
 Gate DB: `npm run test:database` với `TEST_DATABASE_URL` trỏ đúng PG17 disposable
 loopback đã qua target guard; không dùng `DATABASE_URL` cloud.
+
+## F02-A local acceptance và F03 — 20/10/2026
+
+F02-A đã đóng phần local acceptance còn thiếu bằng run browser nối thật với
+Nest API và PostgreSQL 17 disposable. Browser Chrome 141 chạy 86/86 case ở
+1440px và 375px; runtime business và Auth dùng LOGIN riêng, không owner/
+NOBYPASSRLS, membership/role và dữ liệu hai tenant được seed tổng hợp. Auth
+adapter/upstream, Storage, OCR/extractor, embedding và Gemini là fake; mọi request
+external đều bị chặn. Tenant B giữ nguyên. Browser ghi nhận zero console issues,
+zero external requests, PDF page thực sự render và attachment download hoàn tất.
+Artifacts tổng hợp, PDF synthetic và log chỉ nằm trong ignored folder
+`artifacts/f02a-acceptance-20261019-f49dc01b/`.
+
+Ma trận quan trọng đã chạy: pending không thành nguồn; upload/index ready xuất
+hiện trong Assistant cùng phiên; re-index không duplicate chunks và giữ draft;
+assign/refile/delete đồng bộ selection/history scope; lỗi POST chỉ GET đối chiếu,
+không replay; lỗi list không thành empty success; RAG citation, summary,
+course_info, feedback; General/Workspace chat; abort stream thật với provider
+được giữ chờ; account/workspace switch; manager/member/viewer/no-membership và
+denial trước side-effect. PDF render được quan sát tại fixture browser, không chỉ
+iframe/HTTP 200. Đây là **LOCAL_F02_ACCEPTED**; không phải Google/Supabase/live
+acceptance hoặc cloud RLS rollout.
+
+F03 source hiện có prompt registry typed và usage telemetry qua migration 019.
+Prompt registry dùng ID/version ổn định cho general, RAG question, summary
+section/synthesis và OCR; test golden giữ nguyên system instruction, thứ tự
+parts, schema/context, retrieval IDs/order/scores, summary grouping và citations.
+Metadata tách logical operation khỏi provider calls; ghi correlation/operation/
+call IDs, verified workspace/user, mode, prompt reference, provider/model,
+start/end/duration, outcome, usage status/counts và cost estimate nếu xác định
+được. DB non-owner tests kiểm hai tenant, RLS, insert-only và context trên pool;
+workspace SQL có 0 provider calls. Provider SDK v2.24.0 trả usage hợp lệ mới
+được dùng; thiếu/partial/invalid/cached không biến thành zero hoặc cost chắc chắn.
+Giá chỉ có cho model đã map với pricing version và giả định Standard Paid Tier;
+đây là estimate, không phải billing. Không ghi prompt/câu hỏi/câu trả lời/PDF text,
+raw SDK error hay credential.
+
+Telemetry được ghi sau provider trong workspace transaction ngắn với authorize;
+provider luôn ngoài DB transaction. DB/log failure có timeout/bounded signal,
+không retry provider hoặc write, không thay kết quả nghiệp vụ đã xác định. Nếu
+ghi không xác nhận được, metadata có thể thiếu. Bảng có `expires_at` 90 ngày và
+index; cleanup job/scheduler chưa triển khai. Migration 019 chỉ apply/rollback
+trên disposable PG17; capability contract v19 là source, không phải cloud-ready
+role provisioning. F04 admission/budget và F06 admin dashboard/filter chưa làm.
+
+RED/GREEN mới: assertions trước registry ban đầu đỏ khi metadata prompt ID/version
+được thêm vào provider abstraction; test được giữ độc lập bằng golden payload cũ
+và assertion riêng cho reference, chứng minh payload gửi provider giữ nguyên.
+Các regression về stream outcome, OCR timeout, logger failure, actual modelVersion
+và cached-token pricing đều được chạy targeted rồi xanh. Full DB suite một lượt
+trước đó bắt gặp false-empty trong fixture retrieval có DELETE/reinsert; frozen
+pre-scope query cũng trả 0 thay vì topK tại lần đó. Fresh focused retrieval 25/25
+và full DB rerun 448/448 sau đó xanh. Root cause của false-empty/churn vẫn
+INCONCLUSIVE; không sửa ANN, ranking, vector index hoặc scan policy.
+
+Gates mới, chạy tuần tự trên PG17 disposable:
+
+| Lệnh                    | Exit | Kết quả                                                                     |
+| ----------------------- | ---: | --------------------------------------------------------------------------- |
+| `npm run typecheck`     |    0 | pass                                                                        |
+| `npm test`              |    0 | API Vitest 321 + API Node 847 + web 383 = 1,551 pass; 0 fail/skip/cancelled |
+| `npm run build`         |    0 | pass                                                                        |
+| `npm run format:check`  |    0 | pass                                                                        |
+| `npm run test:database` |    0 | 448 pass / 30 suites; 0 fail/skip/cancelled                                 |
+
+Tái chạy gates: dùng Node/npm theo root README, Docker PostgreSQL 17 disposable
+loopback; đặt `TEST_DATABASE_URL` riêng để qua `apps/api/scripts/test-database-target.mjs`,
+rồi chạy năm lệnh trên. Không nạp `.env`, không dùng `DATABASE_URL` cloud. Rollback
+chỉ cho đúng DB `_test`, dry-run mặc định: `npm run f03:rollback-019`.
+Apply cần `--apply --confirm-database=<exact-test-db>` và xóa riêng hai usage
+table cùng ledger 019. Không chạy rollback trên cloud.
+
+Cloud rollout, Google live, Auth extended, máy Thắng và B4 semantic/live vẫn
+pending. F10 tiếp tục STT-only của Thắng; không phát triển TTS. Không thêm tool
+thứ ba, R10 vẫn là SSE; hai tools không được nhận là capability B đạt rubric.
+
+F03 backend instrumentation thay đổi sau lần browser F02-A. Một browser smoke
+riêng sau F03 chưa chạy được: công cụ thực thi từ chối khởi chạy Chrome với
+profile cô lập theo policy. Profile cá nhân không được dùng và không thử workaround;
+vì vậy 86/86 là bằng chứng F02-A trước F03, không phải browser acceptance F03.

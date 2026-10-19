@@ -235,3 +235,59 @@ suites; final application total was 1,517 pass (API Vitest 288, API Node 846, we
 383), all five gates exit 0. The strict browser + non-owner SQL path remains
 PARTIAL; cloud rollout, Google live, Auth extended, and Thắng's machine remain
 pending. No push or cloud writes occurred.
+
+## 2026-10-20 — F02-A local browser acceptance and F03 prompt/usage foundation (Codex)
+
+Tools: Codex in the local workspace, Git/PowerShell, existing Node/npm/Prettier
+tooling, the repository's guarded PostgreSQL 17 disposable fixture, and isolated
+Chrome 141 browser automation already available in the environment. No package
+was installed. Browser API traffic went through the local Nest process and local
+database; Auth upstream, Storage, OCR/extractor, embedding, and Gemini were faked.
+External network requests were blocked. No cloud credentials, account records,
+prompt content, document content, or source files were sent to an external coding
+service. The [official Gemini API pricing page](https://ai.google.dev/gemini-api/docs/pricing)
+was consulted only to validate an explicit paid-tier estimate mapping; no
+application data was sent.
+
+AI assistance contributed to the typed prompt registry, usage/pricing normalizers,
+bounded persistence service, migration 019 and local rollback, provider/controller
+instrumentation, and regression/database tests. Prompt text and model behavior were
+kept unchanged. A golden test initially went red because its provider-abstraction
+snapshot lacked the intentional prompt ID/version metadata. The correction keeps
+the original snapshot independent, strips only that metadata when comparing the
+provider payload, and separately asserts the exact prompt reference. The actual SDK
+request shape remains unchanged.
+
+Targeted RED/GREEN caught and corrected: a successful response's SDK `modelVersion`
+was not replacing the configured model in telemetry; stream iterator errors could
+be classified as cancellation; OCR timeout was mapped to the wrong outcome; a
+throwing telemetry logger could replace an already determined business result;
+and cached token usage could have been treated as fully priced. Tests now assert
+actual-model metadata, `error` versus `cancelled`, OCR timeout mapping, logging
+failure isolation, unknown cached pricing, provider-call multiplicity, and tenant
+isolation. Adding migration 019 also exposed hard-coded migration-count expectations
+in older 016/018/CLI database fixtures; those fixtures were corrected to preserve
+their intended source boundary, not to weaken migration checks.
+
+One full database run observed false-empty retrieval in the existing pgvector
+DELETE/reinsert fixture, including a zero-row frozen pre-scope nearest query. The
+focused retrieval suite then passed 25/25 and the final complete PG17 suite passed
+448/448 across 30 suites. The cause remains inconclusive; no ranking, ANN, index,
+or scan-policy change was made. Final local gates: typecheck/build/format exit 0;
+application 1,551 pass (API Vitest 321, API Node 847, web 383); database 448 pass,
+with zero fail/skip/cancelled. F02-A browser acceptance was 86/86 at 1440px/375px,
+including actual synthetic PDF render/download, with zero console issues and zero
+external requests. No human review is claimed by this entry.
+
+F03 metadata/pricing is a foundation, not an AI budget, billing record, dashboard,
+semantic evaluation, or cloud rollout. Cost estimates assume the documented
+Standard Paid Tier; unknown usage/model/tier remains unknown. Expiry cleanup is
+not yet scheduled. Google live, cloud F02-B, Auth extended, and Thắng's machine
+remain unverified.
+
+The F02-A browser matrix above predates the F03 backend instrumentation. A
+focused post-F03 browser smoke was not completed: the execution tool rejected
+launching Chrome with a fresh isolated profile under its policy. I did not use a
+personal browser profile or try an alternate launch path. The F03 browser smoke
+therefore remains pending; the current F03 runtime evidence is from the unit,
+HTTP/integration, and PostgreSQL disposable suites only.
