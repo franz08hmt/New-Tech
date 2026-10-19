@@ -3,6 +3,17 @@
 Cập nhật 19/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
+Review độc lập F02-A.1 tại `f8a39ec` ngày 19/10: build API và 67 test DB trọng
+tâm chạy mới đạt (0 fail/skip/cancelled). Browser IAB qua CUA có sẵn trong phiên
+review, không cần cài Playwright/Puppeteer; smoke member/manager/viewer ở
+1440px/375px dùng business/Auth LOGIN non-owner và fake providers đã thực hiện.
+Index/re-index, download và feedback receipt hoạt động trong các smoke đã chạy.
+Finding P2 còn mở: index xong trong Documents nhưng danh sách Assistant còn cũ,
+chỉ thấy tài liệu mới ready sau reload trang. `App` và `DocumentsPanel` giữ hai
+bản state documents độc lập; chưa chấp nhận đầy đủ local hoặc chuyển F03.
+PDF inline mở được khung nhưng IAB chưa cho bằng chứng render trang; không nhận
+preview PASS và không suy ra lỗi production PDF. Xem [review](FINAL-DEMO-CHECKLIST.md#review-độc-lập-f02-a1--19102026).
+
 F01.1 đã harden rollback 016 tại `b343737`: shared dependency/schema preflight,
 contract pristine/source PG17, apply recheck dưới lock và cleanup client không
 chắc sạch. Baseline `0130039` và final đều chạy mới: 1.505 app test; DB 390 →
@@ -109,13 +120,30 @@ chiếu lịch sử. Không chạy lại phần đã có hoặc biến kế ho�
 | F07 | N1 lưu bền, mở lại/xóa, retention/quyền; receipt/history/reset/account isolation                                           | Pending persistence; history trong tab/SSE và draft revision đã có, không viết lại                                                                |
 | F08 | N2 Study Coach: structured quiz/flashcards, nguồn, preview/xác nhận lưu, luyện tập/tiến độ cá nhân                         | Pending                                                                                                                                           |
 | F09 | B4: ít nhất 20 case thực thi có expected, cùng corpus/gold trước/sau, human review/guardrails/fallback/latency/cost        | Chưa nghiệm thu semantic/live; live runner còn BLOCKED, principal CLI hay HTTP chưa chốt                                                          |
-| F10 | Voice của Thắng: STT thật, dependency/benchmark, phát triển/nghiệm thu TTS                                                 | STT có implementation và bằng chứng lịch sử; acceptance thật/TTS còn pending, không chuyển ownership                                              |
+| F10 | Chỉ STT của Thắng: hoàn thiện lỗi, bảo mật/dependency, accuracy/latency và nghiệm thu thực tế khi cần                      | Thu hẹp theo Tài ngày 19/10/2026; giữ implementation STT hiện có, không phát triển TTS, không chuyển ownership                                    |
 | F11 | PWA/mobile thật: manifest/install/update/offline shell, Android và giới hạn iOS                                            | Pending; không cache dữ liệu riêng hoặc tự queue write                                                                                            |
 | F12 | Registry/allowlist nhiều model, lựa chọn kiểm soát, benchmark quality–latency–cost                                         | Pending; đổi embedding/re-index cần quyết định riêng                                                                                              |
 | F13 | WASM PoC có profiling/benchmark, cancel/fallback/license; chỉ tích hợp nếu chứng minh lợi ích                              | Nhánh mở rộng, không bắt buộc rubric; tác vụ cụ thể chưa chốt                                                                                     |
 | F14 | Native client tái sử dụng API: OAuth/deep link, secure storage, build/thiết bị                                             | Nhánh mở rộng, không bắt buộc rubric; stack chưa chốt                                                                                             |
-| F15 | Tool-using agent: ít nhất 3 tools được LLM gọi, quyền/scope/idempotency/logs và xác nhận trước write                       | Nhánh mở rộng, không bắt buộc rubric; không SQL/lệnh tùy ý; thiết kế tools chưa chốt                                                              |
+| F15 | Đã bỏ khỏi kế hoạch phát triển: không mở rộng tool-using agent lên 3 tools                                                 | Theo Tài ngày 19/10/2026; chỉ giữ phạm vi 2 tools ban đầu, không tự thêm tool thứ ba hoặc nhận đạt capability B của rubric                        |
 | F16 | Compose E2E/traceability, ít nhất 3 ADR, AI_USAGE, PDF 10–20 trang, slide tối đa 15 trang, video 3–5 phút, live change/Q&A | Pending bộ nộp; hiện có ADR-001, không nhận đã đủ 3 ADR                                                                                           |
+
+### Điều chỉnh phạm vi đã chốt — 19/10/2026
+
+Tài gọi FR10/FR15 trong chat là F10/F15 của roadmap này, không phải R10 (SSE)
+trong bảng requirements. Giữ SSE, không xóa hoặc làm yếu chức năng đã có.
+F10 chỉ giữ STT; TTS ngoài phạm vi. F15 không còn là đợt cần triển khai; giữ ID
+lịch sử, không đánh số lại các đợt sau. Chỉ duy trì/hoàn thiện phạm vi 2 tools
+ban đầu, không tự thêm tool thứ ba. Đây là giới hạn phạm vi, không phải bằng
+chứng đã có 2 LLM-called tools: cần đối chiếu source trước khi ghi nghiệm thu;
+mode chat, nút UI và SQL intent không tự là tool do LLM gọi. Không giới hạn số
+REST endpoints cần cho CRUD thông thường bằng giới hạn tools này.
+
+Rubric capability B yêu cầu ít nhất 3 tools do LLM gọi; vì vậy không dùng B để
+nhận đủ số capability khi chỉ có 2. Hướng đáp ứng 2 capability của nhóm vẫn là
+A (RAG) và C (structured output/Study Coach ở F08), mỗi phần phải có nghiệm thu
+riêng; không nhận C đạt chỉ vì model trả JSON. STT là tính năng bổ sung cần kiểm
+thật, không tự nhận capability D nếu chưa đủ điều kiện lưu và sử dụng kết quả.
 
 Tài liệu/traceability cập nhật xuyên suốt, không đợi F16. F01.1 thuộc F01,
 không phải đợt lớn thứ 17. Bảng này không cấp quyền cloud writes, push hoặc
@@ -134,7 +162,7 @@ tuyên bố cloud/model thật đã đạt. Không sửa migration cũ, không i
 cookie, signed URL hoặc định danh thật; không tự rotate key/tạo lại user/workspace.
 
 Giữ ranh giới của Thắng: chunking/embedding/OCR/retrieval/prompt/validator không
-đổi trong task hardening nếu chưa có phạm vi và benchmark. TTS/STT do Thắng
+đổi trong task hardening nếu chưa có phạm vi và benchmark. STT do Thắng
 phụ trách; sửa tích hợp AssistantPanel/voice phải nêu trước để tránh đụng nhau.
 Không hỏi lại về second opinion mỗi đợt; chỉ hỏi khi thiếu quyết định phạm vi
 hoặc thiết kế thực sự chặn công việc.

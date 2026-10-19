@@ -27,7 +27,11 @@ LogiRoute/Python hay hướng dẫn của project khác. App local tại 127.0.0
   kiểm thử, không tự gọi model thật/tải weights/phát sinh quota.
 - Không in/commit secret, cookie, signed URL, credential hay account mapping.
   Không thêm dependency/override hoặc refactor ngoài phạm vi đang được giao.
-- TTS/STT do Thắng phụ trách; báo trước khi sửa phần tích hợp voice/AssistantPanel.
+- STT do Thắng phụ trách; báo trước khi sửa phần tích hợp voice/AssistantPanel.
+  Theo chốt 19/10/2026: F10 chỉ giữ STT, không phát triển TTS; bỏ hướng mở rộng
+  F15 lên 3 tools, chỉ duy trì phạm vi 2 tools ban đầu. Không tự nhận đạt rubric
+  capability B (đòi ít nhất 3 LLM-called tools). Xem context để phân biệt F10
+  với R10/SSE và bằng chứng tool calling; không xóa chức năng SSE.
 
 ## Kiểm và bàn giao
 

@@ -187,6 +187,7 @@ before sending BEGIN.
 Five isolated mutations were built and failed on their intended assertions:
 chunk visibility, PUBLIC-policy detection, RLS catalog check, membership scope,
 and BEGIN lifecycle tracking. Each mutation was restored and focused suites rerun.
+
 The capability digest was verified stable across two independently prepared
 pristine PG17 disposable databases; it is a source constant, not target-derived.
 Browser automation remains blocked because no Playwright/Puppeteer/driver is
@@ -194,3 +195,14 @@ installed; no dependency was fetched and no browser PASS is claimed. Final gates
 were rerun sequentially: 1,508 app tests and 446 PG17 tests/28 suites, no
 fail/skip/cancelled. The code/test commit is `65e24e49b4deaad1f03246caa81321396b646564`;
 details are in the existing demo checklist. Cloud writes/push are outside this task.
+
+### Independent review and scope update — 2026-10-19
+
+Codex reviewed F02-A.1 and ran 67 focused PostgreSQL tests plus an isolated
+IAB/CUA browser smoke with real non-owner business/Auth logins and fake providers.
+The user requested STT-only F10 and removal of F15's three-tool expansion; the
+remaining roadmap/requirements now record that limit without changing the
+lecturer's three-tool threshold for capability B. No production code was changed.
+Browser review found a stale Documents → Assistant list after indexing despite
+green database regressions; it was reproduced before/after reload and recorded
+as an open P2, not accepted as fixed. Inline PDF rendering remains unverified.

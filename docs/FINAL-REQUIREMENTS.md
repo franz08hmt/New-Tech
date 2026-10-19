@@ -21,4 +21,16 @@ Trạng thái không phải lời hứa production-ready.
 | R14 | Admin AI dashboard theo workspace: request/provider calls, token/cost ước tính/latency/lỗi/từ chối, filters    | F03/F06 trong PROJECT-CONTEXT; module usage/dashboard còn phải xây                     | Pending; không dùng trang Finances làm bằng chứng                                                                                           |
 
 Thành viên đọc được tài liệu của workspace; chưa có PDF riêng từng người trong
-cùng workspace. Auth PASS không thay RAG/TTS/STT PASS. Máy Thắng cần bằng chứng riêng.
+cùng workspace. Auth PASS không thay RAG/STT PASS. Máy Thắng cần bằng chứng riêng.
+
+## Phạm vi cập nhật theo Tài — 19/10/2026
+
+- F10 trong roadmap chỉ giữ STT của Thắng: hoàn thiện và nghiệm thu khi cần;
+  không phát triển TTS. R10 trong bảng trên là SSE, giữ nguyên.
+- Bỏ đợt mở rộng F15; chỉ duy trì phạm vi 2 tools ban đầu, không thêm tool thứ ba.
+  Không nhận đã có 2 LLM-called tools nếu chưa đối chiếu implementation;
+  mode chat/SQL intent không tự thay bằng chứng tool calling.
+- Giữ nguyên yêu cầu gốc của thầy: capability B đòi ít nhất 3 tools do LLM gọi.
+  Với giới hạn 2 tools, không nhận B đạt rubric. Nhóm hướng đến A (RAG) +
+  C (structured output/Study Coach F08), còn phải nghiệm thu riêng; JSON đơn
+  thuần không chứng minh C. Không sửa rubric để làm khớp phạm vi đã giảm.

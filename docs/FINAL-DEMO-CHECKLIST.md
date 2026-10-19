@@ -13,6 +13,9 @@
 - [ ] Thử desktop/375px/keyboard; ghi riêng thiết bị thật đã/chưa thử.
 - [ ] Nếu demo STT: weights/runtime sẵn, mic được phép, audio có đồng ý,
       test Việt/Anh/trộn và cuối bản ghi dài; không tải weights giữa buổi.
+- [ ] Theo phạm vi chốt 19/10/2026: không hứa TTS hoặc agent 3 tools; chỉ giữ
+      STT và phạm vi 2 tools ban đầu. Không nhận capability B của rubric đạt;
+      A (RAG) và C (Study Coach/structured output F08) cần bằng chứng riêng.
 - [ ] Kiểm key/quota/model ở backend và mạng; không quay Dashboard keys/.env.
 - [ ] Có video dự phòng gắn ngày/revision, nói rõ là bản ghi, không giả live.
 
@@ -421,3 +424,45 @@ không cloud writes. Cleanup đã dừng/xóa container và network thuộc comp
 project `examate-f02a1-20261019`, xác minh không còn container tham chiếu rồi xóa
 đúng volume có label project đó. Không còn DB/role/container/volume của lượt chạy;
 giữ artifacts ignored cho review và không đụng các SOP containers.
+
+## Review độc lập F02-A.1 — 19/10/2026
+
+Review tại source `f8a39ec`, không sửa business/Auth source hoặc migrations.
+Build API exit 0; chạy mới 67 test DB qua năm file: runtime-migration-017,
+runtime-migration-018, runtime-rls, oauth và pilot-rollback-016; 67 pass,
+0 fail/skip/cancelled. Không coi 1.508/446 trong lượt trước là full gate chạy mới
+của review này.
+
+Browser automation IAB/CUA có sẵn trong phiên review. Harness ignored
+`artifacts/f02a1-review-20261019/browser-fixture.mjs` dùng business/Auth LOGIN
+non-owner, policy nguồn 018, fake Auth/Storage/AI; không phải cloud acceptance.
+Ba role được kiểm qua membership DB của một identity synthetic, đăng xuất/đăng
+nhập giữa các role; không nhận là ba account thật hoặc phiên máy Thắng.
+
+- Member: desktop index → ready → re-index → ready; 375px re-index bằng Enter,
+  download PDF thành công. Sau reload, RAG citation và own feedback receipt lưu
+  được; không gọi Gemini thật.
+- Viewer desktop/375px: upload/index disabled, không có control xóa.
+- Manager: desktop index/re-index; 375px có control xóa và index hợp lệ.
+- Console smoke đã kiểm không có error/warn. Đây chưa là full browser matrix,
+  không nhận upload/delete/abort/reset hoặc mọi viewport/role path đều PASS.
+- Inline mở khung nguồn nhưng IAB chưa chứng minh render trang PDF; chưa nhận
+  preview PASS, chưa kết luận đó là lỗi code. Download fixture đã hoàn tất.
+
+**Finding P2 còn mở:** Documents báo ready sau index nhưng Assistant dùng danh
+sách cũ của `App.useDocuments()`, báo chưa có nguồn ready hoặc bỏ thiếu tài liệu
+mới. Tái hiện với member ở 375px và manager index tài liệu thứ hai; reload trang
+thì nguồn xuất hiện. Hai state riêng ở `App` và `DocumentsPanel` chưa được
+invalidate/refresh đồng bộ. Không dùng reload thủ công làm fix; cần regression
+Documents → Assistant và bảo vệ stale response/account/workspace reset.
+
+Ảnh synthetic/fixture trong `artifacts/f02a1-review-20261019/` là local ignored
+evidence, không commit credential hoặc signed URL. Review giữ verdict PARTIAL:
+DB fixes đã có bằng chứng, cần sửa finding FE và hoàn tất browser acceptance;
+cloud/Google/máy Thắng vẫn pending, chưa chuyển F03.
+
+Typecheck, format source và format bảy file Markdown sửa trong review đều exit 0.
+Fixture server/web đã dừng; DB/ba LOGIN roles tổng hợp được dọn sau khi kiểm
+marker và không còn connection. Container/network/volume riêng của compose
+project `examate-f02a1-review-20261019` đã được dọn sau khi kiểm labels; không
+đụng dữ liệu thật hoặc SOP containers. Harness/ảnh ignored giữ để đối chiếu.

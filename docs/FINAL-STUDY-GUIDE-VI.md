@@ -172,8 +172,14 @@ Audio tạm được dọn; không ghi transcript/audio vào DB/Storage/browser 
 Local STT không đồng nghĩa cả app offline: Supabase/Gemini vẫn cần network.
 Không train Whisper; chưa benchmark microphone/accuracy/latency thực.
 STT default off, audit còn finding; hướng dẫn kỹ thuật:
-[STT setup](STT-SETUP-VI.md). TTS không được coi đã nghiệm thu chỉ vì có STT.
+[STT setup](STT-SETUP-VI.md). Theo chốt 19/10/2026, chỉ hoàn thiện STT khi cần;
+TTS ngoài phạm vi, không còn là tính năng phải phát triển.
 PWA/WASM/mobile app riêng là hướng tiếp theo, chưa gắn nhãn đã triển khai.
+
+F15 mở rộng tool-using agent đã bỏ; chỉ giữ phạm vi 2 tools ban đầu, không thêm
+tool thứ ba. Không đánh đồng mode chat/SQL intent với LLM-called tool. Rubric B
+đòi ít nhất 3 tools nên không nhận B đạt; hướng capability cuối kỳ là RAG (A)
+và structured output/Study Coach (C, F08), đều cần bằng chứng nghiệm thu.
 
 ## 9. Tester sẽ hỏi gì?
 
