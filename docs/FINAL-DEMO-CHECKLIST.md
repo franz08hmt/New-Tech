@@ -606,3 +606,43 @@ fixture browser bị ngắt được xóa sau khi xác nhận marker, membership
 thứ tự tạo và không còn session. Compose PG17 được tái sử dụng từ trước, còn chạy.
 Catalog còn các database/role có marker test cũ nhưng không thể quy chính xác cho
 lượt này; chúng không bị xóa hàng loạt.
+
+## F03.1 token consistency and signed PDF URL review (20/10/2026)
+
+- Token usage RED: a response reporting prompt=10, candidates=100, total=20
+  had previously been accepted as complete and priced. The normalizer now rejects
+  totals below known components, conflicting complete breakdowns, cached count
+  above prompt, and unsafe integer sums. Missing fields remain distinct from zero.
+  Tool-use prompt tokens are not priced as generated output; ambiguous breakdowns
+  remain partial/unknown. This follows the installed SDK's usage fields and the
+  official Gemini usage metadata contract.
+- PDF URL RED: the source preview retained a 60-second signed URL for the
+  “open in new tab” action. The action now opens a tab synchronously, requests a
+  newly authorized URL, then replaces the blank tab. If popup creation is blocked,
+  the UI offers the new URL as a short-lived explicit link. Source/session changes
+  abort the pending operation. Fake-clock test advances beyond 60 seconds and
+  verifies two backend signing requests; the old URL is not reused.
+- PG17 integration: real Nest/Auth/session/membership, business and Auth LOGIN
+  pools, RLS, usage wrappers/persistence, receipts, and feedback; synthetic
+  Auth upstream, PDF/Storage, SDK transport and provider responses. The test
+  compares persisted operation/call rows with fixture call counters, verifies
+  query-embedding/generation/batched indexing/per-page OCR/summary calls, and
+  confirms workspace SQL makes zero provider calls. RAG citation and receipt
+  ownership are checked. Controlled HTTP timeout and client abort after the
+  first SSE delta each produce their own outcome with one provider attempt.
+  Usage/log persistence excludes prompt/document/secret sentinels; telemetry
+  failure does not replay providers or alter a known answer.
+- Shared-corpus diagnostic: one bounded PG17 run used the same DB, role, physical
+  index and corpus over 12 reset/reinsert cycles; 36 positive reads and 24
+  lifecycle-negative reads matched the exact eligibility oracle. Historical
+  false-empty was not reproduced and remains INCONCLUSIVE; no ANN/ranking/scan
+  policy change was made.
+- Latest gates: typecheck exit 0; npm test exit 0 (API Vitest 329, API Node 847,
+  web 384; total 1,560); build exit 0; format:check exit 0; test:database exit 0
+  on disposable PostgreSQL 17 (448 pass, 30 suites, 0 fail/skip/cancelled).
+- Browser: BLOCKED in this session because no browser/CUA automation was exposed
+  and the earlier isolated Chrome launch was rejected by tool policy. No HTTP
+  test is counted as browser evidence. F03_LOCAL_ACCEPTED is not claimed.
+- No cloud writes, external provider calls, push, or deployment occurred. F04/F06
+  remain unimplemented; Google live, cloud rollout, Auth extended and Thang's
+  machine remain pending.

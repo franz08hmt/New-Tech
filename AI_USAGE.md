@@ -298,3 +298,28 @@ membership, creation-order, and zero-active-session checks. The PG17 Compose
 service was reused and left running. Other marked test databases/roles remained
 in the disposable cluster without reliable attribution to this run, so they were
 not bulk-cleaned.
+
+## 2026-10-20 - F03.1 review corrections (Codex)
+
+AI assistance reviewed and corrected Gemini usage normalization and the signed-PDF
+open-in-new-tab flow, added focused unit/web regressions, and expanded the
+disposable PG17 HTTP integration proof, including a controlled timeout and a
+client-cancelled SSE request with outcome and single-attempt assertions. The
+token-count correction was checked
+against the installed Google Gen AI SDK declarations and the official Gemini API
+usage metadata documentation. The PDF flow signs again through the existing
+authorized API after the click gesture rather than persisting/reusing a signed URL.
+
+Verification used local Git/PowerShell/Node/npm, installed Vitest/Prettier,
+the guarded PostgreSQL 17 disposable fixture, and the existing Nest application.
+Auth adapter, Storage/PDF bytes, SDK transport and AI provider responses were
+synthetic; Gemini, Google OAuth, Supabase, cloud Storage and external AI services
+were not called. The required browser acceptance could not be run because no
+browser/CUA tool was exposed in this session and tool policy had rejected the
+previous isolated Chrome launch. No human review is claimed here.
+
+New gates: typecheck/build/format exit 0; API Vitest 329, API Node 847, web 384
+(1,560 total); PG17 database 448/448 across 30 suites, zero fail/skip/cancelled.
+The shared-corpus run was bounded to 12 cycles and did not reproduce the historic
+false-empty; that finding remains inconclusive. F03_LOCAL_ACCEPTED is not claimed
+until the required browser run is completed.

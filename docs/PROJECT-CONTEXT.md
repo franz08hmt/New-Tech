@@ -3,7 +3,43 @@
 Cập nhật 20/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
-## Latest checkpoint — F02-A local acceptance và F03 (20/10/2026)
+## Latest checkpoint - F03.1 review (20/10/2026)
+
+F03.1 addressed the token-usage consistency and expiring signed-PDF-link findings.
+The token normalizer now rejects contradictory counts, preserves missing/zero
+semantics, and leaves ambiguous tool/cache breakdowns partial without estimating
+cost. The contract was checked against the installed Google Gen AI SDK types and
+the [official Gemini usage metadata documentation](https://ai.google.dev/api/generate-content).
+
+Opening a source in a new tab now requests a fresh signed URL through the existing
+authorized backend route during the click gesture. The old preview URL is not
+reused. A blocked popup has an explicit fresh-link fallback; closing the assistant,
+changing source, or resetting the conversation aborts stale work.
+
+New PG17 disposable integration evidence runs the real Nest routes, Auth/session
+store, business and Auth LOGIN roles, RLS, usage persistence, Gemini/embedding/OCR
+wrappers, receipts, and feedback. Only the Supabase Auth adapter, Storage, PDF
+bytes, and SDK transport/provider responses are synthetic. No external provider
+or cloud service was called. The RAG response citation and receipt are both checked
+against the verified synthetic user and workspace. HTTP tests also exercise one
+controlled provider timeout and client cancellation after the first SSE chunk;
+each records the matching outcome with one provider attempt. A fixed shared-corpus run
+completed 12 reset/reinsert cycles (36 positive and 24 lifecycle-negative reads);
+the historical false-empty was not reproduced and remains INCONCLUSIVE.
+
+Current gates on F03.1 code: typecheck, application tests, build, format, and the
+PG17 database gate pass. Application totals: API Vitest 329, API Node 847, web
+384 (1,560 total). Database: 448 pass across 30 serial suites, with zero failures,
+skips, or cancellations.
+
+The required post-F03.1 desktop/375px browser run is BLOCKED: no browser/CUA
+automation tool is available in this session, and the prior isolated Chrome
+launch was rejected by tool policy. HTTP/DB tests do not replace that evidence.
+Therefore F03_LOCAL_ACCEPTED is not claimed; F03.1 remains PARTIAL pending an
+allowed browser run. F04 budget, F06 dashboard, cloud rollout, Google live,
+Auth extended, and Thang's machine remain outside this verification.
+
+## Previous checkpoint - F02-A local acceptance and F03 (20/10/2026)
 
 F02-A local acceptance đã được khép: browser Chrome 141 chạy qua Nest API thật,
 PG17 disposable và LOGIN business/Auth riêng đã kiểm capability non-owner/
