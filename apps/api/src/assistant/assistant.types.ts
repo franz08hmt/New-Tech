@@ -2,6 +2,7 @@ import type {
   AssistantChatResponse,
   AssistantStatus,
 } from "@examate/contracts";
+import type { PromptReference } from "./prompt-registry.js";
 
 export type { AssistantStatus };
 /** What AssistantService answers: general chat and document RAG. */
@@ -18,6 +19,8 @@ export type WorkspaceAnswer = Extract<
 export interface AssistantGeneration {
   systemInstruction: string;
   userParts: string[];
+  /** Internal registry identity; never forwarded as prompt content. */
+  prompt?: PromptReference;
   /** Verified, source-neutralized history. Never retrieved evidence. */
   conversation?: { role: "user" | "model"; text: string }[];
   responseMimeType?: "application/json";

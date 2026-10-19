@@ -50,6 +50,7 @@ describe("DocumentOcrService", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     mocks.generateContent.mockReset().mockResolvedValue({
       text: "Recovered paragraph with enough useful words for indexing.",
+      modelVersion: "gemini-2.5-flash-001",
     });
   });
 
@@ -59,10 +60,22 @@ describe("DocumentOcrService", () => {
   });
 
   it("renders and OCRs only low-text pages without sending document metadata", async () => {
-    const service = new DocumentOcrService();
+    const descriptors: unknown[] = [];
+    const finishes: unknown[][] = [];
+    const models: unknown[][] = [];
+    const usage = {
+      startProviderCall: vi.fn((descriptor: unknown) => {
+        descriptors.push(descriptor);
+        return Symbol("provider call");
+      }),
+      finishProviderCall: vi.fn((...args: unknown[]) => finishes.push(args)),
+      updateProviderModel: vi.fn((...args: unknown[]) => models.push(args)),
+    };
+    const service = new DocumentOcrService(usage as never);
     const result = await service.recover(Buffer.from("%PDF-fixture"), [
       { page: 1, text: "A complete native paragraph with useful information." },
       { page: 2, text: "2" },
+      { page: 3, text: "3" },
     ]);
 
     expect(result.pages).toEqual([
@@ -72,9 +85,14 @@ describe("DocumentOcrService", () => {
         text: "Recovered paragraph with enough useful words for indexing.",
         source: "ocr",
       },
+      {
+        page: 3,
+        text: "Recovered paragraph with enough useful words for indexing.",
+        source: "ocr",
+      },
     ]);
-    expect(result.attemptedPageNumbers).toEqual([2]);
-    expect(mocks.generateContent).toHaveBeenCalledOnce();
+    expect(result.attemptedPageNumbers).toEqual([2, 3]);
+    expect(mocks.generateContent).toHaveBeenCalledTimes(2);
     const request = mocks.generateContent.mock.calls[0][0];
     expect(request.contents[0].parts[1]).toEqual({
       inlineData: {
@@ -83,6 +101,27 @@ describe("DocumentOcrService", () => {
       },
     });
     expect(JSON.stringify(request)).not.toContain("complete native paragraph");
+    expect(descriptors).toEqual([
+      {
+        type: "ocr_page",
+        provider: "google",
+        model: "gemini-2.5-flash",
+        prompt: { id: "documents.ocr.page", version: "ocr-v1" },
+      },
+      {
+        type: "ocr_page",
+        provider: "google",
+        model: "gemini-2.5-flash",
+        prompt: { id: "documents.ocr.page", version: "ocr-v1" },
+      },
+    ]);
+    expect(finishes).toHaveLength(2);
+    expect(finishes[0][1]).toBe("success");
+    expect(finishes[0][2]).toBeUndefined();
+    expect(models).toEqual([
+      [expect.anything(), "gemini-2.5-flash-001"],
+      [expect.anything(), "gemini-2.5-flash-001"],
+    ]);
     expect(GoogleGenAI).toHaveBeenCalledOnce();
   });
 

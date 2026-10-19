@@ -108,8 +108,9 @@ async function inspect(client, source) {
         "F02-A.1 apply refused: migration 018 state is missing.",
       );
     try {
-      await assertRuntimeCatalogContract((text, values) =>
-        client.query(text, values),
+      await assertRuntimeCatalogContract(
+        (text, values) => client.query(text, values),
+        18,
       );
     } catch {
       throw new PilotCliError(

@@ -1,7 +1,12 @@
 import { ApiError, GoogleGenAI } from "@google/genai";
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { log } from "../common/log.js";
 import { geminiConfig } from "../config/config.js";
+import {
+  AiUsageService,
+  classifyProviderOutcome,
+  type ProviderCallToken,
+} from "./ai-usage.service.js";
 import { AssistantError } from "./assistant.types.js";
 import type {
   AssistantGeneration,
@@ -13,6 +18,8 @@ import type {
 export class GeminiService implements AssistantProvider {
   private readonly config = geminiConfig();
   private client?: GoogleGenAI;
+
+  constructor(@Optional() private readonly usage?: AiUsageService) {}
 
   get model() {
     return this.config.model;
@@ -34,6 +41,8 @@ export class GeminiService implements AssistantProvider {
     const startedAt = Date.now();
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let providerCall: ProviderCallToken | undefined;
+    let providerCallFinished = false;
     try {
       if (!this.config.apiKey) throw new AssistantError("not_configured");
       // Lazy initialization keeps status/startup independent of the SDK/network.
@@ -48,6 +57,12 @@ export class GeminiService implements AssistantProvider {
           controller.abort();
           reject(new AssistantError("timeout"));
         }, this.config.timeoutMs);
+      });
+      providerCall = this.usage?.startProviderCall({
+        type: "generation",
+        provider: "google",
+        model: this.model,
+        prompt: input.prompt,
       });
       const response = await Promise.race([
         this.client.models.generateContent({
@@ -76,6 +91,14 @@ export class GeminiService implements AssistantProvider {
         }),
         timeout,
       ]);
+      if (response.modelVersion)
+        this.usage?.updateProviderModel(providerCall, response.modelVersion);
+      this.usage?.finishProviderCall(
+        providerCall,
+        "success",
+        response.usageMetadata,
+      );
+      providerCallFinished = true;
       const answer = response.text?.trim();
       if (!answer || answer.includes(this.config.apiKey))
         throw new AssistantError("upstream");
@@ -87,6 +110,11 @@ export class GeminiService implements AssistantProvider {
       return answer;
     } catch (error: unknown) {
       const failure = this.normalizeError(error, controller.signal.aborted);
+      if (!providerCallFinished)
+        this.usage?.finishProviderCall(
+          providerCall,
+          classifyProviderOutcome(failure),
+        );
       log("error", "assistant.request.failed", {
         model: this.model,
         durationMs: Date.now() - startedAt,
@@ -108,6 +136,9 @@ export class GeminiService implements AssistantProvider {
     const controller = new AbortController();
     let timedOut = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let providerCall: ProviderCallToken | undefined;
+    let providerCallFinished = false;
+    let streamUsage: unknown;
     const forwardAbort = () => controller.abort();
     signal?.addEventListener("abort", forwardAbort, { once: true });
     const interrupted = new Promise<never>((_resolve, reject) => {
@@ -136,6 +167,13 @@ export class GeminiService implements AssistantProvider {
         timedOut = true;
         controller.abort();
       }, this.config.timeoutMs);
+
+      providerCall = this.usage?.startProviderCall({
+        type: "generation_stream",
+        provider: "google",
+        model: this.model,
+        prompt: input.prompt,
+      });
 
       const stream = await Promise.race([
         this.client.models.generateContentStream({
@@ -166,15 +204,44 @@ export class GeminiService implements AssistantProvider {
       ]);
       const iterator = stream[Symbol.asyncIterator]();
       let complete = false;
+      let providerReadFailed = false;
       let answer = "";
       let pending = "";
+      let lastChunkHasUsageMetadata = false;
       try {
         while (true) {
-          const next = await Promise.race([iterator.next(), interrupted]);
+          let next: Awaited<ReturnType<typeof iterator.next>>;
+          try {
+            next = await Promise.race([iterator.next(), interrupted]);
+          } catch (error) {
+            providerReadFailed = true;
+            throw error;
+          }
           if (next.done) {
             complete = true;
+            this.usage?.finishProviderCall(
+              providerCall,
+              lastChunkHasUsageMetadata &&
+                providerCall?.call.usage.status === "complete"
+                ? "success"
+                : "unknown",
+              streamUsage,
+            );
+            providerCallFinished = true;
             break;
           }
+          if (next.value.usageMetadata !== undefined) {
+            // Streaming APIs may repeat cumulative usage on multiple chunks;
+            // the latest snapshot replaces the prior one and is never summed.
+            streamUsage = next.value.usageMetadata;
+            this.usage?.updateProviderUsage(providerCall, streamUsage);
+          }
+          if (next.value.modelVersion)
+            this.usage?.updateProviderModel(
+              providerCall,
+              next.value.modelVersion,
+            );
+          lastChunkHasUsageMetadata = next.value.usageMetadata !== undefined;
           const delta = next.value.text ?? "";
           if (!delta) continue;
           answer += delta;
@@ -210,6 +277,14 @@ export class GeminiService implements AssistantProvider {
           // Returning the SDK iterator only releases its reader lock. Abort
           // the HTTP transport as well when the consumer rejects or stops.
           controller.abort();
+          if (!providerReadFailed) {
+            this.usage?.finishProviderCall(
+              providerCall,
+              timedOut ? "timeout" : "cancelled",
+              streamUsage,
+            );
+            providerCallFinished = true;
+          }
           try {
             // An upstream iterator may ignore cancellation. Handle cleanup
             // failures without letting its return block our timeout/abort.
@@ -233,9 +308,22 @@ export class GeminiService implements AssistantProvider {
         streaming: true,
       });
     } catch (error: unknown) {
-      if (signal?.aborted)
+      if (signal?.aborted) {
+        if (!providerCallFinished)
+          this.usage?.finishProviderCall(
+            providerCall,
+            "cancelled",
+            streamUsage,
+          );
         throw new DOMException("Request cancelled", "AbortError");
+      }
       const failure = this.normalizeError(error, timedOut);
+      if (!providerCallFinished)
+        this.usage?.finishProviderCall(
+          providerCall,
+          classifyProviderOutcome(failure),
+          streamUsage,
+        );
       log("error", "assistant.request.failed", {
         model: this.model,
         durationMs: Date.now() - startedAt,

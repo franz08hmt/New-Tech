@@ -350,6 +350,26 @@ describe("AssistantService grounded orchestration", () => {
       else expect(f.retrieval.retrieve).not.toHaveBeenCalled();
     },
   );
+
+  it("marks provider calls with the actual centralized prompt identity", async () => {
+    const general = fixture();
+    await general.service.chat(
+      { mode: "general", message: "Synthetic question" },
+      principal,
+    );
+    expect(general.generate.mock.calls[0][0]).toMatchObject({
+      prompt: { id: "assistant.general", version: "general-v1" },
+    });
+
+    const documents = fixture();
+    await documents.service.chat(
+      { mode: "documents", message: "Synthetic grounded question" },
+      principal,
+    );
+    expect(documents.generate.mock.calls[0][0]).toMatchObject({
+      prompt: { id: "assistant.documents.question", version: "rag-v1" },
+    });
+  });
   it("answers a selected document's course from workspace metadata without generating text", async () => {
     const { service, retrieval, generate } = fixture();
     const result = await service.chat(
@@ -628,6 +648,18 @@ describe("AssistantService grounded orchestration", () => {
     );
 
     expect(generate).toHaveBeenCalledTimes(3);
+    expect(generate.mock.calls[0][0].prompt).toEqual({
+      id: "assistant.documents.summary.section",
+      version: "rag-summary-v1",
+    });
+    expect(generate.mock.calls[1][0].prompt).toEqual({
+      id: "assistant.documents.summary.section",
+      version: "rag-summary-v1",
+    });
+    expect(generate.mock.calls[2][0].prompt).toEqual({
+      id: "assistant.documents.summary.synthesis",
+      version: "rag-summary-v1",
+    });
     expect(response.citations.map((item) => item.sourceId)).toEqual([
       "S1",
       "S38",

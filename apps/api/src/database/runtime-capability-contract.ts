@@ -21,7 +21,7 @@ export function runtimeCapabilityError(message?: string) {
   return new RuntimeCapabilityContractError(message);
 }
 
-export const RUNTIME_CAPABILITY_CONTRACT_VERSION = 18;
+export const RUNTIME_CAPABILITY_CONTRACT_VERSION = 19;
 
 const managedRelations = [
   "workspaces",
@@ -47,14 +47,19 @@ const managedRelations = [
   "f02_runtime_function_state",
   "f02a1_runtime_policy_state",
   "f02a1_runtime_database_acl_state",
+  "ai_usage_operations",
+  "ai_usage_provider_calls",
 ];
 
 const roleGroups = ["examate_business", "examate_auth", "examate_policy_owner"];
+const aiUsageRelations = ["ai_usage_operations", "ai_usage_provider_calls"];
 
 // Generated once from a pristine PostgreSQL 17 database by applying the
 // committed migration source. Never derive or update this from a target DB.
-const expectedCatalogDigest =
-  "f1df698424811f9df9b35fe4a540ee73e9cf3e02a6713af571822655aa6d16e4";
+const expectedCatalogDigests: Readonly<Record<number, string>> = {
+  18: "8a0093d63210bb1b01a649d8a3a0b95348578eca29111bf8c9513bcf4c7a58cc",
+  19: "c1e686aa68c3fac689544396b9ef29cab16cc93a7e394a89742a9a2a85abf73d",
+};
 
 async function readContractCatalog(query: Query) {
   const names = managedRelations;
@@ -166,6 +171,43 @@ async function readContractCatalog(query: Query) {
     ORDER BY c.relname,p.polname`,
     [names, roleGroups],
   );
+  const aiUsageColumns = await query(
+    `SELECT c.relname,a.attnum,a.attname,format_type(a.atttypid,a.atttypmod) AS data_type,
+      a.attnotnull,a.attidentity,a.attgenerated,pg_get_expr(d.adbin,d.adrelid) AS default_expression
+    FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid
+      JOIN pg_namespace n ON n.oid=c.relnamespace
+      LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum
+    WHERE n.nspname='public' AND c.relname=ANY($1::text[])
+      AND a.attnum>0 AND NOT a.attisdropped
+    ORDER BY c.relname,a.attnum`,
+    [aiUsageRelations],
+  );
+  const aiUsageConstraints = await query(
+    `SELECT c.relname,k.conname,k.contype::text AS type,pg_get_constraintdef(k.oid) AS definition,
+      k.convalidated,k.condeferrable,k.condeferred
+    FROM pg_constraint k JOIN pg_class c ON c.oid=k.conrelid
+      JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='public' AND c.relname=ANY($1::text[])
+    ORDER BY c.relname,k.conname`,
+    [aiUsageRelations],
+  );
+  const aiUsageIndexes = await query(
+    `SELECT c.relname AS table_name,i.relname AS index_name,pg_get_indexdef(i.oid) AS definition,
+      x.indisvalid,x.indisready,x.indisunique,x.indisprimary
+    FROM pg_index x JOIN pg_class c ON c.oid=x.indrelid
+      JOIN pg_class i ON i.oid=x.indexrelid JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='public' AND c.relname=ANY($1::text[])
+    ORDER BY c.relname,i.relname`,
+    [aiUsageRelations],
+  );
+  const aiUsageTriggers = await query(
+    `SELECT c.relname,t.tgname,pg_get_triggerdef(t.oid) AS definition,t.tgisinternal
+    FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
+      JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='public' AND c.relname=ANY($1::text[]) AND NOT t.tgisinternal
+    ORDER BY c.relname,t.tgname`,
+    [aiUsageRelations],
+  );
   const helper = await query(
     `SELECT pg_get_functiondef(p.oid) AS definition,pg_get_userbyid(p.proowner) AS owner,
       p.prosecdef,p.proconfig
@@ -194,6 +236,10 @@ async function readContractCatalog(query: Query) {
     schemaAcls.rows,
     databaseAcls.rows,
     policies.rows,
+    aiUsageColumns.rows,
+    aiUsageConstraints.rows,
+    aiUsageIndexes.rows,
+    aiUsageTriggers.rows,
     helper.rows,
     helperAcls.rows,
   ];
@@ -208,9 +254,15 @@ export async function runtimeCapabilityCatalogSnapshot(query: Query) {
   return readContractCatalog(query);
 }
 
-export async function assertRuntimeCatalogContract(query: Query) {
+export async function assertRuntimeCatalogContract(
+  query: Query,
+  version = RUNTIME_CAPABILITY_CONTRACT_VERSION,
+) {
   const digest = await runtimeCapabilityCatalogDigest(query);
-  if (digest !== expectedCatalogDigest)
+  if (
+    !expectedCatalogDigests[version] ||
+    digest !== expectedCatalogDigests[version]
+  )
     throw new RuntimeCapabilityContractError();
 }
 

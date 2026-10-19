@@ -64,10 +64,18 @@ function fixture(status: AssistantStatus) {
   const workspace = {
     chat: vi.fn().mockResolvedValue({ mode: "workspace" }),
   };
+  const usage = {
+    runOperation: vi.fn(
+      (_principal: unknown, _descriptor: unknown, work: () => unknown) =>
+        work(),
+    ),
+    markOutcome: vi.fn(),
+  };
   return {
     service,
     provider,
     workspace,
+    usage,
     controller: new AssistantController(
       service,
       workspace as unknown as WorkspaceAssistantService,
@@ -77,6 +85,7 @@ function fixture(status: AssistantStatus) {
           .fn()
           .mockResolvedValue("77777777-7777-4777-8777-777777777777"),
       } as unknown as AnswerReceiptService,
+      usage as never,
     ),
   };
 }
@@ -111,6 +120,89 @@ class StreamTestResponse extends EventEmitter {
 }
 
 describe("AssistantController", () => {
+  it.each([
+    {
+      input: { message: "Question", mode: "general" as const },
+      expected: {
+        operation: "assistant_question",
+        mode: "general",
+        prompt: { id: "assistant.general", version: "general-v1" },
+      },
+    },
+    {
+      input: { message: "Question", mode: "documents" as const },
+      expected: {
+        operation: "assistant_question",
+        mode: "documents",
+        prompt: { id: "assistant.documents.question", version: "rag-v1" },
+      },
+    },
+    {
+      input: {
+        message: "Summarize",
+        mode: "documents" as const,
+        operation: "summarize" as const,
+        documentId: "22222222-2222-4222-8222-222222222222",
+      },
+      expected: {
+        operation: "assistant_summary",
+        mode: "documents",
+        prompt: {
+          id: "assistant.documents.summary",
+          version: "rag-summary-v1",
+        },
+      },
+    },
+    {
+      input: { message: "Which course?", mode: "workspace" as const },
+      expected: {
+        operation: "assistant_question",
+        mode: "workspace",
+        prompt: undefined,
+      },
+    },
+    {
+      input: {
+        message: "Which course?",
+        mode: "documents" as const,
+        operation: "course_info" as const,
+        documentId: "22222222-2222-4222-8222-222222222222",
+      },
+      expected: {
+        operation: "assistant_course_info",
+        mode: "documents",
+        prompt: undefined,
+      },
+    },
+  ])(
+    "records operation metadata without forwarding content ($input.mode/$input.operation)",
+    async ({ input, expected }) => {
+      const f = fixture({
+        ...common,
+        status: "ready",
+        model: "gemini-2.5-flash",
+      });
+      const answer = { answer: "Synthetic", mode: input.mode } as never;
+      if (input.mode === "workspace")
+        f.workspace.chat.mockResolvedValueOnce(answer);
+      else vi.spyOn(f.service, "chat").mockResolvedValueOnce(answer);
+
+      await f.controller.chat(
+        input as AssistantChatDto,
+        { principal } as never,
+      );
+
+      expect(f.usage.runOperation).toHaveBeenCalledWith(
+        principal,
+        expected,
+        expect.any(Function),
+      );
+      expect(JSON.stringify(f.usage.runOperation.mock.calls)).not.toContain(
+        input.message,
+      );
+    },
+  );
+
   it("defaults an omitted stream mode to documents", async () => {
     const { controller, provider } = fixture({
       ...common,

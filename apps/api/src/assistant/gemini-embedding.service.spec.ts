@@ -83,6 +83,48 @@ describe("GeminiEmbeddingService", () => {
     expect(logs).not.toContain(secret);
   });
 
+  it("records each provider batch without retaining embedded text or assuming token usage", async () => {
+    const descriptors: unknown[] = [];
+    const finished: unknown[][] = [];
+    const usage = {
+      startProviderCall: vi.fn((descriptor: unknown) => {
+        descriptors.push(descriptor);
+        return Symbol("provider call");
+      }),
+      finishProviderCall: vi.fn((...args: unknown[]) => {
+        finished.push(args);
+      }),
+    };
+    await new GeminiEmbeddingService(usage as never).embedDocuments(
+      "Synthetic title.pdf",
+      Array.from(
+        { length: 17 },
+        (_, index) => `private synthetic chunk ${index}`,
+      ),
+    );
+    expect(descriptors).toEqual([
+      {
+        type: "embedding_document_batch",
+        provider: "google",
+        model: "gemini-embedding-001",
+      },
+      {
+        type: "embedding_document_batch",
+        provider: "google",
+        model: "gemini-embedding-001",
+      },
+    ]);
+    expect(finished).toHaveLength(2);
+    expect(finished.map((args) => args.slice(1))).toEqual([
+      ["success"],
+      ["success"],
+    ]);
+    expect(JSON.stringify(descriptors)).not.toContain(
+      "private synthetic chunk",
+    );
+    expect(JSON.stringify(descriptors)).not.toContain("Synthetic title");
+  });
+
   it("embeds one query without a document title", async () => {
     await expect(
       new GeminiEmbeddingService().embedQuery("What is required?"),

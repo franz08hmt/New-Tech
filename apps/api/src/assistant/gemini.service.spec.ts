@@ -6,13 +6,20 @@ import { GeminiService } from "./gemini.service.js";
 
 const { generateContent, generateContentStream } = vi.hoisted(() => ({
   generateContent:
-    vi.fn<(input: GenerateContentParameters) => Promise<{ text?: string }>>(),
-  generateContentStream:
     vi.fn<
       (
         input: GenerateContentParameters,
-      ) => Promise<AsyncIterable<{ text?: string }>>
+      ) => Promise<{ text?: string; modelVersion?: string }>
     >(),
+  generateContentStream: vi.fn<
+    (input: GenerateContentParameters) => Promise<
+      AsyncIterable<{
+        text?: string;
+        modelVersion?: string;
+        usageMetadata?: unknown;
+      }>
+    >
+  >(),
 }));
 vi.mock("@google/genai", async (importOriginal) => {
   const sdk = await importOriginal<typeof import("@google/genai")>();
@@ -93,6 +100,31 @@ describe("GeminiService", () => {
     expect(logs).not.toContain(secret);
   });
 
+  it("records the model version reported by a successful generation", async () => {
+    const token = { provider: "synthetic-call" };
+    const usage = {
+      startProviderCall: vi.fn(() => token),
+      updateProviderModel: vi.fn(),
+      finishProviderCall: vi.fn(),
+    };
+    generateContent.mockResolvedValueOnce({
+      text: "A useful answer.",
+      modelVersion: "gemini-2.5-flash-001",
+    });
+
+    await expect(
+      new GeminiService(usage as never).generate({
+        ...input,
+        prompt: { id: "assistant.general", version: "general-v1" },
+      }),
+    ).resolves.toBe("A useful answer.");
+
+    expect(usage.updateProviderModel).toHaveBeenCalledExactlyOnceWith(
+      token,
+      "gemini-2.5-flash-001",
+    );
+  });
+
   it("yields provider text incrementally using Gemini's streaming API", async () => {
     const service = new GeminiService();
     const parts: string[] = [];
@@ -114,6 +146,127 @@ describe("GeminiService", () => {
       },
     });
     expect(generateContent).not.toHaveBeenCalled();
+  });
+
+  it("stores the latest cumulative stream usage snapshot once, without summing chunks", async () => {
+    const token = {
+      call: { usage: { status: "missing" } as { status: string } },
+    };
+    const finishProviderCall = vi.fn(
+      (_call: unknown, _outcome: string, _raw?: unknown) => {},
+    );
+    const usage = {
+      startProviderCall: vi.fn(() => token),
+      updateProviderModel: vi.fn(),
+      updateProviderUsage: vi.fn(
+        (providerToken: typeof token, raw: unknown) => {
+          const value = raw as {
+            promptTokenCount?: number;
+            totalTokenCount?: number;
+          };
+          providerToken.call.usage = {
+            status:
+              typeof value.promptTokenCount === "number" &&
+              typeof value.totalTokenCount === "number"
+                ? "complete"
+                : "partial",
+          };
+        },
+      ),
+      finishProviderCall,
+    };
+    generateContentStream.mockResolvedValueOnce({
+      async *[Symbol.asyncIterator]() {
+        yield {
+          text: "A first cumulative stream segment.",
+          usageMetadata: { promptTokenCount: 10, totalTokenCount: 14 },
+        };
+        yield {
+          text: " A second cumulative stream segment.",
+          modelVersion: "gemini-2.5-flash-001",
+          usageMetadata: { promptTokenCount: 10, totalTokenCount: 20 },
+        };
+      },
+    });
+    const parts: string[] = [];
+    for await (const part of new GeminiService(usage as never).generateStream(
+      input,
+    ))
+      parts.push(part);
+    expect(parts.join()).toContain("first cumulative");
+    expect(usage.updateProviderUsage).toHaveBeenCalledTimes(2);
+    expect(usage.updateProviderModel).toHaveBeenCalledExactlyOnceWith(
+      token,
+      "gemini-2.5-flash-001",
+    );
+    expect(finishProviderCall).toHaveBeenCalledOnce();
+    expect(finishProviderCall).toHaveBeenCalledWith(token, "success", {
+      promptTokenCount: 10,
+      totalTokenCount: 20,
+    });
+  });
+
+  it("does not mark a normally closed stream successful when final usage is missing", async () => {
+    const token = { call: { usage: { status: "missing" } } };
+    const finishProviderCall = vi.fn();
+    const usage = {
+      startProviderCall: vi.fn(() => token),
+      updateProviderUsage: vi.fn(),
+      finishProviderCall,
+    };
+    generateContentStream.mockResolvedValueOnce({
+      async *[Symbol.asyncIterator]() {
+        yield {
+          text: "The first cumulative stream event has valid usage metadata.",
+          usageMetadata: { promptTokenCount: 10, totalTokenCount: 16 },
+        };
+        yield { text: " The final stream event has no usage metadata." };
+      },
+    });
+    const parts: string[] = [];
+    for await (const part of new GeminiService(usage as never).generateStream(
+      input,
+    ))
+      parts.push(part);
+    expect(parts.join()).toContain("final stream event");
+    expect(finishProviderCall).toHaveBeenCalledWith(token, "unknown", {
+      promptTokenCount: 10,
+      totalTokenCount: 16,
+    });
+  });
+
+  it("records a provider stream read failure as error rather than cancellation", async () => {
+    const token = { call: { usage: { status: "missing" } } };
+    const finishProviderCall = vi.fn();
+    const usage = {
+      startProviderCall: vi.fn(() => token),
+      updateProviderUsage: vi.fn(),
+      finishProviderCall,
+    };
+    const failure = new Error("synthetic stream failure");
+    generateContentStream.mockResolvedValueOnce({
+      async *[Symbol.asyncIterator]() {
+        yield {
+          text: "partial answer",
+          usageMetadata: { promptTokenCount: 12, totalTokenCount: 18 },
+        };
+        throw failure;
+      },
+    });
+
+    const received: string[] = [];
+    await expect(async () => {
+      for await (const part of new GeminiService(usage as never).generateStream(
+        input,
+      ))
+        received.push(part);
+    }).rejects.toMatchObject({ kind: "upstream" });
+    expect(received.join()).toContain("partial answer");
+    expect(finishProviderCall).toHaveBeenCalledOnce();
+    expect(finishProviderCall).toHaveBeenCalledWith(token, "error", {
+      promptTokenCount: 12,
+      totalTokenCount: 18,
+    });
   });
 
   it("forwards ordinary first-token text without waiting for another provider chunk", async () => {

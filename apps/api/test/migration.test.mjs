@@ -30,6 +30,7 @@ const expectedMigrationNames = [
   "016_pilot_oauth_attempts.sql",
   "017_runtime_rls.sql",
   "018_runtime_rls_reindex.sql",
+  "019_ai_usage_telemetry.sql",
 ];
 
 const saved = { ...process.env };
@@ -55,6 +56,32 @@ test("feedback migration keeps private, immutable review provenance and bounded 
   assert.doesNotMatch(
     sql,
     /REFERENCES|ON DELETE CASCADE|INSERT INTO ai_evaluations/,
+  );
+});
+
+test("019 AI usage tables store bounded metadata only under active workspace INSERT policies", async () => {
+  const migration = (await loadMigrations()).find(
+    (m) => m.name === "019_ai_usage_telemetry.sql",
+  );
+  assert.ok(migration);
+  for (const pattern of [
+    /CREATE TABLE public\.ai_usage_operations/,
+    /CREATE TABLE public\.ai_usage_provider_calls/,
+    /provider_call_count SMALLINT NOT NULL CHECK \(provider_call_count BETWEEN 0 AND 2050\)/,
+    /expires_at TIMESTAMPTZ NOT NULL DEFAULT \(now\(\) \+ interval '90 days'\)/,
+    /ENABLE ROW LEVEL SECURITY/,
+    /REVOKE ALL ON public\.ai_usage_operations, public\.ai_usage_provider_calls FROM PUBLIC/,
+    /GRANT INSERT \(/,
+    /f03_usage_operations_insert/,
+    /f03_usage_calls_insert/,
+    /examate_workspace_role\(workspace_id\) IS NOT NULL/,
+    /FOREIGN KEY \(operation_id, workspace_id, user_id\)/,
+  ])
+    assert.match(migration.sql, pattern);
+  assert.doesNotMatch(
+    migration.sql,
+    /\b(question|answer|prompt|document_text|raw_error|access_token|signed_url)\s+(TEXT|VARCHAR|BYTEA)\b/i,
+    "the schema contains metadata fields, not content or credentials",
   );
 });
 afterEach(() => {

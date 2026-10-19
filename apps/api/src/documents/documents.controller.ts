@@ -16,6 +16,7 @@ import {
 import { FileInterceptor } from "@nestjs/platform-express";
 import { DocumentsService, MAX_FILE_SIZE } from "./documents.service.js";
 import { DocumentIngestionService } from "./document-ingestion.service.js";
+import { AiUsageService } from "../assistant/ai-usage.service.js";
 import type { PdfFile } from "./documents.service.js";
 import type { AuthRequest } from "../auth/auth.service.js";
 import {
@@ -29,6 +30,7 @@ export class DocumentsController {
   constructor(
     private readonly documents: DocumentsService,
     private readonly ingestion: DocumentIngestionService,
+    private readonly usage: AiUsageService,
   ) {}
   @Get() list(@Req() req: AuthRequest) {
     return this.documents.list(req.principal);
@@ -66,7 +68,11 @@ export class DocumentsController {
     @Param("id", new ParseUUIDPipe()) id: string,
     @Req() req: AuthRequest,
   ) {
-    return this.ingestion.process(id, req.principal);
+    return this.usage.runOperation(
+      req.principal,
+      { operation: "document_index" },
+      () => this.ingestion.process(id, req.principal),
+    );
   }
   @Get(":id/download")
   download(

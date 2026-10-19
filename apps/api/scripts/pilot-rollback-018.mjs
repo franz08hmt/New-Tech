@@ -94,8 +94,9 @@ async function inspect(client, source) {
     throw new PilotCliError(
       "Rollback 018 refused: saved database ACL state does not match this target.",
     );
-  await assertRuntimeCatalogContract((text, values) =>
-    client.query(text, values),
+  await assertRuntimeCatalogContract(
+    (text, values) => client.query(text, values),
+    18,
   );
   const dependency = await client.query(
     `SELECT count(*)::int AS n

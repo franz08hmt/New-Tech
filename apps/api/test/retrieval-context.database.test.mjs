@@ -115,7 +115,15 @@ for (const role of ["manager", "member", "viewer"])
       p,
     );
     assertGroundedAnswer(answer, A.document);
-    assert.deepEqual(f.state.generations, golden.questionPrompts);
+    assert.deepEqual(
+      f.state.generations.map(({ prompt: _prompt, ...payload }) => payload),
+      golden.questionPrompts,
+      "the provider payload remains byte-for-byte equivalent to the pre-registry golden",
+    );
+    assert.deepEqual(
+      f.state.generations.map(({ prompt }) => prompt),
+      [{ id: "assistant.documents.question", version: "rag-v1" }],
+    );
   });
 test("summary grouping/source offsets and every provider prompt match the pre-change golden", async () => {
   await f.reset({ large: true });
@@ -130,7 +138,28 @@ test("summary grouping/source offsets and every provider prompt match the pre-ch
   );
   assertGroundedAnswer(answer, A.document, 1);
   assert.equal(f.state.generations.length, 3);
-  assert.deepEqual(f.state.generations, golden.summaryPrompts);
+  assert.deepEqual(
+    f.state.generations.map(({ prompt: _prompt, ...payload }) => payload),
+    golden.summaryPrompts,
+    "section grouping and synthesis provider payloads remain unchanged",
+  );
+  assert.deepEqual(
+    f.state.generations.map(({ prompt }) => prompt),
+    [
+      {
+        id: "assistant.documents.summary.section",
+        version: "rag-summary-v1",
+      },
+      {
+        id: "assistant.documents.summary.section",
+        version: "rag-summary-v1",
+      },
+      {
+        id: "assistant.documents.summary.synthesis",
+        version: "rag-summary-v1",
+      },
+    ],
+  );
 });
 test("higher-scoring tenant B never steals A topK or scan expansion budget", async () => {
   const seen = [],

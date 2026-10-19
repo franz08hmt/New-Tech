@@ -1,7 +1,12 @@
 import { ApiError, GoogleGenAI } from "@google/genai";
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { log } from "../common/log.js";
 import { geminiEmbeddingConfig } from "../config/config.js";
+import {
+  AiUsageService,
+  classifyProviderOutcome,
+  type ProviderCallToken,
+} from "./ai-usage.service.js";
 
 export type EmbeddingFailure =
   | "not_configured"
@@ -23,6 +28,8 @@ export class EmbeddingError extends Error {
 export class GeminiEmbeddingService {
   private readonly config = geminiEmbeddingConfig();
   private client?: GoogleGenAI;
+
+  constructor(@Optional() private readonly usage?: AiUsageService) {}
 
   get model() {
     return this.config.model;
@@ -104,6 +111,8 @@ export class GeminiEmbeddingService {
     const controller = new AbortController();
     let timedOut = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let providerCall: ProviderCallToken | undefined;
+    let providerCallFinished = false;
     try {
       const timeout = new Promise<never>((_resolve, reject) => {
         timer = setTimeout(() => {
@@ -111,6 +120,14 @@ export class GeminiEmbeddingService {
           controller.abort();
           reject(new EmbeddingError("timeout"));
         }, this.config.timeoutMs);
+      });
+      providerCall = this.usage?.startProviderCall({
+        type:
+          taskType === "RETRIEVAL_QUERY"
+            ? "embedding_query"
+            : "embedding_document_batch",
+        provider: "google",
+        model: this.model,
       });
       const response = await Promise.race([
         this.client!.models.embedContent({
@@ -129,13 +146,21 @@ export class GeminiEmbeddingService {
         }),
         timeout,
       ]);
+      this.usage?.finishProviderCall(providerCall, "success");
+      providerCallFinished = true;
       if (response.embeddings?.length !== texts.length)
         throw new EmbeddingError("invalid_response");
       return response.embeddings.map((item) =>
         this.validateAndNormalize(item.values),
       );
     } catch (error: unknown) {
-      throw this.normalizeError(error, timedOut);
+      const failure = this.normalizeError(error, timedOut);
+      if (!providerCallFinished)
+        this.usage?.finishProviderCall(
+          providerCall,
+          classifyProviderOutcome(failure),
+        );
+      throw failure;
     } finally {
       clearTimeout(timer);
     }

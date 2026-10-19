@@ -14,6 +14,12 @@ import { AssistantChatDto } from "./assistant-chat.dto.js";
 import { AssistantExceptionFilter } from "./assistant-exception.filter.js";
 import { AssistantService } from "./assistant.service.js";
 import { WorkspaceAssistantService } from "./workspace-assistant.service.js";
+import { AiUsageService, classifyAiOutcome } from "./ai-usage.service.js";
+import {
+  assistantOperationPrompt,
+  PROMPT_VERSIONS,
+} from "./prompt-registry.js";
+import type { AiOperationDescriptor } from "./ai-usage.service.js";
 import type { AuthRequest } from "../auth/auth.service.js";
 import type {
   AssistantAnswerIdHeader,
@@ -127,6 +133,7 @@ export class AssistantController {
     private readonly assistant: AssistantService,
     private readonly workspace: WorkspaceAssistantService,
     private readonly receipts: AnswerReceiptService,
+    private readonly usage: AiUsageService,
   ) {}
 
   @Get("status")
@@ -136,10 +143,20 @@ export class AssistantController {
 
   @Post("chat")
   @HttpCode(200)
-  async chat(
+  chat(
     @Body() input: AssistantChatDto,
     @Req() req?: AuthRequest,
     @Res({ passthrough: true })
+    res?: { setHeader(name: string, value: string): void },
+  ) {
+    return this.usage.runOperation(req?.principal, this.describe(input), () =>
+      this.chatRequest(input, req, res),
+    );
+  }
+
+  private async chatRequest(
+    input: AssistantChatDto,
+    req?: AuthRequest,
     res?: { setHeader(name: string, value: string): void },
   ) {
     await this.receipts.verifyHistory(input, req?.principal);
@@ -170,10 +187,20 @@ export class AssistantController {
 
   @Post("chat/stream")
   @HttpCode(200)
-  async streamChat(
+  streamChat(
     @Body() input: AssistantChatDto,
     @Req() req: StreamRequest,
     @Res() res: StreamResponse,
+  ) {
+    return this.usage.runOperation(req.principal, this.describe(input), () =>
+      this.streamChatRequest(input, req, res),
+    );
+  }
+
+  private async streamChatRequest(
+    input: AssistantChatDto,
+    req: StreamRequest,
+    res: StreamResponse,
   ) {
     const mode = input.mode ?? "documents";
     input = { ...input, mode };
@@ -266,12 +293,35 @@ export class AssistantController {
         controller,
       );
     } catch (error: unknown) {
-      if (!controller.signal.aborted)
+      if (!controller.signal.aborted) {
+        this.usage.markOutcome(classifyAiOutcome(error));
         await writeSse(res, assistantStreamFailure(error), controller);
+      } else this.usage.markOutcome("cancelled");
     } finally {
+      if (controller.signal.aborted) this.usage.markOutcome("cancelled");
       req.off("aborted", onRequestAborted);
       res.off("close", onResponseClosed);
       if (!res.destroyed && !res.writableEnded) res.end();
     }
+  }
+
+  private describe(input: AssistantChatDto): AiOperationDescriptor {
+    const configuredVersion = process.env.RAG_PROMPT_VERSION?.trim();
+    const ragVersion =
+      configuredVersion &&
+      /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(configuredVersion)
+        ? configuredVersion
+        : PROMPT_VERSIONS.documents;
+    const operation =
+      input.operation === "summarize"
+        ? "assistant_summary"
+        : input.operation === "course_info"
+          ? "assistant_course_info"
+          : "assistant_question";
+    return {
+      operation,
+      mode: input.mode ?? "documents",
+      prompt: assistantOperationPrompt(input, ragVersion),
+    };
   }
 }

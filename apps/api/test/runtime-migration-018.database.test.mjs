@@ -17,7 +17,7 @@ import {
 
 let fixture;
 before(async () => {
-  fixture = await openDocumentsTenantFixture();
+  fixture = await openDocumentsTenantFixture({ migrationLimit: 18 });
 });
 after(async () => fixture?.close());
 
@@ -207,7 +207,9 @@ test("018 dry-run/apply/rollback preserves 017 then 016 and full reapply", async
     15,
   );
 
-  await migrate(fixture.admin.options.connectionString);
+  await migrate(fixture.admin.options.connectionString, {
+    loadSource: async () => migrations.slice(0, 18),
+  });
   const finalLedger = (
     await fixture.admin.query(
       "SELECT name,checksum FROM schema_migrations ORDER BY name",
