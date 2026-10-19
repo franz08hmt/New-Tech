@@ -970,10 +970,6 @@ export function AssistantPanel({
           headingRef={sourceHeading}
           onClose={closeSource}
           onReload={source.reload}
-          onOpenInTab={() => {
-            if (source.selection) void openCitation(source.selection.citation);
-          }}
-          openingInTab={openingCitation !== null}
           tabNotice={source.selection ? tabNotice : undefined}
         />
       )}

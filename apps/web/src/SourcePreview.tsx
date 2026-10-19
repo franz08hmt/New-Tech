@@ -85,8 +85,6 @@ interface SourcePreviewProps {
   headingRef: Ref<HTMLHeadingElement>;
   onClose: () => void;
   onReload: () => void;
-  onOpenInTab: () => void;
-  openingInTab: boolean;
   /** What the new-tab button reported: a blocked tab's link, or its error. */
   tabNotice?: ReactNode;
 }
@@ -98,8 +96,6 @@ export function SourcePreview({
   headingRef,
   onClose,
   onReload,
-  onOpenInTab,
-  openingInTab,
   tabNotice,
 }: SourcePreviewProps) {
   if (!selection)
@@ -161,10 +157,22 @@ export function SourcePreview({
             <ArrowPathIcon aria-hidden="true" />
             Tải lại nguồn
           </button>
-          <button type="button" onClick={onOpenInTab} disabled={openingInTab}>
-            <ArrowTopRightOnSquareIcon aria-hidden="true" />
-            Mở trong tab mới
-          </button>
+          {status.kind === "ready" ? (
+            <a
+              className="assistant-source-open"
+              href={status.url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <ArrowTopRightOnSquareIcon aria-hidden="true" />
+              Mở trong tab mới
+            </a>
+          ) : (
+            <button type="button" disabled>
+              <ArrowTopRightOnSquareIcon aria-hidden="true" />
+              Mở trong tab mới
+            </button>
+          )}
         </div>
       </header>
       {tabNotice}

@@ -570,6 +570,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   cleanup();
+  delete (navigator as { pdfViewerEnabled?: boolean }).pdfViewerEnabled;
   vi.unstubAllGlobals();
 });
 
@@ -3798,11 +3799,8 @@ describe("Academic workspace", () => {
       expect(citation).not.toHaveAttribute("aria-current");
     });
 
-    it("opens the source tab inside the click, with the API's inline link", async () => {
+    it("opens the loaded citation preview through a direct accessible link", async () => {
       answerWithCitation();
-      const tab = fakeTab();
-      const open = vi.fn(() => tab);
-      vi.stubGlobal("open", open);
       render(<App />);
       await openWithDocument();
       await ask("Chương 2 nói gì?");
@@ -3812,37 +3810,32 @@ describe("Academic workspace", () => {
         }),
       );
       const source = screen.getByRole("region", { name: "ghi-chu-chung.pdf" });
-
-      fireEvent.click(
-        within(source).getByRole("button", { name: "Mở trong tab mới" }),
+      await within(source).findByTitle("ghi-chu-chung.pdf, trang 3");
+      const link = within(source).getByRole("link", {
+        name: "Mở trong tab mới",
+      });
+      expect(link).toHaveAttribute(
+        "href",
+        "https://storage.example.test/source.pdf?token=signed#page=3",
       );
-      // Synchronously, within the click. Opened only after awaiting the
-      // signed URL, the browser no longer treats it as the student's own
-      // action and blocks it as a popup.
-      expect(open).toHaveBeenCalledWith("", "_blank");
-      // Cut off from this page before anything is loaded into it.
-      expect(tab.opener).toBeNull();
-      await waitFor(() =>
-        expect(tab.location.replace).toHaveBeenCalledWith(
-          "https://storage.example.test/source.pdf?token=signed#page=3",
-        ),
-      );
-      // Both the preview and the tab asked the API for an inline link.
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+      // The link uses the signed URL the preview already fetched.
       expect(
         vi
           .mocked(fetch)
           .mock.calls.map(([url]) => String(url))
           .filter((url) => url.includes("/download")),
-      ).toEqual([
-        "/api/documents/doc-2/download?disposition=inline",
-        "/api/documents/doc-2/download?disposition=inline",
-      ]);
+      ).toEqual(["/api/documents/doc-2/download?disposition=inline"]);
     });
 
-    it("closes a pending accepted source popup on new conversation and ignores its late signed URL", async () => {
+    it("closes the unsupported-browser source popup on new conversation and ignores its late signed URL", async () => {
+      Object.defineProperty(navigator, "pdfViewerEnabled", {
+        value: false,
+        configurable: true,
+      });
       answerWithCitation();
       const answering = globalThis.fetch;
-      let downloadRequests = 0;
       let releasePopup!: (response: Response) => void;
       const pendingPopup = new Promise<Response>((resolve) => {
         releasePopup = resolve;
@@ -3850,8 +3843,7 @@ describe("Academic workspace", () => {
       vi.stubGlobal(
         "fetch",
         vi.fn(async (url: string, init?: RequestInit) => {
-          if (url.includes("/doc-2/download") && ++downloadRequests === 2)
-            return pendingPopup;
+          if (url.includes("/doc-2/download")) return pendingPopup;
           return answering(url, init);
         }),
       );
@@ -3866,13 +3858,13 @@ describe("Academic workspace", () => {
           name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
         }),
       );
-      await screen.findByTitle("ghi-chu-chung.pdf, trang 3");
-      const source = screen.getByRole("region", { name: "ghi-chu-chung.pdf" });
-      fireEvent.click(
-        within(source).getByRole("button", { name: "Mở trong tab mới" }),
-      );
       expect(open).toHaveBeenCalledWith("", "_blank");
-      expect(downloadRequests).toBe(2);
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.map(([url]) => String(url))
+          .filter((url) => url.includes("/download")),
+      ).toHaveLength(1);
       expect(tab.location.replace).not.toHaveBeenCalled();
 
       fireEvent.click(
@@ -3892,9 +3884,14 @@ describe("Academic workspace", () => {
         await pendingPopup;
       });
       expect(tab.location.replace).not.toHaveBeenCalled();
+      delete (navigator as { pdfViewerEnabled?: boolean }).pdfViewerEnabled;
     });
 
-    it("offers a direct link when the browser blocks the new tab anyway", async () => {
+    it("offers a safe direct link if an unsupported browser blocks the tab", async () => {
+      Object.defineProperty(navigator, "pdfViewerEnabled", {
+        value: false,
+        configurable: true,
+      });
       answerWithCitation();
       vi.stubGlobal(
         "open",
@@ -3908,15 +3905,8 @@ describe("Academic workspace", () => {
           name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
         }),
       );
-      const source = screen.getByRole("region", { name: "ghi-chu-chung.pdf" });
-      // Only after the student asks for a tab.
-      expect(within(source).queryByRole("link")).toBeNull();
 
-      fireEvent.click(
-        within(source).getByRole("button", { name: "Mở trong tab mới" }),
-      );
-
-      const link = await within(source).findByRole("link", {
+      const link = await screen.findByRole("link", {
         name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
       });
       expect(link).toHaveAttribute(
@@ -3925,9 +3915,14 @@ describe("Academic workspace", () => {
       );
       expect(link).toHaveAttribute("target", "_blank");
       expect(link).toHaveAttribute("rel", "noopener noreferrer");
+      delete (navigator as { pdfViewerEnabled?: boolean }).pdfViewerEnabled;
     });
 
     it("closes the empty tab when the source link cannot be fetched", async () => {
+      Object.defineProperty(navigator, "pdfViewerEnabled", {
+        value: false,
+        configurable: true,
+      });
       answerWithCitation();
       const answering = globalThis.fetch;
       vi.stubGlobal(
@@ -3951,11 +3946,6 @@ describe("Academic workspace", () => {
           name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
         }),
       );
-      const source = screen.getByRole("region", { name: "ghi-chu-chung.pdf" });
-
-      fireEvent.click(
-        within(source).getByRole("button", { name: "Mở trong tab mới" }),
-      );
 
       expect(
         await screen.findByText(
@@ -3964,6 +3954,7 @@ describe("Academic workspace", () => {
       ).toBeInTheDocument();
       expect(tab.close).toHaveBeenCalled();
       expect(tab.location.replace).not.toHaveBeenCalled();
+      delete (navigator as { pdfViewerEnabled?: boolean }).pdfViewerEnabled;
     });
 
     it("still opens a tab straight away where the browser cannot show PDFs in a page", async () => {
