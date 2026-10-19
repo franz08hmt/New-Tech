@@ -10,6 +10,7 @@ import {
 } from "./speech-config.js";
 import { AudioInspector, runAudioTool } from "./audio-inspector.js";
 import { LocalSpeechProvider } from "./local-speech.provider.js";
+import { SpeechService } from "./speech.service.js";
 import { wavToFloat32 } from "./local-audio.js";
 
 const config: SpeechConfig = {
@@ -137,12 +138,24 @@ describe("local Whisper configuration", () => {
     vi.stubEnv("STT_MAX_CONCURRENT_REQUESTS", "2");
     expect(speechConfig).toThrow("STT_MAX_CONCURRENT_REQUESTS");
   });
-  it("rejects inference limits above the tested request deadline", () => {
-    vi.stubEnv("STT_TIMEOUT_MS", "30001");
+  it("allows a bounded two-minute inference timeout for chunked audio", () => {
+    vi.stubEnv("STT_TIMEOUT_MS", "120001");
     expect(speechConfig).toThrow("STT_TIMEOUT_MS");
-    vi.stubEnv("STT_TIMEOUT_MS", "30000");
+    vi.stubEnv("STT_TIMEOUT_MS", "120000");
+    expect(speechConfig()).toMatchObject({ timeoutMs: 120000 });
     vi.stubEnv("STT_MODEL_LOAD_TIMEOUT_MS", "300001");
     expect(speechConfig).toThrow("STT_MODEL_LOAD_TIMEOUT_MS");
+  });
+
+  it("keeps the HTTP deadline longer than the configured inference timeout", () => {
+    const service = new SpeechService(
+      () => ({ ...config, timeoutMs: 120000 }),
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    expect(service.requestDeadlineMs()).toBe(150000);
   });
 });
 
