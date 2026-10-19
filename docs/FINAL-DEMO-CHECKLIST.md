@@ -313,6 +313,10 @@ version hóa group grants, RLS và policy helper; runtime startup kiểm capabil
 và từ chối quyền thừa/fallback owner. Apply, rollback, snapshot ACL/policies,
 reapply và HTTP integration qua hai runtime capability được kiểm. Không có
 Supabase/cloud writes, đổi credentials, role hoặc membership.
+Regression nối chuỗi cũng đã chạy trên PG17 disposable: rollback 017 khôi phục
+baseline 016, rollback 016 giữ sessions/workspace/receipts và session data,
+sau đó runner chuẩn áp lại 001–017. Đây là mở rộng assertion trong test hiện có;
+tổng số test không đổi.
 Implementation/test commit: `f850114`.
 
 | Gate                        | Baseline mới    | Final mới                                                   |
