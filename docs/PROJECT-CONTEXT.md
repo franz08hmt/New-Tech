@@ -1,7 +1,14 @@
 # ExaMate — context hiện tại cho Tài, Thắng và agent
 
-Cập nhật 18/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
+Cập nhật 19/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
+
+F01 đã có Google PKCE backend/FE và migration 016 test-only apply. Gates mới
+ngày 19/10 trên `7112ca4`: 1.505 app test và 390 PG17 DB test, không fail/skip/
+cancelled; cả năm gate exit 0. Browser fixture native/Compose có bằng chứng trong
+[checklist F01](FINAL-DEMO-CHECKLIST.md). Google live/owner setup và máy Thắng
+chưa xác minh; F01 không áp 016 cloud hoặc bắt đầu F02.
+Verdict: **CODE_ACCEPTED + LIVE_ACCEPTANCE_PENDING**; human review pending.
 
 ## Nhánh và thứ tự đọc
 
@@ -106,7 +113,9 @@ N1 lát 1/SSE đã có code, không phải quay lại làm mới; cần nghiệm
 
 Ưu tiên final: nền B1–B4, N1 đã có và demo đủ chắc; PWA/flashcards chỉ sau khi
 nền đạt. Không hosting/domain/HTTPS/deploy hoặc native mobile ngoài phạm vi local.
-Migrations hiện đến 015, số mới dự kiến 016 nhưng phải kiểm source/ledger trước.
+Source hiện có migration 016 cho OAuth attempt; F01 chỉ áp trên disposable.
+Cloud bootstrap lịch sử đến 015; chưa áp 016 hoặc xác minh lại cloud trong F01.
+Đợt tiếp theo phải kiểm source/ledger thực tế trước mọi thao tác schema.
 
 ## Quy tắc khi triển khai tiếp
 
@@ -124,6 +133,7 @@ hoặc thiết kế thực sự chặn công việc.
 Commit theo lát đã kiểm; push chỉ khi được giao. Tài đã cho phép push nhánh mới
 trong lượt dọn docs này; không hiểu đó là quyền force-push/merge/deploy hoặc
 cloud writes trong các task sau.
+
 # F01 — implementation checkpoint (2026-10-18)
 
 Local implementation in the integration checkout only; Google live acceptance is pending owner setup. No cloud migration or account changes are authorized by this code run.
@@ -132,7 +142,14 @@ Design/contract: `GET /api/auth/google/status` returns `{status: enabled|not_con
 
 The backend constructs Supabase's PKCE S256 authorize URL without replacing provider state. A random application correlation identifier is carried in the fixed redirect URL, bound in PostgreSQL to the prelogin cookie hash, server origin and Google. A five-minute encrypted verifier uses a separate AES-GCM purpose. Starting again replaces the prior attempt. Claim precedes network exchange and is single use; finishing locks/rechecks the prelogin and attempt after the network call. An old callback cannot rotate a newer session. Exchange uncertainty requires a new flow, never a hidden retry.
 
-Identity trust remains BFF: browser opaque HttpOnly cookie → server encrypted Supabase tokens → authoritative Supabase `/user` verification of the exact access JWT → checked claims/session and DB membership. This is not a browser JWT or Google ID-token login. No auto membership or app account linking is introduced. Manager/member/viewer keep their existing meanings. Migration 016 (local/disposable only during F01) will add attempts with RLS/revoked public access; production role policies remain F02.
+Identity trust remains BFF: browser opaque HttpOnly cookie → server encrypted Supabase tokens → authoritative Supabase `/user` verification of the exact access JWT → checked claims/session and DB membership. This is not a browser JWT or Google ID-token login. No auto membership or app account linking is introduced. Manager/member/viewer keep their existing meanings. Migration 016 adds attempts with RLS/revoked public access; only disposable databases were migrated during F01. Production role policies remain F02.
 
-Threat controls: login CSRF is stopped by prelogin/Origin/CSRF plus callback binding and PKCE; replay by atomic claim; fixation by existing session rotation; stale account flows by final prelogin recheck; SSRF/open redirects by server-fixed URLs; disclosure by safe callback logging, clean redirects and no-store/no-referrer. No SQL transaction spans provider calls. Password login remains available with Google disabled. Runtime/fixture/live verdicts will be recorded separately after verification.
+Threat controls: login CSRF is stopped by prelogin/Origin/CSRF plus callback binding and PKCE; replay by atomic claim; fixation by existing session rotation; stale account flows by final prelogin recheck; SSRF/open redirects by server-fixed URLs; disclosure by safe callback logging, clean redirects and no-store/no-referrer. No OAuth SQL transaction spans provider calls. Existing refresh serialization is unchanged. Password login remains available with Google disabled.
 
+Backend `38e2e53`, FE/fixtures `08eb581`, historical rollback oracle `f36607b`,
+wall-clock/lock-wait and prelogin expiry hardening `ac033a4`, dev proxy privacy
+`7112ca4`. New local tests and
+native/Compose browser evidence: [F01 acceptance record](FINAL-DEMO-CHECKLIST.md).
+Google live/owner setup and machine Thắng remain pending; no cloud writes/push.
+Next checkpoint is owner Google setup/016/identity/consent, then F02 only after
+review. F01 does not complete production tenant RLS, AI budget or semantic RAG.

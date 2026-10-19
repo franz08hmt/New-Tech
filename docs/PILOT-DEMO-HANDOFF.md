@@ -124,3 +124,12 @@ giữa chừng vẫn là checklist Auth mở rộng, không nhận PASS từ uni
 
 Nguồn API quản trị: [Supabase createUser](https://supabase.com/docs/reference/javascript/auth-admin-createuser).
 Nhật ký cũ: `git show e9ac2af:docs/PHASE-13-B1-TWO-MACHINE-AUTH-REPORT.md`.
+
+## F01 — Google không thay account demo cũ
+
+Google qua Supabase PKCE và server session hiện có; email/password là fallback.
+Không copy cookie/token/Google secret giữa hai máy. Google identity phải được
+owner kiểm bằng Supabase user ID và cấp membership sau duyệt; không match
+nickname/email để thừa kế quyền. Xem [runbook F01](PILOT-B1-RUNBOOK.md).
+016 chưa được code run áp cloud; đừng bootstrap lại. Fixture local không thay
+Google live hoặc nghiệm thu trên máy Thắng.

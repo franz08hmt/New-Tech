@@ -197,3 +197,24 @@ Chuẩn bị trả lời: vì sao cần Nest khi có Supabase; RAG không phải
 SSE khác WebSocket; receipt hash không bảo chứng fact; DB owner bỏ qua RLS;
 COMMIT unknown vì sao không retry mù; STT local khác toàn app offline.
 Không dùng bảng số test lịch sử thay lần chạy mới.
+
+## F01 — OAuth, JWT và session trong implementation
+
+OAuth điều phối đăng nhập qua Google/Supabase; PKCE buộc code đi cùng verifier
+chỉ backend giữ. Google về callback Supabase; Supabase gửi code về Nest.
+Correlation app ở redirect_to không thay state provider. Attempt có TTL,
+browser/prelogin binding, claim một lần và kiểm lại sau network để callback cũ
+không đổi account mới.
+
+JWT là access token **Supabase**. Backend gửi chính token tới /user để
+authoritative verify rồi kiểm claims/session và membership. Decode không chứng
+minh chữ ký; không tự viết verifier. Google ID/access token không được dùng
+thay Supabase access JWT. Browser gửi opaque HttpOnly cookie; server giải mã
+token đã lưu. Đây là JWT-backed BFF, không phải browser Bearer JWT.
+CSRF vẫn cần cho POST; callback GET dùng PKCE/binding riêng.
+
+Trace: PilotAccess → use-pilot-session/api.pilotGoogleStart → AuthController →
+AuthService.googleStart → AuthStore.startOAuth. Callback: claimOAuth → adapter
+exchangeCode → verify → completeLogin/replacePreSession → session transport.
+Đọc [ADR-001](DECISIONS.md), [stories](FINAL-REQUIREMENTS.md),
+[AI_USAGE](../AI_USAGE.md). Không nhận fake OAuth là Google live acceptance.

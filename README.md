@@ -19,7 +19,7 @@ Chỉ mở khi cần: [đăng nhập máy Thắng](docs/PILOT-DEMO-HANDOFF.md),
 [cấu hình Assistant](docs/ASSISTANT-SETUP.md), [STT](docs/STT-SETUP-VI.md),
 [đánh giá RAG](docs/evaluation-plan.md), [runbook quản trị](docs/PILOT-B1-RUNBOOK.md).
 Agent đọc [AGENTS](AGENTS.md) và [context/roadmap hiện tại](docs/PROJECT-CONTEXT.md).
-Giữ [nhật ký sử dụng AI](docs/ai-usage-log.md) và
+Giữ [nhật ký sử dụng AI](AI_USAGE.md) và
 [nguồn ảnh](apps/web/public/img/CREDITS.md) để minh bạch bài nộp.
 
 Đã gộp các hướng dẫn học cũ, bỏ báo cáo/prompt theo đợt khỏi cây hiện tại.
@@ -189,3 +189,26 @@ URL đã cấp chỉ bằng revoke membership. PDF MIME/magic không phải malw
 Model nhận nội dung liên quan khi embedding/RAG/OCR qua API; bucket private
 không đồng nghĩa dữ liệu không gửi Google. Chỉ dùng dữ liệu được phép.
 Không đưa secrets, audio riêng, backup, account mapping vào bài nộp.
+
+## Google OAuth — F01
+
+`AUTH_GOOGLE_ENABLED=false` mặc định; email/password vẫn hoạt động. Chỉ bật
+`true` sau khi owner cấu hình Google provider/redirect allowlist ở Supabase và
+duyệt áp migration **016** kèm backup/rollback. F01 code run không áp cloud.
+Checkpoint cloud đã bàn giao có 001–015; F01 không kiểm lại hoặc ghi cloud,
+không bootstrap lại workspace/accounts.
+
+App callback cố định `/api/auth/google/callback` trên dev origin
+`http://127.0.0.1:5173` hoặc Compose `http://127.0.0.1:8080`. Google callback
+thuộc **Supabase**, khác callback app. Google secret chỉ ở provider Supabase.
+Browser giữ opaque HttpOnly cookie; JWT Supabase được xác minh ở backend.
+Không token/verifier trong JS/localStorage. Membership theo verified user ID;
+identity Google chưa có quyền nhận no_access, không auto import/merge dữ liệu.
+
+[Runbook/live checkpoint](docs/PILOT-B1-RUNBOOK.md) ·
+[ADR-001](docs/DECISIONS.md) · [Stories/traceability](docs/FINAL-REQUIREMENTS.md) ·
+[Kết quả F01](docs/FINAL-DEMO-CHECKLIST.md).
+
+Fixture riêng `compose.oauth-test.yaml` không dùng `.env` hoặc cloud. Nó dùng
+PG17 disposable và Nest Auth thật với adapter OAuth giả; API 3000 không publish.
+Main Compose không bị đổi sang fixture. Không dùng fixture để nhận Google live PASS.

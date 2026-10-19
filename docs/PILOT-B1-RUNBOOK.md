@@ -12,6 +12,10 @@ Nhật ký PREPARED/bootstrap xem bằng
 membership demo theo checkpoint trên; không lặp lại bootstrap để chữa lỗi login.
 Thay đổi cloud tiếp theo phải được giao rõ target, tác động và đường lui.
 
+F01 Google OAuth dùng [checkpoint riêng](#f01--google-setup-và-checkpoint-live)
+ở cuối runbook. Source có 016 nhưng code run chỉ áp disposable; không coi
+bootstrap demo cũ là quyền bật provider, migrate hoặc link identity Google.
+
 ## Hai đường đi và checkpoint phê duyệt
 
 | Bước              | Tài/người quản trị                                                                                | Thắng trên chính máy mình                                                  |
@@ -471,3 +475,44 @@ Suite chuẩn chạy tuần tự cả migrate/idempotency/checksum, backfill 014
 Không nhận skip/all-filtered. Với image/architecture khác, ghi lại major/digest và
 test thật trước kết luận; không suy từ Docker Desktop đang chạy rằng Auth đã sẵn.
 Down đúng project, không -v hoặc dọn stack/DB của người khác.
+
+## F01 — Google setup và checkpoint live
+
+Chưa thực hiện setup/live trong code run. Không bootstrap lại 001–015. Owner cần:
+
+1. Xác nhận đúng project (report che ref), ledger/checksum và pending chỉ 016;
+   duyệt backup private, dừng writers và đường lui trước apply.
+2. Google OAuth client loại Web, audience/test users/scopes đúng tài khoản
+   owner cho phép. Client secret chỉ nhập ở provider Supabase qua Dashboard riêng.
+3. Google authorized redirect URI là callback **Supabase** trên Dashboard.
+   Supabase redirect allowlist chứa app `/api/auth/google/callback` cho đúng
+   origin dev/Compose, với query attempt do server sinh. Không wildcard domain,
+   client-selected provider/returnTo hoặc Host dùng làm URL đích.
+4. Kiểm chính sách identity linking của platform và verified Supabase user ID
+   sau Google. Demo email không nhận thư không tự thành account Google thật.
+   Không cấp quyền theo email/name hoặc tự merge dữ liệu account.
+5. Cấp membership cho Google ID qua workflow quản trị được duyệt riêng;
+   chưa có membership phải no_access. Không gửi email/UUID/password/key vào chat/Git.
+6. Sau đó bật `AUTH_GOOGLE_ENABLED=true` ở cấu hình private; giữ session key
+   ổn định và Auth verification=database. Không copy Google secret vào app.
+
+Status `enabled` nghĩa là app đã yêu cầu Google và adapter có hỗ trợ; không
+chứng minh Dashboard/schema/provider đã sẵn sàng. Thiếu 016 khi bật Google sẽ
+fail closed; password login không truy cập bảng attempt.
+
+Contract: GET `/api/auth/google/status`; POST `/api/auth/google/start` body `{}`,
+prelogin/Origin/CSRF; GET `/api/auth/google/callback` với attempt và code hoặc
+provider error. Callback dùng PKCE/binding, không đòi CSRF header POST. Kết quả
+redirect sạch `/?oauth=success|cancelled|restart_required|unavailable`; FE xóa
+query và đọc session transport hiện có. Không lưu HAR thật hoặc log callback query.
+
+016 bật RLS/revoke public/anon/authenticated; không provision runtime role F02.
+Rollback CLI `npm run pilot:rollback-016 --` dùng flags như các CLI rollback
+hiện có: mặc định dry-run, apply cần exact target confirmation. Mất attempts
+đang chờ/claimed; không xóa sessions/users/dữ liệu nhóm. Guard checksum/later
+migration/dependencies/column drift phải giữ. Không tự rollback cloud.
+Các rollback 015/014/012–013 vẫn từ chối khi 016 còn applied.
+
+Live: chủ account tự consent/MFA/login; kiểm role/no_access, reload, API đúng
+quyền, logout/revoke. Tài/Thắng chạy trên máy riêng. Không có evidence Thắng
+thì REMOTE_MACHINE_NOT_VERIFIED. Refresh/revocation chưa quan sát là PENDING.

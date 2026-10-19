@@ -2,8 +2,8 @@
 
 > Nhật ký provenance theo ngày, không phải hướng dẫn triển khai hiện tại. Các
 > path handoff/prompt/plan đã bỏ khi dọn docs ngày 18/10 vẫn có thể xem qua
-> `git show e9ac2af:<path>`. Điểm tiếp tục: [context](PROJECT-CONTEXT.md) và
-> [README](../README.md). Giữ nguyên các ghi nhận review/test lịch sử; những câu
+> `git show e9ac2af:<path>`. Điểm tiếp tục: [context](docs/PROJECT-CONTEXT.md) và
+> [README](README.md). Giữ nguyên các ghi nhận review/test lịch sử; những câu
 > “chưa có AI/Auth/Git” bên dưới chỉ đúng tại checkpoint được ghi, không phải hiện tại.
 
 ## 2026-09-13 — Homework 4 non-AI implementation
@@ -44,3 +44,65 @@ Before merging any AI-assisted change, a team member should be able to:
 - state what was changed after review.
 
 Add one row for every later substantial AI-assisted task. Record the task, generated or changed files, how a team member reviewed the work, and the corrections made after that review.
+
+## 2026-10-18 — F01 Google OAuth / JWT-backed BFF (Codex)
+
+Task: implement Google login through Supabase PKCE while retaining the opaque
+HttpOnly session, CSRF, database session verification and membership gates.
+Tools used: local PowerShell/Node/Python, Git, Docker disposable PostgreSQL 17,
+Vitest/Node tests, and official Supabase documentation/source through web tools.
+No source or user data was sent to a third-party coding CLI.
+
+Key instructions applied: separate provider state from app correlation; encrypt
+server-only verifier with distinct purpose; atomically claim and recheck the
+prelogin after exchange; never trust decoded JWT or client role; do not apply
+migration 016 or configure live OAuth without a separate owner checkpoint.
+
+Observed corrections: initial test RED proved the Google route/button absent;
+JWT contract test rejected the old adapter's missing issuer/audience check.
+An early build overlapped the first baseline run and was invalid evidence;
+that run is retained and a clean source baseline is measured separately.
+A scripted edit also produced duplicate methods before compilation; it was
+corrected locally and is not counted as behavioral RED. Verification outcomes
+are recorded in the final context/demo checklist. Human review remains pending;
+no fabricated human corrections or fabricated examples of AI mistakes are claimed.
+
+Historical entries below/above describe their original dates and paths; retired
+reports can be inspected in Git history. This root file is the single maintained
+AI usage log, replacing docs/ai-usage-log.md without discarding its history.
+
+F01 verification update: real Chrome native and Compose/Nginx fixtures passed
+at 1440px/375px; native additionally exercised roles, no-access, account race,
+notes/draft separation. Auth SQL used a real disposable non-owner; provider and
+business lists were synthetic. Four security mutations were caught and restored.
+Final measured gates and cleanup are recorded in docs/FINAL-DEMO-CHECKLIST.md.
+Corrections also included UTF-8 shell output, a cloned mock stream cancellation
+hang, missing dev dependencies in the production image and isolated broadcast
+channels for test workers. These are observed agent/harness errors, not invented
+human review. Google live, machine Thắng and human approval remain pending.
+
+2026-10-19 hardening: a deterministic row-lock regression observed one exchange
+after the attempt expired while waiting (expected zero). Rechecked wall-clock
+expiry after lock acquisition for start, claim and issuance. A fixture initially
+assigned absolute/idle expiry with two clock_timestamp calls and violated its
+ordering CHECK; using one statement timestamp fixed the fixture, not the policy.
+This expiry RED is distinct from the additional start-expiry control added green.
+
+The final mutation run also exposed an existing prelogin creation race: two
+Date.now reads could put idle expiry one millisecond after absolute expiry.
+A deterministic ticking-clock test was observed RED, then GREEN after sharing
+one expiry instant. This constraint failure was not counted as a caught security
+mutation; the stale-callback mutation was rerun and failed its behavioral assertion.
+
+Final privacy review reproduced another real gap: Vite's upstream-error logger
+included callback query parameters. A loopback failing-upstream test observed RED
+on the synthetic code sentinel; a callback-specific fixed-message logger made it
+GREEN. The regression joins npm test and the native browser fixture also checks
+callback privacy with the API stopped. API status and Auth trust rules did not change.
+
+Final measured run on 2026-10-19: all five gates exit zero; 288 API Vitest,
+843 API Node, 374 web and 390 PG17 database tests pass, no fail/skip/cancelled.
+Native and rebuilt Compose fixtures pass at both viewports. Cleanup initially
+flagged the standard B0d cluster fixture role and a PowerShell label-quoting error;
+marker/ownership checks resolved both before deleting only the run-owned volume.
+Ignored synthetic evidence/images remain local; no cloud writes or push occurred.

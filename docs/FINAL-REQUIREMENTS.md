@@ -1,0 +1,22 @@
+# ExaMate — yêu cầu cuối kỳ và traceability
+
+Local là test/fixture synthetic. Live pending cần project/người dùng thật.
+Trạng thái không phải lời hứa production-ready.
+
+| ID  | Story và acceptance                                                                                            | Source / test để trace                                          | Trạng thái                                                                   |
+| --- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| R01 | Email/password, reload/refresh/logout; Origin/CSRF sai bị chặn                                                 | auth.service, auth.test, pilot-session-race                     | Implemented/local regression; HTTP thật máy Tài là lịch sử, extended pending |
+| R02 | Google PKCE backend, verified Supabase JWT, opaque cookie; replay/callback cũ không đổi account                | auth-store, supabase-auth.adapter, oauth tests/browser          | F01 implemented/local verification; Google live pending                      |
+| R03 | Manager/member/viewer đúng quyền; no-membership không đọc; principal không từ client                           | auth.guard, principal, workspace role suites                    | Implemented/local; production least privilege là F02 pending                 |
+| R04 | Records giữ scope, ngày giờ, tiền và quyền ghi/xóa                                                             | Tasks/Courses/Exams/Plans/Expenses, academic suites             | Implemented/local regression; không thêm CRUD còn thiếu                      |
+| R05 | PDF private, assign/download/inline/delete; Storage ngoài transaction; uncertain outcome không xóa nhầm object | documents.service, documents context/HTTP/DB suites             | Implemented/local; signed URL cũ còn tới TTL                                 |
+| R06 | Index claim, network ngoài transaction, persist chunks atomic                                                  | ingestion service/context/DB suites                             | Implemented/synthetic; không phải semantic live acceptance                   |
+| R07 | RAG lọc workspace trước provider; positive corpus có evidence/citation                                         | retrieval/assistant, retrieval HTTP/shared DB suites            | Implemented/fixed vectors; false-empty lịch sử INCONCLUSIVE, B4 pending      |
+| R08 | Follow-up receipt/hash/scope đúng người; reset và draft revision an toàn                                       | receipt, conversation/history suites                            | Implemented/local regression; không persist chat history                     |
+| R09 | Own feedback, retry cùng key một row; maintenance export UNREVIEWED                                            | feedback service/export, receipt-context/feedback-export suites | Implemented/local; không tự thành gold                                       |
+| R10 | SSE cancel/stale/error không ghép sai hội thoại                                                                | stream controller/transport/hook, stream/conversation tests     | Implemented/local regression; model/prompt giữ nguyên                        |
+| R11 | STT local theo ngôn ngữ, không tải model âm thầm                                                               | speech module/media suites                                      | Implementation của Thắng, lịch sử; ngoài F01                                 |
+| R12 | AI limits bền vững và runtime role least privilege toàn app                                                    | roadmap B3/F02, context                                         | Pending; Auth throttle không thay budget AI                                  |
+
+Thành viên đọc được tài liệu của workspace; chưa có PDF riêng từng người trong
+cùng workspace. Auth PASS không thay RAG/TTS/STT PASS. Máy Thắng cần bằng chứng riêng.
