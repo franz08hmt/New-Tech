@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceApp } from "./App";
+import type { StoredDocument } from "./api";
 import { configurePilotClient } from "./pilot-client";
 import { NotesStorageContext } from "./NotesStorageContext";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
@@ -922,6 +923,384 @@ describe("Academic workspace", () => {
       "/api/documents/doc-1/process",
       expect.objectContaining({ method: "POST" }),
     );
+  });
+  it("shows a newly indexed document in Assistant without reloading the app", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    const quality = {
+      total_page_count: 2,
+      useful_text_page_count: 2,
+      low_text_page_count: 0,
+      indexed_chunk_count: 1,
+      skipped_page_numbers: [],
+      needs_ocr: false,
+      ocr_page_count: 0,
+      ocr_page_numbers: [],
+    };
+    let serverDocument = { ...documentFixtures[0] } as StoredDocument;
+    let listReads = 0;
+    let processCalls = 0;
+    const existingFetch = globalThis.fetch;
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "/api/documents" && init?.method !== "POST") {
+        listReads++;
+        return Response.json([serverDocument, documentFixtures[1]]);
+      }
+      if (url === "/api/documents/doc-1/process" && init?.method === "POST") {
+        processCalls++;
+        const currentQuality = {
+          ...quality,
+          indexed_chunk_count: processCalls,
+        };
+        serverDocument = {
+          ...serverDocument,
+          processing_status: "ready",
+          index_quality: currentQuality,
+        };
+        return Response.json({
+          document_id: "doc-1",
+          processing_status: "ready",
+          chunk_count: processCalls,
+          indexed_at: "2026-09-15T08:00:00.000Z",
+          index_quality: currentQuality,
+        });
+      }
+      return existingFetch(url, init);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Index de-cuong-thuat-toan.pdf",
+      }),
+    );
+    expect(
+      await screen.findByText("AI index · Searchable content ready"),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    expect(
+      await screen.findByRole("option", { name: "de-cuong-thuat-toan.pdf" }),
+    ).toBeInTheDocument();
+    expect(listReads).toBe(3);
+    fireEvent.change(screen.getByLabelText("Chọn tài liệu để tra cứu"), {
+      target: { value: "doc-1" },
+    });
+    expect(
+      await screen.findByText(/1 đoạn đã lập chỉ mục/),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Re-index de-cuong-thuat-toan.pdf",
+      }),
+    );
+    expect(
+      await screen.findByText(/2 đoạn đã lập chỉ mục/),
+    ).toBeInTheDocument();
+    expect(processCalls).toBe(2);
+    expect(window.location.hash).toBe("#documents");
+  });
+  it("does not offer pending documents as Assistant sources", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+
+    const picker = await screen.findByLabelText("Chọn tài liệu để tra cứu");
+    expect(
+      within(picker).queryByRole("option", {
+        name: "de-cuong-thuat-toan.pdf",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(picker).getByRole("option", { name: "ghi-chu-chung.pdf" }),
+    ).toBeInTheDocument();
+  });
+  it("keeps a list refresh error visible and retries only the read", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    let serverDocument = { ...documentFixtures[0] };
+    let listReads = 0;
+    let processCalls = 0;
+    const existingFetch = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/documents" && init?.method !== "POST") {
+          listReads++;
+          if (listReads === 3)
+            return Response.json(
+              { message: "temporary read failure" },
+              { status: 503 },
+            );
+          return Response.json([serverDocument, documentFixtures[1]]);
+        }
+        if (url === "/api/documents/doc-1/process" && init?.method === "POST") {
+          processCalls++;
+          serverDocument = { ...serverDocument, processing_status: "ready" };
+          return Response.json({
+            document_id: "doc-1",
+            processing_status: "ready",
+            chunk_count: 1,
+            indexed_at: "2026-09-15T08:00:00.000Z",
+            index_quality: null,
+          });
+        }
+        return existingFetch(url, init);
+      }),
+    );
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Index de-cuong-thuat-toan.pdf",
+      }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Chưa xem được tài liệu",
+    );
+    expect(
+      screen.queryByText("Chưa có tài liệu sẵn sàng để hỏi."),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Thử lại danh sách tài liệu" }),
+    );
+    expect(
+      await screen.findByRole("option", { name: "de-cuong-thuat-toan.pdf" }),
+    ).toBeInTheDocument();
+    expect(processCalls).toBe(1);
+    expect(listReads).toBe(4);
+  });
+  it("reconciles a failed index POST from the server before exposing the source", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    let serverDocument = { ...documentFixtures[0] };
+    let processCalls = 0;
+    let statusReads = 0;
+    const existingFetch = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/documents" && init?.method !== "POST")
+          return Response.json([serverDocument, documentFixtures[1]]);
+        if (url === "/api/documents/doc-1/process" && init?.method === "POST") {
+          processCalls++;
+          serverDocument = { ...serverDocument, processing_status: "ready" };
+          return Response.json(
+            { message: "response lost after persistence" },
+            { status: 503 },
+          );
+        }
+        if (url === "/api/documents/doc-1" && init?.method !== "POST") {
+          statusReads++;
+          return Response.json(serverDocument);
+        }
+        return existingFetch(url, init);
+      }),
+    );
+
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Index de-cuong-thuat-toan.pdf",
+      }),
+    );
+    expect(
+      await screen.findByText("AI index · Searchable content ready"),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    expect(
+      await screen.findByRole("option", { name: "de-cuong-thuat-toan.pdf" }),
+    ).toBeInTheDocument();
+    expect(processCalls).toBe(1);
+    expect(statusReads).toBe(1);
+  });
+  it("syncs an upload and its confirmed index into Assistant in the same session", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    const stored = {
+      ...documentFixtures[0],
+      id: "doc-uploaded",
+      name: "fresh-notes.pdf",
+      processing_status: "pending",
+      index_quality: null,
+    };
+    let serverDocuments = [documentFixtures[1]];
+    const existingFetch = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/documents" && init?.method === "POST") {
+          serverDocuments = [stored, ...serverDocuments];
+          return Response.json(stored, { status: 201 });
+        }
+        if (url === "/api/documents" && init?.method !== "POST")
+          return Response.json(serverDocuments);
+        if (
+          url === "/api/documents/doc-uploaded/process" &&
+          init?.method === "POST"
+        ) {
+          const ready = { ...stored, processing_status: "ready" };
+          serverDocuments = serverDocuments.map((item) =>
+            item.id === ready.id ? ready : item,
+          );
+          return Response.json({
+            document_id: ready.id,
+            processing_status: "ready",
+            chunk_count: 1,
+            indexed_at: "2026-09-15T08:00:00.000Z",
+            index_quality: null,
+          });
+        }
+        return existingFetch(url, init);
+      }),
+    );
+
+    render(<App />);
+    const file = new File(["%PDF-1.7 synthetic"], stored.name, {
+      type: "application/pdf",
+    });
+    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+      target: { files: [file] },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: `Upload ${stored.name}` }),
+    );
+    expect(
+      await screen.findByRole("button", { name: `Index ${stored.name}` }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: `Index ${stored.name}` }),
+    );
+    expect(
+      await screen.findByText("AI index · Searchable content ready"),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    expect(
+      await screen.findByRole("option", { name: stored.name }),
+    ).toBeInTheDocument();
+  });
+  it("refreshes course assignment without resetting draft, then clears a deleted selection", async () => {
+    window.history.replaceState(null, "", "/#documents");
+    let serverDocuments = [
+      { ...documentFixtures[0], processing_status: "ready" },
+      documentFixtures[1],
+    ];
+    let listReads = 0;
+    const existingFetch = globalThis.fetch;
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/documents" && init?.method !== "POST") {
+          listReads++;
+          return Response.json(serverDocuments);
+        }
+        if (url === "/api/documents/doc-1/course" && init?.method === "PATCH") {
+          const moved = {
+            ...serverDocuments.find((item) => item.id === "doc-1")!,
+            course_id: "course-3",
+            course_slug: "ec-102",
+            course_name: "Kinh tế vi mô",
+            course_code: "EC 102",
+          };
+          serverDocuments = serverDocuments.map((item) =>
+            item.id === moved.id ? moved : item,
+          );
+          return Response.json(moved);
+        }
+        if (url === "/api/documents/doc-1" && init?.method === "DELETE") {
+          serverDocuments = serverDocuments.filter(
+            (item) => item.id !== "doc-1",
+          );
+          return new Response(null, { status: 204 });
+        }
+        return existingFetch(url, init);
+      }),
+    );
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    const sourcePicker = await screen.findByLabelText(
+      "Chọn tài liệu để tra cứu",
+    );
+    fireEvent.change(sourcePicker, { target: { value: "doc-1" } });
+    const draft = screen.getByLabelText("Câu hỏi cho ExaMate");
+    fireEvent.change(draft, { target: { value: "Giữ phần nháp này" } });
+    fireEvent.change(
+      screen.getByLabelText("Course for de-cuong-thuat-toan.pdf"),
+      { target: { value: "course-3" } },
+    );
+    await waitFor(() => expect(sourcePicker).toHaveValue("doc-1"));
+    await waitFor(() => expect(listReads).toBe(3));
+    expect(draft).toHaveValue("Giữ phần nháp này");
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Delete de-cuong-thuat-toan.pdf",
+      }),
+    );
+    await waitFor(() => expect(sourcePicker).toHaveValue(""));
+    await waitFor(() => expect(listReads).toBe(4));
+    expect(
+      screen.queryByRole("option", { name: "de-cuong-thuat-toan.pdf" }),
+    ).not.toBeInTheDocument();
+    expect(draft).toHaveValue("Giữ phần nháp này");
+  });
+  it("clears a course-scoped source after it is detached in the course workspace", async () => {
+    window.history.replaceState(null, "", "/#courses/cs-201");
+    let serverDocuments = [
+      { ...documentFixtures[0], processing_status: "ready" },
+      documentFixtures[1],
+    ];
+    const existingFetch = globalThis.fetch;
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/documents" && init?.method !== "POST")
+          return Response.json(serverDocuments);
+        if (url === "/api/documents/doc-1/course" && init?.method === "PATCH") {
+          const detached = {
+            ...serverDocuments.find((item) => item.id === "doc-1")!,
+            course_id: null,
+            course_slug: null,
+            course_name: null,
+            course_code: null,
+          };
+          serverDocuments = serverDocuments.map((item) =>
+            item.id === detached.id ? detached : item,
+          );
+          return Response.json(detached);
+        }
+        return existingFetch(url, init);
+      }),
+    );
+
+    render(<App />);
+    expect(
+      await screen.findByRole("button", {
+        name: "Detach document: de-cuong-thuat-toan.pdf",
+      }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open ExaMate AI" }));
+    const picker = await screen.findByLabelText("Chọn tài liệu để tra cứu");
+    fireEvent.change(picker, { target: { value: "doc-1" } });
+    const draft = screen.getByLabelText("Câu hỏi cho ExaMate");
+    fireEvent.change(draft, { target: { value: "Câu hỏi đúng phạm vi môn" } });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Detach document: de-cuong-thuat-toan.pdf",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Xoá" }));
+
+    await waitFor(() => expect(picker).toHaveValue(""));
+    expect(draft).toHaveValue("Câu hỏi đúng phạm vi môn");
+    expect(
+      screen.queryByRole("option", { name: "de-cuong-thuat-toan.pdf" }),
+    ).not.toBeInTheDocument();
+    expect(serverDocuments[0].course_id).toBeNull();
   });
   it("keeps one card when the same PDF is picked twice in one selection", async () => {
     window.history.replaceState(null, "", "/#documents");

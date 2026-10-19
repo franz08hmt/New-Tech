@@ -75,6 +75,8 @@ interface AssistantPanelProps {
   assistant: AssistantState;
   documents?: StoredDocument[];
   documentsLoading?: boolean;
+  documentsError?: string | null;
+  onRetryDocuments?: () => void;
   /**
    * Opens the cited document in a new tab. Resolves with the source URL when
    * the browser blocked that tab, so it can be offered as a link to click.
@@ -147,6 +149,8 @@ export function AssistantPanel({
   assistant,
   documents = [],
   documentsLoading = false,
+  documentsError = null,
+  onRetryDocuments,
   onOpenCitation,
   loadSource,
   roomForSource = false,
@@ -203,6 +207,7 @@ export function AssistantPanel({
   const selectedDocument = availableDocuments.find(
     (item) => item.id === documentId,
   );
+  const documentsUnavailable = Boolean(documentsError);
   const prompts =
     assistant.mode === "workspace"
       ? workspacePrompts(workspaceCourse)
@@ -256,11 +261,13 @@ export function AssistantPanel({
 
   useEffect(() => {
     if (
+      !documentsLoading &&
+      !documentsError &&
       documentId &&
       !availableDocuments.some((item) => item.id === documentId)
     )
       setDocumentId("");
-  }, [availableDocuments, documentId]);
+  }, [availableDocuments, documentId, documentsError, documentsLoading]);
 
   // Opening lands in the composer: typing a question is what the launcher is
   // for. Keyed on `open` alone, so switching page behind an open panel does
@@ -556,7 +563,9 @@ export function AssistantPanel({
                 <select
                   aria-label="Chọn tài liệu để tra cứu"
                   value={documentId}
-                  disabled={documentsLoading || assistant.status === "sending"}
+                  disabled={
+                    documentsUnavailable || assistant.status === "sending"
+                  }
                   onChange={(event) => {
                     setDocumentId(event.target.value);
                     setSelectionError("");
@@ -572,16 +581,29 @@ export function AssistantPanel({
               </label>
             )}
             {open && assistant.mode === "documents" && (
-              <p className="assistant-document-status" role="status">
+              <p
+                className="assistant-document-status"
+                role={documentsError ? "alert" : "status"}
+              >
                 {documentsLoading
                   ? "Đang tải danh sách tài liệu…"
-                  : selectedDocument?.index_quality
-                    ? `${selectedDocument.name} · ${selectedDocument.index_quality.indexed_chunk_count} đoạn đã lập chỉ mục; ${selectedDocument.index_quality.useful_text_page_count}/${selectedDocument.index_quality.total_page_count} trang có văn bản dùng được.`
-                    : selectedDocument
-                      ? `${selectedDocument.name} · Đã lập chỉ mục theo phiên bản cũ; chưa có thống kê độ phủ. Hãy lập chỉ mục lại trong mục Tài liệu để kiểm tra.`
-                      : availableDocuments.length
-                        ? "Đang tìm trong tất cả tài liệu. Chọn một file cụ thể để xem trạng thái, tóm tắt hoặc tra cứu môn học của tài liệu đó."
-                        : "Chưa có tài liệu sẵn sàng để hỏi."}
+                  : documentsError
+                    ? "Chưa thể xác nhận danh sách tài liệu. " + documentsError
+                    : selectedDocument?.index_quality
+                      ? `${selectedDocument.name} · ${selectedDocument.index_quality.indexed_chunk_count} đoạn đã lập chỉ mục; ${selectedDocument.index_quality.useful_text_page_count}/${selectedDocument.index_quality.total_page_count} trang có văn bản dùng được.`
+                      : selectedDocument
+                        ? `${selectedDocument.name} · Đã lập chỉ mục theo phiên bản cũ; chưa có thống kê độ phủ. Hãy lập chỉ mục lại trong mục Tài liệu để kiểm tra.`
+                        : availableDocuments.length
+                          ? "Đang tìm trong tất cả tài liệu. Chọn một file cụ thể để xem trạng thái, tóm tắt hoặc tra cứu môn học của tài liệu đó."
+                          : "Chưa có tài liệu sẵn sàng để hỏi."}
+                {documentsError && onRetryDocuments && (
+                  <>
+                    {" "}
+                    <button type="button" onClick={onRetryDocuments}>
+                      Thử lại danh sách tài liệu
+                    </button>
+                  </>
+                )}
               </p>
             )}
           </>
@@ -789,6 +811,7 @@ export function AssistantPanel({
         hidden={sourceScreen}
         onSubmit={(event) => {
           event.preventDefault();
+          if (assistant.mode === "documents" && documentsUnavailable) return;
           const mentionsPdf =
             assistant.mode === "documents" && /\.pdf\b/iu.test(assistant.draft);
           const mentionedDocument = mentionsPdf
@@ -864,7 +887,10 @@ export function AssistantPanel({
         <button
           className={`assistant-send${assistant.mode === "documents" && selectedDocument ? " has-document-actions" : ""}`}
           type="submit"
-          disabled={!assistant.canSend}
+          disabled={
+            !assistant.canSend ||
+            (assistant.mode === "documents" && documentsUnavailable)
+          }
         >
           <PaperAirplaneIcon aria-hidden="true" />
           Gửi câu hỏi
@@ -885,6 +911,7 @@ export function AssistantPanel({
               type="button"
               disabled={
                 !documentId ||
+                documentsUnavailable ||
                 assistant.status === "sending" ||
                 assistant.status === "unavailable"
               }
@@ -910,6 +937,7 @@ export function AssistantPanel({
               type="button"
               disabled={
                 !documentId ||
+                documentsUnavailable ||
                 assistant.status === "sending" ||
                 assistant.status === "unavailable"
               }

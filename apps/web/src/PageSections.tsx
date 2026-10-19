@@ -34,6 +34,7 @@ export function PageSections({
   coursesState,
   workspace,
   onOpenAssistant,
+  onDocumentsChanged,
   focusId,
 }: {
   pageId: string;
@@ -43,6 +44,7 @@ export function PageSections({
   coursesState: CoursesState;
   workspace: Workspace;
   onOpenAssistant: (opener: HTMLElement) => void;
+  onDocumentsChanged: () => void;
 }) {
   if (pageId === "dashboard")
     return (
@@ -64,6 +66,7 @@ export function PageSections({
         course={coursesState.courses.find(
           (course) => course.slug === courseSlug,
         )}
+        onDocumentsChanged={onDocumentsChanged}
       />
     );
   }
@@ -110,7 +113,8 @@ export function PageSections({
       </>
     );
   }
-  if (pageId === "documents") return <DocumentsPanel />;
+  if (pageId === "documents")
+    return <DocumentsPanel onDocumentsChanged={onDocumentsChanged} />;
   if (pageId === "finances") return <BudgetPanel focusId={focusId} />;
   if (pageId === "assistant")
     return <AssistantSection onOpen={onOpenAssistant} />;

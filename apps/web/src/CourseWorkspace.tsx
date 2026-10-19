@@ -109,7 +109,13 @@ function Block({
  * dozen rows, and one source of truth per entity means an item added here and
  * an item added on its own page cannot disagree.
  */
-export function CourseWorkspace({ course }: { course: Course }) {
+export function CourseWorkspace({
+  course,
+  onDocumentsChanged,
+}: {
+  course: Course;
+  onDocumentsChanged?: () => void;
+}) {
   const principal = useContext(PilotPrincipalContext);
   const canWrite =
     principal?.role === "manager" || principal?.role === "member";
@@ -145,10 +151,12 @@ export function CourseWorkspace({ course }: { course: Course }) {
     action: Promise<boolean>,
     what: string,
     verb = "đã được xoá",
+    afterSettled?: () => void,
   ) {
     setNotice("");
     const ok = await action;
     if (ok) setNotice(`${what} ${verb}.`);
+    afterSettled?.();
   }
 
   async function uploadHere(file: File) {
@@ -156,6 +164,7 @@ export function CourseWorkspace({ course }: { course: Course }) {
     setNotice("");
     const ok = await documents.upload(file, course.id);
     if (ok) setNotice(`Đã tải "${file.name}" lên cho môn này.`);
+    onDocumentsChanged?.();
   }
 
   async function addExam(event: FormEvent<HTMLFormElement>) {
@@ -490,6 +499,7 @@ export function CourseWorkspace({ course }: { course: Course }) {
                         documents.setCourse(item.id, null),
                         "Tài liệu",
                         "đã được gỡ khỏi môn này",
+                        onDocumentsChanged,
                       );
                     }}
                   />

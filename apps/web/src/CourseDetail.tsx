@@ -10,7 +10,13 @@ import { courseIconFor } from "./academic-data";
 import { CourseWorkspace } from "./CourseWorkspace";
 import type { Course } from "./api";
 
-export function CourseDetail({ course }: { course?: Course }) {
+export function CourseDetail({
+  course,
+  onDocumentsChanged,
+}: {
+  course?: Course;
+  onDocumentsChanged?: () => void;
+}) {
   if (!course) {
     return (
       <article className="course-detail-page course-not-found">
@@ -114,7 +120,10 @@ export function CourseDetail({ course }: { course?: Course }) {
         </Panel>
       </section>
 
-      <CourseWorkspace course={course} />
+      <CourseWorkspace
+        course={course}
+        onDocumentsChanged={onDocumentsChanged}
+      />
     </article>
   );
 }

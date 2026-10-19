@@ -533,6 +533,7 @@ export function WorkspaceApp() {
               coursesState={coursesState}
               workspace={workspace}
               onOpenAssistant={openAssistant}
+              onDocumentsChanged={assistantDocuments.reload}
               focusId={route.focusId}
             />
             <footer className="page-footer">
@@ -559,6 +560,8 @@ export function WorkspaceApp() {
         assistant={assistant}
         documents={assistantDocuments.documents}
         documentsLoading={assistantDocuments.loading}
+        documentsError={assistantDocuments.error}
+        onRetryDocuments={assistantDocuments.reload}
         onOpenCitation={async (citation, signal) => {
           if (!citation.documentId || signal?.aborted) return;
           // The tab opens now, still inside the click. Opened after awaiting

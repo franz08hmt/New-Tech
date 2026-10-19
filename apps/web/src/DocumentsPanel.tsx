@@ -28,7 +28,11 @@ interface LocalDocument {
 const message = (error: unknown) =>
   error instanceof Error ? error.message : "Operation failed. Please retry.";
 
-export function DocumentsPanel() {
+export function DocumentsPanel({
+  onDocumentsChanged,
+}: {
+  onDocumentsChanged?: () => void;
+}) {
   const principal = useContext(PilotPrincipalContext);
   const canWrite =
     principal?.role === "member" || principal?.role === "manager";
@@ -72,27 +76,31 @@ export function DocumentsPanel() {
       setNotice("");
     }
   }, [canWrite]);
-  const reload = useCallback(async () => {
-    if (busy.current.size) return;
-    const current = ++revision.current;
-    const owner = currentIdentity.current;
-    setLoading(true);
-    setError("");
-    try {
-      const result = await api.listDocuments();
-      if (current === revision.current && owner === currentIdentity.current) {
-        setDocuments(result);
-        // A list read does not reverify a denied session/role. Only the
-        // targeted status read (or a new account view) clears uncertainty.
+  const reload = useCallback(
+    async (notifyAssistant = false) => {
+      if (busy.current.size) return;
+      const current = ++revision.current;
+      const owner = currentIdentity.current;
+      setLoading(true);
+      setError("");
+      try {
+        const result = await api.listDocuments();
+        if (current === revision.current && owner === currentIdentity.current) {
+          setDocuments(result);
+          if (notifyAssistant) onDocumentsChanged?.();
+          // A list read does not reverify a denied session/role. Only the
+          // targeted status read (or a new account view) clears uncertainty.
+        }
+      } catch (caught) {
+        if (current === revision.current && owner === currentIdentity.current)
+          setError(message(caught));
+      } finally {
+        if (current === revision.current && owner === currentIdentity.current)
+          setLoading(false);
       }
-    } catch (caught) {
-      if (current === revision.current && owner === currentIdentity.current)
-        setError(message(caught));
-    } finally {
-      if (current === revision.current && owner === currentIdentity.current)
-        setLoading(false);
-    }
-  }, []);
+    },
+    [onDocumentsChanged],
+  );
   useEffect(() => {
     busy.current.clear();
     operations.current.clear();
@@ -166,6 +174,7 @@ export function DocumentsPanel() {
   async function upload(item: LocalDocument) {
     if (!permissions.current.canWrite) return;
     if (!begin(item.id)) return;
+    const isCurrent = operationToken(item.id);
     setSelected((current) =>
       current.map((row) =>
         row.id === item.id
@@ -178,6 +187,7 @@ export function DocumentsPanel() {
         item.file,
         uploadCourseId || undefined,
       );
+      if (!isCurrent()) return;
       setDocuments((current) => [
         stored,
         ...current.filter((row) => row.id !== stored.id),
@@ -185,6 +195,7 @@ export function DocumentsPanel() {
       setSelected((current) => current.filter((row) => row.id !== item.id));
       setNotice(`${stored.name} stored successfully.`);
     } catch (caught) {
+      if (!isCurrent()) return;
       setSelected((current) =>
         current.map((row) =>
           row.id === item.id
@@ -193,7 +204,10 @@ export function DocumentsPanel() {
         ),
       );
     } finally {
-      finish(item.id);
+      if (isCurrent()) {
+        finish(item.id);
+        onDocumentsChanged?.();
+      }
     }
   }
   // "none" is a real choice, not the absence of one: it asks for the documents
@@ -207,8 +221,10 @@ export function DocumentsPanel() {
   async function refile(item: StoredDocument, courseId: string | null) {
     if (!permissions.current.canWrite) return;
     if (!begin(item.id)) return;
+    const isCurrent = operationToken(item.id);
     try {
       const updated = await api.setDocumentCourse(item.id, courseId);
+      if (!isCurrent()) return;
       setDocuments((current) =>
         current.map((row) => (row.id === item.id ? updated : row)),
       );
@@ -218,13 +234,17 @@ export function DocumentsPanel() {
           : `Đã gỡ "${updated.name}" khỏi môn học.`,
       );
     } catch (cause) {
+      if (!isCurrent()) return;
       setError(
         cause instanceof Error
           ? cause.message
           : "Chưa đổi được môn cho tài liệu này.",
       );
     } finally {
-      finish(item.id);
+      if (isCurrent()) {
+        finish(item.id);
+        onDocumentsChanged?.();
+      }
     }
   }
 
@@ -289,7 +309,10 @@ export function DocumentsPanel() {
         indexErrors[id] ?? "Yêu cầu lập chỉ mục trước đó chưa được xác nhận.",
       );
     } finally {
-      if (isCurrent()) finish(id);
+      if (isCurrent()) {
+        finish(id);
+        onDocumentsChanged?.();
+      }
     }
   }
   async function process(item: StoredDocument) {
@@ -339,7 +362,10 @@ export function DocumentsPanel() {
       // already notifies the pilot gate on session/workspace denial.
       if (!denied) await reconcileIndex(item.id, isCurrent, requestError);
     } finally {
-      if (isCurrent()) finish(item.id);
+      if (isCurrent()) {
+        finish(item.id);
+        onDocumentsChanged?.();
+      }
     }
   }
 
@@ -353,16 +379,22 @@ export function DocumentsPanel() {
       return;
     if (!permissions.current.canDelete) return;
     if (!begin(item.id)) return;
+    const isCurrent = operationToken(item.id);
     try {
       await api.deleteDocument(item.id);
+      if (!isCurrent()) return;
       setDocuments((current) => current.filter((row) => row.id !== item.id));
       setNotice(`${item.name} deleted.`);
     } catch (caught) {
+      if (!isCurrent()) return;
       setError(
         `${message(caught)} Refresh the list and retry delete to finish any pending deletion.`,
       );
     } finally {
-      finish(item.id);
+      if (isCurrent()) {
+        finish(item.id);
+        onDocumentsChanged?.();
+      }
     }
   }
   async function download(item: StoredDocument) {
@@ -495,7 +527,7 @@ export function DocumentsPanel() {
             <button
               type="button"
               disabled={loading || busyIds.length > 0}
-              onClick={() => void reload()}
+              onClick={() => void reload(true)}
             >
               {error ? "Retry list" : "Refresh list"}
             </button>
