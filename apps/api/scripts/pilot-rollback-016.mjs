@@ -2,6 +2,7 @@
 import { createHash } from "node:crypto";
 import { loadMigrations } from "./migrate.mjs";
 import { parseRollbackArgs } from "./pilot-rollback-012-013.mjs";
+import { inspectOAuth016 } from "./pilot-rollback-016-catalog.mjs";
 import {
   isMain,
   pilotConnection,
@@ -27,10 +28,11 @@ export async function runPilotRollback016(
     committing = false;
   try {
     const source = await loadSource();
-    await client.query(options.apply ? "BEGIN" : "BEGIN READ ONLY");
     started = true;
+    await client.query(options.apply ? "BEGIN" : "BEGIN READ ONLY");
     await client.query("SET LOCAL search_path=pg_catalog,public");
     await client.query("SET LOCAL lock_timeout='5s'");
+    await client.query("SET LOCAL row_security=off");
     if (options.apply) {
       await client.query("SELECT pg_advisory_xact_lock(424204)");
       await client.query(
@@ -61,35 +63,17 @@ export async function runPilotRollback016(
     }
     if (!ledger.some((r) => r.name === entry))
       throw new PilotCliError("Rollback refused: 016 not applied.");
-    const columns = (
-      await client.query(
-        "SELECT attname FROM pg_attribute WHERE attrelid='public.pilot_oauth_attempts'::regclass AND attnum>0 AND NOT attisdropped ORDER BY attnum",
-      )
-    ).rows.map((r) => r.attname);
-    if (
-      JSON.stringify(columns) !==
-      JSON.stringify([
-        "prelogin_hash",
-        "attempt_hash",
-        "provider",
-        "origin",
-        "verifier",
-        "expires_at",
-        "claimed_at",
-      ])
-    )
-      throw new PilotCliError("Rollback refused: OAuth schema drift.");
-    const count = Number(
-      (
-        await client.query(
-          "SELECT count(*) AS n FROM public.pilot_oauth_attempts",
-        )
-      ).rows[0].n,
+    const file = source.find((f) => f.name === entry);
+    const plan = await inspectOAuth016(
+      client,
+      createHash("sha256")
+        .update(file.sql.replace(/\r\n/g, "\n"))
+        .digest("hex"),
     );
     if (!options.apply) {
       await client.query("ROLLBACK");
       started = false;
-      return { dryRun: true, applied: false, attemptsLost: count };
+      return { dryRun: true, applied: false, ...plan };
     }
     await client.query("DROP TABLE public.pilot_oauth_attempts RESTRICT");
     const removed = await client.query(
@@ -101,7 +85,7 @@ export async function runPilotRollback016(
     committing = true;
     await client.query("COMMIT");
     started = false;
-    return { dryRun: false, applied: true, attemptsLost: count };
+    return { dryRun: false, applied: true, ...plan };
   } catch (error) {
     let rollbackFailed = false;
     if (started)
@@ -110,14 +94,29 @@ export async function runPilotRollback016(
       } catch {
         rollbackFailed = true;
       }
-    if (committing || rollbackFailed)
-      throw new PilotCliError(
+    if (committing || rollbackFailed) {
+      const failure = new PilotCliError(
         "Rollback outcome unknown: stop writers and inspect table/ledger before retrying.",
       );
+      failure.discardConnection = true;
+      throw failure;
+    }
     if (error instanceof PilotCliError) throw error;
     throw new PilotCliError(
       "Rollback 016 refused; inspect dependencies, schema or connectivity privately.",
     );
+  }
+}
+export async function rollback016WithPool(pool, options, dependencies) {
+  const client = await pool.connect();
+  let discard = false;
+  try {
+    return await runPilotRollback016(client, options, dependencies);
+  } catch (error) {
+    discard = error.discardConnection === true;
+    throw error;
+  } finally {
+    client.release(discard);
   }
 }
 async function main() {
@@ -127,20 +126,15 @@ async function main() {
     readOnly: !args.apply,
   });
   try {
-    const client = await pool.connect();
-    try {
-      console.log(
-        JSON.stringify({
-          target: { maskedProjectRef: target.maskedProjectRef },
-          ...(await runPilotRollback016(client, {
-            ...args,
-            projectRef: target.projectRef,
-          })),
-        }),
-      );
-    } finally {
-      client.release();
-    }
+    console.log(
+      JSON.stringify({
+        target: { maskedProjectRef: target.maskedProjectRef },
+        ...(await rollback016WithPool(pool, {
+          ...args,
+          projectRef: target.projectRef,
+        })),
+      }),
+    );
   } finally {
     await pool.end();
   }

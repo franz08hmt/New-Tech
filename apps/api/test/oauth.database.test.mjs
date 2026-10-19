@@ -557,6 +557,12 @@ test("016 checksum/idempotency, drift/dependency guards and rollback preserve se
     )
   ).rows;
   try {
+    // The maintenance contract is pristine 016, not the Auth fixture's extra
+    // bootstrap policy. Removing this test-only policy is explicit setup; the
+    // dedicated rollback suite proves unexpected policies are refused.
+    await client.query(
+      "DROP POLICY oauth_bootstrap_fixture ON pilot_oauth_attempts",
+    );
     await assert.rejects(
       runPilotRollback015(client, options),
       /later or unknown/,
