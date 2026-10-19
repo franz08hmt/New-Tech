@@ -198,6 +198,15 @@ test("different browser/session and tampered ciphertext do not exchange; DB fail
     b = await begin(f),
     before = f.state.exchanges;
   assert.equal(
+    await f.store.claimOAuth(
+      tokenHash(b.cookie.split("=")[1]),
+      tokenHash(new URLSearchParams(a.query).get("attempt")),
+      f.config.origin,
+    ),
+    undefined,
+    "store must reject different prelogin before returning any encrypted verifier",
+  );
+  assert.equal(
     await f.auth.googleCallback(
       b.req,
       {
@@ -208,15 +217,6 @@ test("different browser/session and tampered ciphertext do not exchange; DB fail
       a.query,
     ),
     "restart_required",
-  );
-  assert.equal(
-    await f.store.claimOAuth(
-      tokenHash(b.cookie.split("=")[1]),
-      tokenHash(new URLSearchParams(a.query).get("attempt")),
-      f.config.origin,
-    ),
-    undefined,
-    "store must reject different prelogin before returning any encrypted verifier",
   );
   const hash = tokenHash(a.cookie.split("=")[1]);
   await f.admin.query(
@@ -394,6 +394,151 @@ test("Google verified identities retain DB manager/member/viewer/no-access and s
     else assert.equal((await f.auth.authenticate(req)).role, role);
   }
   f.state.user = "member";
+});
+
+test("attempt/prelogin expiry during claim or issuance lock wait stops the next security boundary", async () => {
+  for (const stage of ["claim", "issuance"])
+    for (const field of ["attempt", "prelogin"]) {
+      const p = await begin(f),
+        hash = tokenHash(p.cookie.split("=")[1]),
+        before = f.state.exchanges;
+      const blocker = await f.admin.connect(),
+        waiting = deferred(),
+        transaction = f.db.transaction.bind(f.db),
+        exchange = f.adapter.exchangeCode;
+      let blocked = false,
+        armed = stage === "claim",
+        cookies = 0;
+      const lock = async () => {
+        await blocker.query("BEGIN");
+        blocked = true;
+        await blocker.query(
+          "SELECT cookie_hash FROM pilot_sessions WHERE cookie_hash=$1 FOR UPDATE",
+          [hash],
+        );
+      };
+      try {
+        if (stage === "claim") await lock();
+        else
+          f.adapter.exchangeCode = async (...args) => {
+            const tokens = await exchange.apply(f.adapter, args);
+            await lock();
+            armed = true;
+            return tokens;
+          };
+        f.db.transaction = (work) =>
+          transaction((tx) =>
+            work({
+              query(sql, values) {
+                const result = tx.query(sql, values);
+                if (
+                  armed &&
+                  sql.startsWith("SELECT cookie_hash FROM pilot_sessions") &&
+                  sql.includes("FOR UPDATE")
+                ) {
+                  armed = false;
+                  waiting.resolve();
+                }
+                return result;
+              },
+            }),
+          );
+        const result = f.auth.googleCallback(
+          p.req,
+          {
+            setHeader() {
+              cookies++;
+            },
+          },
+          p.query,
+        );
+        await bounded(waiting.promise); // BEGIN completed; parent lock is held by blocker.
+        if (field === "attempt")
+          await f.admin.query(
+            "UPDATE pilot_oauth_attempts SET expires_at=clock_timestamp() WHERE prelogin_hash=$1",
+            [hash],
+          );
+        else
+          await blocker.query(
+            "UPDATE pilot_sessions SET expires_at=statement_timestamp(),idle_expires_at=statement_timestamp() WHERE cookie_hash=$1",
+            [hash],
+          );
+        await blocker.query("COMMIT");
+        blocked = false;
+        assert.equal(
+          await bounded(result),
+          "restart_required",
+          `${stage}/${field} expiry must reject`,
+        );
+        assert.equal(
+          cookies,
+          0,
+          `${stage}/${field} expiry must never deliver a cookie`,
+        );
+        assert.equal(
+          f.state.exchanges - before,
+          stage === "claim" ? 0 : 1,
+          `${stage}/${field} expiry must stop exchange/issuance at its next boundary`,
+        );
+      } finally {
+        if (blocked) await blocker.query("ROLLBACK");
+        blocker.release();
+        f.db.transaction = transaction;
+        f.adapter.exchangeCode = exchange;
+      }
+    }
+});
+
+test("a new start cannot dispatch after prelogin expires while its lock is queued", async () => {
+  const p = await begin(f),
+    hash = tokenHash(p.cookie.split("=")[1]),
+    blocker = await f.admin.connect(),
+    waiting = deferred();
+  const transaction = f.db.transaction.bind(f.db);
+  let blocked = false;
+  try {
+    await blocker.query("BEGIN");
+    blocked = true;
+    await blocker.query(
+      "SELECT cookie_hash FROM pilot_sessions WHERE cookie_hash=$1 FOR UPDATE",
+      [hash],
+    );
+    f.db.transaction = (work) =>
+      transaction((tx) =>
+        work({
+          query(sql, values) {
+            const response = tx.query(sql, values);
+            if (
+              sql.startsWith("SELECT cookie_hash FROM pilot_sessions") &&
+              sql.includes("FOR UPDATE")
+            )
+              waiting.resolve();
+            return response;
+          },
+        }),
+      );
+    const pending = f.auth.googleStart(p.req).then(
+      (value) => ({ value }),
+      (error) => ({ error }),
+    );
+    await bounded(waiting.promise);
+    await blocker.query(
+      "UPDATE pilot_sessions SET expires_at=statement_timestamp(),idle_expires_at=statement_timestamp() WHERE cookie_hash=$1",
+      [hash],
+    );
+    await blocker.query("COMMIT");
+    blocked = false;
+    const result = await bounded(pending);
+    assert.equal(
+      result.error?.getStatus(),
+      503,
+      "no authorization URL after stale prelogin lock wait",
+    );
+  } finally {
+    if (blocked) await blocker.query("ROLLBACK");
+    blocker.release();
+    f.db.transaction = transaction;
+  }
 });
 
 test("016 checksum/idempotency, drift/dependency guards and rollback preserve sessions and allow reapply", async () => {

@@ -126,10 +126,13 @@ export class AuthStore {
         "SELECT COUNT(*)::int AS count FROM pilot_oauth_attempts",
       );
       if (count.rows[0].count >= 10000) throw Error("OAUTH_CAPACITY");
-      await tx.query(
+      const inserted = await tx.query(
         `INSERT INTO pilot_oauth_attempts(prelogin_hash,attempt_hash,provider,origin,verifier,expires_at)
-        VALUES($1,$2,'google',$3,$4::jsonb,LEAST($5::timestamptz,NOW()+INTERVAL '5 minutes'))
-        ON CONFLICT(prelogin_hash) DO UPDATE SET attempt_hash=EXCLUDED.attempt_hash,origin=EXCLUDED.origin,verifier=EXCLUDED.verifier,expires_at=EXCLUDED.expires_at,claimed_at=NULL`,
+        SELECT $1,$2,'google',$3,$4::jsonb,LEAST($5::timestamptz,clock_timestamp()+INTERVAL '5 minutes')
+        FROM pilot_sessions p WHERE p.cookie_hash=$1 AND p.kind='prelogin' AND p.revoked_at IS NULL
+          AND p.expires_at>clock_timestamp() AND p.idle_expires_at>clock_timestamp()
+        ON CONFLICT(prelogin_hash) DO UPDATE SET attempt_hash=EXCLUDED.attempt_hash,origin=EXCLUDED.origin,verifier=EXCLUDED.verifier,expires_at=EXCLUDED.expires_at,claimed_at=NULL
+        RETURNING attempt_hash`,
         [
           pre,
           attempt.id,
@@ -138,6 +141,7 @@ export class AuthStore {
           attempt.expiresAt,
         ],
       );
+      if (!inserted.rowCount) throw Error("OAUTH_ATTEMPT_INVALID");
     });
   }
   async claimOAuth(pre: string, id: string, origin: string) {
@@ -152,10 +156,13 @@ export class AuthStore {
         [pre, id, origin],
       );
       if (!a.rowCount) return undefined;
-      await tx.query(
-        "UPDATE pilot_oauth_attempts SET claimed_at=NOW(),verifier=NULL WHERE prelogin_hash=$1 AND attempt_hash=$2",
+      // NOW() is fixed at BEGIN. A lock wait must not extend the attempt or
+      // prelogin lifetime. Recheck wall time after both rows have been locked.
+      const claimed = await tx.query(
+        "UPDATE pilot_oauth_attempts SET claimed_at=clock_timestamp(),verifier=NULL WHERE prelogin_hash=$1 AND attempt_hash=$2 AND expires_at>clock_timestamp() AND EXISTS(SELECT 1 FROM pilot_sessions p WHERE p.cookie_hash=$1 AND p.kind='prelogin' AND p.revoked_at IS NULL AND p.expires_at>clock_timestamp() AND p.idle_expires_at>clock_timestamp()) RETURNING attempt_hash",
         [pre, id],
       );
+      if (!claimed.rowCount) return undefined;
       return a.rows[0].verifier;
     });
   }
@@ -172,7 +179,7 @@ export class AuthStore {
       if (!old.rows.length) throw new Error("PRESESSION_CONSUMED");
       if (oauthAttempt) {
         const attempt = await tx.query(
-          "SELECT attempt_hash FROM pilot_oauth_attempts WHERE prelogin_hash=$1 AND attempt_hash=$2 AND claimed_at IS NOT NULL AND expires_at>NOW() FOR UPDATE",
+          "SELECT attempt_hash FROM pilot_oauth_attempts WHERE prelogin_hash=$1 AND attempt_hash=$2 AND claimed_at IS NOT NULL AND expires_at>clock_timestamp() AND EXISTS(SELECT 1 FROM pilot_sessions p WHERE p.cookie_hash=$1 AND p.kind='prelogin' AND p.revoked_at IS NULL AND p.expires_at>clock_timestamp() AND p.idle_expires_at>clock_timestamp()) FOR UPDATE",
           [oldHash, oauthAttempt],
         );
         if (!attempt.rowCount) throw Error("OAUTH_ATTEMPT_INVALID");

@@ -69,6 +69,29 @@ async function pilot(run) {
     await server.app.close();
   }
 }
+test("prelogin expiry uses one instant even when the clock ticks between reads", async (t) => {
+  const f = authFixture();
+  let tick = Date.now();
+  t.mock.method(Date, "now", () => tick++);
+  const auth = new AuthService(() => f.config, f.store, f.adapter);
+  assert.equal(
+    (
+      await auth.session(
+        {
+          method: "GET",
+          path: "/api/auth/session",
+          headers: {},
+          ip: "127.0.0.1",
+        },
+        { setHeader() {} },
+      )
+    ).status,
+    "anonymous",
+  );
+  const row = [...f.rows.values()][0];
+  assert.equal(+row.idle_expires_at, +row.expires_at);
+});
+
 test("login rotates opaque cookie and CSRF; no Auth tokens or password leave the backend", async () =>
   pilot(async (p) => {
     const oldCookie = p.cookie,

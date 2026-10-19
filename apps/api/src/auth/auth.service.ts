@@ -274,6 +274,7 @@ export class AuthService {
       if (!cookie) {
         await this.admission(req);
         const raw = randomToken(),
+          preloginExpiresAt = new Date(Date.now() + 600_000),
           row: SessionRow = {
             cookie_hash: tokenHash(raw),
             kind: "prelogin",
@@ -281,8 +282,8 @@ export class AuthService {
             auth_session_id: null,
             csrf_token: randomToken(),
             tokens: null,
-            expires_at: new Date(Date.now() + 600_000),
-            idle_expires_at: new Date(Date.now() + 600_000),
+            expires_at: preloginExpiresAt,
+            idle_expires_at: preloginExpiresAt,
             revoked_at: null,
             version: 0,
           };
