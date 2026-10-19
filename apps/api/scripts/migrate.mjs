@@ -93,10 +93,67 @@ export function migrationFailure(error) {
   return `Migration failed [${code}]: ${message}`;
 }
 
+export function migrationChecksum(file) {
+  return createHash("sha256")
+    .update(file.sql.replace(/\r\n/g, "\n"))
+    .digest("hex");
+}
+
+/** Apply exactly one already-loaded migration inside the caller's transaction. */
+export async function applyMigrationInTransaction(
+  client,
+  file,
+  { pilotWorkspace } = {},
+) {
+  const checksum = migrationChecksum(file);
+  const applied = await client.query(
+    "SELECT checksum FROM schema_migrations WHERE name = $1",
+    [file.name],
+  );
+  if (applied.rows.length) {
+    if (applied.rows[0].checksum !== checksum)
+      throw new MigrationFileError(file.path, {
+        code: "MIGRATION_CHECKSUM_CHANGED",
+      });
+    return false;
+  }
+  if (pilotWorkspace && uuid.test(pilotWorkspace))
+    await client.query(
+      "SELECT set_config('examate.pilot_workspace_id',$1,true)",
+      [pilotWorkspace],
+    );
+  await client.query(file.sql);
+  // Secure initial tables before the 001 transaction commits, even if 002 fails.
+  if (file.name === "001_init.sql")
+    await client.query(`
+      ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE document_chunks ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE ai_evaluations ENABLE ROW LEVEL SECURITY;
+      REVOKE ALL ON tasks, documents, document_chunks, ai_evaluations FROM PUBLIC;
+      DO $$ DECLARE r TEXT; BEGIN
+        FOREACH r IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+          IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname=r) THEN
+            EXECUTE format('REVOKE ALL ON tasks, documents, document_chunks, ai_evaluations FROM %I', r);
+          END IF;
+        END LOOP;
+      END $$;
+    `);
+  await client.query(
+    "INSERT INTO schema_migrations (name, checksum) VALUES ($1, $2)",
+    [file.name, checksum],
+  );
+  return true;
+}
+
 export async function migrate(
-  connectionString = process.env.MIGRATION_DATABASE_URL?.trim() || undefined,
+  connectionString = process.env.MIGRATION_DATABASE_URL?.trim(),
   { loadSource = loadMigrations } = {},
 ) {
+  if (!connectionString)
+    throw new ConfigurationError(
+      "Missing configuration: MIGRATION_DATABASE_URL. See .env.example",
+    );
   const config = databaseConfig(connectionString);
   // Read every SQL file before connecting or changing database state.
   const files = await loadSource();
@@ -123,16 +180,12 @@ export async function migrate(
     END $$`);
     await client.query("COMMIT");
     for (const file of files) {
-      const sql = file.sql;
-      const checksum = createHash("sha256")
-        .update(sql.replace(/\r\n/g, "\n"))
-        .digest("hex");
       const applied = await client.query(
         "SELECT checksum FROM schema_migrations WHERE name = $1",
         [file.name],
       );
       if (applied.rows.length) {
-        if (applied.rows[0].checksum !== checksum)
+        if (applied.rows[0].checksum !== migrationChecksum(file))
           throw new MigrationFileError(file.path, {
             code: "MIGRATION_CHECKSUM_CHANGED",
           });
@@ -141,34 +194,13 @@ export async function migrate(
       }
       await client.query("BEGIN");
       try {
-        const pilotWorkspace = process.env.PILOT_WORKSPACE_ID;
-        if (pilotWorkspace && uuid.test(pilotWorkspace))
-          await client.query(
-            "SELECT set_config('examate.pilot_workspace_id',$1,true)",
-            [pilotWorkspace],
-          );
-        await client.query(sql);
-        // Secure initial tables before their first COMMIT, even if migration 002 fails.
-        if (file.name === "001_init.sql") {
-          await client.query(`
-            ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
-            ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
-            ALTER TABLE document_chunks ENABLE ROW LEVEL SECURITY;
-            ALTER TABLE ai_evaluations ENABLE ROW LEVEL SECURITY;
-            REVOKE ALL ON tasks, documents, document_chunks, ai_evaluations FROM PUBLIC;
-            DO $$ DECLARE r TEXT; BEGIN
-              FOREACH r IN ARRAY ARRAY['anon', 'authenticated'] LOOP
-                IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname=r) THEN
-                  EXECUTE format('REVOKE ALL ON tasks, documents, document_chunks, ai_evaluations FROM %I', r);
-                END IF;
-              END LOOP;
-            END $$;
-          `);
-        }
-        await client.query(
-          "INSERT INTO schema_migrations (name, checksum) VALUES ($1, $2)",
-          [file.name, checksum],
-        );
+        const appliedNow = await applyMigrationInTransaction(client, file, {
+          pilotWorkspace: process.env.PILOT_WORKSPACE_ID,
+        });
+        if (!appliedNow)
+          throw new MigrationFileError(file.path, {
+            code: "MIGRATION_STATE_CHANGED",
+          });
         await client.query("COMMIT");
         console.log(`Migration applied: ${file.name}`);
       } catch (error) {

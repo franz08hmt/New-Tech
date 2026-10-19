@@ -1,7 +1,11 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { StorageService } from "../dist/documents/storage.service.js";
-import { databaseConfig, appConfig } from "../dist/config/config.js";
+import {
+  databaseConfig,
+  appConfig,
+  storageConfig,
+} from "../dist/config/config.js";
 
 const originalFetch = globalThis.fetch;
 const saved = { ...process.env };
@@ -13,6 +17,7 @@ afterEach(() => {
 });
 function configure() {
   delete process.env.SUPABASE_SECRET_KEY;
+  delete process.env.AUTH_DATABASE_URL;
   delete process.env.DATABASE_CA_CERT_PATH;
   process.env.DATABASE_URL =
     "postgresql://demo:demo@localhost:5432/examate_test";
@@ -21,6 +26,12 @@ function configure() {
   process.env.SUPABASE_SERVICE_ROLE_KEY = `test.${Buffer.from(JSON.stringify({ role: "service_role" })).toString("base64url")}.test`;
   process.env.SUPABASE_STORAGE_BUCKET = "test-bucket";
 }
+test("Storage configuration does not require the Auth database capability", () => {
+  configure();
+  const config = storageConfig();
+  assert.equal(config.url, "https://storage.example.test");
+  assert.equal(config.bucket, "test-bucket");
+});
 test("Storage HTTP adapter sends private bucket check, bytes, short signed URL and delete prefixes", async () => {
   configure();
   const calls = [];

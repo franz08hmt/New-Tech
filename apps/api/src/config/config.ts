@@ -235,9 +235,38 @@ export function databaseConfig(connectionString = required("DATABASE_URL")) {
     idleTimeoutMillis: 30000,
   };
 }
-export function appConfig() {
-  const runtime = httpRuntimeConfig();
-  const database = databaseConfig();
+export function authDatabaseConfig(
+  connectionString = required("AUTH_DATABASE_URL"),
+) {
+  const config = databaseConfig(connectionString);
+  const business = new URL(required("DATABASE_URL"));
+  const auth = new URL(connectionString);
+  if (
+    decodeURIComponent(auth.username) === decodeURIComponent(business.username)
+  )
+    throw new ConfigurationError(
+      "AUTH_DATABASE_URL must use a distinct database role from DATABASE_URL",
+    );
+  if (
+    auth.hostname !== business.hostname ||
+    auth.port !== business.port ||
+    auth.pathname !== business.pathname
+  )
+    throw new ConfigurationError(
+      "AUTH_DATABASE_URL must target the same database endpoint as DATABASE_URL",
+    );
+  // Keep pool sizing independent. The connection string is never inferred
+  // from the business or maintenance URL.
+  const authMaxRaw = process.env.AUTH_DATABASE_POOL_MAX ?? "5";
+  if (
+    !/^\d+$/.test(authMaxRaw) ||
+    Number(authMaxRaw) < 2 ||
+    Number(authMaxRaw) > 20
+  )
+    throw new ConfigurationError("AUTH_DATABASE_POOL_MAX must be 2..20");
+  return { ...config, max: Number(authMaxRaw) };
+}
+export function storageConfig() {
   const rawUrl = required("SUPABASE_URL");
   let url: URL;
   try {
@@ -276,6 +305,22 @@ export function appConfig() {
   const bucket = required("SUPABASE_STORAGE_BUCKET");
   if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(bucket))
     throw new Error("Invalid SUPABASE_STORAGE_BUCKET");
+  return {
+    url: url.origin,
+    key,
+    bucket,
+    timeout: integer("STORAGE_TIMEOUT_MS", 15000, 30000),
+  };
+}
+export function appConfig() {
+  const runtime = httpRuntimeConfig();
+  const database = databaseConfig();
+  if (process.env.MIGRATION_DATABASE_URL?.trim())
+    throw new ConfigurationError(
+      "MIGRATION_DATABASE_URL is not permitted in API runtime; supply it only to maintenance commands",
+    );
+  authDatabaseConfig();
+  const storage = storageConfig();
   const nodeEnv = process.env.NODE_ENV ?? "development";
   if (!["development", "test", "production"].includes(nodeEnv))
     throw new Error("Invalid NODE_ENV");
@@ -298,11 +343,6 @@ export function appConfig() {
     rag: ragConfig(),
     port: integer("PORT", 3000, 65535),
     origins,
-    storage: {
-      url: url.origin,
-      key,
-      bucket,
-      timeout: integer("STORAGE_TIMEOUT_MS", 15000, 30000),
-    },
+    storage,
   };
 }

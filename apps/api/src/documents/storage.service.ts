@@ -1,10 +1,10 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
-import { appConfig } from "../config/config.js";
+import { storageConfig } from "../config/config.js";
 import { log } from "../common/log.js";
 
 @Injectable()
 export class StorageService {
-  private readonly config = appConfig().storage;
+  private readonly config = storageConfig();
 
   private async response(path: string, init: RequestInit = {}) {
     try {

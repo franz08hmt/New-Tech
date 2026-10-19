@@ -14,6 +14,8 @@ services:
       TRUSTED_PROXY_IP: 172.30.250.10
       PUBLIC_ORIGIN: ${DOCKER_PUBLIC_ORIGIN:-http://127.0.0.1:8080}
       ALLOWED_ORIGINS: ${DOCKER_PUBLIC_ORIGIN:-http://127.0.0.1:8080}
+      # Never forward maintenance credentials into the application container.
+      MIGRATION_DATABASE_URL: ""
     volumes:
       - ./secrets:/run/secrets:ro
       - ./artifacts/stt-models:/app/artifacts/stt-models:ro

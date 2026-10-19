@@ -268,8 +268,16 @@ test("HTTP non-owner: real COMMIT uncertainty preserves issued answer/no header;
     assert.equal(uncertain.headers.get("X-Assistant-Answer-ID"), null);
     f.receipts.issue = original;
     const before = f.state.generations.length,
-      embeddingBefore = f.state.embedding,
-      restore = loseNextCommit(f.db);
+      embeddingBefore = f.state.embedding;
+    const originalVerify = f.receipts.verifyHistory.bind(f.receipts);
+    f.receipts.verifyHistory = async (...args) => {
+      const restore = loseNextCommit(f.db);
+      try {
+        return await originalVerify(...args);
+      } finally {
+        restore();
+      }
+    };
     try {
       const blocked = await post("/assistant/chat", {
         ...input,
@@ -279,7 +287,7 @@ test("HTTP non-owner: real COMMIT uncertainty preserves issued answer/no header;
       assert.equal((await blocked.json()).code, "DATABASE_UNAVAILABLE");
       assert.equal(blocked.headers.get("X-Assistant-Answer-ID"), null);
     } finally {
-      restore();
+      f.receipts.verifyHistory = originalVerify;
     }
     assert.equal(f.state.generations.length, before);
     assert.equal(f.state.embedding, embeddingBefore);

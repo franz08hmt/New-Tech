@@ -7,13 +7,22 @@ import {
 } from "./config/config.js";
 import { configureApp } from "./common/http.js";
 import { log } from "./common/log.js";
+import { DatabaseService } from "./database/database.service.js";
+import { AuthDatabaseService } from "./database/auth-database.service.js";
 
 async function bootstrap() {
   loadEnvironment();
   const config = appConfig();
   const app = await NestFactory.create(AppModule);
-  configureApp(app, config.origins);
-  await app.listen(config.port, config.host);
+  try {
+    configureApp(app, config.origins);
+    await app.get(DatabaseService).assertBusinessCapability();
+    await app.get(AuthDatabaseService).assertCapability("examate_auth");
+    await app.listen(config.port, config.host);
+  } catch (error) {
+    await app.close();
+    throw error;
+  }
 }
 
 void bootstrap().catch((error: unknown) => {

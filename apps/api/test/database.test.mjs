@@ -58,6 +58,10 @@ function openRuntime() {
   runtimeDb = new DatabaseService();
   store = new AuthStore(runtimeDb);
 }
+const migrationsThrough016 = async () =>
+  (await loadMigrations()).filter(
+    (migration) => migration.name !== "017_runtime_rls.sql",
+  );
 before(async () => {
   process.env.DATABASE_SSL = "false";
   process.env.DATABASE_CA_CERT_PATH = "";
@@ -65,13 +69,16 @@ before(async () => {
   process.env.PILOT_WORKSPACE_ID = domainWorkspaceId;
   admin = new pg.Pool(databaseConfig(url));
   await prepareAuthFixture(admin);
-  await migrate(url);
+  // Keep this shared legacy Auth fixture at 016. Migration 017 has its own
+  // isolated disposable suites; leaving it applied here would invalidate the
+  // following preflight test, which must observe 017 as pending.
+  await migrate(url, { loadSource: migrationsThrough016 });
   ledger = (
     await admin.query(
       "SELECT name,checksum,applied_at FROM schema_migrations ORDER BY name",
     )
   ).rows;
-  await migrate(url);
+  await migrate(url, { loadSource: migrationsThrough016 });
   assert.deepEqual(
     (
       await admin.query(
@@ -129,7 +136,7 @@ after(async () => {
   }
 });
 test("all migrations run twice with unchanged checksums and timestamps", async () => {
-  const files = await loadMigrations();
+  const files = await migrationsThrough016();
   assert.equal(ledger.length, files.length);
   assert.equal(files.length, 16);
   for (const file of files)

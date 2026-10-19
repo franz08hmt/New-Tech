@@ -71,6 +71,55 @@ test("auth summary exposes booleans only, validates actual authConfig, and prese
   }
 });
 
+test("runtime preflight validates separate business, Auth and maintenance capabilities without exposing URLs", () => {
+  const keys = [
+    "DATABASE_URL",
+    "AUTH_DATABASE_URL",
+    "MIGRATION_DATABASE_URL",
+    "DATABASE_SSL",
+    "AUTH_DATABASE_POOL_MAX",
+    "DATABASE_POOL_MAX",
+    "SUPABASE_URL",
+    "SUPABASE_PUBLISHABLE_KEY",
+    "PILOT_WORKSPACE_ID",
+    "SESSION_ENCRYPTION_KEY",
+    "PUBLIC_ORIGIN",
+  ];
+  const saved = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  try {
+    Object.assign(process.env, {
+      DATABASE_URL:
+        "postgresql://business:SYNTHETIC_BUSINESS_PASSWORD@127.0.0.1:55433/examate_test",
+      AUTH_DATABASE_URL:
+        "postgresql://auth:SYNTHETIC_AUTH_PASSWORD@127.0.0.1:55433/examate_test",
+      MIGRATION_DATABASE_URL:
+        "postgresql://maintenance:SYNTHETIC_MAINT_PASSWORD@127.0.0.1:55433/examate_test",
+      DATABASE_SSL: "false",
+      AUTH_DATABASE_POOL_MAX: "2",
+      DATABASE_POOL_MAX: "5",
+      SUPABASE_URL: `https://${projectRef}.supabase.co`,
+      SUPABASE_PUBLISHABLE_KEY: "sb_publishable_SYNTHETIC_TEST",
+      PILOT_WORKSPACE_ID: "d315aa3d-389d-443c-b18d-06ec6f65b2ba",
+      SESSION_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString("base64"),
+      PUBLIC_ORIGIN: "http://127.0.0.1:5173",
+    });
+    const ready = authAvailability();
+    assert.equal(ready.runtimeDatabaseConfigValid, true);
+    assert.equal(ready.migrationDatabaseConfigValid, true);
+    assert.equal(ready.runtimeRolesDistinct, true);
+    assert.ok(!inspect(ready).includes("SYNTHETIC_"));
+    process.env.AUTH_DATABASE_URL = process.env.DATABASE_URL;
+    const shared = authAvailability();
+    assert.equal(shared.runtimeDatabaseConfigValid, false);
+    assert.equal(shared.runtimeRolesDistinct, false);
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
 test("direct project identity is inferred and its display value is masked", () => {
   const target = resolvePilotProject(direct);
   assert.equal(target.projectRef, projectRef);

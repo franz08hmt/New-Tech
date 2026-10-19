@@ -28,6 +28,10 @@ afterEach(() => vi.unstubAllEnvs());
 describe("Gemini configuration", () => {
   it("defaults to an unconfigured assistant without preventing application configuration", () => {
     vi.stubEnv("DATABASE_URL", "postgres://fixture:fixture@localhost/test");
+    vi.stubEnv(
+      "AUTH_DATABASE_URL",
+      "postgres://auth_fixture:fixture@localhost/test",
+    );
     vi.stubEnv("DATABASE_SSL", "false");
     vi.stubEnv("SUPABASE_URL", "https://example.supabase.co");
     vi.stubEnv("SUPABASE_SECRET_KEY", "sb_secret_test_fixture");

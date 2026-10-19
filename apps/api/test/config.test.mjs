@@ -24,8 +24,11 @@ afterEach(() => {
 });
 function configure() {
   for (const key of Object.keys(process.env))
-    if (/^(DATABASE_|MIGRATION_|SUPABASE_)/.test(key)) delete process.env[key];
+    if (/^(DATABASE_|AUTH_DATABASE_|MIGRATION_|SUPABASE_)/.test(key))
+      delete process.env[key];
   process.env.DATABASE_URL = "postgresql://demo:demo@cloud.example/db";
+  process.env.AUTH_DATABASE_URL =
+    "postgresql://auth_demo:auth@cloud.example/db";
   process.env.DATABASE_SSL = "true";
   process.env.SUPABASE_URL = "https://example.supabase.co";
   process.env.SUPABASE_STORAGE_BUCKET = "test-bucket";
@@ -140,4 +143,26 @@ test("legacy service_role fallback remains supported; anon rejected", () => {
   }
   process.env.SUPABASE_SERVICE_ROLE_KEY = `test.${Buffer.from(JSON.stringify({ role: "anon" })).toString("base64url")}.test`;
   assert.throws(() => appConfig(), /legacy service_role JWT/);
+});
+
+test("application runtime refuses shared Auth/business or maintenance credentials", () => {
+  configure();
+  process.env.DATABASE_URL =
+    "postgresql://runtime_fixture:runtime@localhost/db";
+  process.env.AUTH_DATABASE_URL =
+    "postgresql://runtime_fixture:runtime@localhost/db";
+  process.env.SUPABASE_SECRET_KEY = "sb_secret_test_fixture";
+  process.env.SUPABASE_STORAGE_BUCKET = "test-bucket";
+  assert.throws(
+    () => appConfig(),
+    /AUTH_DATABASE_URL must use a distinct database role/,
+  );
+
+  process.env.AUTH_DATABASE_URL = "postgresql://auth_fixture:auth@localhost/db";
+  process.env.MIGRATION_DATABASE_URL =
+    "postgresql://owner_fixture:owner@localhost/db";
+  assert.throws(
+    () => appConfig(),
+    /MIGRATION_DATABASE_URL is not permitted in API runtime/,
+  );
 });

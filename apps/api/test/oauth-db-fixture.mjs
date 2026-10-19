@@ -1,5 +1,6 @@
 ﻿// TEST ONLY. Dedicated migrated disposable database and non-owner Auth bootstrap fixture.
 import assert from "node:assert/strict";
+import { randomBytes, randomUUID } from "node:crypto";
 import {
   openDocumentsTenantFixture,
   people,
@@ -7,27 +8,66 @@ import {
   fixedId,
 } from "./documents-tenant-fixture.mjs";
 import { authFixture } from "./auth-fixture.mjs";
+import { AuthDatabaseService } from "../dist/database/auth-database.service.js";
 import { AuthStore } from "../dist/auth/auth-store.js";
 import { AuthService } from "../dist/auth/auth.service.js";
 export async function openOAuthFixture() {
   const f = await openDocumentsTenantFixture();
+  let authDb,
+    authRole,
+    authRoleMarker,
+    authRoleCreated = false;
   try {
     f.guard(process.env.TEST_DATABASE_URL);
-    await f.admin.query(`GRANT USAGE ON SCHEMA auth TO "${f.role}";
-   GRANT SELECT(id,user_id,not_after) ON auth.sessions TO "${f.role}";
-   GRANT SELECT,INSERT,UPDATE ON pilot_sessions,pilot_auth_limits,pilot_refresh_attempts,pilot_oauth_attempts TO "${f.role}";
-   GRANT DELETE ON pilot_oauth_attempts TO "${f.role}";`);
-    // BFF bootstrap tables have no principal yet. Permissive fixture-only policies
-    // are not production least-privilege policies or tenant isolation evidence.
-    for (const table of [
-      "pilot_sessions",
-      "pilot_auth_limits",
-      "pilot_refresh_attempts",
-      "pilot_oauth_attempts",
-    ])
-      await f.admin.query(
-        `CREATE POLICY oauth_bootstrap_fixture ON ${table} TO "${f.role}" USING(true) WITH CHECK(true)`,
-      );
+    authRole = `f02a_oauth_${randomUUID().replaceAll("-", "").slice(0, 16)}`;
+    const authPassword = randomBytes(24).toString("hex");
+    authRoleMarker = `ExaMate F02-A OAuth fixture ${randomUUID()}`;
+    assert.match(authRole, /^[a-z0-9_]+$/);
+    assert.equal(
+      (
+        await f.admin.query("SELECT 1 FROM pg_roles WHERE rolname=$1", [
+          authRole,
+        ])
+      ).rowCount,
+      0,
+    );
+    await f.admin.query(
+      `CREATE ROLE "${authRole}" LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS PASSWORD '${authPassword}'`,
+    );
+    authRoleCreated = true;
+    await f.admin.query(`COMMENT ON ROLE "${authRole}" IS '${authRoleMarker}'`);
+    await f.admin.query(`GRANT examate_auth TO "${authRole}"`);
+    const authUrl = new URL(f.admin.options.connectionString);
+    authUrl.username = authRole;
+    authUrl.password = authPassword;
+    f.guard(authUrl.href);
+    Object.assign(process.env, {
+      AUTH_DATABASE_URL: authUrl.href,
+      AUTH_DATABASE_POOL_MAX: "2",
+    });
+    authDb = new AuthDatabaseService();
+    const originalClose = f.close;
+    f.close = async () => {
+      try {
+        await authDb?.onModuleDestroy();
+        if (authRoleCreated) {
+          assert.equal(
+            (
+              await f.admin.query(
+                "SELECT shobj_description(oid,'pg_authid') AS marker FROM pg_roles WHERE rolname=$1",
+                [authRole],
+              )
+            ).rows[0]?.marker,
+            authRoleMarker,
+          );
+          await f.admin.query(`DROP ROLE "${authRole}"`);
+          authRoleCreated = false;
+        }
+      } finally {
+        await originalClose();
+      }
+    };
+    await authDb.assertCapability("examate_auth");
     for (const [i, u] of Object.values(people).entries())
       await f.admin.query(
         "INSERT INTO auth.sessions(id,user_id) VALUES($1,$2)",
@@ -93,11 +133,15 @@ export async function openOAuthFixture() {
       },
       async logout() {},
     };
-    const store = new AuthStore(f.db),
+    const store = new AuthStore(authDb),
       auth = new AuthService(() => config, store, adapter);
-    return { ...f, config, state, adapter, store, auth };
+    return { ...f, authDb, config, state, adapter, store, auth };
   } catch (e) {
-    await f.close();
+    try {
+      await f.close();
+    } catch {
+      // Preserve setup failure; cleanup still checks the exact fixture marker.
+    }
     throw e;
   }
 }

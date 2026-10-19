@@ -17,6 +17,7 @@ import { RagRetrievalService } from "./assistant/rag-retrieval.service.js";
 import { WorkspaceAssistantService } from "./assistant/workspace-assistant.service.js";
 import { WorkspaceRecordsService } from "./assistant/workspace-records.service.js";
 import { DatabaseService } from "./database/database.service.js";
+import { AuthDatabaseService } from "./database/auth-database.service.js";
 import { HealthController } from "./health/health.controller.js";
 import { TasksController } from "./tasks/tasks.controller.js";
 import { TasksService } from "./tasks/tasks.service.js";
@@ -72,6 +73,7 @@ import { SPEECH_PROVIDER } from "./speech/speech.types.js";
     { provide: APP_GUARD, useClass: PilotAuthGuard },
     FeedbackService,
     DatabaseService,
+    AuthDatabaseService,
     TasksService,
     DocumentsService,
     DocumentAccessService,

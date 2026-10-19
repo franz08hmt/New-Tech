@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
 import { authConfig, uuid } from "../dist/auth/auth-config.js";
-import { loadEnvironment } from "../dist/config/config.js";
+import {
+  authDatabaseConfig,
+  databaseConfig,
+  loadEnvironment,
+} from "../dist/config/config.js";
+import { DatabaseService } from "../dist/database/database.service.js";
+import { AuthDatabaseService } from "../dist/database/auth-database.service.js";
 import { loadMigrations } from "./migrate.mjs";
 import {
   isMain,
@@ -22,6 +28,42 @@ export function authAvailability() {
   } catch {
     /* Report availability only. */
   }
+  let runtimeDatabaseConfigValid = false;
+  let migrationDatabaseConfigValid = false;
+  let runtimeRolesDistinct = false;
+  try {
+    databaseConfig();
+    authDatabaseConfig();
+    const business = new URL(process.env.DATABASE_URL);
+    const auth = new URL(process.env.AUTH_DATABASE_URL);
+    runtimeRolesDistinct =
+      decodeURIComponent(business.username) !==
+      decodeURIComponent(auth.username);
+    runtimeDatabaseConfigValid = true;
+  } catch {
+    /* Report availability only. */
+  }
+  try {
+    if (process.env.MIGRATION_DATABASE_URL?.trim()) {
+      databaseConfig(process.env.MIGRATION_DATABASE_URL);
+      const business = new URL(process.env.DATABASE_URL);
+      const auth = new URL(process.env.AUTH_DATABASE_URL);
+      const maintenance = new URL(process.env.MIGRATION_DATABASE_URL);
+      const sameTarget = (left, right) =>
+        left.hostname === right.hostname &&
+        left.port === right.port &&
+        left.pathname === right.pathname;
+      migrationDatabaseConfigValid =
+        sameTarget(business, auth) &&
+        sameTarget(business, maintenance) &&
+        decodeURIComponent(maintenance.username) !==
+          decodeURIComponent(business.username) &&
+        decodeURIComponent(maintenance.username) !==
+          decodeURIComponent(auth.username);
+    }
+  } catch {
+    /* Report availability only. */
+  }
   return {
     PUBLIC_ORIGIN: present("PUBLIC_ORIGIN"),
     SUPABASE_PUBLISHABLE_KEY: present("SUPABASE_PUBLISHABLE_KEY"),
@@ -35,6 +77,9 @@ export function authAvailability() {
       Buffer.from(key, "base64").length === 32 &&
       Buffer.from(key, "base64").toString("base64") === key,
     authConfigValid,
+    runtimeDatabaseConfigValid,
+    migrationDatabaseConfigValid,
+    runtimeRolesDistinct,
     googleRequested: process.env.AUTH_GOOGLE_ENABLED === "true",
     publicOriginMatchesDev:
       process.env.PUBLIC_ORIGIN === "http://127.0.0.1:5173",
@@ -43,7 +88,14 @@ export function authAvailability() {
   };
 }
 
-export async function runPilotPreflight(client, { target, authSummary }) {
+export async function runPilotPreflight(
+  client,
+  {
+    target,
+    authSummary,
+    runtimeCapabilities = { business: false, auth: false },
+  },
+) {
   const source = await loadMigrations();
   return withReadOnly(client, async () => {
     const transaction = await client.query("SHOW transaction_read_only");
@@ -53,14 +105,6 @@ export async function runPilotPreflight(client, { target, authSummary }) {
       await client.query(`SELECT current_user AS name, r.rolsuper AS superuser, r.rolbypassrls AS bypass
       FROM pg_roles r WHERE r.rolname=current_user`);
     const role = roleResult.rows[0];
-    const schema = await client.query(
-      "SELECT oid, has_schema_privilege(current_user,oid,'USAGE') AS usage FROM pg_namespace WHERE nspname='auth'",
-    );
-    const columns =
-      await client.query(`SELECT a.attname, has_column_privilege(current_user,c.oid,a.attnum,'SELECT') AS allowed
-      FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid
-      WHERE n.nspname='auth' AND c.relname='sessions' AND a.attnum>0 AND NOT a.attisdropped
-      AND a.attname IN ('id','user_id','not_after')`);
     const ledger = await client.query(
       "SELECT c.oid, has_table_privilege(current_user,c.oid,'SELECT') AS readable FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='schema_migrations' AND c.relkind IN ('r','p')",
     );
@@ -91,6 +135,7 @@ export async function runPilotPreflight(client, { target, authSummary }) {
       migrationLedgerReadable,
       target: { maskedProjectRef: target.maskedProjectRef },
       auth: authSummary,
+      runtimeCapabilities,
       migrations,
       allSourceMigrationsApplied: migrations.every((m) => m.applied),
       checksumsMatch:
@@ -111,18 +156,17 @@ export async function runPilotPreflight(client, { target, authSummary }) {
       stage015Applied: migrations.some(
         (m) => m.name === "015_assistant_answer_receipts.sql" && m.applied,
       ),
-      role: {
+      stage016Applied: migrations.some(
+        (m) => m.name === "016_pilot_oauth_attempts.sql" && m.applied,
+      ),
+      stage017Applied: migrations.some(
+        (m) => m.name === "017_runtime_rls.sql" && m.applied,
+      ),
+      maintenanceRole: {
         isPostgres: role.name === "postgres",
         nameMasked: `${role.name.slice(0, 2)}…${role.name.slice(-2)}`,
         superuser: role.superuser,
         bypassRls: role.bypass,
-        authUsage: schema.rows[0]?.usage === true,
-        authSessionColumns: Object.fromEntries(
-          ["id", "user_id", "not_after"].map((name) => [
-            name,
-            columns.rows.some((c) => c.attname === name && c.allowed),
-          ]),
-        ),
       },
     };
   });
@@ -154,7 +198,12 @@ async function main() {
     return;
   }
   // In this preparation phase, incomplete Auth configuration must not open a cloud connection.
-  if (!authSummary.authConfigValid) {
+  if (
+    !authSummary.authConfigValid ||
+    !authSummary.runtimeDatabaseConfigValid ||
+    !authSummary.migrationDatabaseConfigValid ||
+    !authSummary.runtimeRolesDistinct
+  ) {
     console.log(
       JSON.stringify(
         {
@@ -162,7 +211,7 @@ async function main() {
           target: { maskedProjectRef: target.maskedProjectRef },
           auth: authSummary,
           reason:
-            "Auth configuration incomplete; database checks have not run.",
+            "Auth or database capability configuration incomplete; database checks have not run.",
         },
         null,
         2,
@@ -171,11 +220,49 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  const { pool } = pilotConnection({ readOnly: true });
+  let capabilityTargetsMatch = false;
+  try {
+    const runtimeTarget = resolvePilotProject(
+      process.env.AUTH_DATABASE_URL,
+      process.env.SUPABASE_URL ?? "",
+    );
+    const maintenanceTarget = resolvePilotProject(
+      process.env.MIGRATION_DATABASE_URL,
+      process.env.SUPABASE_URL ?? "",
+    );
+    capabilityTargetsMatch =
+      runtimeTarget.projectRef === target.projectRef &&
+      maintenanceTarget.projectRef === target.projectRef;
+  } catch {
+    /* Do not open any connection until every configured capability matches. */
+  }
+  if (!capabilityTargetsMatch) {
+    console.log(
+      JSON.stringify(
+        {
+          databaseChecked: false,
+          target: { maskedProjectRef: target.maskedProjectRef },
+          auth: authSummary,
+          reason:
+            "Database capability targets do not match the configured project; no database checks have run.",
+        },
+        null,
+        2,
+      ),
+    );
+    process.exitCode = 1;
+    return;
+  }
+  const runtimeCapabilities = await probeRuntimeCapabilities();
+  const { pool } = pilotConnection({ maintenance: true, readOnly: true });
   try {
     const client = await pool.connect();
     try {
-      const report = await runPilotPreflight(client, { target, authSummary });
+      const report = await runPilotPreflight(client, {
+        target,
+        authSummary,
+        runtimeCapabilities,
+      });
       console.log(JSON.stringify(report, null, 2));
       if (
         !report.checksumsMatch ||
@@ -184,10 +271,12 @@ async function main() {
         !report.stage013Applied ||
         !report.stage014Applied ||
         !report.stage015Applied ||
+        !report.stage016Applied ||
+        !report.stage017Applied ||
         !report.auth.publicOriginMatchesDev ||
         !report.auth.databaseSessionVerification ||
-        !report.role.authUsage ||
-        !Object.values(report.role.authSessionColumns).every(Boolean)
+        !report.runtimeCapabilities.business ||
+        !report.runtimeCapabilities.auth
       )
         process.exitCode = 1;
     } finally {
@@ -196,5 +285,30 @@ async function main() {
   } finally {
     await pool.end();
   }
+}
+
+export async function probeRuntimeCapabilities() {
+  const result = { business: false, auth: false };
+  let business;
+  let auth;
+  try {
+    business = new DatabaseService();
+    await business.assertBusinessCapability();
+    result.business = true;
+  } catch {
+    /* Capability probes intentionally return booleans only. */
+  } finally {
+    await business?.onModuleDestroy();
+  }
+  try {
+    auth = new AuthDatabaseService();
+    await auth.assertCapability("examate_auth");
+    result.auth = true;
+  } catch {
+    /* Capability probes intentionally return booleans only. */
+  } finally {
+    await auth?.onModuleDestroy();
+  }
+  return result;
 }
 if (isMain(import.meta.url)) main().catch(reportFailure);

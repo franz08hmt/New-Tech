@@ -15,7 +15,7 @@ const options = {
   confirmProject: "a1b2c3d4e5f6g7h8i9j0",
 };
 async function fixture(work) {
-  const f = await openDocumentsTenantFixture();
+  const f = await openDocumentsTenantFixture({ migrationLimit: 16 });
   const client = await f.admin.connect();
   try {
     await client.query(`INSERT INTO pilot_sessions(cookie_hash,kind,csrf_token,expires_at,idle_expires_at)
@@ -287,8 +287,9 @@ test("016 pristine dry-run is read-only; apply is atomic, preserves sessions/dat
     const target = new URL(process.env.TEST_DATABASE_URL);
     target.pathname = "/" + f.name;
     f.guard(target.href);
-    await migrate(target.href);
-    await migrate(target.href);
+    const through016 = async () => (await loadMigrations()).slice(0, 16);
+    await migrate(target.href, { loadSource: through016 });
+    await migrate(target.href, { loadSource: through016 });
     assert.equal(
       (await c.query("SELECT count(*)::int AS n FROM schema_migrations"))
         .rows[0].n,
@@ -335,7 +336,10 @@ test("016 later 017 with valid injected source and ledger is refused without pro
       [name, createHash("sha256").update(sql).digest("hex")],
     );
     await blocked(c, /later or unknown/, {
-      loadSource: async () => [...(await loadMigrations()), { name, sql }],
+      loadSource: async () => [
+        ...(await loadMigrations()).slice(0, 16),
+        { name, sql },
+      ],
     });
   }));
 

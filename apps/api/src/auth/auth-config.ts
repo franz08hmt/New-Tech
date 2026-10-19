@@ -55,7 +55,7 @@ export function authConfig(): AuthSettings {
     const encryptionKey = Buffer.from(rawKey, "base64");
     const keyVersion = process.env.SESSION_KEY_VERSION ?? "v1";
     const cacheMs = Number(process.env.AUTH_VERIFY_CACHE_SECONDS ?? 30) * 1000;
-    const poolSize = Number(process.env.DATABASE_POOL_MAX ?? 5);
+    const poolSize = Number(process.env.AUTH_DATABASE_POOL_MAX ?? 5);
     const sessionVerification =
       process.env.AUTH_SESSION_VERIFICATION ?? "database";
     const limit = (name: string, fallback: number, max: number) => {

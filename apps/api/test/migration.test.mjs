@@ -28,6 +28,7 @@ const expectedMigrationNames = [
   "014_workspace_scope.sql",
   "015_assistant_answer_receipts.sql",
   "016_pilot_oauth_attempts.sql",
+  "017_runtime_rls.sql",
 ];
 
 const saved = { ...process.env };
@@ -65,7 +66,8 @@ function databaseMock({ failSql = false, wrongChecksum = false } = {}) {
   process.env.DATABASE_URL = "postgres://fixture:fixture@cloud.example/db";
   process.env.DATABASE_SSL = "true";
   delete process.env.DATABASE_CA_CERT_PATH;
-  delete process.env.MIGRATION_DATABASE_URL;
+  process.env.MIGRATION_DATABASE_URL =
+    "postgres://maint:fixture@cloud.example/db";
   const history = new Map();
   const statements = [];
   const bindings = [];
@@ -126,11 +128,14 @@ function databaseMock({ failSql = false, wrongChecksum = false } = {}) {
   };
 }
 
-test("migration applies then skips all files with verified TLS and empty URL fallback (mock DB)", async () => {
+test("migration requires its maintenance capability and applies/skips via that URL (mock DB)", async () => {
   const db = databaseMock();
   process.env.MIGRATION_DATABASE_URL = "";
+  await assert.rejects(migrate(), /MIGRATION_DATABASE_URL/);
+  assert.equal(db.configs.length, 0);
+  process.env.MIGRATION_DATABASE_URL =
+    "postgres://owner:fixture@cloud.example/db";
   await migrate();
-  process.env.MIGRATION_DATABASE_URL = "   ";
   await migrate();
   assert.deepEqual(db.messages, [
     ...expectedMigrationNames.map((name) => `Migration applied: ${name}`),
@@ -144,7 +149,7 @@ test("migration applies then skips all files with verified TLS and empty URL fal
     1,
   );
   for (const config of db.configs) {
-    assert.equal(config.connectionString, process.env.DATABASE_URL);
+    assert.equal(config.connectionString, process.env.MIGRATION_DATABASE_URL);
     assert.equal(config.ssl.rejectUnauthorized, true);
   }
   assert.equal(db.releases, 2);

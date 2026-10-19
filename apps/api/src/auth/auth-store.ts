@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { DatabaseService } from "../database/database.service.js";
+import { AuthDatabaseService } from "../database/auth-database.service.js";
 import type { EncryptedTokens } from "./session-crypto.js";
 import type { PilotRole } from "@examate/contracts";
 import type { DatabaseTransaction } from "../database/database.service.js";
@@ -22,17 +22,14 @@ export interface SessionRow {
 }
 @Injectable()
 export class AuthStore {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: AuthDatabaseService) {}
   async markRefreshStarted(hash: string, version: number) {
     // Independent autocommit BEFORE provider dispatch, while the parent holds FOR UPDATE.
-    return (
-      (
-        await this.db.query(
-          "INSERT INTO pilot_refresh_attempts (cookie_hash,version) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING cookie_hash",
-          [hash, version],
-        )
-      ).rows.length === 1
+    const result = await this.db.query(
+      "INSERT INTO pilot_refresh_attempts (cookie_hash,version) VALUES ($1,$2) ON CONFLICT DO NOTHING",
+      [hash, version],
     );
+    return result.rowCount === 1;
   }
   async admission(
     keys: Array<{ key: string; limit: number }>,
@@ -209,12 +206,22 @@ export class AuthStore {
     userId: string,
     tx?: DatabaseTransaction,
   ): Promise<PilotRole | undefined> {
-    const row = (
-      await (tx ?? this.db).query<{ role: PilotRole }>(
-        `SELECT m.role FROM workspace_memberships m JOIN workspaces w ON w.id=m.workspace_id WHERE m.workspace_id=$1 AND m.user_id=$2 AND m.active=true AND w.active=true${tx ? " FOR SHARE OF m, w" : ""}`,
-        [workspaceId, userId],
-      )
-    ).rows[0];
+    const read = async (query: DatabaseTransaction) =>
+      (
+        await query.query<{ role: PilotRole }>(
+          `SELECT m.role FROM workspace_memberships m JOIN workspaces w ON w.id=m.workspace_id WHERE m.workspace_id=$1 AND m.user_id=$2 AND m.active=true AND w.active=true${tx ? " FOR SHARE OF m, w" : ""}`,
+          [workspaceId, userId],
+        )
+      ).rows[0];
+    const row = tx
+      ? await read(tx)
+      : await this.db.transaction(async (authTx) => {
+          await authTx.query(
+            "SELECT set_config('examate.user_id', $1, true), set_config('examate.workspace_id', $2, true)",
+            [userId, workspaceId],
+          );
+          return read(authTx);
+        });
     return row && ["manager", "member", "viewer"].includes(row.role)
       ? row.role
       : undefined;

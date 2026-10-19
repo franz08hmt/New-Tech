@@ -23,15 +23,17 @@ before(async () => {
   pool = new pg.Pool({ connectionString: url, ssl: false, max: 3 });
   const ledger = await pool.query("SELECT name FROM schema_migrations");
   sourceMigrationCount = (await loadMigrations()).length;
-  assert.equal(sourceMigrationCount, 16);
-  assert.equal(ledger.rows.length, sourceMigrationCount);
+  assert.equal(sourceMigrationCount, 17);
+  assert.equal(ledger.rows.length, sourceMigrationCount - 1);
   for (const name of [
     "012_pilot_access.sql",
     "013_pilot_auth_limits.sql",
     "014_workspace_scope.sql",
     "015_assistant_answer_receipts.sql",
+    "016_pilot_oauth_attempts.sql",
   ])
     assert.ok(ledger.rows.some((row) => row.name === name));
+  assert.ok(!ledger.rows.some((row) => row.name === "017_runtime_rls.sql"));
   // These permanent objects belong exclusively to this run. Read-only protection
   // of permanent writes is PostgreSQL's guarantee; temp objects and physical I/O
   // are deliberately outside this assertion.
@@ -184,7 +186,7 @@ test("read-only callback errors roll back and leave the connection usable", asyn
   }
 });
 
-test("preflight checks ledger, role and auth privileges entirely inside a read-only transaction", async () => {
+test("preflight checks maintenance ledger read-only and reports runtime capabilities separately", async () => {
   const client = await pool.connect();
   const queries = [];
   const readOnlyStates = [];
@@ -207,6 +209,7 @@ test("preflight checks ledger, role and auth privileges entirely inside a read-o
     const report = await runPilotPreflight(audited, {
       target: { projectRef, maskedProjectRef },
       authSummary,
+      runtimeCapabilities: { business: true, auth: true },
     });
     assert.ok(readOnlyStates.length > 0);
     assert.ok(readOnlyStates.every((state) => state === "on"));
@@ -218,11 +221,18 @@ test("preflight checks ledger, role and auth privileges entirely inside a read-o
     assert.equal(report.databaseChecked, true);
     assert.equal(report.transactionReadOnly, true);
     assert.equal(report.migrationLedgerReadable, true);
+    assert.deepEqual(report.runtimeCapabilities, {
+      business: true,
+      auth: true,
+    });
     assert.equal(report.checksumsMatch, true);
+    assert.equal(report.allSourceMigrationsApplied, false);
     assert.equal(report.stage012Applied, true);
     assert.equal(report.stage013Applied, true);
     assert.equal(report.stage014Applied, true);
     assert.equal(report.stage015Applied, true);
+    assert.equal(report.stage016Applied, true);
+    assert.equal(report.stage017Applied, false);
     assert.deepEqual(report.target, { maskedProjectRef });
     assert.deepEqual(report.auth, authSummary);
     assert.equal(report.migrations.length, sourceMigrationCount);
@@ -233,15 +243,15 @@ test("preflight checks ledger, role and auth privileges entirely inside a read-o
         "name",
       ]);
       assert.match(entry.name, /^\d{3}_[a-z_]+\.sql$/);
-      assert.equal(entry.applied, true);
-      assert.equal(entry.checksumMatches, true);
+      assert.equal(entry.applied, entry.name !== "017_runtime_rls.sql");
+      assert.equal(entry.checksumMatches, entry.name !== "017_runtime_rls.sql");
     }
-    assert.equal(report.role.isPostgres, currentRole === "postgres");
-    assert.equal(typeof report.role.nameMasked, "string");
-    for (const key of ["superuser", "bypassRls", "authUsage"])
-      assert.equal(typeof report.role[key], "boolean");
-    for (const column of ["id", "user_id", "not_after"])
-      assert.equal(report.role.authSessionColumns[column], true);
+    assert.equal(report.maintenanceRole.isPostgres, currentRole === "postgres");
+    assert.equal(typeof report.maintenanceRole.nameMasked, "string");
+    for (const key of ["superuser", "bypassRls"])
+      assert.equal(typeof report.maintenanceRole[key], "boolean");
+    assert.ok(!("authUsage" in report.maintenanceRole));
+    assert.ok(!("authSessionColumns" in report.maintenanceRole));
     assertPrivate(report, [currentRole]);
     assert.equal(
       (await client.query("SHOW transaction_read_only")).rows[0]
@@ -284,11 +294,16 @@ test("preflight flags missing migrations and mismatched checksums without writin
       const report = await runPilotPreflight(filtered, {
         target: { projectRef, maskedProjectRef },
         authSummary: { authConfigValid: true },
+        runtimeCapabilities: { business: false, auth: true },
       });
       if (variant === "missing" || variant === "missing014")
         assert.equal(report.allSourceMigrationsApplied, false);
       else assert.equal(report.checksumsMatch, false);
       if (variant === "missing014") assert.equal(report.stage014Applied, false);
+      assert.deepEqual(report.runtimeCapabilities, {
+        business: false,
+        auth: true,
+      });
     }
     assert.equal(
       (
@@ -296,7 +311,7 @@ test("preflight flags missing migrations and mismatched checksums without writin
           "SELECT count(*)::int AS count FROM schema_migrations",
         )
       ).rows[0].count,
-      sourceMigrationCount,
+      sourceMigrationCount - 1,
     );
   } finally {
     client.release();

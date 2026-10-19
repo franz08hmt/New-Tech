@@ -8,6 +8,7 @@ import {
 } from "./oauth-db-fixture.mjs";
 import { AuthService } from "../dist/auth/auth.service.js";
 import { AuthStore } from "../dist/auth/auth-store.js";
+import { AuthDatabaseService } from "../dist/database/auth-database.service.js";
 import { tokenHash, randomToken } from "../dist/auth/session-crypto.js";
 let f;
 const unexpectedCookies = [];
@@ -27,7 +28,7 @@ after(async () => {
 });
 test("real non-owner attempt single-use concurrent callbacks exchange once with SQL overlap", async () => {
   const catalog = (
-    await f.db.query(
+    await f.authDb.query(
       "SELECT current_user=session_user AS same,rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user",
     )
   ).rows[0];
@@ -52,7 +53,7 @@ test("real non-owner attempt single-use concurrent callbacks exchange once with 
   const otherDb = f.openRuntime(2),
     other = new AuthService(() => f.config, new AuthStore(otherDb), f.adapter);
   assert.notEqual(
-    (await f.db.query("SELECT pg_backend_pid() AS pid")).rows[0].pid,
+    (await f.authDb.query("SELECT pg_backend_pid() AS pid")).rows[0].pid,
     (await otherDb.query("SELECT pg_backend_pid() AS pid")).rows[0].pid,
   );
   assert.equal(
@@ -70,7 +71,7 @@ test("real non-owner attempt single-use concurrent callbacks exchange once with 
     "restart_required",
   );
   // Exchange is waiting, but the same runtime pool can serve another DB request.
-  assert.equal((await bounded(f.db.query("SELECT 1 AS n"))).rows[0].n, 1);
+  assert.equal((await bounded(f.authDb.query("SELECT 1 AS n"))).rows[0].n, 1);
   release.resolve();
   const firstResult = await bounded(first);
   assert.equal(f.state.exchanges - before, 1);
@@ -157,7 +158,7 @@ test("expiry cleanup, restart decryption and context-free bootstrap remain fail 
   );
   const restarted = new AuthService(
     () => f.config,
-    new AuthStore(f.db),
+    new AuthStore(f.authDb),
     f.adapter,
   );
   assert.equal(
@@ -166,8 +167,7 @@ test("expiry cleanup, restart decryption and context-free bootstrap remain fail 
   );
 });
 test("real prelogin revocation while provider waits prevents account swap, and no transaction holds pool max=1", async () => {
-  const one = f.openRuntime(1),
-    store = new AuthStore(one),
+  const store = new AuthStore(f.authDb),
     auth = new AuthService(() => f.config, store, f.adapter),
     p = await begin(f, auth);
   const started = deferred(),
@@ -250,11 +250,11 @@ test("COMMIT uncertainty at claim and issuance never replays or returns unconfir
     ).rows[0].n;
     const original = f.adapter.exchangeCode;
     let restore;
-    if (stage === "claim") restore = loseNextCommit(f.db);
+    if (stage === "claim") restore = loseNextCommit(f.authDb);
     else
       f.adapter.exchangeCode = async (...a) => {
         const tokens = await original.apply(f.adapter, a);
-        restore = loseNextCommit(f.db);
+        restore = loseNextCommit(f.authDb);
         return tokens;
       };
     try {
@@ -323,9 +323,9 @@ test("a new start during exchange prevents stale issuance on real store; SQL err
   assert.equal(await bounded(slow), "restart_required");
   f.adapter.exchangeCode = original;
   const q = await begin(f),
-    transaction = f.db.transaction.bind(f.db);
+    transaction = f.authDb.transaction.bind(f.authDb);
   let fired = false;
-  f.db.transaction = (work) =>
+  f.authDb.transaction = (work) =>
     transaction((tx) =>
       work({
         query(sql, values) {
@@ -351,7 +351,7 @@ test("a new start during exchange prevents stale issuance on real store; SQL err
       "restart_required",
     );
   } finally {
-    f.db.transaction = transaction;
+    f.authDb.transaction = transaction;
   }
   assert.equal(fired, true);
   assert.equal(
@@ -404,7 +404,7 @@ test("attempt/prelogin expiry during claim or issuance lock wait stops the next 
         before = f.state.exchanges;
       const blocker = await f.admin.connect(),
         waiting = deferred(),
-        transaction = f.db.transaction.bind(f.db),
+        transaction = f.authDb.transaction.bind(f.authDb),
         exchange = f.adapter.exchangeCode;
       let blocked = false,
         armed = stage === "claim",
@@ -426,7 +426,7 @@ test("attempt/prelogin expiry during claim or issuance lock wait stops the next 
             armed = true;
             return tokens;
           };
-        f.db.transaction = (work) =>
+        f.authDb.transaction = (work) =>
           transaction((tx) =>
             work({
               query(sql, values) {
@@ -483,7 +483,7 @@ test("attempt/prelogin expiry during claim or issuance lock wait stops the next 
       } finally {
         if (blocked) await blocker.query("ROLLBACK");
         blocker.release();
-        f.db.transaction = transaction;
+        f.authDb.transaction = transaction;
         f.adapter.exchangeCode = exchange;
       }
     }
@@ -494,7 +494,7 @@ test("a new start cannot dispatch after prelogin expires while its lock is queue
     hash = tokenHash(p.cookie.split("=")[1]),
     blocker = await f.admin.connect(),
     waiting = deferred();
-  const transaction = f.db.transaction.bind(f.db);
+  const transaction = f.authDb.transaction.bind(f.authDb);
   let blocked = false;
   try {
     await blocker.query("BEGIN");
@@ -503,7 +503,7 @@ test("a new start cannot dispatch after prelogin expires while its lock is queue
       "SELECT cookie_hash FROM pilot_sessions WHERE cookie_hash=$1 FOR UPDATE",
       [hash],
     );
-    f.db.transaction = (work) =>
+    f.authDb.transaction = (work) =>
       transaction((tx) =>
         work({
           query(sql, values) {
@@ -537,59 +537,43 @@ test("a new start cannot dispatch after prelogin expires while its lock is queue
   } finally {
     if (blocked) await blocker.query("ROLLBACK");
     blocker.release();
-    f.db.transaction = transaction;
+    f.authDb.transaction = transaction;
   }
 });
 
-test("016 checksum/idempotency, drift/dependency guards and rollback preserve sessions and allow reapply", async () => {
+test("016 rollback refuses the later F02 migration and preserves sessions and attempts", async () => {
   const { migrate } = await import("../scripts/migrate.mjs"),
-    { runPilotRollback016 } = await import("../scripts/pilot-rollback-016.mjs"),
-    { runPilotRollback015 } = await import("../scripts/pilot-rollback-015.mjs");
+    { runPilotRollback016 } = await import("../scripts/pilot-rollback-016.mjs");
   const options = {
-      apply: true,
+      apply: false,
       projectRef: "a1b2c3d4e5f6g7h8i9j0",
       confirmProject: "a1b2c3d4e5f6g7h8i9j0",
     },
     client = await f.admin.connect();
-  const before = (
-    await f.admin.query(
-      "SELECT cookie_hash FROM pilot_sessions ORDER BY cookie_hash",
-    )
-  ).rows;
   try {
-    // The maintenance contract is pristine 016, not the Auth fixture's extra
-    // bootstrap policy. Removing this test-only policy is explicit setup; the
-    // dedicated rollback suite proves unexpected policies are refused.
-    await client.query(
-      "DROP POLICY oauth_bootstrap_fixture ON pilot_oauth_attempts",
-    );
-    await assert.rejects(
-      runPilotRollback015(client, options),
-      /later or unknown/,
-    );
-    const dry = await runPilotRollback016(client, { ...options, apply: false });
-    assert.equal(dry.applied, false);
-    await client.query(
-      "CREATE VIEW oauth_blocker_fixture AS SELECT attempt_hash FROM pilot_oauth_attempts",
-    );
-    await assert.rejects(runPilotRollback016(client, options), /refused/);
-    await client.query("DROP VIEW oauth_blocker_fixture");
-    await client.query(
-      "ALTER TABLE pilot_oauth_attempts ADD COLUMN drift_fixture integer",
-    );
-    await assert.rejects(runPilotRollback016(client, options), /schema drift/);
-    await client.query(
-      "ALTER TABLE pilot_oauth_attempts DROP COLUMN drift_fixture",
-    );
-    assert.equal((await runPilotRollback016(client, options)).applied, true);
-    assert.deepEqual(
-      (
+    const snapshot = async () => ({
+      ledger: (
         await client.query(
-          "SELECT cookie_hash FROM pilot_sessions ORDER BY cookie_hash",
+          "SELECT name,checksum FROM schema_migrations ORDER BY name",
         )
       ).rows,
-      before,
+      sessions: (
+        await client.query(
+          "SELECT cookie_hash,kind,revoked_at FROM pilot_sessions ORDER BY cookie_hash",
+        )
+      ).rows,
+      attempts: (
+        await client.query(
+          "SELECT prelogin_hash,attempt_hash,claimed_at FROM pilot_oauth_attempts ORDER BY prelogin_hash",
+        )
+      ).rows,
+    });
+    const before = await snapshot();
+    await assert.rejects(
+      runPilotRollback016(client, options),
+      /later or unknown/,
     );
+    assert.deepEqual(await snapshot(), before);
   } finally {
     client.release();
   }
@@ -602,6 +586,6 @@ test("016 checksum/idempotency, drift/dependency guards and rollback preserve se
   assert.equal(
     (await f.admin.query("SELECT count(*)::int AS n FROM schema_migrations"))
       .rows[0].n,
-    16,
+    17,
   );
 });

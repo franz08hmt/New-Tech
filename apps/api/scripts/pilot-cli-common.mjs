@@ -82,12 +82,29 @@ export function reportFailure(error) {
 
 export function pilotConnection({
   maintenance = false,
+  capability = "business",
   readOnly = false,
 } = {}) {
   loadEnvironment();
+  const selected = maintenance ? "maintenance" : capability;
+  if (!maintenance && !["business", "auth"].includes(capability))
+    throw new PilotCliError("Unknown database capability.");
+  const environmentName =
+    selected === "maintenance"
+      ? "MIGRATION_DATABASE_URL"
+      : selected === "auth"
+        ? "AUTH_DATABASE_URL"
+        : "DATABASE_URL";
   const connectionString =
-    (maintenance ? process.env.MIGRATION_DATABASE_URL?.trim() : undefined) ||
-    process.env.DATABASE_URL;
+    selected === "maintenance"
+      ? process.env.MIGRATION_DATABASE_URL?.trim()
+      : selected === "auth"
+        ? process.env.AUTH_DATABASE_URL?.trim()
+        : process.env.DATABASE_URL?.trim();
+  if (!connectionString)
+    throw new PilotCliError(
+      `${environmentName} is required for the selected database capability.`,
+    );
   const target = resolvePilotProject(
     connectionString,
     process.env.SUPABASE_URL ?? "",

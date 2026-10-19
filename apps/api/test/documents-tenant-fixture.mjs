@@ -7,7 +7,7 @@ import { DatabaseService } from "../dist/database/database.service.js";
 import { AuthStore } from "../dist/auth/auth-store.js";
 import { DocumentAccessService } from "../dist/documents/document-access.service.js";
 import { DocumentsService } from "../dist/documents/documents.service.js";
-import { migrate } from "../scripts/migrate.mjs";
+import { loadMigrations, migrate } from "../scripts/migrate.mjs";
 import { assertTestDatabaseTarget } from "../scripts/test-database-target.mjs";
 import { prepareAuthFixture } from "./disposable-auth-fixture.mjs";
 export const fixedId = (n) =>
@@ -34,7 +34,7 @@ export const tenantPrincipal = (
 export function documentsPolicy(write = false, remove = false) {
   return `documents.workspace_id=NULLIF(current_setting('examate.workspace_id',true),'')::uuid AND EXISTS(SELECT 1 FROM workspace_memberships m JOIN workspaces w ON w.id=m.workspace_id WHERE m.workspace_id=documents.workspace_id AND m.user_id=NULLIF(current_setting('examate.user_id',true),'')::uuid AND m.active AND w.active ${remove ? "AND m.role='manager'" : write ? "AND m.role IN ('manager','member')" : ""})`;
 }
-export async function openDocumentsTenantFixture() {
+export async function openDocumentsTenantFixture({ migrationLimit } = {}) {
   const saved = { ...process.env },
     guard = (url) =>
       assertTestDatabaseTarget(url, { runtimeUrl: saved.DATABASE_URL ?? "" });
@@ -164,11 +164,19 @@ export async function openDocumentsTenantFixture() {
     guard(adminUrl);
     admin = new pg.Pool({ connectionString: adminUrl, max: 2 });
     await prepareAuthFixture(admin);
-    await migrate(adminUrl);
+    await migrate(
+      adminUrl,
+      migrationLimit
+        ? {
+            loadSource: async () =>
+              (await loadMigrations()).slice(0, migrationLimit),
+          }
+        : {},
+    );
     assert.equal(
       (await admin.query("SELECT count(*)::int AS n FROM schema_migrations"))
         .rows[0].n,
-      16,
+      migrationLimit ?? 17,
     );
     for (const user of Object.values(people))
       await admin.query("INSERT INTO auth.users(id) VALUES($1)", [user]);
