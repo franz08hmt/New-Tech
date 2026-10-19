@@ -138,6 +138,7 @@ test("019 stores bounded usage through non-owner business context, scoped by ten
             });
             usage.finishProviderCall(call, "success", {
               promptTokenCount: 12,
+              candidatesTokenCount: 7,
               totalTokenCount: 19,
             });
           }

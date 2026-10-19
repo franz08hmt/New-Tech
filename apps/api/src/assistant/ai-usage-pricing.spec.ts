@@ -8,12 +8,12 @@ describe("AI usage token and pricing metadata", () => {
         promptTokenCount: 1_000_000,
         candidatesTokenCount: 20,
         thoughtsTokenCount: 5,
-        totalTokenCount: 1_000_030,
+        totalTokenCount: 1_000_025,
       }),
     ).toEqual({
       inputTokens: 1_000_000,
-      outputTokens: 30,
-      totalTokens: 1_000_030,
+      outputTokens: 25,
+      totalTokens: 1_000_025,
       status: "complete",
     });
   });
@@ -50,6 +50,155 @@ describe("AI usage token and pricing metadata", () => {
     });
   });
 
+  it("rejects cumulative totals smaller than reported response components", () => {
+    const inconsistent = normalizeTokenUsage({
+      promptTokenCount: 10,
+      candidatesTokenCount: 100,
+      totalTokenCount: 20,
+    });
+
+    expect(inconsistent).toEqual({
+      inputTokens: null,
+      outputTokens: null,
+      totalTokens: null,
+      status: "invalid",
+    });
+    expect(estimateTokenCost("gemini-2.5-flash", inconsistent)).toMatchObject({
+      status: "invalid",
+      estimatedCost: null,
+    });
+  });
+
+  it.each([
+    {
+      name: "thoughts",
+      usage: {
+        promptTokenCount: 10,
+        candidatesTokenCount: 4,
+        thoughtsTokenCount: 8,
+        totalTokenCount: 20,
+      },
+    },
+    {
+      name: "tool-use prompt",
+      usage: {
+        promptTokenCount: 10,
+        toolUsePromptTokenCount: 8,
+        totalTokenCount: 15,
+      },
+    },
+    {
+      name: "multiple reported components",
+      usage: {
+        promptTokenCount: 10,
+        candidatesTokenCount: 6,
+        thoughtsTokenCount: 5,
+        toolUsePromptTokenCount: 2,
+        totalTokenCount: 22,
+      },
+    },
+  ])("rejects a total inconsistent with $name", ({ usage }) => {
+    expect(normalizeTokenUsage(usage).status).toBe("invalid");
+  });
+
+  it("keeps valid zero distinct from missing and prices only a complete zero", () => {
+    const zero = normalizeTokenUsage({
+      promptTokenCount: 0,
+      candidatesTokenCount: 0,
+      thoughtsTokenCount: 0,
+      toolUsePromptTokenCount: 0,
+      totalTokenCount: 0,
+    });
+    expect(zero).toEqual({
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      status: "complete",
+    });
+    expect(estimateTokenCost("gemini-2.5-flash", zero)).toMatchObject({
+      status: "estimated",
+      estimatedCost: "0.000000000000",
+    });
+    expect(normalizeTokenUsage({}).status).toBe("missing");
+  });
+
+  it("does not assign tool-use prompt tokens to output pricing", () => {
+    const withToolInput = normalizeTokenUsage({
+      promptTokenCount: 10,
+      candidatesTokenCount: 5,
+      thoughtsTokenCount: 2,
+      toolUsePromptTokenCount: 3,
+      totalTokenCount: 20,
+    });
+    expect(withToolInput).toMatchObject({ status: "partial" });
+    expect(estimateTokenCost("gemini-2.5-flash", withToolInput)).toMatchObject({
+      status: "unknown_usage",
+      estimatedCost: null,
+    });
+  });
+
+  it("does not assign an unreported remainder to output tokens", () => {
+    expect(
+      normalizeTokenUsage({ promptTokenCount: 10, totalTokenCount: 20 }),
+    ).toEqual({
+      inputTokens: 10,
+      outputTokens: null,
+      totalTokens: 20,
+      status: "partial",
+    });
+    expect(
+      estimateTokenCost("gemini-2.5-flash", {
+        ...normalizeTokenUsage({ promptTokenCount: 10, totalTokenCount: 20 }),
+      }),
+    ).toMatchObject({ status: "unknown_usage", estimatedCost: null });
+
+    expect(
+      normalizeTokenUsage({
+        promptTokenCount: 10,
+        candidatesTokenCount: 5,
+        totalTokenCount: 20,
+      }),
+    ).toEqual({
+      inputTokens: 10,
+      outputTokens: null,
+      totalTokens: 20,
+      status: "partial",
+    });
+    // An absent optional field does not prevent a complete result when the
+    // provider total exactly reconciles with the reported components.
+    expect(
+      normalizeTokenUsage({
+        promptTokenCount: 10,
+        candidatesTokenCount: 5,
+        totalTokenCount: 15,
+      }),
+    ).toEqual({
+      inputTokens: 10,
+      outputTokens: 5,
+      totalTokens: 15,
+      status: "complete",
+    });
+  });
+
+  it("rejects cached input larger than its reported prompt and component overflow", () => {
+    expect(
+      normalizeTokenUsage({
+        promptTokenCount: 10,
+        cachedContentTokenCount: 11,
+        candidatesTokenCount: 1,
+        totalTokenCount: 11,
+      }).status,
+    ).toBe("invalid");
+    expect(
+      normalizeTokenUsage({
+        promptTokenCount: Number.MAX_SAFE_INTEGER,
+        candidatesTokenCount: Number.MAX_SAFE_INTEGER,
+        thoughtsTokenCount: 1,
+        totalTokenCount: Number.MAX_SAFE_INTEGER,
+      }).status,
+    ).toBe("invalid");
+  });
+
   it("estimates only for an explicitly priced model and valid complete usage", () => {
     const usage = normalizeTokenUsage({
       promptTokenCount: 1_000_000,
@@ -69,6 +218,7 @@ describe("AI usage token and pricing metadata", () => {
 
     const outputOnly = normalizeTokenUsage({
       promptTokenCount: 0,
+      candidatesTokenCount: 1_000_000,
       totalTokenCount: 1_000_000,
     });
     expect(estimateTokenCost("gemini-2.5-flash", outputOnly)).toMatchObject({

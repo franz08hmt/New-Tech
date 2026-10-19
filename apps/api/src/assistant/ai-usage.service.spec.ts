@@ -63,6 +63,7 @@ describe("AiUsageService", () => {
         });
         f.service.finishProviderCall(generation, "success", {
           promptTokenCount: 1_000_000,
+          candidatesTokenCount: 10,
           totalTokenCount: 1_000_010,
         });
         const embed = f.service.startProviderCall({
@@ -133,6 +134,7 @@ describe("AiUsageService", () => {
         });
         f.service.finishProviderCall(call, "success", {
           promptTokenCount: 10,
+          candidatesTokenCount: 5,
           totalTokenCount: 15,
         });
         throw rejection;
@@ -158,6 +160,7 @@ describe("AiUsageService", () => {
       f.service.updateProviderModel(call, "gemini-2.5-flash-001");
       f.service.finishProviderCall(call, "success", {
         promptTokenCount: 10,
+        candidatesTokenCount: 5,
         totalTokenCount: 15,
       });
       return "synthetic answer";

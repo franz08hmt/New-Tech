@@ -30,6 +30,11 @@ function safeTokenCount(value: unknown): number | null | "invalid" {
     : "invalid";
 }
 
+function componentTotal(...values: (number | null)[]) {
+  const total = values.reduce((sum, value) => sum + BigInt(value ?? 0), 0n);
+  return total <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(total) : "invalid";
+}
+
 /** Read only SDK fields documented by the installed @google/genai response type. */
 export function normalizeTokenUsage(raw: unknown): TokenUsage {
   if (!raw || typeof raw !== "object")
@@ -75,8 +80,70 @@ export function normalizeTokenUsage(raw: unknown): TokenUsage {
       status: "missing",
     };
 
+  if (input !== null && cached !== null && cached > input)
+    return {
+      inputTokens: null,
+      outputTokens: null,
+      totalTokens: null,
+      status: "invalid",
+    };
+
+  const knownOutputComponents = componentTotal(candidates, thoughts);
+  const knownReportedComponents = componentTotal(candidates, thoughts, tool);
+  if (
+    knownOutputComponents === "invalid" ||
+    knownReportedComponents === "invalid"
+  )
+    return {
+      inputTokens: null,
+      outputTokens: null,
+      totalTokens: null,
+      status: "invalid",
+    };
+
+  if (total !== null) {
+    if (input === null && BigInt(knownReportedComponents) > BigInt(total))
+      return {
+        inputTokens: null,
+        outputTokens: null,
+        totalTokens: null,
+        status: "invalid",
+      };
+    const remainingAfterPrompt = total - (input ?? 0);
+    if (
+      remainingAfterPrompt < 0 ||
+      BigInt(knownReportedComponents) > BigInt(remainingAfterPrompt)
+    )
+      return {
+        inputTokens: null,
+        outputTokens: null,
+        totalTokens: null,
+        status: "invalid",
+      };
+
+    if (
+      input !== null &&
+      candidates !== null &&
+      thoughts !== null &&
+      tool !== null &&
+      BigInt(input) + BigInt(candidates) + BigInt(thoughts) + BigInt(tool) !==
+        BigInt(total)
+    )
+      return {
+        inputTokens: null,
+        outputTokens: null,
+        totalTokens: null,
+        status: "invalid",
+      };
+  }
+
   if (input !== null && total !== null) {
-    if (total < input)
+    const reportedToolInput = tool ?? 0;
+    const remainingAfterPrompt = total - input;
+    const output = remainingAfterPrompt - reportedToolInput;
+    const outputIsReconciled =
+      BigInt(remainingAfterPrompt) === BigInt(knownReportedComponents);
+    if (output < 0 || knownOutputComponents > output)
       return {
         inputTokens: null,
         outputTokens: null,
@@ -85,16 +152,23 @@ export function normalizeTokenUsage(raw: unknown): TokenUsage {
       };
     return {
       inputTokens: input,
-      outputTokens: total - input,
+      outputTokens: outputIsReconciled ? output : null,
       totalTokens: total,
-      // Cached input has a different rate and may add storage charges. This
-      // schema does not retain its full billing breakdown, so do not estimate.
-      status: cached !== null && cached > 0 ? "partial" : "complete",
+      // A total remainder cannot be called output when a tool-use or other
+      // component is missing from SDK metadata. The schema also has no
+      // separate cached-input or tool-use pricing bucket.
+      status:
+        !outputIsReconciled ||
+        (cached !== null && cached > 0) ||
+        reportedToolInput > 0
+          ? "partial"
+          : "complete",
     };
   }
   return {
     inputTokens: typeof input === "number" ? input : null,
-    outputTokens: typeof candidates === "number" ? candidates : null,
+    outputTokens:
+      candidates !== null && thoughts !== null ? knownOutputComponents : null,
     totalTokens: typeof total === "number" ? total : null,
     status: "partial",
   };
