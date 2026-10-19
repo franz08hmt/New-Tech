@@ -66,3 +66,29 @@ Consent/MFA thuộc chủ account; Google client secret chỉ ở provider Supab
 
 Kiểm chứng và giới hạn: [demo checklist](FINAL-DEMO-CHECKLIST.md),
 [context](PROJECT-CONTEXT.md). Production tenant policies/runtime role là F02.
+
+### Hệ quả rollback 016 — F01.1, 19/10/2026
+
+Hai finding của reviewer là đúng: guard cũ chỉ so tên cột; dry-run chưa kiểm
+dependency. Preflight mới dùng chung cho hai mode, recursive pg_depend và
+contract catalog checked-in từ pristine disposable/source 016 PG17. Expected
+không được học từ target đang kiểm. Gắn checksum source; không sửa 001–016.
+So cấu trúc cột/constraints/FK/index/trigger/TOAST/types/RLS/inheritance; kể cả
+object auto-dropped ngoài thiết kế phải từ chối. Tên nội bộ phụ thuộc OID được
+chuẩn hóa và kiểm quan hệ tên tự sinh, không ghi OID target vào contract.
+
+Dry-run BEGIN READ ONLY, chỉ đọc/SET LOCAL/ROLLBACK; không thử DROP. Apply
+advisory lock, ACCESS EXCLUSIVE và recheck trong transaction; DROP RESTRICT vẫn
+chặn cuối. Chỉ DROP attempt table và DELETE ledger 016, giữ rows sessions/users/
+memberships/business; mất attempts đang chạy, không tự replay khi migrate lại.
+COMMIT mất ACK không chứng minh rollback; báo outcome unknown, discard client
+không chắc sạch, không tự retry. Known rollback có test reuse cùng backend.
+
+Contract được kiểm PG17; khác major/deparser có thể bị từ chối an toàn, không
+tự cập nhật expected từ target. Owner/ACL không thuộc snapshot cấu trúc. Catalog
+inspection không chứng minh phát hiện dynamic SQL hoặc mọi application reference.
+F02 thêm policy/structural objects phải đánh giá đường lui riêng, không âm thầm
+xóa chúng bằng rollback 016 cũ. Đây là bổ sung ADR-001, chưa phải đủ ba ADR.
+
+Nguồn: [pg_depend](https://www.postgresql.org/docs/17/catalog-pg-depend.html),
+[pg_constraint](https://www.postgresql.org/docs/17/catalog-pg-constraint.html).

@@ -513,6 +513,105 @@ hiện có: mặc định dry-run, apply cần exact target confirmation. Mất 
 migration/dependencies/column drift phải giữ. Không tự rollback cloud.
 Các rollback 015/014/012–013 vẫn từ chối khi 016 còn applied.
 
+F01.1: dry-run và apply dùng cùng preflight catalog. Có dependency/drift phải
+dừng; không thử DROP rồi rollback. Apply tự kiểm lại trong transaction sau
+advisory lock và ACCESS EXCLUSIVE lock trên ledger/bảng attempt; plan dry-run
+cũ không cấp quyền bỏ bước này. DROP RESTRICT vẫn là lớp chặn cuối, không CASCADE.
+Plan liệt kê table/constraints/indexes, automatic row/array types, TOAST/FK
+triggers và số attempts sẽ mất. Sessions/users/membership/business rows giữ nguyên;
+attempts đang chờ/claimed mất vĩnh viễn, migrate lại chỉ tạo bảng rỗng.
+
+Contract độc lập `apps/api/scripts/pilot-rollback-016-contract.json` được chụp từ
+disposable pristine áp source 001–016 trên PG17, gắn checksum 016. Guard kiểm cột
+(tên/thứ tự/type/null/default/identity/generated/collation/storage), constraint/FK,
+index/flags, triggers, row/array types, TOAST, RLS/policies và inheritance. Không
+refresh expected từ target bị drift hoặc sửa migration/ledger để làm guard xanh.
+Nếu major/deparser khác contract đã kiểm, dừng chẩn đoán/duyệt riêng; chưa nhận
+đã kiểm mọi phiên bản PostgreSQL. Owner/ACL không phải nội dung snapshot schema.
+
+Dependency closure dùng pg_depend, kể cả view/rule/materialized view, FK ngoài,
+row-type consumers và extra structural objects tự bị DROP kéo theo. Không chứng
+minh phát hiện dynamic SQL/string references hoặc mọi reference trong ứng dụng.
+COMMIT mất ACK: outcome unknown, không replay; connection không chắc sạch bị
+discard. Giữ writers dừng, kiểm table/ledger chỉ đọc trước quyết định tiếp.
+
 Live: chủ account tự consent/MFA/login; kiểm role/no_access, reload, API đúng
 quyền, logout/revoke. Tài/Thắng chạy trên máy riêng. Không có evidence Thắng
 thì REMOTE_MACHINE_NOT_VERIFIED. Refresh/revocation chưa quan sát là PENDING.
+
+### Readiness F01.1 — quan sát 19/10/2026, không phải Google live PASS
+
+Checkout integration hiện không có private config hiệu lực: các kiểm presence/
+validity của origin, public key, workspace/session key và target đều false.
+Readiness cuối không thấy inherited override cho các biến đã kiểm. Cụ thể chưa
+có giá trị hiệu lực cho DATABASE_URL, SUPABASE_URL, PUBLIC_ORIGIN,
+SUPABASE_PUBLISHABLE_KEY hoặc SUPABASE_ANON_KEY (chỉ cần một loại đúng project),
+PILOT_WORKSPACE_ID, SESSION_ENCRYPTION_KEY và DATABASE_CA_CERT_PATH. Giữ cơ chế
+verification database đang là default; không đổi auth_user để né kiểm.
+Không suy rằng cấu hình project cloud hay key nhóm đã mất. Không đọc/copy .env
+checkout cũ; không tạo workspace/key mới. Vì authConfig/target invalid, preflight
+cloud và public provider settings chưa được gọi; không dùng ledger lịch sử làm mới.
+
+| Hạng mục                                             | READY/MISSING/NOT_VERIFIED      | Việc cần làm                                                                         | Ai thực hiện                  |
+| ---------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------- |
+| Source callback và hai local origins                 | READY (source, không phải live) | Dev 127.0.0.1:5173, Docker 127.0.0.1:8080; giữ API proxy                             | Agent/local tests             |
+| Cấu hình private hiệu lực trong checkout integration | MISSING                         | Điền bằng editor/private channel, dùng lại workspace/session key đang dùng           | Tài/operator                  |
+| Target khớp resolver và owner xác nhận               | NOT_VERIFIED                    | Đối chiếu DB URL/Supabase URL cùng project; báo kết quả che ref                      | Operator + preflight chỉ đọc  |
+| Ledger/checksum/pending cloud hiện tại               | NOT_VERIFIED                    | Chạy pilot:preflight sau config hợp lệ; không apply                                  | Agent/operator read-only      |
+| Google provider/public settings                      | NOT_VERIFIED                    | Kiểm Dashboard; GET settings read-only nếu config/public key hợp lệ                  | Project owner/agent read-only |
+| Callback Google → Supabase                           | NOT_VERIFIED                    | Copy callback từ Google provider của đúng project vào OAuth Web client               | Google/Supabase owner         |
+| Callback Supabase → ExaMate, attempt động            | NOT_VERIFIED                    | Kiểm URL Configuration và matching trên phiên bản/config thực, không wildcard domain | Supabase owner                |
+| Platform identity linking và membership Google ID    | NOT_VERIFIED                    | Xác minh verified user ID, no-access trước cấp quyền đã duyệt                        | Owner                         |
+| Consent/login/refresh/revoke hai origins             | NOT_VERIFIED                    | Chỉ sau setup/schema/quyền riêng đạt; account owner tự thao tác                      | Tài + account owner           |
+| Máy Thắng                                            | NOT_VERIFIED                    | Đúng commit/config và evidence trực tiếp máy Thắng                                   | Thắng                         |
+
+### Checklist owner theo thứ tự, không gửi secrets qua chat
+
+1. **Private config local:** trong editor mở `.env` ở checkout integration.
+   Dùng lại target/public key/workspace/session key đã được nhóm quản lý; không
+   lấy service-role làm public key, không rotate. Chọn PUBLIC_ORIGIN 5173 cho
+   native dev; cấu hình app Compose dùng 8080, không chạy hai API lẫn nhau. Giữ
+   AUTH_SESSION_VERIFICATION=database, TLS/CA/pool hợp lệ. Để Google tắt cho tới
+   khi setup được duyệt. Dấu hiệu đạt: authConfigValid/targetValid true từ preflight.
+2. **Schema trước provider dispatch:** chạy `npm run pilot:preflight` chỉ đọc.
+   Owner xem pending thực, checksum khớp, đúng masked target. Nếu cần 016:
+   lập gói duyệt riêng gồm target/pending/tác động, backup private, đường lui và
+   maintenance window; agent chưa apply trong F01.1. Không bootstrap lại 001–015.
+3. **Google Console:** mở đúng project → Google Auth Platform → Branding,
+   Audience và Data Access. Owner chọn audience/test users được phép; scopes
+   chỉ profile/email/openid cho login. Vào Clients → OAuth client loại Web.
+   Không tạo client trùng nếu đã có. Không thêm Drive/Gmail scopes hoặc bật billing.
+4. **Phân biệt hai callback:** mở Supabase Dashboard → đúng project →
+   Authentication → Sign In / Providers → Google (UI cũ có thể ghi Providers).
+   Copy callback của Supabase (`/auth/v1/callback` trên host project) vào
+   **Authorized redirect URIs** của Google Web client. Đây không phải callback
+   Nest. Owner nhập Client ID/Secret vào Google provider của Supabase, lưu và
+   kiểm enabled. Không copy Google secret vào app/FE/Git/ảnh.
+5. **Supabase → ExaMate:** Authentication → URL Configuration: kiểm Site URL
+   và Redirect URLs cho app `/api/auth/google/callback` tại hai origins local.
+   `redirect_to` của app có correlation `attempt` động do server sinh. Kiểm cấu
+   hình matching thực tế, không chỉ nhìn path trong danh sách. Không thêm
+   wildcard domain, mọi-path hoặc client-selected return URL để né mismatch.
+   Source Auth công khai có cả nhánh site/loopback và glob; không coi source
+   master hay matcher fixture là bằng chứng project deployed đã match đúng.
+   Nếu cần pattern query hẹp, owner phải kiểm semantics/escape của bản triển khai
+   trước duyệt; F01.1 không tự chọn pattern hoặc gọi authorize để dò cloud.
+6. **Identity và live checkpoint:** owner kiểm chính sách linking trong Auth
+   settings/tài liệu platform. Google có thể tạo identity/user khác account demo
+   `.example`; cũng không được giả định luôn là ID mới. App không tự link/merge,
+   không kế thừa membership bằng email. Owner đối chiếu verified Supabase user ID
+   riêng và duyệt workflow cấp membership; chưa cấp phải no_access. Không tạo user
+   hoặc grant trong lượt này. Sau setup/schema được duyệt mới bật Google private.
+   Account owner tự consent/MFA/password; không lưu HAR/token/cookie/screenshot PII.
+
+Dấu hiệu live đúng: về URL sạch của ExaMate, session API xác nhận đúng role hoặc
+no_access, reload/logout/role checks đạt. Tiếp tục hai tab/account swap/callback
+cũ/API outage/refresh/revoke trên dev và Compose; Thắng chạy trên chính máy mình.
+Chưa có evidence các bước đó thì LIVE_ACCEPTANCE_PENDING, không nhận fixture PASS.
+Callback thành công phải chứng minh correlation động tới đúng Nest và session
+đúng; chỉ nhìn allowlist path hoặc public settings không chứng minh điều này.
+
+Nguồn thao tác: [Supabase Google](https://supabase.com/docs/guides/auth/social-login/auth-google),
+[Google Web OAuth](https://developers.google.com/identity/protocols/oauth2/web-server),
+[Supabase redirect matching](https://supabase.com/docs/guides/auth/redirect-urls),
+[Auth matcher source](https://github.com/supabase/auth/blob/master/internal/utilities/request.go).

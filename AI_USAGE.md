@@ -106,3 +106,36 @@ Native and rebuilt Compose fixtures pass at both viewports. Cleanup initially
 flagged the standard B0d cluster fixture role and a PowerShell label-quoting error;
 marker/ownership checks resolved both before deleting only the run-owned volume.
 Ignored synthetic evidence/images remain local; no cloud writes or push occurred.
+
+## 2026-10-19 — F01.1 rollback 016 hardening (Codex)
+
+The reviewer reproduced two actual gaps: dry-run ignored external dependencies
+and the schema check only compared column names. Both new PostgreSQL regressions
+were observed RED as missing expected rejection before the implementation changed.
+Shared read-only/apply preflight now compares a checked-in pristine/source catalog
+contract and traverses pg_depend; RESTRICT remains the last barrier. No migration
+or Auth/session runtime was changed. An additional renamed-FK-trigger regression
+observed RED during review and is now guarded without persisting target OIDs.
+
+Tools: local Git/PowerShell/Node/Python, existing test runners, guarded disposable
+PG17/Docker and primary PostgreSQL/Supabase/Google docs. No external coding CLI,
+no source/data upload, no cloud payload or new package. Dependency/schema guard
+mutations built and failed assertions; restored tests passed. A test regex first
+matched the safe word “privately” instead of just the injected private sentinel;
+the matcher was corrected, not counted as a product RED or caught mutation.
+
+The owner supplied the actual FINAL F01–F16 roadmap during this task; it replaces
+the obsolete ordering without executing later phases. Search/pagination and AI
+dashboard stories are explicitly pending. Private config is not effective in
+this checkout, so cloud preflight/provider inspection have not run. Owner receives
+specific setup/readiness steps, not a fabricated Google live or Thắng verdict.
+Human review of the patch remains pending; final gate/cleanup outcomes live in
+the existing FINAL-DEMO-CHECKLIST. AI_USAGE historical content stays intact.
+
+Final F01.1 measured gates all exit zero: API Vitest 288, API Node 843, web 374
+(1,505 app), PG17 DB 423 across 25 serial suites, no fail/skip/cancelled. Only
+maintenance script/tests/docs changed: no new browser/Compose/Google acceptance
+is claimed. Final read-only readiness still has invalid/missing effective Auth
+and target config, so no cloud/provider connection was opened. Owned disposable
+DB/roles/container/volume were cleaned after marker/project checks; unrelated
+SOP containers remain. No push, cloud write, key rotation or migration edit.

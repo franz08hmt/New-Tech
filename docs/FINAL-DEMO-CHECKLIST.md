@@ -218,3 +218,89 @@ Xem [runbook live](PILOT-B1-RUNBOOK.md), [ADR-001](DECISIONS.md),
 [stories](FINAL-REQUIREMENTS.md), [AI_USAGE](../AI_USAGE.md). Không đổi RAG/model/
 prompt/validator/voice. F02 runtime least privilege/production policies, B3 AI
 budget và B4 semantic acceptance còn mở. Không push, merge, deploy hay cloud writes.
+
+## F01.1 — rollback hardening, run mới 19/10/2026
+
+HEAD đầu `0130039`, integration checkout sạch (0 WIP/untracked), checkout cũ
+không sửa. Commit code `b343737`; thay rollback CLI/helper/contract JSON, thêm
+suite DB và đăng ký gate. Không Auth runtime/FE/dependency/lockfile/migration
+001–016 changes. Chưa có phê duyệt hay thao tác cloud write.
+
+| Kiểm                        | Baseline mới tại 0130039 | Final F01.1          |
+| --------------------------- | ------------------------ | -------------------- |
+| typecheck                   | exit 0                   | exit 0               |
+| API Vitest / API Node / web | 288 / 843 / 374 pass     | 288 / 843 / 374 pass |
+| Tổng app                    | 1.505 pass               | 1.505 pass           |
+| build / format:check        | exit 0 / 0               | exit 0 / 0           |
+| PG17 database               | 390 pass                 | 423 pass; exit 0     |
+
+Baseline không fail/skip/cancelled; host Node 24.13.0/npm 11.6.2, Docker 29.6.2
+Linux. Log mới trong `artifacts/f011-20261019/` ignored, không dùng lại số F01.
+Final gồm 25 DB suite tuần tự; toàn bộ app/DB 0 fail/skip/cancelled. Verdict:
+**LOCAL_HARDENING_ACCEPTED + LIVE_ACCEPTANCE_PENDING**. Human review patch pending.
+
+RED thực trước sửa: view phụ thuộc và expires_at text đều báo Missing expected
+rejection khi dry-run cũ thành công. GREEN sau shared preflight. Structural
+review thêm RED tên FK trigger bị đổi mà vẫn được nhận; normalized generated
+names/validity nay từ chối. Mutation dependency/schema đều node --check + build
+exit 0, test fail assertion exit 1, restore test exit 0. Không nhận fixture/import/
+all-filtered làm RED. Một privacy assertion ban đầu match nhầm từ an toàn
+“privately”; đã kiểm sentinel cụ thể, không nhận lỗi test đó là bug/RED runtime.
+
+Focused mới: 33 rollback DB tests và 11 OAuth DB regressions pass, không skip.
+Đây là security/maintenance regression, không phải 20 AI evaluation cases F09.
+Test fixture dùng maintenance owner trên disposable, không gọi là Auth thật
+hoặc tenant RLS acceptance. Snapshot contract từ DB random pristine migrate
+001–016 qua runner; 7 cột, 8 constraints, 3 indexes, 4 FK triggers, types/TOAST/
+RLS flags/policies. Không lấy schema drift của target làm expected. Test-only
+bootstrap policy được bỏ rõ ràng trước legacy maintenance case; dedicated
+suite chứng minh extra policy bị từ chối, không nới production permission.
+
+Dry-run trace chỉ BEGIN READ ONLY/SET LOCAL/SELECT/ROLLBACK, plan và attemptsLost
+đúng. View/column-view/materialized-view/rule/FK/row-type function, extra check/
+index/policy đều chặn trước destructive SQL ở cả hai mode. Type/nullability/
+default/order/constraint/FK/index/RLS/trigger/storage drift bị từ chối. Count và
+fingerprint rows/schema/ledger không đổi sau refusal; sessions/users/membership/
+business/chunks giữ nguyên sau apply. Migrate lại 016 hai lần checksum đúng.
+
+Apply lấy advisory + ACCESS EXCLUSIVE trước recheck; dry-run thành công rồi
+thêm view vẫn bị apply từ chối. Sai confirm-project phát 0 SQL. 017 giả có
+source/ledger checksum hợp lệ được inject chỉ trong test, không tạo migration
+production. Guard later migration và oracle 015 theo chain cũ f36607b giữ nguyên.
+
+Fault injection disposable: BEGIN đã chạy mất ACK; DELETE ledger lỗi sau DROP
+được rollback nguyên tử và reuse cùng PID. ROLLBACK lỗi hoặc COMMIT thật xong
+mất ACK phải discard, lần acquire sau khác PID. COMMIT unknown chỉ DROP/COMMIT
+một lần, không tự replay; protected data giữ nguyên. Không ngắt TCP cloud thật.
+
+F01.1 không chạy lại browser/Compose/Google vì chỉ đổi maintenance script/tests/
+docs. Bằng chứng browser F01 bên trên là lịch sử. Readiness chỉ đọc: config/target
+chưa hợp lệ tại checkout này; databaseChecked/providerChecked false. Không suy
+schema/provider cloud thiếu hoặc đã đạt từ lịch sử/fixture. Xem bảng và từng
+bước owner trong [runbook readiness](PILOT-B1-RUNBOOK.md#readiness-f011--quan-sát-19102026-không-phải-google-live-pass).
+
+Chạy lại (kiểm port 55433 trống trước, project riêng):
+
+```powershell
+docker compose --env-file infra/test/compose-empty.env -p examate-f011-review -f compose.auth-pg17-test.yaml up -d --wait
+$env:TEST_DATABASE_URL='postgresql://examate_test:local-test-only@127.0.0.1:55433/examate_test'
+npm run typecheck
+npm test
+npm run build
+npm run format:check
+npm run test:database
+# Focused sau khi build, không chạy song song gate dùng dist:
+node --test apps/api/test/pilot-rollback-016.database.test.mjs
+```
+
+Không chạy db:migrate/rollback trên cloud để kiểm các case này. Dọn đúng marker/
+ownership/project sau test, không down -v hoặc stack khác. Roadmap FINAL F01–F16
+và 14 stories đã đồng bộ kế hoạch; search/pagination/dashboard AI vẫn pending,
+không triển khai F02 hoặc giả semantic/human review PASS.
+
+Cleanup đã kiểm: random DB còn 0, random role còn 0; role bootstrap B0d duy
+nhất có đúng marker/source được dọn cùng volume parent của run. Đã down đúng
+`examate-f011-20261019`, kiểm label/no container references rồi remove exact
+volume `examate-f011-20261019_auth-pg17-test-data`. Không còn DB/container/role/
+volume/server do F01.1 giữ; artifacts ignored được giữ để review. Hai container
+SOP có trước không bị dừng/xóa. Không push, cloud writes, .env/key changes.
