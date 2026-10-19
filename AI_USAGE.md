@@ -206,3 +206,32 @@ lecturer's three-tool threshold for capability B. No production code was changed
 Browser review found a stale Documents → Assistant list after indexing despite
 green database regressions; it was reproduced before/after reload and recorded
 as an open P2, not accepted as fixed. Inline PDF rendering remains unverified.
+
+## 2026-10-19 — F02-A.2 Documents lifecycle synchronization (Codex)
+
+Tools: local Git/PowerShell/Node, existing npm/Vitest/Prettier tooling, guarded
+disposable PostgreSQL 17, and isolated headless Chrome through its local CDP
+endpoint. Browser requests used a synthetic in-memory API/Auth/Storage/provider;
+outbound HTTPS was blocked. No cloud, account data, credentials, Gemini, Google,
+Supabase, or external coding service was used. No dependency or migration changed.
+
+The P2 RED regression opened Assistant after Documents confirmed `ready`; the
+new document option was absent until a full page reload. App now invalidates the
+shared `useDocuments` read after settled document mutations and reconciliations.
+Assistant uses only stored/ready sources, preserves valid draft/history when the
+list refreshes, and shows a read error with read-only retry instead of presenting
+an unconfirmed empty list. Stale list and operation results are ignored after a
+newer request or view/session change.
+
+Three built mutations failed their intended assertions and were restored:
+missing post-index invalidation, missing stale-response guard, and allowing a
+pending document into available sources. One early browser harness selector
+matched the Download action rather than the citation; the harness was corrected
+to follow the citation's accessible name and validate the actual inline PDF
+surface. The browser showed the synthetic PDF page and completed a separate
+download. This is local UI evidence, not proof that browser requests used the
+real non-owner API/DB. PG17 DB gate independently passed 446/446 across 28 serial
+suites; final application total was 1,517 pass (API Vitest 288, API Node 846, web
+383), all five gates exit 0. The strict browser + non-owner SQL path remains
+PARTIAL; cloud rollout, Google live, Auth extended, and Thắng's machine remain
+pending. No push or cloud writes occurred.

@@ -466,3 +466,57 @@ Fixture server/web đã dừng; DB/ba LOGIN roles tổng hợp được dọn sa
 marker và không còn connection. Container/network/volume riêng của compose
 project `examate-f02a1-review-20261019` đã được dọn sau khi kiểm labels; không
 đụng dữ liệu thật hoặc SOP containers. Harness/ảnh ignored giữ để đối chiếu.
+
+## F02-A.2 — Documents → Assistant lifecycle (19/10/2026)
+
+Fix FE đồng bộ danh sách Assistant sau mutation Documents/Course bằng callback
+invalidation có scope; `useDocuments` đọc lại từ server. Danh sách lỗi không bị
+coi là rỗng hợp lệ, nút retry chỉ chạy GET. Chỉ document `stored/ready` được
+chọn. Selection bị xóa khi tài liệu rời scope hoặc bị xóa; draft/history còn
+hợp lệ không bị reset. Tác vụ/response thuộc view cũ bị bỏ khi request generation
+không còn hiện hành. Không thêm endpoint, schema, dependency, polling hay POST
+replay.
+
+RED→GREEN: regression `shows a newly indexed document in Assistant without
+reloading the app` ban đầu fail vì source option không xuất hiện sau index
+ready. Sau sửa, suite Documents/Assistant/useDocuments chạy 150/150 pass.
+Mutation bỏ callback invalidation, bỏ stale guard và cho pending vào source list
+đều build/test được và fail đúng assertion; từng mutation được restore rồi suite
+chạy xanh. Regression kiểm thêm upload→index, re-index, POST lỗi nhưng GET
+reconciliation xác nhận ready, lỗi list read/retry chỉ-đọc, course refiling,
+delete và account/workspace stale response.
+
+Baseline đầu lượt: typecheck/build/format exit 0; `npm test` 1.508 pass
+(API Vitest 288, API Node 846, web 374); `test:database` 446 pass/28 serial
+suites trên PG17 disposable. Không fail/skip/cancelled.
+
+Gates cuối lượt, chạy tuần tự trên source hiện tại: `npm run typecheck` exit 0;
+`npm test` exit 0 (API Vitest 288, API Node 846, web 383; tổng 1.517 pass);
+`npm run build` exit 0; `npm run format:check` exit 0; `npm run test:database`
+exit 0 (PG17 disposable, 28 suites, 446 pass, 0 fail/skip/cancelled).
+Browser run dùng Chrome headless native qua CDP với profile riêng, viewport
+1440px và 375px. Index/re-index, upload/assign/delete manager, quyền member/viewer,
+Assistant source/citation, synthetic PDF render/download và keyboard smoke đạt;
+console error/warning bằng 0, mobile scrollWidth 375.
+
+Giới hạn bằng chứng browser: API/Auth/Storage/provider là fixture in-memory; HTTPS
+bị chặn. Run kiểm chứng FE lifecycle thật trong browser nhưng business/Auth SQL
+không chạy qua LOGIN non-owner trong chính browser này. DB gate PG17 dùng role
+LOGIN capability/RLS thật và pass độc lập; chưa nối browser UI với API/runtime
+non-owner thành một acceptance run. Do đó browser tích hợp strict còn PARTIAL;
+không dùng fixture này làm bằng chứng cloud/RLS rollout. PDF là synthetic local;
+không gọi Gemini, Storage, Google hoặc Supabase thật. Run browser này không bao
+gồm đầy đủ general/workspace chat, history/feedback/reset/abort và mọi HTTP role
+denial; các phần đó chỉ có regression suite/API evidence hiện có, không được
+nhận là browser acceptance mới.
+
+Thay đổi chỉ ảnh hưởng Documents lifecycle/metadata FE; thuật toán RAG, model,
+prompt, retrieval/ranking, citation validator, receipts/history và voice không
+đổi. F10 vẫn STT-only của Thắng, không phát triển TTS; không thêm tool thứ ba;
+R10 vẫn SSE. Hai tools không được nhận là đạt capability B của rubric. Cloud
+rollout, Google live, Auth extended và máy Thắng tiếp tục pending.
+
+Lệnh tái chạy regression:
+`npm run test --workspace @examate/web -- src/App.test.tsx src/use-documents.test.tsx src/DocumentsPermissions.test.tsx`.
+Gate DB: `npm run test:database` với `TEST_DATABASE_URL` trỏ đúng PG17 disposable
+loopback đã qua target guard; không dùng `DATABASE_URL` cloud.
