@@ -389,8 +389,8 @@ export async function runPilotRollback017(
   let committing = false;
   try {
     const source = await loadSource();
-    await client.query(options.apply ? "BEGIN" : "BEGIN READ ONLY");
     started = true;
+    await client.query(options.apply ? "BEGIN" : "BEGIN READ ONLY");
     await client.query("SET LOCAL search_path=pg_catalog,public");
     await client.query("SET LOCAL lock_timeout='5s'");
     await client.query("SET LOCAL row_security=off");
@@ -447,9 +447,16 @@ export async function runPilotRollback017(
         rollbackFailed = true;
       }
     }
-    if (committing || rollbackFailed) {
+    if (committing) {
       const unknown = new PilotCliError(
         "Rollback 017 outcome unknown; stop the local app and inspect migration 017, F02 policies and ledger before retrying.",
+      );
+      unknown.discardConnection = true;
+      throw unknown;
+    }
+    if (rollbackFailed) {
+      const unknown = new PilotCliError(
+        "Rollback 017 transaction cleanup uncertain; discard the connection and inspect schema and ledger before retrying.",
       );
       unknown.discardConnection = true;
       throw unknown;

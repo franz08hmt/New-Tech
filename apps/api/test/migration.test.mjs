@@ -29,6 +29,7 @@ const expectedMigrationNames = [
   "015_assistant_answer_receipts.sql",
   "016_pilot_oauth_attempts.sql",
   "017_runtime_rls.sql",
+  "018_runtime_rls_reindex.sql",
 ];
 
 const saved = { ...process.env };

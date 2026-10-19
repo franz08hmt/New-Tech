@@ -164,19 +164,17 @@ export async function openDocumentsTenantFixture({ migrationLimit } = {}) {
     guard(adminUrl);
     admin = new pg.Pool({ connectionString: adminUrl, max: 2 });
     await prepareAuthFixture(admin);
-    await migrate(
-      adminUrl,
-      migrationLimit
-        ? {
-            loadSource: async () =>
-              (await loadMigrations()).slice(0, migrationLimit),
-          }
-        : {},
-    );
+    const migrationSource = await loadMigrations();
+    await migrate(adminUrl, {
+      loadSource: async () =>
+        migrationLimit
+          ? migrationSource.slice(0, migrationLimit)
+          : migrationSource,
+    });
     assert.equal(
       (await admin.query("SELECT count(*)::int AS n FROM schema_migrations"))
         .rows[0].n,
-      migrationLimit ?? 17,
+      migrationLimit ?? migrationSource.length,
     );
     for (const user of Object.values(people))
       await admin.query("INSERT INTO auth.users(id) VALUES($1)", [user]);

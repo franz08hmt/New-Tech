@@ -7,6 +7,10 @@ import { Pool, PoolClient, QueryResult, QueryResultRow } from "pg";
 import { authDatabaseConfig } from "../config/config.js";
 import { errorCode, log } from "../common/log.js";
 import type { DatabaseTransaction } from "./database.service.js";
+import {
+  assertRuntimeCapabilityContract,
+  runtimeCapabilityError,
+} from "./runtime-capability-contract.js";
 
 type Capability = "examate_business" | "examate_auth";
 
@@ -103,6 +107,7 @@ export class AuthDatabaseService implements OnModuleDestroy {
       auth_table: boolean;
       auth_session_columns: boolean;
       auth_schema: boolean;
+      auth_schema_create: boolean;
       auth_sessions_table: boolean;
       migration_ledger: boolean;
       public_create: boolean;
@@ -129,6 +134,7 @@ export class AuthDatabaseService implements OnModuleDestroy {
          has_column_privilege(r.rolname,(SELECT c.oid FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='auth' AND c.relname='sessions'), a_user.attnum,'SELECT') AND
          has_column_privilege(r.rolname,(SELECT c.oid FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='auth' AND c.relname='sessions'), a_exp.attnum,'SELECT')) AS auth_session_columns,
         has_schema_privilege(r.rolname,'auth','USAGE') AS auth_schema,
+        has_schema_privilege(r.rolname,'auth','CREATE') AS auth_schema_create,
         has_table_privilege(r.rolname,(SELECT c.oid FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='schema_migrations'),'SELECT') AS migration_ledger,
         has_schema_privilege(r.rolname,'public','CREATE') AS public_create,
         has_database_privilege(r.rolname,current_database(),'TEMP') AS database_temp,
@@ -188,6 +194,7 @@ export class AuthDatabaseService implements OnModuleDestroy {
       !row.auth_table ||
       row.business_table ||
       !row.auth_schema ||
+      row.auth_schema_create ||
       !row.auth_session_columns ||
       row.auth_sessions_table ||
       row.auth_sessions_extra_columns ||
@@ -200,9 +207,13 @@ export class AuthDatabaseService implements OnModuleDestroy {
       row.auth_users ||
       row.privilege_drift
     )
-      throw new Error(
+      throw runtimeCapabilityError(
         `Connected DB login does not satisfy ${capability} capability`,
       );
+    await assertRuntimeCapabilityContract(
+      (text, values) => this.query(text, values),
+      capability,
+    );
   }
 
   private throwDatabaseError(error: unknown): never {

@@ -301,3 +301,158 @@ test("017 apply/rollback preserves 016, then 016 rollback and full reapply remai
     ).rows[0].checksum,
   );
 });
+
+async function runWithBeginAckLoss(run) {
+  const client = await fixture.admin.connect();
+  const rawQuery = client.query.bind(client);
+  const statements = [];
+  let armed = true;
+  client.query = async (sql, ...args) => {
+    const text = typeof sql === "string" ? sql : (sql?.text ?? "");
+    statements.push(text);
+    const result = await rawQuery(sql, ...args);
+    if (armed && /^(BEGIN|BEGIN READ ONLY)$/.test(text)) {
+      armed = false;
+      throw new Error("synthetic lost BEGIN acknowledgement");
+    }
+    return result;
+  };
+  try {
+    let failure;
+    await assert.rejects(run(client), (error) => {
+      failure = error;
+      return /refused/.test(error.message);
+    });
+    assert.equal(failure.discardConnection, undefined);
+    assert.ok(statements.includes("ROLLBACK"));
+    client.query = rawQuery;
+    assert.equal(
+      (await rawQuery("SHOW transaction_read_only")).rows[0]
+        .transaction_read_only,
+      "off",
+    );
+    assert.equal(
+      (await rawQuery("SELECT txid_current_if_assigned() IS NULL AS clean"))
+        .rows[0].clean,
+      true,
+    );
+  } finally {
+    client.query = rawQuery;
+    client.release(false);
+  }
+}
+
+test("017 apply discards a possibly-open BEGIN until ROLLBACK acknowledgement", async () =>
+  runWithBeginAckLoss((client) =>
+    runPilotApply017(client, { apply: false }, { databaseName: fixture.name }),
+  ));
+
+test("017 rollback discards a possibly-open BEGIN until ROLLBACK acknowledgement", async () =>
+  runWithBeginAckLoss((client) =>
+    runPilotRollback017(
+      client,
+      { apply: false },
+      { databaseName: fixture.name },
+    ),
+  ));
+
+test("017 dry-run refuses a pre-existing PUBLIC policy without changing the baseline", async () => {
+  const target = await openDocumentsTenantFixture({ migrationLimit: 16 });
+  const client = await target.admin.connect();
+  try {
+    await target.admin.query(
+      "CREATE POLICY reviewer_public_open ON documents FOR SELECT TO PUBLIC USING (true)",
+    );
+    await assert.rejects(
+      runPilotApply017(client, { apply: false }, { databaseName: target.name }),
+      /refused/i,
+    );
+    assert.equal(
+      (
+        await target.admin.query(
+          "SELECT count(*)::int AS n FROM schema_migrations",
+        )
+      ).rows[0].n,
+      16,
+    );
+    assert.equal(
+      (
+        await target.admin.query(
+          "SELECT to_regclass('public.f02_runtime_acl_state') AS object",
+        )
+      ).rows[0].object,
+      null,
+    );
+  } finally {
+    client.release();
+    await target.close();
+  }
+});
+
+test("017 apply refuses a pre-existing PUBLIC policy before writing schema or ledger", async () => {
+  const target = await openDocumentsTenantFixture({ migrationLimit: 16 });
+  const client = await target.admin.connect();
+  try {
+    await target.admin.query(
+      "CREATE POLICY reviewer_public_open ON documents FOR SELECT TO PUBLIC USING (true)",
+    );
+    await assert.rejects(
+      runPilotApply017(
+        client,
+        { apply: true, confirmDatabase: target.name },
+        { databaseName: target.name },
+      ),
+      /refused/i,
+    );
+    assert.equal(
+      (
+        await target.admin.query(
+          "SELECT count(*)::int AS n FROM schema_migrations",
+        )
+      ).rows[0].n,
+      16,
+    );
+    assert.equal(
+      (
+        await target.admin.query(
+          "SELECT to_regclass('public.f02_runtime_acl_state') AS object",
+        )
+      ).rows[0].object,
+      null,
+    );
+    assert.equal(
+      (
+        await target.admin.query(
+          "SELECT count(*)::int AS n FROM pg_policy WHERE polname='reviewer_public_open'",
+        )
+      ).rows[0].n,
+      1,
+    );
+  } finally {
+    client.release();
+    await target.close();
+  }
+});
+
+test("standard db:migrate refuses an unmanaged PUBLIC policy at the 017 boundary", async () => {
+  const target = await openDocumentsTenantFixture({ migrationLimit: 16 });
+  try {
+    await target.admin.query(
+      "CREATE POLICY reviewer_public_open ON documents FOR SELECT TO PUBLIC USING (true)",
+    );
+    await assert.rejects(
+      migrate(target.admin.options.connectionString),
+      /Unmanaged policy affects a protected runtime capability/,
+    );
+    assert.equal(
+      (
+        await target.admin.query(
+          "SELECT count(*)::int AS n FROM schema_migrations",
+        )
+      ).rows[0].n,
+      16,
+    );
+  } finally {
+    await target.close();
+  }
+});

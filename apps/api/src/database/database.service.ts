@@ -8,6 +8,10 @@ import { databaseConfig } from "../config/config.js";
 import { errorCode, log } from "../common/log.js";
 import type { PilotPrincipal } from "@examate/contracts";
 import { requirePrincipal } from "../auth/principal.js";
+import {
+  assertRuntimeCapabilityContract,
+  runtimeCapabilityError,
+} from "./runtime-capability-contract.js";
 
 types.setTypeParser(1082, (value: string) => value);
 
@@ -226,9 +230,13 @@ export class DatabaseService implements OnModuleDestroy {
       row && row.privilege_drift && "direct_privilege_drift",
     ].filter(Boolean);
     if (failed.length)
-      throw new Error(
+      throw runtimeCapabilityError(
         `Connected DB login does not satisfy business runtime capability (${failed.join(",")})`,
       );
+    await assertRuntimeCapabilityContract(
+      (text, values) => this.query(text, values),
+      "examate_business",
+    );
   }
 
   async onModuleDestroy() {

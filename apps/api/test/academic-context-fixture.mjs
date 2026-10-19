@@ -176,7 +176,7 @@ export async function openAcademicFixture({ metadata = false } = {}) {
     assert.equal(
       (await admin.query("SELECT count(*)::int AS n FROM schema_migrations"))
         .rows[0].n,
-      17,
+      18,
     );
     for (const user of Object.values(users))
       await admin.query("INSERT INTO auth.users(id) VALUES($1)", [user]);

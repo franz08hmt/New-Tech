@@ -18,6 +18,8 @@
     "pilot:rollback-016": "npm run build --workspace @examate/api && node apps/api/scripts/pilot-rollback-016.mjs",
     "f02:apply-017": "npm run build --workspace @examate/api && node apps/api/scripts/pilot-apply-017.mjs",
     "f02:rollback-017": "npm run build --workspace @examate/api && node apps/api/scripts/pilot-rollback-017.mjs",
+    "f02:apply-018": "npm run build --workspace @examate/api && node apps/api/scripts/pilot-apply-018.mjs",
+    "f02:rollback-018": "npm run build --workspace @examate/api && node apps/api/scripts/pilot-rollback-018.mjs",
     "dev:web": "npm run dev --workspace @examate/web",
     "dev:api": "npm run dev --workspace @examate/api",
     "build": "npm run build --workspaces --if-present",

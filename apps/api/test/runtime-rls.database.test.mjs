@@ -7,6 +7,8 @@ import { Test } from "@nestjs/testing";
 import { DatabaseService } from "../dist/database/database.service.js";
 import { AuthDatabaseService } from "../dist/database/auth-database.service.js";
 import { AuthStore } from "../dist/auth/auth-store.js";
+import { DocumentAccessService } from "../dist/documents/document-access.service.js";
+import { DocumentIngestionService } from "../dist/documents/document-ingestion.service.js";
 import { AppModule } from "../dist/app.module.js";
 import { GeminiService } from "../dist/assistant/gemini.service.js";
 import { GeminiEmbeddingService } from "../dist/assistant/gemini-embedding.service.js";
@@ -591,6 +593,320 @@ test("tenant write checks and role matrix reject forged scope and preserve data"
   );
 });
 
+test("business workspaces require a valid active membership context", async () => {
+  const noMembership = await context(
+    { workspaceId: A.id, userId: people.absent, role: "member" },
+    (tx) => tx.query("SELECT id FROM workspaces WHERE id=$1", [A.id]),
+  );
+  assert.equal(noMembership.rowCount, 0);
+
+  const inactiveMembership = await context(
+    { workspaceId: A.id, userId: people.inactive, role: "member" },
+    (tx) => tx.query("SELECT id FROM workspaces WHERE id=$1", [A.id]),
+  );
+  assert.equal(inactiveMembership.rowCount, 0);
+
+  const inactiveWorkspace = await context(
+    { workspaceId: tenants[2].id, userId: people.manager, role: "manager" },
+    (tx) => tx.query("SELECT id FROM workspaces WHERE id=$1", [tenants[2].id]),
+  );
+  assert.equal(inactiveWorkspace.rowCount, 0);
+
+  const malformedContext = await business.transaction(async (tx) => {
+    await tx.query(
+      "SELECT set_config('examate.user_id',$1,true),set_config('examate.workspace_id',$2,true)",
+      ["not-a-uuid", A.id],
+    );
+    return tx.query("SELECT id FROM workspaces WHERE id=$1", [A.id]);
+  });
+  assert.equal(malformedContext.rowCount, 0);
+
+  const noContext = await business.query("SELECT id FROM workspaces");
+  assert.equal(noContext.rowCount, 0);
+  await assert.rejects(
+    business.workspaceTransaction(undefined, (tx) =>
+      tx.query("SELECT id FROM workspaces"),
+    ),
+  );
+});
+
+test("business capability rejects excess inherited TRUNCATE on documents", async () => {
+  await fixture.admin.query("GRANT TRUNCATE ON documents TO examate_business");
+  try {
+    await assert.rejects(business.assertBusinessCapability());
+  } finally {
+    await fixture.admin.query(
+      "REVOKE TRUNCATE ON documents FROM examate_business",
+    );
+  }
+});
+
+test("business capability rejects a PUBLIC database CONNECT grant", async () => {
+  await fixture.admin.query(`DO $$ BEGIN
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO PUBLIC',current_database());
+  END $$`);
+  try {
+    await assert.rejects(business.assertBusinessCapability());
+  } finally {
+    await fixture.admin.query(`DO $$ BEGIN
+      EXECUTE format('REVOKE CONNECT ON DATABASE %I FROM PUBLIC',current_database());
+    END $$`);
+  }
+});
+
+test("business capability rejects disabled RLS on a managed table", async () => {
+  await fixture.admin.query("ALTER TABLE documents DISABLE ROW LEVEL SECURITY");
+  try {
+    await assert.rejects(business.assertBusinessCapability());
+  } finally {
+    await fixture.admin.query(
+      "ALTER TABLE documents ENABLE ROW LEVEL SECURITY",
+    );
+  }
+});
+
+test("Auth capability rejects excess business data access", async () => {
+  await fixture.admin.query("GRANT SELECT ON courses TO examate_auth");
+  try {
+    await assert.rejects(authDb.assertCapability("examate_auth"));
+  } finally {
+    await fixture.admin.query("REVOKE SELECT ON courses FROM examate_auth");
+  }
+});
+
+test("business startup rejects a permissive PUBLIC documents policy", async () => {
+  await fixture.admin.query(
+    "CREATE POLICY reviewer_public_documents ON documents FOR SELECT TO PUBLIC USING (true)",
+  );
+  try {
+    const leaked = await business.query("SELECT id FROM documents");
+    assert.ok(
+      leaked.rowCount > 0,
+      "the target mutation exposes synthetic rows",
+    );
+    await assert.rejects(business.assertBusinessCapability());
+  } finally {
+    await fixture.admin.query(
+      "DROP POLICY reviewer_public_documents ON documents",
+    );
+  }
+});
+
+test("business LOGIN can index pending documents and replace chunks on repeated re-index/retry", async () => {
+  const documentBefore = (
+      await fixture.admin.query("SELECT * FROM documents WHERE id=$1", [
+        A.document,
+      ])
+    ).rows[0],
+    chunksBefore = (
+      await fixture.admin.query(
+        "SELECT * FROM document_chunks WHERE document_id=$1 ORDER BY chunk_index",
+        [A.document],
+      )
+    ).rows,
+    otherBefore = (
+      await fixture.admin.query(
+        "SELECT * FROM document_chunks WHERE document_id=$1 ORDER BY chunk_index",
+        [B.document],
+      )
+    ).rows;
+  const access = new DocumentAccessService(new AuthStore(business));
+  let failEmbedding = false;
+  const ingestion = new DocumentIngestionService(
+    business,
+    { downloadBuffer: async () => Buffer.from("synthetic-pdf") },
+    {
+      extract: async () => [
+        { page: 1, text: "First synthetic retrieval paragraph for re-index." },
+        { page: 2, text: "Second synthetic retrieval paragraph for re-index." },
+      ],
+    },
+    { recover: async (_buffer, pages) => ({ pages }) },
+    {
+      model: "gemini-fixture-v1",
+      dimensions: 768,
+      embedDocuments: async (_title, texts) => {
+        if (failEmbedding) throw new Error("synthetic provider fault");
+        return texts.map(() =>
+          Array.from({ length: 768 }, (_, i) => (i === 0 ? 0.25 : 0)),
+        );
+      },
+    },
+    access,
+  );
+  const restore = async () => {
+    await fixture.admin.query(
+      `UPDATE documents SET processing_status=$2,indexed_at=$3,processing_error_code=$4,
+       total_page_count=$5,useful_text_page_count=$6,low_text_page_count=$7,indexed_chunk_count=$8,
+       skipped_page_numbers=$9,needs_ocr=$10,ocr_page_count=$11,ocr_page_numbers=$12,updated_at=$13
+       WHERE id=$1`,
+      [
+        A.document,
+        documentBefore.processing_status,
+        documentBefore.indexed_at,
+        documentBefore.processing_error_code,
+        documentBefore.total_page_count,
+        documentBefore.useful_text_page_count,
+        documentBefore.low_text_page_count,
+        documentBefore.indexed_chunk_count,
+        documentBefore.skipped_page_numbers,
+        documentBefore.needs_ocr,
+        documentBefore.ocr_page_count,
+        documentBefore.ocr_page_numbers,
+        documentBefore.updated_at,
+      ],
+    );
+    await fixture.admin.query(
+      "DELETE FROM document_chunks WHERE document_id=$1",
+      [A.document],
+    );
+    for (const row of chunksBefore)
+      await fixture.admin.query(
+        `INSERT INTO document_chunks(id,document_id,chunk_index,content,source_page,embedding,embedding_model,embedding_dimensions,created_at)
+         VALUES($1,$2,$3,$4,$5,$6::vector,$7,$8,$9)`,
+        [
+          row.id,
+          row.document_id,
+          row.chunk_index,
+          row.content,
+          row.source_page,
+          row.embedding,
+          row.embedding_model,
+          row.embedding_dimensions,
+          row.created_at,
+        ],
+      );
+  };
+  try {
+    await fixture.admin.query(
+      `UPDATE documents SET processing_status='pending',indexed_at=NULL,processing_error_code=NULL,
+       total_page_count=NULL,useful_text_page_count=NULL,low_text_page_count=NULL,indexed_chunk_count=NULL,
+       skipped_page_numbers=NULL,needs_ocr=NULL,ocr_page_count=0,ocr_page_numbers='{}' WHERE id=$1`,
+      [A.document],
+    );
+    await fixture.admin.query(
+      "DELETE FROM document_chunks WHERE document_id=$1",
+      [A.document],
+    );
+    const principal = {
+      workspaceId: A.id,
+      userId: people.member,
+      role: "member",
+    };
+    const expectedRows = [
+      [
+        0,
+        1,
+        "First synthetic retrieval paragraph for re-index.",
+        "gemini-fixture-v1",
+        768,
+      ],
+      [
+        1,
+        2,
+        "Second synthetic retrieval paragraph for re-index.",
+        "gemini-fixture-v1",
+        768,
+      ],
+    ];
+    const expectedQuality = {
+      total_page_count: 2,
+      useful_text_page_count: 2,
+      low_text_page_count: 0,
+      indexed_chunk_count: 2,
+      skipped_page_numbers: [],
+      needs_ocr: false,
+      ocr_page_count: 0,
+      ocr_page_numbers: [],
+    };
+    let canonicalRows;
+    for (let run = 0; run < 3; run++) {
+      const result = await ingestion.process(A.document, principal);
+      assert.equal(result.processing_status, "ready", `index run ${run + 1}`);
+      assert.deepEqual(result.index_quality, expectedQuality);
+      const rows = (
+        await fixture.admin.query(
+          "SELECT chunk_index,source_page,content,embedding_model,embedding_dimensions,embedding::text AS vector FROM document_chunks WHERE document_id=$1 ORDER BY chunk_index",
+          [A.document],
+        )
+      ).rows;
+      assert.deepEqual(
+        rows.map((row) => [
+          row.chunk_index,
+          row.source_page,
+          row.content,
+          row.embedding_model,
+          row.embedding_dimensions,
+        ]),
+        expectedRows,
+      );
+      assert.ok(rows.every((row) => JSON.parse(row.vector).length === 768));
+      assert.equal(
+        (
+          await fixture.admin.query(
+            "SELECT count(*)::int AS n FROM document_chunks WHERE document_id=$1",
+            [A.document],
+          )
+        ).rows[0].n,
+        2,
+      );
+      const stable = rows.map((row) => [
+        row.chunk_index,
+        row.source_page,
+        row.content,
+        row.embedding_model,
+        row.embedding_dimensions,
+        row.vector,
+      ]);
+      if (canonicalRows) assert.deepEqual(stable, canonicalRows);
+      else canonicalRows = stable;
+    }
+    failEmbedding = true;
+    await assert.rejects(ingestion.process(A.document, principal));
+    assert.equal(
+      (
+        await fixture.admin.query(
+          "SELECT processing_status FROM documents WHERE id=$1",
+          [A.document],
+        )
+      ).rows[0].processing_status,
+      "failed",
+    );
+    failEmbedding = false;
+    const retry = await ingestion.process(A.document, principal);
+    assert.equal(retry.processing_status, "ready");
+    assert.deepEqual(retry.index_quality, expectedQuality);
+    assert.deepEqual(
+      (
+        await fixture.admin.query(
+          "SELECT chunk_index,source_page,content,embedding_model,embedding_dimensions,embedding::text AS vector FROM document_chunks WHERE document_id=$1 ORDER BY chunk_index",
+          [A.document],
+        )
+      ).rows.map((row) => [
+        row.chunk_index,
+        row.source_page,
+        row.content,
+        row.embedding_model,
+        row.embedding_dimensions,
+        row.vector,
+      ]),
+      canonicalRows,
+    );
+    assert.deepEqual(
+      (
+        await fixture.admin.query(
+          "SELECT * FROM document_chunks WHERE document_id=$1 ORDER BY chunk_index",
+          [B.document],
+        )
+      ).rows,
+      otherBefore,
+    );
+  } finally {
+    failEmbedding = false;
+    await restore();
+  }
+});
+
 test("FOR SHARE works without granting mutable membership/workspace columns; pool reuse clears context", async () => {
   const principal = {
     workspaceId: A.id,
@@ -985,4 +1301,60 @@ test("HTTP uses split non-owner pools for academic, workspace chat, receipt and 
     ).rowCount,
     1,
   );
+});
+
+test("runtime capabilities reject ownership of managed schemas and database", async () => {
+  const schemaOwner = async (schemaName) =>
+    (
+      await fixture.admin.query(
+        "SELECT pg_get_userbyid(nspowner) AS owner FROM pg_namespace WHERE nspname=$1",
+        [schemaName],
+      )
+    ).rows[0].owner;
+  const restoreSchemaOwner = async (schemaName, owner) => {
+    const statement = (
+      await fixture.admin.query(
+        "SELECT format('ALTER SCHEMA %I OWNER TO %I',$1::text,$2::text) AS sql",
+        [schemaName, owner],
+      )
+    ).rows[0].sql;
+    await fixture.admin.query(statement);
+  };
+
+  const publicOwner = await schemaOwner("public");
+  await fixture.admin.query("ALTER SCHEMA public OWNER TO examate_business");
+  try {
+    await assert.rejects(business.assertBusinessCapability());
+  } finally {
+    await restoreSchemaOwner("public", publicOwner);
+  }
+
+  const authOwner = await schemaOwner("auth");
+  await fixture.admin.query("ALTER SCHEMA auth OWNER TO examate_auth");
+  try {
+    await assert.rejects(authDb.assertCapability("examate_auth"));
+  } finally {
+    await restoreSchemaOwner("auth", authOwner);
+  }
+
+  const databaseOwner = (
+    await fixture.admin.query(
+      "SELECT pg_get_userbyid(datdba) AS owner FROM pg_database WHERE datname=current_database()",
+    )
+  ).rows[0].owner;
+  const changeDatabaseOwner = async (owner) => {
+    const statement = (
+      await fixture.admin.query(
+        "SELECT format('ALTER DATABASE %I OWNER TO %I',current_database()::text,$1::text) AS sql",
+        [owner],
+      )
+    ).rows[0].sql;
+    await fixture.admin.query(statement);
+  };
+  await changeDatabaseOwner("examate_business");
+  try {
+    await assert.rejects(business.assertBusinessCapability());
+  } finally {
+    await changeDatabaseOwner(databaseOwner);
+  }
 });

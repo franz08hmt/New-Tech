@@ -60,7 +60,9 @@ function openRuntime() {
 }
 const migrationsThrough016 = async () =>
   (await loadMigrations()).filter(
-    (migration) => migration.name !== "017_runtime_rls.sql",
+    (migration) =>
+      migration.name !== "017_runtime_rls.sql" &&
+      migration.name !== "018_runtime_rls_reindex.sql",
   );
 before(async () => {
   process.env.DATABASE_SSL = "false";

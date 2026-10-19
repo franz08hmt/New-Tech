@@ -8,6 +8,7 @@ import {
   migrationChecksum,
 } from "./migrate.mjs";
 import { PilotCliError, reportFailure } from "./pilot-cli-common.mjs";
+import { assertNoManagedRuntimePolicyConflict } from "../dist/database/runtime-capability-contract.js";
 import {
   F02_CAPABILITY_MARKER,
   F02_ENTRY,
@@ -128,8 +129,8 @@ export async function runPilotApply017(
   let committing = false;
   try {
     const source = await loadSource();
-    await client.query(options.apply ? "BEGIN" : "BEGIN READ ONLY");
     started = true;
+    await client.query(options.apply ? "BEGIN" : "BEGIN READ ONLY");
     await client.query("SET LOCAL search_path=pg_catalog,public");
     await client.query("SET LOCAL lock_timeout='5s'");
     await client.query("SET LOCAL row_security=off");
@@ -138,6 +139,10 @@ export async function runPilotApply017(
       await client.query(`LOCK TABLE ${lockedTables} IN ACCESS EXCLUSIVE MODE`);
     }
     const plan = await inspect(client, source);
+    if (!plan.applied)
+      await assertNoManagedRuntimePolicyConflict((text, values) =>
+        client.query(text, values),
+      );
     if (!options.apply || plan.applied) {
       await client.query("ROLLBACK");
       started = false;
@@ -174,9 +179,16 @@ export async function runPilotApply017(
         rollbackFailed = true;
       }
     }
-    if (committing || rollbackFailed) {
+    if (committing) {
       const unknown = new PilotCliError(
         "F02-A apply outcome unknown; stop the local app and inspect migration 017 and schema_migrations before retrying.",
+      );
+      unknown.discardConnection = true;
+      throw unknown;
+    }
+    if (rollbackFailed) {
+      const unknown = new PilotCliError(
+        "F02-A transaction cleanup uncertain; stop the local app and inspect the disposable schema before retrying.",
       );
       unknown.discardConnection = true;
       throw unknown;

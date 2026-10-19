@@ -27,6 +27,14 @@ async function bootstrap() {
 
 void bootstrap().catch((error: unknown) => {
   // Config errors contain variable names only. Never serialize connection errors.
+  const code =
+    error instanceof ConfigurationError
+      ? "CONFIGURATION_INVALID"
+      : error instanceof Error &&
+          "code" in error &&
+          error.code === "RUNTIME_CAPABILITY_INVALID"
+        ? "RUNTIME_CAPABILITY_INVALID"
+        : "STARTUP_FAILED";
   const message =
     error instanceof ConfigurationError ||
     (error instanceof Error &&
@@ -35,6 +43,6 @@ void bootstrap().catch((error: unknown) => {
       ))
       ? error.message
       : "API startup failed; check configuration and port";
-  log("error", "startup.failed", { message });
+  log("error", "startup.failed", { code, message });
   process.exitCode = 1;
 });

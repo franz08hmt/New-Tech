@@ -10,6 +10,10 @@ import {
   projectRoot,
   ConfigurationError,
 } from "../dist/config/config.js";
+import {
+  assertNoManagedRuntimePolicyConflict,
+  lockManagedRuntimeRelations,
+} from "../dist/database/runtime-capability-contract.js";
 
 class MigrationFileError extends Error {
   constructor(target, error) {
@@ -81,6 +85,8 @@ export function migrationFailure(error) {
     42710:
       "Migration tried to create an existing schema object; inspect existing schema and migration history",
     "58P01": "Database server could not find a required extension file",
+    RUNTIME_POLICY_CONFLICT:
+      "An unmanaged row policy affects a protected runtime capability; inspect it before migration",
   };
   const message =
     error instanceof ConfigurationError || error instanceof MigrationFileError
@@ -194,6 +200,21 @@ export async function migrate(
       }
       await client.query("BEGIN");
       try {
+        if (
+          ["017_runtime_rls.sql", "018_runtime_rls_reindex.sql"].includes(
+            file.name,
+          )
+        ) {
+          await lockManagedRuntimeRelations((text, values) =>
+            client.query(text, values),
+          );
+          await assertNoManagedRuntimePolicyConflict(
+            (text, values) => client.query(text, values),
+            {
+              allow017PolicyNames: file.name === "018_runtime_rls_reindex.sql",
+            },
+          );
+        }
         const appliedNow = await applyMigrationInTransaction(client, file, {
           pilotWorkspace: process.env.PILOT_WORKSPACE_ID,
         });
