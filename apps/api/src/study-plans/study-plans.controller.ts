@@ -9,21 +9,36 @@ import {
   Patch,
   Post,
   Req,
+  Query,
 } from "@nestjs/common";
 import {
   CreateStudyPlanDto,
   UpdateStudyPlanCompletionDto,
 } from "./create-study-plan.dto.js";
 import { StudyPlansService } from "./study-plans.service.js";
+import { StudyPlanSearchQueryDto } from "./study-plan-search-query.dto.js";
 import type { AuthRequest } from "../auth/auth.service.js";
 
 @Controller("study-plans")
 export class StudyPlansController {
   constructor(private readonly plans: StudyPlansService) {}
 
+  @Get("search")
+  search(@Query() query: StudyPlanSearchQueryDto, @Req() req: AuthRequest) {
+    return this.plans.search(req.principal, query);
+  }
+
   @Get()
   list(@Req() req: AuthRequest) {
     return this.plans.list(req.principal);
+  }
+
+  @Get(":id")
+  getById(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Req() req: AuthRequest,
+  ) {
+    return this.plans.getById(id, req.principal);
   }
 
   @Post()

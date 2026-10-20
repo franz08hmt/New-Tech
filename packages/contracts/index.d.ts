@@ -137,13 +137,7 @@ export interface DocumentSearchPage {
 
 /** Bounded, metadata-only workspace sidebar search. */
 export type WorkspaceSearchKind =
-  | "all"
-  | "course"
-  | "exam"
-  | "plan"
-  | "document"
-  | "expense"
-  | "task";
+  "all" | "course" | "exam" | "plan" | "document" | "expense" | "task";
 export type WorkspaceSearchSort = "kind" | "label";
 export interface WorkspaceSearchQuery {
   q: string;
@@ -321,6 +315,30 @@ export interface StudyPlan {
   completed_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export type StudyPlanSearchSort = "due_date" | "title" | "course" | "completed";
+export interface StudyPlanSearchQuery {
+  q?: string;
+  courseId?: string;
+  completion?: "all" | "open" | "completed";
+  /** `unassigned` selects NULL owner_name; other values are exact labels. */
+  owner?: string;
+  dueFrom?: string;
+  dueTo?: string;
+  sort?: StudyPlanSearchSort;
+  direction?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+}
+export interface StudyPlanSearchPage {
+  items: StudyPlan[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  /** Aggregates over every row matching the filters, not only this page. */
+  summary: { total: number; completed: number; remaining: number };
 }
 
 /** The fixed spending categories, mirrored by `expenses_category_check`. */

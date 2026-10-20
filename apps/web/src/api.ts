@@ -34,6 +34,9 @@ export type {
   SpeechStatusResponse,
   SpeechTranscriptionResponse,
   StudyPlan,
+  StudyPlanSearchPage,
+  StudyPlanSearchQuery,
+  StudyPlanSearchSort,
   Task,
   TaskSearchPage,
   TaskSearchQuery,
@@ -96,6 +99,9 @@ import type {
   SpeechStatusResponse,
   SpeechTranscriptionResponse,
   StudyPlan,
+  StudyPlanSearchPage,
+  StudyPlanSearchQuery,
+  StudyPlanSearchSort,
   Task,
   TaskSearchPage,
   TaskSearchQuery,
@@ -469,6 +475,20 @@ export const api = {
   deleteExpense: (id: string) =>
     request<void>(`/api/expenses/${id}`, { method: "DELETE" }),
   listStudyPlans: () => request<StudyPlan[]>("/api/study-plans"),
+  searchStudyPlans: (
+    query: StudyPlanSearchQuery,
+    signal?: AbortSignal,
+  ): Promise<StudyPlanSearchPage> => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query))
+      if (value !== undefined && value !== null) params.set(key, String(value));
+    const suffix = params.size ? `?${params.toString()}` : "";
+    return request<StudyPlanSearchPage>(`/api/study-plans/search${suffix}`, {
+      signal,
+    });
+  },
+  getStudyPlan: (id: string, signal?: AbortSignal) =>
+    request<StudyPlan>(`/api/study-plans/${id}`, { signal }),
   createStudyPlan: (input: {
     courseId: string;
     title: string;

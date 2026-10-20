@@ -9,7 +9,13 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceApp } from "./App";
-import type { Exam, StoredDocument, Task, WorkspaceSearchItem } from "./api";
+import type {
+  Exam,
+  StoredDocument,
+  StudyPlan,
+  Task,
+  WorkspaceSearchItem,
+} from "./api";
 import { configurePilotClient } from "./pilot-client";
 import { NotesStorageContext } from "./NotesStorageContext";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
@@ -191,7 +197,7 @@ const examFixtures = [
     updated_at: "2026-09-15T00:00:00.000Z",
   },
 ];
-const planFixtures = [
+const planFixtures: StudyPlan[] = [
   {
     id: "plan-1",
     course_id: "course-1",
@@ -235,6 +241,7 @@ const planFixtures = [
     updated_at: "2026-09-15T00:00:00.000Z",
   },
 ];
+let appStudyPlans: StudyPlan[];
 const documentFixtures: StoredDocument[] = [
   {
     id: "doc-1",
@@ -494,6 +501,7 @@ function createdRow(
 }
 beforeEach(() => {
   appExams = [...examFixtures];
+  appStudyPlans = [...planFixtures];
   appTasks = [
     task,
     {
@@ -701,23 +709,124 @@ beforeEach(() => {
       if (url.startsWith("/api/expenses/") && init?.method === "DELETE") {
         return new Response(null, { status: 204 });
       }
+      if (url.startsWith("/api/study-plans/search")) {
+        const params = new URL(url, "http://127.0.0.1").searchParams;
+        const q = params.get("q")?.trim().toLowerCase() ?? "";
+        const courseId = params.get("courseId");
+        const completion = params.get("completion") ?? "all";
+        const owner = params.get("owner");
+        const dueFrom = params.get("dueFrom");
+        const dueTo = params.get("dueTo");
+        const sort = params.get("sort") ?? "due_date";
+        const direction = params.get("direction") === "desc" ? -1 : 1;
+        const page = Number(params.get("page") ?? 1);
+        const pageSize = Number(params.get("pageSize") ?? 20);
+        const matching = appStudyPlans
+          .filter(
+            (item) =>
+              (!q ||
+                `${item.title} ${item.detail ?? ""} ${item.course_name} ${item.course_code}`
+                  .toLowerCase()
+                  .includes(q)) &&
+              (!courseId || item.course_id === courseId) &&
+              (completion === "all" ||
+                (completion === "open"
+                  ? !item.completed_at
+                  : Boolean(item.completed_at))) &&
+              (!owner ||
+                (owner === "unassigned"
+                  ? item.owner_name === null
+                  : item.owner_name === owner)) &&
+              (!dueFrom ||
+                Boolean(item.due_date && item.due_date >= dueFrom)) &&
+              (!dueTo || Boolean(item.due_date && item.due_date <= dueTo)),
+          )
+          .sort((left, right) => {
+            const leftValue =
+              sort === "title"
+                ? left.title
+                : sort === "course"
+                  ? `${left.course_name} ${left.course_code}`
+                  : sort === "completed"
+                    ? String(Boolean(left.completed_at))
+                    : (left.due_date ?? "9999-99-99");
+            const rightValue =
+              sort === "title"
+                ? right.title
+                : sort === "course"
+                  ? `${right.course_name} ${right.course_code}`
+                  : sort === "completed"
+                    ? String(Boolean(right.completed_at))
+                    : (right.due_date ?? "9999-99-99");
+            return (
+              leftValue.localeCompare(rightValue) * direction ||
+              left.id.localeCompare(right.id)
+            );
+          });
+        return Response.json({
+          items: matching.slice((page - 1) * pageSize, page * pageSize),
+          page,
+          pageSize,
+          total: matching.length,
+          totalPages: matching.length
+            ? Math.ceil(matching.length / pageSize)
+            : 0,
+          summary: {
+            total: matching.length,
+            completed: matching.filter((item) => item.completed_at).length,
+            remaining: matching.filter((item) => !item.completed_at).length,
+          },
+        });
+      }
       if (url === "/api/study-plans") {
-        return new Response(JSON.stringify(planFixtures), { status: 200 });
+        if (init?.method === "POST") {
+          const body = JSON.parse(String(init.body ?? "{}")) as {
+            courseId: string;
+            title: string;
+            detail?: string;
+            dueDate?: string;
+            ownerName?: string;
+          };
+          const selected = courseFixtures.find(
+            (item) => item.id === body.courseId,
+          )!;
+          const created = {
+            ...planFixtures[0],
+            id: "plan-new",
+            course_id: selected.id,
+            course_slug: selected.slug,
+            course_name: selected.name,
+            course_code: selected.code,
+            title: body.title,
+            detail: body.detail ?? null,
+            due_date: body.dueDate ?? null,
+            owner_name: body.ownerName ?? null,
+          };
+          appStudyPlans = [...appStudyPlans, created];
+          return Response.json(created, { status: 201 });
+        }
+        return new Response(JSON.stringify(appStudyPlans), { status: 200 });
       }
       if (url.startsWith("/api/study-plans/")) {
+        const [id, action] = url.replace("/api/study-plans/", "").split("/");
         if (init?.method === "DELETE") {
+          appStudyPlans = appStudyPlans.filter((item) => item.id !== id);
           return new Response(null, { status: 204 });
         }
-        const body = JSON.parse(String(init?.body ?? "{}")) as {
-          completed?: boolean;
-        };
-        return new Response(
-          JSON.stringify({
-            ...planFixtures[0],
-            completed_at: body.completed ? "2026-09-15T08:00:00.000Z" : null,
-          }),
-          { status: 200 },
-        );
+        if (action === "completion" && init?.method === "PATCH") {
+          const body = JSON.parse(String(init.body ?? "{}")) as {
+            completed?: boolean;
+          };
+          const updated = appStudyPlans.find((item) => item.id === id)!;
+          updated.completed_at = body.completed
+            ? "2026-09-15T08:00:00.000Z"
+            : null;
+          return Response.json(updated);
+        }
+        const found = appStudyPlans.find((item) => item.id === id);
+        return found
+          ? Response.json(found)
+          : Response.json({ message: "not found" }, { status: 404 });
       }
       if (url.startsWith("/api/exams/search")) {
         const params = new URL(url, "http://127.0.0.1").searchParams;
@@ -2118,6 +2227,15 @@ describe("Academic workspace", () => {
         }),
       ),
     );
+    await waitFor(() => {
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.filter(([url]) =>
+            String(url).startsWith("/api/study-plans/search"),
+          ).length,
+      ).toBeGreaterThan(1);
+    });
     // The button flips, so the same control can undo what it just did.
     expect(
       await screen.findByRole("button", {
@@ -2156,6 +2274,16 @@ describe("Academic workspace", () => {
       "fetch",
       vi.fn(async (url: string) => {
         if (url === "/api/study-plans") return Response.json([]);
+        if (url.startsWith("/api/study-plans/search")) {
+          return Response.json({
+            items: [],
+            page: 1,
+            pageSize: 20,
+            total: 0,
+            totalPages: 0,
+            summary: { total: 0, completed: 0, remaining: 0 },
+          });
+        }
         if (url === "/api/courses") return Response.json(courseFixtures);
         if (url === "/api/exams") return Response.json([]);
         return Response.json(url === "/api/documents" ? [] : [task]);

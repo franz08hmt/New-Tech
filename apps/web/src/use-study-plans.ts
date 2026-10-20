@@ -52,9 +52,11 @@ export function groupByCourse(plans: StudyPlan[]): CourseGroup[] {
   return [...groups.values()];
 }
 
-export function useStudyPlans(): StudyPlansState {
+export function useStudyPlans({
+  loadList = true,
+}: { loadList?: boolean } = {}): StudyPlansState {
   const [plans, setPlans] = useState<StudyPlan[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(loadList);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [requestNumber, setRequestNumber] = useState(0);
@@ -62,6 +64,12 @@ export function useStudyPlans(): StudyPlansState {
   const reload = useCallback(() => setRequestNumber((value) => value + 1), []);
 
   useEffect(() => {
+    if (!loadList) {
+      setPlans([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     let active = true;
     setLoading(true);
     setError(null);
@@ -84,7 +92,7 @@ export function useStudyPlans(): StudyPlansState {
     return () => {
       active = false;
     };
-  }, [requestNumber]);
+  }, [loadList, requestNumber]);
 
   const create = useCallback<StudyPlansState["create"]>(async (input) => {
     setBusy(true);

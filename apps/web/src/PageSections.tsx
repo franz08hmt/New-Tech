@@ -14,6 +14,7 @@ import { TasksPanel } from "./TasksPanel";
 import { ExamsPanel } from "./ExamsPanel";
 import { ExamsSearchPanel } from "./ExamsSearchPanel";
 import { StudyPlanPanel } from "./StudyPlanPanel";
+import { StudyPlansSearchPanel } from "./StudyPlansSearchPanel";
 import { BudgetPanel } from "./BudgetPanel";
 import { CourseDetail } from "./CourseDetail";
 import { CoursesSearchPanel } from "./CoursesSearchPanel";
@@ -117,7 +118,7 @@ export function PageSections({
   if (pageId === "study-plan") {
     return (
       <>
-        <StudyPlanPanel />
+        <StudyPlansSearchPanel focusId={focusId} />
         <section className="secondary-panel" aria-label="Quick notes">
           <NotesPanel />
         </section>

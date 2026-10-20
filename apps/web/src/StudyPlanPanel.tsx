@@ -15,7 +15,7 @@ import { revealClass, useReveal } from "./use-reveal";
 import type { StudyPlan } from "./api";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
 
-function DeletePlan({
+export function DeletePlan({
   plan,
   busy,
   onDelete,
