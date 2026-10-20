@@ -1502,6 +1502,92 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
     Origin: auth.config.origin,
     "X-CSRF-Token": session.csrfToken,
   });
+  // F06 RED: a verified session whose live membership is manager must be able
+  // to reach the dashboard route. The baseline has no route yet and returns
+  // 404; the fixture restores the role even when that assertion fails.
+  await fixture.admin.query(
+    "UPDATE workspace_memberships SET role='manager' WHERE workspace_id=$1 AND user_id=$2",
+    [A.id, people.member],
+  );
+  try {
+    const dashboard = await fetch(`${base}/api/admin/ai-usage`, {
+      headers: { Cookie: nextCookie },
+    });
+    assert.equal(dashboard.status, 200, "manager AI usage route is available");
+    const emptyDashboard = await dashboard.json();
+    assert.equal(emptyDashboard.summary.operations.total, "0");
+    assert.equal(emptyDashboard.summary.providerCalls.tokens.total, null);
+    assert.equal(emptyDashboard.summary.daily.length, 7);
+    assert.equal(emptyDashboard.summary.telemetryIsBestEffort, true);
+
+    const repeatedFilter = await fetch(
+      `${base}/api/admin/ai-usage?from=2026-10-01&from=2026-10-02`,
+      { headers: { Cookie: nextCookie } },
+    );
+    assert.equal(repeatedFilter.status, 400);
+    assert.equal((await repeatedFilter.json()).code, "AI_USAGE_QUERY_INVALID");
+
+    for (const query of [
+      "page=1&page=2",
+      "model=gemini-2.5-flash&model=gemini-2.0-flash",
+    ]) {
+      const repeatedValue = await fetch(`${base}/api/admin/ai-usage?${query}`, {
+        headers: { Cookie: nextCookie },
+      });
+      assert.equal(repeatedValue.status, 400, `rejects repeated ${query}`);
+      assert.equal((await repeatedValue.json()).code, "AI_USAGE_QUERY_INVALID");
+    }
+
+    const invalidDate = await fetch(
+      `${base}/api/admin/ai-usage?from=2026-02-30`,
+      { headers: { Cookie: nextCookie } },
+    );
+    assert.equal(invalidDate.status, 400);
+  } finally {
+    await fixture.admin.query(
+      "UPDATE workspace_memberships SET role='member' WHERE workspace_id=$1 AND user_id=$2",
+      [A.id, people.member],
+    );
+  }
+  const memberDashboard = await fetch(`${base}/api/admin/ai-usage`, {
+    headers: { Cookie: nextCookie },
+  });
+  assert.equal(memberDashboard.status, 403);
+  assert.equal((await memberDashboard.json()).code, "ROLE_FORBIDDEN");
+  await fixture.admin.query(
+    "UPDATE workspace_memberships SET role='viewer' WHERE workspace_id=$1 AND user_id=$2",
+    [A.id, people.member],
+  );
+  try {
+    const viewerDashboard = await fetch(`${base}/api/admin/ai-usage`, {
+      headers: { Cookie: nextCookie },
+    });
+    assert.equal(viewerDashboard.status, 403);
+  } finally {
+    await fixture.admin.query(
+      "UPDATE workspace_memberships SET role='member' WHERE workspace_id=$1 AND user_id=$2",
+      [A.id, people.member],
+    );
+  }
+  await fixture.admin.query(
+    "UPDATE workspace_memberships SET active=false WHERE workspace_id=$1 AND user_id=$2",
+    [A.id, people.member],
+  );
+  try {
+    const revokedDashboard = await fetch(`${base}/api/admin/ai-usage`, {
+      headers: { Cookie: nextCookie },
+    });
+    assert.equal(revokedDashboard.status, 403);
+    assert.equal(
+      (await revokedDashboard.json()).code,
+      "WORKSPACE_ACCESS_DENIED",
+    );
+  } finally {
+    await fixture.admin.query(
+      "UPDATE workspace_memberships SET active=true WHERE workspace_id=$1 AND user_id=$2",
+      [A.id, people.member],
+    );
+  }
   const postChat = (body) =>
     fetch(`${base}/api/assistant/chat`, {
       method: "POST",
@@ -1519,7 +1605,7 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
     const requestId = response.headers.get("x-request-id");
     assert.match(requestId ?? "", /^[0-9a-f-]{36}$/i);
     let operation;
-    for (let attempt = 0; attempt < 25 && !operation; attempt++) {
+    for (let attempt = 0; attempt < 50 && !operation; attempt++) {
       operation = (
         await fixture.admin.query(
           `SELECT operation_id::text,request_id::text,workspace_id::text,user_id::text,
@@ -1528,7 +1614,7 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
           [requestId],
         )
       ).rows[0];
-      if (!operation) await new Promise((resolve) => setImmediate(resolve));
+      if (!operation) await new Promise((resolve) => setTimeout(resolve, 5));
     }
     assert.ok(
       operation,
@@ -2539,13 +2625,276 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
     ],
     [B.id, people.manager],
   );
-  await assert.rejects(
-    context(
-      { workspaceId: B.id, userId: people.manager, role: "manager" },
-      (tx) => tx.query("SELECT workspace_id,user_id FROM ai_usage_operations"),
+  const noProviderOperationId = randomUUID();
+  const aggregateOperationId = randomUUID();
+  const timeoutOperationId = randomUUID();
+  const cancelledOperationId = randomUUID();
+  const unknownOperationId = randomUUID();
+  const expiredOperationId = randomUUID();
+  for (const [id, operation, mode, outcome, callCount, expires] of [
+    [
+      noProviderOperationId,
+      "assistant_course_info",
+      "workspace",
+      "rejected",
+      0,
+      "infinity",
+    ],
+    [
+      aggregateOperationId,
+      "assistant_summary",
+      "documents",
+      "error",
+      5,
+      "infinity",
+    ],
+    [
+      timeoutOperationId,
+      "assistant_question",
+      "general",
+      "timeout",
+      0,
+      "infinity",
+    ],
+    [
+      cancelledOperationId,
+      "assistant_summary",
+      "documents",
+      "cancelled",
+      0,
+      "infinity",
+    ],
+    [unknownOperationId, "document_index", null, "unknown", 0, "infinity"],
+    [
+      expiredOperationId,
+      "assistant_question",
+      "general",
+      "success",
+      0,
+      "-infinity",
+    ],
+  ]) {
+    await fixture.admin.query(
+      `INSERT INTO ai_usage_operations(operation_id,request_id,workspace_id,user_id,
+          operation,mode,outcome,provider_call_count,started_at,completed_at,duration_ms,expires_at)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW(),7,
+          CASE WHEN $9='infinity' THEN NOW()+interval '30 days' ELSE NOW()-interval '1 second' END)`,
+      [
+        id,
+        randomUUID(),
+        B.id,
+        people.manager,
+        operation,
+        mode,
+        outcome,
+        callCount,
+        expires,
+      ],
+    );
+  }
+  for (const [
+    callId,
+    input,
+    output,
+    total,
+    usage,
+    costStatus,
+    estimatedCost,
+    currency,
+    version,
+    outcome,
+  ] of [
+    [
+      randomUUID(),
+      "0",
+      "0",
+      "0",
+      "complete",
+      "estimated",
+      "0",
+      "USD",
+      "fixture-pricing-a",
+      "success",
+    ],
+    [
+      randomUUID(),
+      "9007199254740991",
+      "0",
+      "9007199254740991",
+      "complete",
+      "estimated",
+      "0.000000000001",
+      "EUR",
+      "fixture-pricing-b",
+      "timeout",
+    ],
+    [
+      randomUUID(),
+      "5",
+      null,
+      null,
+      "partial",
+      "unknown_usage",
+      null,
+      null,
+      null,
+      "error",
+    ],
+    [
+      randomUUID(),
+      null,
+      null,
+      null,
+      "missing",
+      "unknown_usage",
+      null,
+      null,
+      null,
+      "unknown",
+    ],
+    [
+      randomUUID(),
+      null,
+      null,
+      null,
+      "invalid",
+      "invalid",
+      null,
+      null,
+      null,
+      "cancelled",
+    ],
+  ]) {
+    await fixture.admin.query(
+      `INSERT INTO ai_usage_provider_calls(call_id,operation_id,workspace_id,user_id,
+          provider,model,call_type,outcome,usage_status,input_tokens,output_tokens,total_tokens,
+          cost_status,estimated_cost,pricing_version,currency,duration_ms,started_at,completed_at,expires_at)
+         VALUES($1,$2,$3,$4,'google','gemini-2.5-flash','generation',$5,$6,
+          $7,$8,$9,$10,$11,$12,$13,5,NOW(),NOW(),NOW()+interval '30 days')`,
+      [
+        callId,
+        aggregateOperationId,
+        B.id,
+        people.manager,
+        outcome,
+        usage,
+        input,
+        output,
+        total,
+        costStatus,
+        estimatedCost,
+        version,
+        currency,
+      ],
+    );
+  }
+  const managerDashboard = await fetch(
+    `${base}/api/admin/ai-usage?from=2026-10-01&to=2026-11-30&pageSize=1`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(managerDashboard.status, 200);
+  const managerDashboardBody = await managerDashboard.json();
+  assert.equal(managerDashboardBody.operations.total, "6");
+  assert.equal(managerDashboardBody.operations.totalPages, 6);
+  assert.equal(managerDashboardBody.summary.operations.total, "6");
+  assert.equal(managerDashboardBody.summary.operations.outcomes.success, "1");
+  assert.equal(managerDashboardBody.summary.operations.outcomes.rejected, "1");
+  assert.equal(managerDashboardBody.summary.operations.outcomes.error, "1");
+  assert.equal(managerDashboardBody.summary.operations.outcomes.timeout, "1");
+  assert.equal(managerDashboardBody.summary.operations.outcomes.cancelled, "1");
+  assert.equal(managerDashboardBody.summary.operations.outcomes.unknown, "1");
+  assert.equal(managerDashboardBody.summary.providerCalls.total, "6");
+  assert.equal(
+    managerDashboardBody.summary.providerCalls.outcomes.timeout,
+    "1",
+  );
+  assert.equal(
+    managerDashboardBody.summary.providerCalls.outcomes.cancelled,
+    "1",
+  );
+  assert.deepEqual(managerDashboardBody.summary.providerCalls.usage, {
+    complete: "3",
+    partial: "1",
+    missing: "1",
+    invalid: "1",
+  });
+  assert.equal(
+    managerDashboardBody.summary.providerCalls.tokens.input,
+    "9007199254741006",
+  );
+  assert.equal(
+    managerDashboardBody.summary.providerCalls.tokens.total,
+    "9007199254741006",
+  );
+  assert.equal(
+    managerDashboardBody.summary.providerCalls.cost.estimatedCalls,
+    "2",
+  );
+  assert.equal(
+    managerDashboardBody.summary.providerCalls.cost.unknownCalls,
+    "4",
+  );
+  assert.equal(
+    managerDashboardBody.summary.providerCalls.cost.breakdown.length,
+    2,
+  );
+  assert.notEqual(
+    managerDashboardBody.operations.items[0].operationId,
+    expiredOperationId,
+  );
+  const pageTwoDashboard = await fetch(
+    `${base}/api/admin/ai-usage?from=2026-10-01&to=2026-11-30&pageSize=1&page=2`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(pageTwoDashboard.status, 200);
+  const pageTwoBody = await pageTwoDashboard.json();
+  assert.deepEqual(pageTwoBody.summary, managerDashboardBody.summary);
+  assert.notEqual(
+    pageTwoBody.operations.items[0].operationId,
+    managerDashboardBody.operations.items[0].operationId,
+  );
+  const modelFiltered = await fetch(
+    `${base}/api/admin/ai-usage?from=2026-10-01&to=2026-11-30&model=gemini-2.5-flash&pageSize=20`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(modelFiltered.status, 200);
+  const modelFilteredBody = await modelFiltered.json();
+  assert.equal(modelFilteredBody.operations.total, "1");
+  assert.equal(modelFilteredBody.summary.providerCalls.total, "5");
+  const sortedDashboard = await fetch(
+    `${base}/api/admin/ai-usage?from=2026-10-01&to=2026-11-30&sort=operation&direction=asc&pageSize=20`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(sortedDashboard.status, 200);
+  const sortedBody = await sortedDashboard.json();
+  assert.deepEqual(
+    sortedBody.operations.items.map((item) => item.operation),
+    [
+      "assistant_course_info",
+      "assistant_question",
+      "assistant_question",
+      "assistant_summary",
+      "assistant_summary",
+      "document_index",
+    ],
+    "selected sort order is preserved in the JSON page array",
+  );
+  const managerCalls = await fetch(
+    `${base}/api/admin/ai-usage/operations/${managerTelemetry.operation.operation_id}/calls`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(managerCalls.status, 200);
+  assert.equal((await managerCalls.json()).items.length, 1);
+  const memberScoped = await context(
+    { workspaceId: B.id, userId: people.manager, role: "manager" },
+    (tx) => tx.query("SELECT workspace_id,user_id FROM ai_usage_operations"),
+  );
+  assert.equal(memberScoped.rows.length, 7);
+  assert.ok(
+    memberScoped.rows.every(
+      (row) => row.workspace_id === B.id && row.user_id === people.manager,
     ),
-    { code: "42501" },
-    "business runtime can record telemetry but cannot read it back",
+    "manager RLS limits raw telemetry reads to the active workspace; expiry is applied by the dashboard query",
   );
   const isolatedWrites = await fixture.admin.query(
     `SELECT workspace_id,user_id,request_id::text FROM ai_usage_operations
@@ -2563,6 +2912,24 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
     ],
     "each account's verified server principal scopes its telemetry insert",
   );
+  await fixture.admin.query("UPDATE workspaces SET active=false WHERE id=$1", [
+    B.id,
+  ]);
+  try {
+    const inactiveWorkspaceDashboard = await fetch(
+      `${base}/api/admin/ai-usage?from=2026-10-01&to=2026-11-30`,
+      { headers: { Cookie: nextCookie } },
+    );
+    assert.equal(inactiveWorkspaceDashboard.status, 403);
+    assert.equal(
+      (await inactiveWorkspaceDashboard.json()).code,
+      "WORKSPACE_ACCESS_DENIED",
+    );
+  } finally {
+    await fixture.admin.query("UPDATE workspaces SET active=true WHERE id=$1", [
+      B.id,
+    ]);
+  }
 });
 
 test("runtime capabilities reject ownership of managed schemas and database", async () => {

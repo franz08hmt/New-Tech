@@ -692,3 +692,131 @@ export interface PilotGoogleStart {
  * then 303 to PUBLIC_ORIGIN /?oauth=<allowlisted result>. Never reflects errors. */
 export type PilotGoogleResult =
   "success" | "cancelled" | "restart_required" | "unavailable";
+
+export type AiUsageOperationName =
+  | "assistant_question"
+  | "assistant_summary"
+  | "assistant_course_info"
+  | "document_index";
+export type AiUsageOperationMode = "general" | "documents" | "workspace";
+export type AiUsageOperationOutcome =
+  | "success"
+  | "error"
+  | "timeout"
+  | "cancelled"
+  | "rejected"
+  | "unknown";
+export type AiUsageDashboardSort =
+  | "started_at"
+  | "duration_ms"
+  | "operation"
+  | "outcome";
+export interface AiUsageDashboardQuery {
+  from: string;
+  to: string;
+  operation?: AiUsageOperationName;
+  mode?: AiUsageOperationMode;
+  outcome?: AiUsageOperationOutcome;
+  model?: string;
+  sort: AiUsageDashboardSort;
+  direction: "asc" | "desc";
+  page: number;
+  pageSize: number;
+}
+export interface AiUsageOperationCount {
+  total: string;
+  outcomes: Record<AiUsageOperationOutcome, string>;
+  latency: { sampleCount: string; averageMs: string | null; p95Ms: string | null };
+}
+export interface AiUsageProviderCallCount {
+  total: string;
+  outcomes: Record<"success" | "error" | "timeout" | "cancelled" | "unknown", string>;
+  usage: Record<"complete" | "partial" | "missing" | "invalid", string>;
+  tokens: {
+    input: string | null;
+    inputSamples: string;
+    output: string | null;
+    outputSamples: string;
+    total: string | null;
+    totalSamples: string;
+  };
+  cost: {
+    estimatedCalls: string;
+    unknownCalls: string;
+    breakdown: Array<{
+      currency: string;
+      pricingVersion: string;
+      calls: string;
+      estimatedCost: string;
+    }>;
+  };
+  latency: { sampleCount: string; averageMs: string | null; p95Ms: string | null };
+}
+export interface AiUsageDashboardOperation {
+  operationId: string;
+  operation: AiUsageOperationName;
+  mode: AiUsageOperationMode | null;
+  promptId: string | null;
+  promptVersion: string | null;
+  outcome: AiUsageOperationOutcome;
+  startedAt: string;
+  durationMs: number;
+  providerCalls: string;
+  knownTotalTokens: string | null;
+  totalTokenSamples: string;
+}
+export interface AiUsageDashboardResponse {
+  from: string;
+  to: string;
+  timezone: "Asia/Ho_Chi_Minh";
+  modelCohort: string;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  summary: {
+    operations: AiUsageOperationCount;
+    providerCalls: AiUsageProviderCallCount;
+    daily: Array<{ day: string; operations: string; providerCalls: string }>;
+    models: Array<{
+      model: string;
+      providerCalls: string;
+      operations: string;
+      knownTotalTokens: string | null;
+      tokenSamples: string;
+    }>;
+    telemetryIsBestEffort: true;
+    ttft: "not_collected";
+    monetaryBudget: false;
+  };
+  operations: {
+    items: AiUsageDashboardOperation[];
+    total: string;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  };
+}
+export interface AiUsageProviderCall {
+  callId: string;
+  model: string;
+  type: string;
+  outcome: "success" | "error" | "timeout" | "cancelled" | "unknown";
+  usageStatus: "complete" | "partial" | "missing" | "invalid";
+  inputTokens: string | null;
+  outputTokens: string | null;
+  totalTokens: string | null;
+  costStatus: "estimated" | "unknown_price" | "unknown_usage" | "invalid";
+  estimatedCost: string | null;
+  pricingVersion: string | null;
+  currency: string | null;
+  durationMs: number;
+  startedAt: string;
+}
+export interface AiUsageProviderCallsResponse {
+  operationId: string;
+  page: number;
+  pageSize: number;
+  total: string;
+  totalPages: number;
+  items: AiUsageProviderCall[];
+}

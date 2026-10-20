@@ -23,8 +23,8 @@ before(async () => {
   pool = new pg.Pool({ connectionString: url, ssl: false, max: 3 });
   const ledger = await pool.query("SELECT name FROM schema_migrations");
   sourceMigrationCount = (await loadMigrations()).length;
-  assert.equal(sourceMigrationCount, 20);
-  assert.equal(ledger.rows.length, sourceMigrationCount - 4);
+  assert.equal(sourceMigrationCount, 21);
+  assert.equal(ledger.rows.length, sourceMigrationCount - 5);
   for (const name of [
     "012_pilot_access.sql",
     "013_pilot_auth_limits.sql",
@@ -41,6 +41,9 @@ before(async () => {
     !ledger.rows.some((row) => row.name === "019_ai_usage_telemetry.sql"),
   );
   assert.ok(!ledger.rows.some((row) => row.name === "020_ai_admission.sql"));
+  assert.ok(
+    !ledger.rows.some((row) => row.name === "021_ai_usage_dashboard.sql"),
+  );
   // These permanent objects belong exclusively to this run. Read-only protection
   // of permanent writes is PostgreSQL's guarantee; temp objects and physical I/O
   // are deliberately outside this assertion.
@@ -255,6 +258,7 @@ test("preflight checks maintenance ledger read-only and reports runtime capabili
         "018_runtime_rls_reindex.sql",
         "019_ai_usage_telemetry.sql",
         "020_ai_admission.sql",
+        "021_ai_usage_dashboard.sql",
       ].includes(entry.name);
       assert.equal(entry.applied, !f02RuntimeMigration);
       assert.equal(entry.checksumMatches, !f02RuntimeMigration);
@@ -324,7 +328,7 @@ test("preflight flags missing migrations and mismatched checksums without writin
           "SELECT count(*)::int AS count FROM schema_migrations",
         )
       ).rows[0].count,
-      sourceMigrationCount - 4,
+      sourceMigrationCount - 5,
     );
   } finally {
     client.release();

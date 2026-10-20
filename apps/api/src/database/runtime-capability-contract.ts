@@ -21,7 +21,7 @@ export function runtimeCapabilityError(message?: string) {
   return new RuntimeCapabilityContractError(message);
 }
 
-export const RUNTIME_CAPABILITY_CONTRACT_VERSION = 20;
+export const RUNTIME_CAPABILITY_CONTRACT_VERSION = 21;
 
 const baseManagedRelations = [
   "workspaces",
@@ -70,6 +70,8 @@ const expectedCatalogDigests: Readonly<Record<number, string>> = {
   18: "8a0093d63210bb1b01a649d8a3a0b95348578eca29111bf8c9513bcf4c7a58cc",
   19: "c1e686aa68c3fac689544396b9ef29cab16cc93a7e394a89742a9a2a85abf73d",
   20: "b14a19fb148904116b166da9bbd5c4bf3649fd2b27e6947a525d5589a14a9986",
+  // Generated from a pristine PostgreSQL 17 database by applying source migrations 001-021.
+  21: "a1d78d4abffa234b14fb58ecff790a096b1c14439f79330de325bd255934fa45",
 };
 
 async function readContractCatalog(query: Query, version: number) {
@@ -348,6 +350,8 @@ const managedPolicyRelations = [
   "pilot_refresh_attempts",
   "pilot_oauth_attempts",
   ...admissionRelations,
+  "ai_usage_operations",
+  "ai_usage_provider_calls",
 ];
 
 export const EXPECTED_017_RUNTIME_POLICIES = [
@@ -392,10 +396,17 @@ export const EXPECTED_017_RUNTIME_POLICIES = [
   "f02_feedback_insert",
 ];
 
-export async function lockManagedRuntimeRelations(query: Query) {
+export async function lockManagedRuntimeRelations(
+  query: Query,
+  { includeAiUsage = false }: { includeAiUsage?: boolean } = {},
+) {
   await query(
     `LOCK TABLE ${managedPolicyRelations
-      .filter((name) => !admissionRelations.includes(name))
+      .filter(
+        (name) =>
+          !admissionRelations.includes(name) &&
+          (includeAiUsage || !name.startsWith("ai_usage_")),
+      )
       .map((name) => `public.${name}`)
       .join(",")} IN ACCESS EXCLUSIVE MODE`,
   );
@@ -404,7 +415,13 @@ export async function lockManagedRuntimeRelations(query: Query) {
 /** Rejects policies effective for a runtime capability unless they belong to the known 017 bundle. */
 export async function assertNoManagedRuntimePolicyConflict(
   query: Query,
-  { allow017PolicyNames = false }: { allow017PolicyNames?: boolean } = {},
+  {
+    allow017PolicyNames = false,
+    allowedPolicyNames = [],
+  }: {
+    allow017PolicyNames?: boolean;
+    allowedPolicyNames?: readonly string[];
+  } = {},
 ) {
   const result = await query(
     `SELECT p.polname,
@@ -423,9 +440,10 @@ export async function assertNoManagedRuntimePolicyConflict(
     ORDER BY p.polname`,
     [managedPolicyRelations, roleGroups],
   );
-  const allowed = new Set(
-    allow017PolicyNames ? EXPECTED_017_RUNTIME_POLICIES : [],
-  );
+  const allowed = new Set([
+    ...(allow017PolicyNames ? EXPECTED_017_RUNTIME_POLICIES : []),
+    ...allowedPolicyNames,
+  ]);
   if (
     result.rows.some(
       (row) => row.is_public || !allowed.has(String(row.polname)),
@@ -438,3 +456,19 @@ export async function assertNoManagedRuntimePolicyConflict(
     throw error;
   }
 }
+
+export const EXPECTED_021_RUNTIME_POLICIES = [
+  ...EXPECTED_017_RUNTIME_POLICIES,
+  "f03_usage_operations_insert",
+  "f03_usage_calls_insert",
+  "f04_admission_user_daily_select",
+  "f04_admission_user_daily_insert",
+  "f04_admission_user_daily_update",
+  "f04_admission_operations_select",
+  "f04_admission_operations_insert",
+  "f04_admission_operations_update",
+  "f04_admission_operations_expired_user_update",
+  "f04_admission_operations_delete_expired",
+  "f06_usage_operations_manager_select",
+  "f06_usage_calls_manager_select",
+];

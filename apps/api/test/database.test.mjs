@@ -64,7 +64,8 @@ const migrationsThrough016 = async () =>
       migration.name !== "017_runtime_rls.sql" &&
       migration.name !== "018_runtime_rls_reindex.sql" &&
       migration.name !== "019_ai_usage_telemetry.sql" &&
-      migration.name !== "020_ai_admission.sql",
+      migration.name !== "020_ai_admission.sql" &&
+      migration.name !== "021_ai_usage_dashboard.sql",
   );
 before(async () => {
   process.env.DATABASE_SSL = "false";

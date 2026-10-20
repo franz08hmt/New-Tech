@@ -48,6 +48,8 @@ import { SpeechService } from "./speech/speech.service.js";
 import { AudioInspector } from "./speech/audio-inspector.js";
 import { SpeechLimiter } from "./speech/speech-limiter.js";
 import { LocalSpeechProvider } from "./speech/local-speech.provider.js";
+import { AiUsageDashboardController } from "./admin/ai-usage-dashboard.controller.js";
+import { AiUsageDashboardService } from "./admin/ai-usage-dashboard.service.js";
 import {
   localSpeechRuntimeProvider,
   localSpeechWorkerFactoryProvider,
@@ -68,6 +70,7 @@ import { SPEECH_PROVIDER } from "./speech/speech.types.js";
     StudyPlansController,
     ExpensesController,
     WorkspaceSearchController,
+    AiUsageDashboardController,
     SpeechController,
   ],
   providers: [
@@ -99,6 +102,7 @@ import { SPEECH_PROVIDER } from "./speech/speech.types.js";
     WorkspaceRecordsService,
     WorkspaceAssistantService,
     AiUsageService,
+    AiUsageDashboardService,
     AiAdmissionService,
     SpeechService,
     SpeechAdmissionInterceptor,

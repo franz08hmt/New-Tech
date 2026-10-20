@@ -11,6 +11,7 @@ import {
   ConfigurationError,
 } from "../dist/config/config.js";
 import {
+  EXPECTED_021_RUNTIME_POLICIES,
   assertNoManagedRuntimePolicyConflict,
   lockManagedRuntimeRelations,
 } from "../dist/database/runtime-capability-contract.js";
@@ -213,6 +214,15 @@ export async function migrate(
             {
               allow017PolicyNames: file.name === "018_runtime_rls_reindex.sql",
             },
+          );
+        } else if (file.name === "021_ai_usage_dashboard.sql") {
+          await lockManagedRuntimeRelations(
+            (text, values) => client.query(text, values),
+            { includeAiUsage: true },
+          );
+          await assertNoManagedRuntimePolicyConflict(
+            (text, values) => client.query(text, values),
+            { allowedPolicyNames: EXPECTED_021_RUNTIME_POLICIES },
           );
         }
         const appliedNow = await applyMigrationInTransaction(client, file, {

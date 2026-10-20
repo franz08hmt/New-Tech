@@ -120,7 +120,7 @@ async function clearLedger() {
 }
 
 before(async () => {
-  fixture = await openDocumentsTenantFixture({ migrationLimit: 20 });
+  fixture = await openDocumentsTenantFixture({ migrationLimit: 21 });
   for (let index = 0; index < runtimeRoles.length; index++)
     await provisionLogin(
       runtimeRoles[index],

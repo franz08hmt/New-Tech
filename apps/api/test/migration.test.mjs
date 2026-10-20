@@ -32,6 +32,7 @@ const expectedMigrationNames = [
   "018_runtime_rls_reindex.sql",
   "019_ai_usage_telemetry.sql",
   "020_ai_admission.sql",
+  "021_ai_usage_dashboard.sql",
 ];
 
 const saved = { ...process.env };
