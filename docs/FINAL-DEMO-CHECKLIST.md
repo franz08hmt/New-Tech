@@ -709,3 +709,47 @@ The browser/CUA tool inventory for this session was empty; therefore desktop and
 375px admission UX remains unverified and this is not F04_LOCAL_ACCEPTED. HTTP/DB
 tests are not browser evidence. Run the five commands above in order with the
 guarded PG17 disposable to reproduce the automated gates.
+
+## F04.1 permit-wait lifecycle and admission error preservation (20/10/2026)
+
+RED was reproduced before implementation. Five child processes ran with
+`--unhandled-rejections=strict`, an 80ms synthetic permit wait, a 10ms deadline
+(or 10ms stream abort), and a fake SDK transport. Generation, stream timeout,
+stream abort, embedding and OCR each exited 1 from an unhandled timeout rejection
+before their caller catch could complete. Four wrapper denial assertions also
+failed because `AI_FANOUT_LIMIT`/membership denial was converted into upstream or
+OCR provider errors. No Google/provider request was used.
+
+The implementation uses a fulfilled deadline/cancel signal while authorization
+is pending and awaits permit completion. A permit granted after timeout/cancel is
+discarded before SDK dispatch; it creates no provider-attempt telemetry. A
+dispatched SDK promise is immediately settled to a response/error value before
+racing the deadline, preventing late rejection from becoming unhandled. Known
+admission/auth codes retain safe status/code through generation, stream,
+embedding, OCR, retrieval and ingestion; unexpected permit failures are mapped
+to `AI_ADMISSION_UNAVAILABLE`. The controller keeps JSON status/body and emits a
+terminal SSE error event after headers. F04 quota, daily usage, concurrency,
+fan-out and migration 020 were not changed.
+
+New focused GREEN evidence: 131/131 Vitest tests across Gemini generation,
+embedding, OCR, AiUsage, AssistantService and AssistantController; five strict
+subprocess cases pass with zero SDK calls, one pre-dispatch discard and zero
+provider finishes; the real PG17 non-owner admission/usage database suite passed
+11/11, including two backend PIDs and lost permit COMMIT acknowledgement; the
+HTTP ingestion denial regression passed in the 4/4 role suite. JSON/SSE controller
+tests preserve the safe admission code, and telemetry assertions distinguish
+operation rejection from provider failure. The new Node regression test is
+registered in the normal API test command.
+
+On F04.1 code commit `fed6cd8`, all final automated gates exited 0:
+`npm run typecheck`; `npm test` (API Vitest 339/339, API Node 855/855, web
+384/384; 1,578 total); `npm run build`; `npm run format:check`; and
+`npm run test:database` on guarded PostgreSQL 17 (462/462, 0 failed, skipped or
+cancelled). The five strict child-process regressions and focused HTTP/DB denial
+coverage are included in these gates; focused results are documented above.
+
+Browser desktop/mobile cancellation and draft UX was not checked because this
+session exposed no browser/CUA capability. This remains browser acceptance
+pending; no HTTP result is represented as browser evidence. F04.1 code and
+automated verification are green, but this is not full F04 local acceptance.
+No cloud write, paid provider call, push or deployment occurred.

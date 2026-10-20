@@ -392,3 +392,23 @@ provider calls occurred. F03 remains `F03_CODE_VERIFIED +
 F03_BROWSER_ACCEPTANCE_PENDING`; F04 is `F04_IMPLEMENTED + AUTOMATED_GATES_PASS +
 BROWSER_ACCEPTANCE_PENDING`, not local acceptance. No independent human review is
 claimed in this entry.
+
+## 2026-10-20 - F04.1 provider admission lifecycle correction (Codex)
+
+AI assistance reviewed the reproduced timeout/abort lifecycle and admission
+error-mapping defects, added strict subprocess and wrapper regressions, and
+implemented non-rejecting deadline signals, immediate provider-promise
+settlement, pre-dispatch cleanup, and safe admission error preservation. The
+review also checked that rejected admission is not persisted as a provider
+failure and that JSON/SSE preserve the safe status/code contract.
+
+Verification used the installed Node/npm/Nest/Vitest toolchain and a labeled
+PostgreSQL 17 disposable with separate non-owner LOGIN roles. Provider SDK
+transport, Auth upstream and OCR/image inputs were synthetic; no Google or paid
+provider was called. Strict-mode child processes reproduced the original crash
+before the fix and completed safely after it. Final gates on code commit
+`fed6cd8` passed: API Vitest 339, API Node 855, web 384 (1,578 total), and
+PG17 database 462/462; typecheck, build and format also exited 0. Browser
+automation was unavailable in this session, so cancellation/draft UX remains
+pending; no human review is claimed. No cloud writes, credential changes, push
+or deployment occurred.

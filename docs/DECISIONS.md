@@ -333,3 +333,20 @@ Known general-chat and document-question provider-call fan-out is stored with
 the initial reservation before handler work begins. This rejects a zero fan-out
 cap before SSE headers or provider dispatch. A separate database regression
 checks that the planned count is already durable at reservation time.
+
+### F04.1 lifecycle/error clarification
+
+Permit acquisition is awaited to completion; a timeout/cancel that fires while
+it is pending is recorded as a fulfilled signal, not a detached rejecting promise.
+After permit confirmation the wrapper checks that signal before dispatch and
+closes the call intent if no SDK work began. SDK promises are converted to
+fulfilled response/error values before they race a deadline, so late provider
+rejections remain handled. Once SDK dispatch has begun, timeout/cancel remains
+conservative and holds the operation slot until provider stop is confirmed.
+
+The provider boundary preserves only known admission/auth error codes with safe
+server messages. Unexpected permit/database errors map to
+`AI_ADMISSION_UNAVAILABLE`; provider SDK errors continue through their existing
+sanitizers. Admission denial is an operation rejection, not a provider attempt,
+and is not written as provider-failure telemetry. This does not change the F04
+quota, concurrency or fan-out policy.

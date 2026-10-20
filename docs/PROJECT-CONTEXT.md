@@ -3,7 +3,33 @@
 Cập nhật 20/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
-## Current checkpoint — F04 local implementation (20/10/2026)
+## Latest checkpoint — F04.1 provider admission fixes (20/10/2026)
+
+Code/test commit: `fed6cd8`.
+
+F04.1 fixes two reproduced defects in provider wrappers. Timeouts and stream
+cancellation are now fulfilled lifecycle signals while a durable permit is
+pending; the wrapper waits for permit completion, then discards a granted but
+undispatched call if its deadline/cancellation already fired. SDK promises are
+settled immediately so late rejection remains handled. No SDK call or provider
+attempt telemetry is produced before dispatch.
+
+Only allowlisted server-authored admission/auth errors keep their HTTP status and
+code through Gemini generation/streaming, embedding, OCR, retrieval and document
+ingestion. Unexpected permit/database failures become safe
+`AI_ADMISSION_UNAVAILABLE`; raw SDK/database details remain sanitized. JSON
+keeps the HTTP error contract, while SSE emits one terminal error event after
+headers. No admission limits, quota accounting, migration, RAG algorithm, or
+provider retry behavior changed.
+
+RED evidence: five strict-mode subprocesses (generation, streaming timeout,
+stream cancellation, embedding, OCR) exited 1 from an unhandled timeout before
+the fix; four focused wrapper denial assertions changed to fail because the
+admission status/code was normalized. GREEN evidence and final gates are recorded
+in the latest F04.1 section of [the demo checklist](FINAL-DEMO-CHECKLIST.md).
+Browser acceptance remains pending because no browser/CUA tool was available.
+
+## F04 base implementation checkpoint (historical) — 20/10/2026
 
 F04 implementation revision: `d716c13`.
 
