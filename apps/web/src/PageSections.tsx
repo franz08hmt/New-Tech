@@ -14,10 +14,11 @@ import { TasksPanel } from "./TasksPanel";
 import { ExamsPanel } from "./ExamsPanel";
 import { StudyPlanPanel } from "./StudyPlanPanel";
 import { BudgetPanel } from "./BudgetPanel";
-import { CourseCarousel } from "./CourseCarousel";
 import { CourseDetail } from "./CourseDetail";
+import { CoursesSearchPanel } from "./CoursesSearchPanel";
 import { DocumentsPanel } from "./DocumentsPanel";
 import type { CoursesState } from "./use-courses";
+import type { CourseLookupState } from "./use-course-lookup";
 import type { Workspace } from "./use-workspace";
 
 /**
@@ -32,6 +33,7 @@ export function PageSections({
   pageId,
   courseSlug,
   coursesState,
+  courseLookup,
   workspace,
   onOpenAssistant,
   onDocumentsChanged,
@@ -42,6 +44,7 @@ export function PageSections({
   /** The one record a link pointed at, so a page can reveal it. */
   focusId?: string;
   coursesState: CoursesState;
+  courseLookup: CourseLookupState;
   workspace: Workspace;
   onOpenAssistant: (opener: HTMLElement) => void;
   onDocumentsChanged: () => void;
@@ -51,45 +54,51 @@ export function PageSections({
       <DashboardSections workspace={workspace} coursesState={coursesState} />
     );
   if (pageId === "courses" && courseSlug !== undefined) {
-    if (coursesState.loading)
-      return <CourseDataState state="loading" onRetry={coursesState.retry} />;
-    if (coursesState.error)
+    if (courseLookup.loading)
       return (
-        <CourseDataState
-          state="error"
-          message={coursesState.error}
-          onRetry={coursesState.retry}
-        />
+        <section className="panel" role="status" aria-busy="true">
+          <h2>Loading course</h2>
+          <p>Opening this course in the current workspace…</p>
+        </section>
+      );
+    if (courseLookup.error)
+      return (
+        <section className="panel" role="alert">
+          <h2>Course unavailable</h2>
+          <p>
+            This course could not be loaded in the current workspace. Check your
+            connection and retry.
+          </p>
+          <a className="text-button" href="#courses">
+            Back to course gallery
+          </a>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={courseLookup.retry}
+          >
+            Retry course
+          </button>
+        </section>
+      );
+    if (!courseLookup.course)
+      return (
+        <section className="panel" role="status">
+          <h2>Course unavailable</h2>
+          <p>This course is not available in the current workspace.</p>
+          <a className="text-button" href="#courses">
+            Back to course gallery
+          </a>
+        </section>
       );
     return (
       <CourseDetail
-        course={coursesState.courses.find(
-          (course) => course.slug === courseSlug,
-        )}
+        course={courseLookup.course ?? undefined}
         onDocumentsChanged={onDocumentsChanged}
       />
     );
   }
-  if (pageId === "courses") {
-    if (coursesState.loading)
-      return <CourseDataState state="loading" onRetry={coursesState.retry} />;
-    if (coursesState.error)
-      return (
-        <CourseDataState
-          state="error"
-          message={coursesState.error}
-          onRetry={coursesState.retry}
-        />
-      );
-    if (coursesState.courses.length === 0)
-      return <CourseDataState state="empty" onRetry={coursesState.retry} />;
-    return (
-      <>
-        <CourseCarousel courses={coursesState.courses} />
-        <CoursesPanel courses={coursesState.courses} expanded />
-      </>
-    );
-  }
+  if (pageId === "courses") return <CoursesSearchPanel />;
   if (pageId === "tasks")
     return <TasksPanel workspace={workspace} expanded focusId={focusId} />;
   if (pageId === "exams") {

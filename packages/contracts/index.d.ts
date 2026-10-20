@@ -221,6 +221,39 @@ export interface Course {
   updated_at: string;
 }
 
+export type CourseSearchSort = "name" | "code" | "progress";
+export interface CourseSearchQuery {
+  q?: string;
+  progressMin?: number;
+  progressMax?: number;
+  sort?: CourseSearchSort;
+  direction?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+}
+/** Metadata for the course list; long syllabus material is loaded by slug. */
+export type CourseSearchItem = Pick<
+  Course,
+  | "id"
+  | "slug"
+  | "name"
+  | "code"
+  | "detail"
+  | "progress"
+  | "tone"
+  | "cover"
+  | "cover_alt"
+  | "created_at"
+  | "updated_at"
+>;
+export interface CourseSearchPage {
+  items: CourseSearchItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
 /**
  * An exam as `GET /api/exams` returns it.
  *

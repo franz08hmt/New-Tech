@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import { api, type Course } from "./api";
+import { PilotPrincipalContext } from "./PilotPrincipalContext";
 
 export interface CoursesState {
   courses: Course[];
@@ -8,38 +9,57 @@ export interface CoursesState {
   retry: () => void;
 }
 
-export function useCourses(): CoursesState {
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+/** Complete legacy list for the dashboard/gallery and course selectors only. */
+export function useCourses(enabled = true): CoursesState {
+  const principal = useContext(PilotPrincipalContext);
+  const identity = principal
+    ? `${principal.userId}:${principal.workspaceId}:${principal.role}`
+    : "";
+  const [snapshot, setSnapshot] = useState<{
+    identity: string;
+    courses: Course[];
+    loading: boolean;
+    error: string | null;
+  }>({ identity, courses: [], loading: enabled, error: null });
   const [requestNumber, setRequestNumber] = useState(0);
-
   const retry = useCallback(() => setRequestNumber((value) => value + 1), []);
 
   useEffect(() => {
-    let active = true;
-    setLoading(true);
-    setError(null);
+    if (!enabled || !identity) {
+      setSnapshot({ identity, courses: [], loading: false, error: null });
+      return;
+    }
+    const controller = new AbortController();
+    setSnapshot((current) => ({
+      identity,
+      courses: current.identity === identity ? current.courses : [],
+      loading: true,
+      error: null,
+    }));
     void api
-      .listCourses()
-      .then((result) => {
-        if (active) setCourses(result);
+      .listCourses(controller.signal)
+      .then((courses) => {
+        if (!controller.signal.aborted)
+          setSnapshot({ identity, courses, loading: false, error: null });
       })
       .catch(() => {
-        if (active) {
-          setCourses([]);
-          setError(
-            "Chưa tải được danh sách môn học. Có thể kết nối đang trục trặc một chút, thử lại giúp mình nhé.",
-          );
-        }
-      })
-      .finally(() => {
-        if (active) setLoading(false);
+        if (!controller.signal.aborted)
+          setSnapshot({
+            identity,
+            courses: [],
+            loading: false,
+            error:
+              "Courses could not be loaded. Check your connection and retry.",
+          });
       });
-    return () => {
-      active = false;
-    };
-  }, [requestNumber]);
+    return () => controller.abort();
+  }, [enabled, identity, requestNumber]);
 
-  return { courses, loading, error, retry };
+  const current = snapshot.identity === identity ? snapshot : null;
+  return {
+    courses: current?.courses ?? [],
+    loading: enabled && Boolean(identity) && (current?.loading ?? true),
+    error: current?.error ?? null,
+    retry,
+  };
 }

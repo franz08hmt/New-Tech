@@ -11,6 +11,10 @@ export type {
   AssistantReasonCode,
   AssistantStatus,
   Course,
+  CourseSearchItem,
+  CourseSearchPage,
+  CourseSearchQuery,
+  CourseSearchSort,
   CourseAssessment,
   CourseTone,
   CourseTopic,
@@ -73,6 +77,8 @@ import type {
   AssistantChatResponse,
   AssistantStreamStage,
   Course,
+  CourseSearchPage,
+  CourseSearchQuery,
   DocumentSearchPage,
   DocumentSearchQuery,
   DocumentProcessingResult,
@@ -381,9 +387,25 @@ export const api = {
       clearTimeout(timer);
     }
   },
-  listCourses: () => request<Course[]>("/api/courses"),
-  getCourse: (slug: string) =>
-    request<Course>(`/api/courses/${encodeURIComponent(slug)}`),
+  listCourses: (signal?: AbortSignal) =>
+    request<Course[]>("/api/courses", { signal }),
+  searchCourses: (query: CourseSearchQuery, signal?: AbortSignal) => {
+    const params = new URLSearchParams();
+    if (query.q?.trim()) params.set("q", query.q.trim());
+    if (query.progressMin !== undefined)
+      params.set("progressMin", String(query.progressMin));
+    if (query.progressMax !== undefined)
+      params.set("progressMax", String(query.progressMax));
+    params.set("sort", query.sort ?? "name");
+    params.set("direction", query.direction ?? "asc");
+    params.set("page", String(query.page ?? 1));
+    params.set("pageSize", String(query.pageSize ?? 20));
+    return request<CourseSearchPage>(`/api/courses/search?${params}`, {
+      signal,
+    });
+  },
+  getCourse: (slug: string, signal?: AbortSignal) =>
+    request<Course>(`/api/courses/${encodeURIComponent(slug)}`, { signal }),
   listExams: () => request<Exam[]>("/api/exams"),
   createExam: (input: {
     courseId: string;

@@ -19,6 +19,7 @@ import { Sidebar } from "./Sidebar";
 import { useFocusTarget } from "./use-focus-target";
 import { useAssistant } from "./use-assistant";
 import { useCourses } from "./use-courses";
+import { useCourseLookup } from "./use-course-lookup";
 import { useDocuments } from "./use-documents";
 import { useWorkspace } from "./use-workspace";
 import { PilotAccess } from "./PilotAccess";
@@ -323,11 +324,10 @@ export function WorkspaceApp() {
   // Expanded module lists use their bounded server search endpoint instead.
   const workspace = useWorkspace(route.page.id === "dashboard");
   const assistantDocuments = useDocuments();
-  const coursesState = useCourses();
-  const selectedCourse = route.courseSlug
-    ? coursesState.courses.find((course) => course.slug === route.courseSlug)
-    : undefined;
-  const courseResolved = !coursesState.loading && !coursesState.error;
+  const coursesState = useCourses(route.page.id === "dashboard");
+  const courseLookup = useCourseLookup(route.courseSlug);
+  const selectedCourse = courseLookup.course;
+  const courseResolved = !courseLookup.loading && Boolean(courseLookup.error);
   const page =
     route.courseSlug !== undefined
       ? {
@@ -533,6 +533,7 @@ export function WorkspaceApp() {
               pageId={page.id}
               courseSlug={route.courseSlug}
               coursesState={coursesState}
+              courseLookup={courseLookup}
               workspace={workspace}
               onOpenAssistant={openAssistant}
               onDocumentsChanged={assistantDocuments.reload}

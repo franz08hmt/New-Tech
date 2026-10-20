@@ -23,8 +23,8 @@ type SearchState<Page> = {
   page: Page | null;
 };
 
-interface Options {
-  enabled?: boolean;
+interface Options<Query extends PagedSearchQuery> {
+  enabled?: boolean | ((query: Query) => boolean);
   debounceMs?: number;
   minimumQueryLength?: number;
 }
@@ -42,9 +42,8 @@ export function usePagedSearch<
   identity: string,
   initialQuery: Query,
   load: (query: Query, signal: AbortSignal) => Promise<Page>,
-  options: Options = {},
+  options: Options<Query> = {},
 ) {
-  const enabled = options.enabled ?? true;
   const debounceMs = options.debounceMs ?? 280;
   const minimumQueryLength = options.minimumQueryLength ?? 2;
   const [stored, setStored] = useState({ identity, query: initialQuery });
@@ -55,6 +54,10 @@ export function usePagedSearch<
         : ({ ...initialQuery, q: "", page: 1 } as Query),
     [identity, initialQuery, stored],
   );
+  const enabled =
+    typeof options.enabled === "function"
+      ? options.enabled(query)
+      : (options.enabled ?? true);
   const normalizedQuery = query.q?.trim() ?? "";
   const tooShort =
     normalizedQuery.length > 0 && normalizedQuery.length < minimumQueryLength;

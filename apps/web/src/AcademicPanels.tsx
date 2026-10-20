@@ -22,7 +22,7 @@ import {
   Bars3Icon,
 } from "@heroicons/react/24/outline";
 import { courseIconFor } from "./academic-data";
-import type { Course } from "./api";
+import type { Course, CourseSearchItem } from "./api";
 import { revealClass, useReveal } from "./use-reveal";
 
 export function Panel({
@@ -146,15 +146,18 @@ export function CoursesPanel({
   courses,
   expanded = false,
 }: {
-  courses: Course[];
+  courses: (Course | CourseSearchItem)[];
   expanded?: boolean;
 }) {
   const { ref, revealed } = useReveal<HTMLUListElement>();
   return (
-    <Panel title="Course overview" icon={<AcademicCapIcon />}>
+    <Panel
+      title={expanded ? "Courses" : "Course overview"}
+      icon={<AcademicCapIcon />}
+    >
       <p className="view-label">
-        <TableCellsIcon /> Gallery{" "}
-        <span className="example-label">Example courses</span>
+        <TableCellsIcon /> {expanded ? "Search results" : "Gallery"}{" "}
+        {!expanded && <span className="example-label">Example courses</span>}
       </p>
       <ul
         ref={ref}

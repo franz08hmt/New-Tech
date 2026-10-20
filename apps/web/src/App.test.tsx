@@ -9,7 +9,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceApp } from "./App";
-import type { StoredDocument, WorkspaceSearchItem } from "./api";
+import type { StoredDocument, Task, WorkspaceSearchItem } from "./api";
 import { configurePilotClient } from "./pilot-client";
 import { NotesStorageContext } from "./NotesStorageContext";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
@@ -66,7 +66,7 @@ function App() {
 }
 import { moveNote } from "./AcademicPanels";
 
-const task = {
+const task: Task = {
   id: "task-1",
   title: "Review API contract",
   owner_name: "Tài",
@@ -76,6 +76,7 @@ const task = {
   created_at: "2026-09-09",
   updated_at: "2026-09-09",
 };
+let appTasks: Task[];
 const course = {
   id: "course-1",
   slug: "cs-201",
@@ -427,7 +428,7 @@ const workspaceSearchFixtures: WorkspaceSearchItem[] = [
     id: workspaceSearchIds.task,
     slug: null,
     label: task.title,
-    detail: task.owner_name,
+    detail: task.owner_name ?? "",
   },
 ];
 function foldWorkspaceSearch(value: string) {
@@ -491,6 +492,15 @@ function createdRow(
   };
 }
 beforeEach(() => {
+  appTasks = [
+    task,
+    {
+      ...task,
+      id: "task-thang",
+      title: "Prepare project demo",
+      owner_name: "Th\u1eafng",
+    },
+  ];
   configurePilotClient("a".repeat(43), true);
   // The exam list separates upcoming from past, so the clock is pinned:
   // otherwise these tests would start failing on their own once the fixture
@@ -559,6 +569,49 @@ beforeEach(() => {
       }
       if (url === "/api/documents" && init?.method !== "POST") {
         return new Response(JSON.stringify(documentFixtures), { status: 200 });
+      }
+      if (url.startsWith("/api/tasks/search")) {
+        const params = new URL(url, "http://127.0.0.1").searchParams;
+        const q = params.get("q")?.trim().toLowerCase() ?? "";
+        const status = params.get("status") ?? "all";
+        const owner = params.get("owner");
+        const sort = params.get("sort") ?? "due_date";
+        const direction = params.get("direction") === "desc" ? -1 : 1;
+        const page = Number(params.get("page") ?? 1);
+        const pageSize = Number(params.get("pageSize") ?? 20);
+        const matching = appTasks
+          .filter(
+            (item) =>
+              (!q ||
+                `${item.title} ${item.owner_name ?? ""}`
+                  .toLowerCase()
+                  .includes(q)) &&
+              (status === "all" || item.status === status) &&
+              (!owner ||
+                (owner === "unassigned"
+                  ? item.owner_name === null
+                  : item.owner_name === owner)),
+          )
+          .sort((left, right) => {
+            const a = String(left[sort as keyof typeof task] ?? "");
+            const b = String(right[sort as keyof typeof task] ?? "");
+            return (
+              a.localeCompare(b) * direction || left.id.localeCompare(right.id)
+            );
+          });
+        return Response.json({
+          items: matching.slice((page - 1) * pageSize, page * pageSize),
+          page,
+          pageSize,
+          total: matching.length,
+          totalPages: matching.length
+            ? Math.ceil(matching.length / pageSize)
+            : 0,
+          summary: {
+            total: matching.length,
+            done: matching.filter((item) => item.status === "done").length,
+          },
+        });
       }
       if (url.startsWith("/api/search?")) return workspaceSearchResponse(url);
       if (url.startsWith("/api/documents/search"))
@@ -711,26 +764,60 @@ beforeEach(() => {
       if (url === "/api/courses") {
         return new Response(JSON.stringify(courseFixtures), { status: 200 });
       }
+      if (url.startsWith("/api/courses/search")) {
+        const params = new URL(url, "http://127.0.0.1").searchParams;
+        const q = params.get("q")?.trim().toLowerCase() ?? "";
+        const min = Number(params.get("progressMin") ?? 0);
+        const max = Number(params.get("progressMax") ?? 100);
+        const page = Number(params.get("page") ?? 1);
+        const pageSize = Number(params.get("pageSize") ?? 20);
+        const matching = courseFixtures.filter(
+          (item) =>
+            (!q ||
+              `${item.name} ${item.code} ${item.slug} ${item.detail}`
+                .toLowerCase()
+                .includes(q)) &&
+            item.progress >= min &&
+            item.progress <= max,
+        );
+        return Response.json({
+          items: matching.slice((page - 1) * pageSize, page * pageSize),
+          page,
+          pageSize,
+          total: matching.length,
+          totalPages: matching.length
+            ? Math.ceil(matching.length / pageSize)
+            : 0,
+        });
+      }
+      if (url.startsWith("/api/courses/")) {
+        const slug = decodeURIComponent(url.slice("/api/courses/".length));
+        const found = courseFixtures.find((item) => item.slug === slug);
+        return found
+          ? Response.json(found)
+          : Response.json({ code: "COURSE_NOT_FOUND" }, { status: 404 });
+      }
       if (init?.method !== "POST") {
-        return new Response(JSON.stringify([task]), { status: 200 });
+        return new Response(JSON.stringify(appTasks), { status: 200 });
       }
       // Echo the submitted fields back, like the real POST /api/tasks
       // response does, instead of a response fixed regardless of input.
-      const submitted = JSON.parse(String(init.body)) as Record<
-        string,
-        unknown
-      >;
-      return new Response(
-        JSON.stringify({
-          ...task,
-          id: "task-2",
-          title: submitted.title,
-          owner_name: submitted.ownerName ?? null,
-          due_date: submitted.dueDate ?? null,
-          evidence_type: submitted.evidenceType ?? null,
-        }),
-        { status: 200 },
-      );
+      const submitted = JSON.parse(String(init.body)) as {
+        title: string;
+        ownerName?: string;
+        dueDate?: string;
+        evidenceType?: string;
+      };
+      const created = {
+        ...task,
+        id: "task-created",
+        title: submitted.title,
+        owner_name: submitted.ownerName ?? null,
+        due_date: submitted.dueDate ?? null,
+        evidence_type: submitted.evidenceType ?? null,
+      };
+      appTasks.push(created);
+      return Response.json(created);
     }),
   );
 });
@@ -742,35 +829,35 @@ afterEach(() => {
 });
 
 describe("Academic workspace", () => {
-  it("loads the course gallery from the API instead of static fixtures", async () => {
+  it("loads a bounded course page instead of the legacy full list", async () => {
     window.history.replaceState(null, "", "/#courses");
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", {
-        level: 2,
-        name: "Công nghệ phần mềm",
-      }),
+      await screen.findByRole("heading", { name: "Find a course" }),
     ).toBeInTheDocument();
-    expect(fetch).toHaveBeenCalledWith(
-      "/api/courses",
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringMatching(/^\/api\/courses\/search\?/),
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      ),
     );
+    expect(fetch).not.toHaveBeenCalledWith("/api/courses", expect.anything());
   });
 
-  it("shows a useful course error without falling back to invented static data", async () => {
+  it("shows a useful course-search error without falling back to static data", async () => {
     window.history.replaceState(null, "", "/#courses");
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string) => {
-        if (url === "/api/courses") throw new Error("Offline");
+        if (url.startsWith("/api/courses/search")) throw new Error("Offline");
         return Response.json(url === "/api/documents" ? [] : [task]);
       }),
     );
     render(<App />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Chưa tải được danh sách môn học",
+      "Could not load this list",
     );
     expect(screen.queryByText("Computer Science")).not.toBeInTheDocument();
   });
@@ -864,7 +951,7 @@ describe("Academic workspace", () => {
     fireEvent.change(screen.getByLabelText("Task title"), {
       target: { value: "Build course page" },
     });
-    fireEvent.change(screen.getByLabelText("Owner"), {
+    fireEvent.change(screen.getByLabelText("Task owner"), {
       target: { value: "Tài" },
     });
     fireEvent.change(screen.getByLabelText("Evidence type"), {
@@ -912,47 +999,33 @@ describe("Academic workspace", () => {
     render(<App />);
     await screen.findByText("Review API contract");
 
-    const ownerFilter = screen.getByLabelText("Owner filter");
+    const ownerFilter = screen.getByLabelText("Filter tasks by owner");
     expect(ownerFilter).toHaveValue("all");
+    fireEvent.change(ownerFilter, { target: { value: "named" } });
+    const ownerName = screen.getByLabelText("Owner name filter");
+    fireEvent.change(ownerName, { target: { value: "T\u00e0i" } });
+    expect(await screen.findByText("Review API contract")).toBeInTheDocument();
 
-    fireEvent.change(ownerFilter, { target: { value: "Tài" } });
-    expect(screen.getByText("Review API contract")).toBeInTheDocument();
-
-    fireEvent.change(ownerFilter, { target: { value: "Thắng" } });
-    expect(screen.queryByText("Review API contract")).not.toBeInTheDocument();
+    fireEvent.change(ownerName, { target: { value: "No matching owner" } });
+    await waitFor(() =>
+      expect(screen.queryByText("Review API contract")).not.toBeInTheDocument(),
+    );
     expect(
-      screen.getByText("No tasks match these filters."),
+      await screen.findByText("No tasks match this search."),
     ).toBeInTheDocument();
   });
-  it("moves the course gallery between subjects and announces the change", async () => {
+  it("filters the course page on the server and keeps result links scoped by slug", async () => {
     window.history.replaceState(null, "", "/#courses");
     render(<App />);
 
-    expect(
-      await screen.findByRole("heading", {
-        level: 2,
-        name: "Công nghệ phần mềm",
-      }),
-    ).toBeInTheDocument();
-    const gallery = screen.getByRole("region", { name: "Course gallery" });
-
-    fireEvent.click(screen.getByRole("button", { name: "Next course" }));
-    expect(
-      screen.getByRole("heading", { level: 2, name: "Toán ứng dụng" }),
-    ).toBeInTheDocument();
-    expect(gallery).toHaveTextContent("Course 2 of 6: Toán ứng dụng");
-
-    // Wrapping backwards from the first subject lands on the last one.
-    fireEvent.click(screen.getByRole("button", { name: "Previous course" }));
-    fireEvent.click(screen.getByRole("button", { name: "Previous course" }));
-    expect(
-      screen.getByRole("heading", {
-        level: 2,
-        name: "Văn học và tư duy phản biện",
-      }),
-    ).toBeInTheDocument();
-    expect(gallery).toHaveTextContent(
-      "Course 6 of 6: Văn học và tư duy phản biện",
+    await screen.findByRole("heading", { name: "Find a course" });
+    fireEvent.change(screen.getByLabelText("Search courses"), {
+      target: { value: "Kinh" },
+    });
+    expect(await screen.findByRole("link", { name: /Kinh/ })).toBeVisible();
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("q=Kinh"),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
   it("opens the matching course detail from a course overview card", async () => {
@@ -960,7 +1033,7 @@ describe("Academic workspace", () => {
     render(<App />);
 
     const overview = (
-      await screen.findByRole("heading", { level: 2, name: "Course overview" })
+      await screen.findByRole("heading", { level: 2, name: "Courses" })
     ).closest("section")!;
     fireEvent.click(
       within(overview).getByRole("link", { name: /Công nghệ phần mềm/ }),
@@ -973,22 +1046,14 @@ describe("Academic workspace", () => {
     expect(window.location.hash).toBe("#courses/cs-201");
     await waitFor(() => expect(heading).toHaveFocus());
   });
-  it("keeps carousel thumbnails for selection and offers a separate detail link", async () => {
+  it("opens an individual course from its paged result", async () => {
     window.history.replaceState(null, "", "/#courses");
     render(<App />);
 
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Select Toán ứng dụng course",
-      }),
-    );
-    expect(window.location.hash).toBe("#courses");
-
-    fireEvent.click(
-      screen.getByRole("link", { name: "Explore Toán ứng dụng course" }),
-    );
+    await screen.findByRole("heading", { name: "Find a course" });
+    fireEvent.click(await screen.findByRole("link", { name: /To/ }));
     expect(
-      await screen.findByRole("heading", { level: 1, name: "Toán ứng dụng" }),
+      await screen.findByRole("heading", { level: 1, name: /To/ }),
     ).toBeInTheDocument();
     expect(window.location.hash).toBe("#courses/ma-210");
   });
@@ -1015,7 +1080,7 @@ describe("Academic workspace", () => {
       screen.getByText(/illustrative, not an official syllabus/i),
     ).toBeVisible();
   });
-  it("shows a friendly fallback for an unknown course code", async () => {
+  it("shows a safe fallback for a course slug unavailable in this workspace", async () => {
     window.history.replaceState(null, "", "/#courses/not-a-course");
     render(<App />);
 
@@ -1026,7 +1091,7 @@ describe("Academic workspace", () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Không tìm thấy môn học minh họa này/i),
+      screen.getByRole("heading", { level: 2, name: "Course unavailable" }),
     ).toBeVisible();
     expect(
       screen.getByRole("link", { name: "Back to course gallery" }),
@@ -1722,15 +1787,22 @@ describe("Academic workspace", () => {
     window.history.replaceState(null, "", "/#tasks");
     vi.stubGlobal(
       "fetch",
-      vi.fn(
-        async (_url: string, init?: RequestInit) =>
-          new Response(
-            JSON.stringify(
-              init?.method === "PATCH" ? { message: "Unavailable" } : [task],
-            ),
-            { status: init?.method === "PATCH" ? 503 : 200 },
-          ),
-      ),
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.startsWith("/api/tasks/search")) {
+          return Response.json({
+            items: [task],
+            page: 1,
+            pageSize: 20,
+            total: 1,
+            totalPages: 1,
+            summary: { total: 1, done: 0 },
+          });
+        }
+        if (init?.method === "PATCH") {
+          return Response.json({ message: "Unavailable" }, { status: 503 });
+        }
+        return Response.json([task]);
+      }),
     );
     render(<App />);
     await screen.findByText("Review API contract");
