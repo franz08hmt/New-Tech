@@ -19,6 +19,7 @@ import { ExpensesSearchPanel } from "./ExpensesSearchPanel";
 import { CourseDetail } from "./CourseDetail";
 import { CoursesSearchPanel } from "./CoursesSearchPanel";
 import { DocumentsPanel } from "./DocumentsPanel";
+import { AiUsageDashboard } from "./AiUsageDashboard";
 import type { CoursesState } from "./use-courses";
 import type { CourseLookupState } from "./use-course-lookup";
 import type { Workspace } from "./use-workspace";
@@ -133,6 +134,7 @@ export function PageSections({
       />
     );
   if (pageId === "finances") return <ExpensesSearchPanel focusId={focusId} />;
+  if (pageId === "ai-usage") return <AiUsageDashboard />;
   if (pageId === "assistant")
     return <AssistantSection onOpen={onOpenAssistant} />;
   return null;

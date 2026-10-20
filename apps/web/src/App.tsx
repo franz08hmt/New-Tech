@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import {
   AcademicCapIcon,
   Squares2X2Icon,
@@ -11,6 +11,7 @@ import {
   ArrowUpRightIcon,
   QuestionMarkCircleIcon,
   DocumentArrowUpIcon,
+  ChartBarIcon,
 } from "@heroicons/react/24/outline";
 import { AssistantPanel } from "./AssistantPanel";
 import { ApiError, api, type AssistantReasonCode } from "./api";
@@ -23,6 +24,7 @@ import { useCourseLookup } from "./use-course-lookup";
 import { useDocuments } from "./use-documents";
 import { useWorkspace } from "./use-workspace";
 import { PilotAccess } from "./PilotAccess";
+import { PilotPrincipalContext } from "./PilotPrincipalContext";
 
 const pages = [
   {
@@ -86,6 +88,14 @@ const pages = [
     icon: WalletIcon,
     title: "Room in your budget",
     description: "A simple view of the resources behind your academic journey.",
+  },
+  {
+    id: "ai-usage",
+    eyebrow: "WORKSPACE AI ACTIVITY",
+    name: "Sử dụng AI",
+    icon: ChartBarIcon,
+    title: "Sử dụng AI",
+    description: "Xem telemetry sử dụng đã ghi nhận trong workspace hiện tại.",
   },
   {
     id: "assistant",
@@ -214,6 +224,11 @@ export default function App() {
   );
 }
 export function WorkspaceApp() {
+  const principal = useContext(PilotPrincipalContext);
+  const navigationPages =
+    principal?.role === "manager"
+      ? pages
+      : pages.filter((page) => page.id !== "ai-usage");
   const [route, setRoute] = useState(currentRoute);
   useFocusTarget(route.focusId);
   const [menu, setMenu] = useState(false);
@@ -453,7 +468,7 @@ export function WorkspaceApp() {
       </a>
       <div className="desktop-shell" inert={modal}>
         <Sidebar
-          pages={pages}
+          pages={navigationPages}
           currentId={page.id}
           menuOpen={menu}
           search={search}

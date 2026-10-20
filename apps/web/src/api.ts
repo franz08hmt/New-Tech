@@ -3,6 +3,15 @@
 // the app already imports its types from "./api" — the module stays the single
 // door to the backend, it just no longer owns a second copy of the shapes.
 export type {
+  AiUsageDashboardOperation,
+  AiUsageDashboardQuery,
+  AiUsageDashboardResponse,
+  AiUsageDashboardSort,
+  AiUsageOperationMode,
+  AiUsageOperationName,
+  AiUsageOperationOutcome,
+  AiUsageProviderCall,
+  AiUsageProviderCallsResponse,
   AssistantChatRequest,
   AssistantChatResponse,
   AssistantStreamStage,
@@ -72,6 +81,9 @@ import {
   changePilotSession,
 } from "./pilot-session-transport";
 import type {
+  AiUsageDashboardQuery,
+  AiUsageDashboardResponse,
+  AiUsageProviderCallsResponse,
   PilotSessionResponse,
   PilotLoginRequest,
   PilotLogoutResponse,
@@ -213,6 +225,25 @@ export async function request<T>(
 }
 
 export const api = {
+  aiUsageDashboard: (query: AiUsageDashboardQuery, signal?: AbortSignal) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query))
+      if (value !== undefined) params.set(key, String(value));
+    return request<AiUsageDashboardResponse>(
+      `/api/admin/ai-usage?${params.toString()}`,
+      { signal },
+    );
+  },
+  aiUsageProviderCalls: (
+    operationId: string,
+    page = 1,
+    pageSize = 20,
+    signal?: AbortSignal,
+  ) =>
+    request<AiUsageProviderCallsResponse>(
+      `/api/admin/ai-usage/operations/${encodeURIComponent(operationId)}/calls?page=${page}&pageSize=${pageSize}`,
+      { signal },
+    ),
   speechStatus: (signal?: AbortSignal) =>
     request<SpeechStatusResponse>("/api/speech/status", { signal }),
   transcribeSpeech: (
