@@ -5,6 +5,10 @@ import type { PilotPrincipal } from "@examate/contracts";
 import { requirePrincipal } from "../auth/principal.js";
 import { DocumentAccessService } from "../documents/document-access.service.js";
 import { DatabaseService } from "../database/database.service.js";
+import {
+  AiAdmissionService,
+  type AiAdmissionReservation,
+} from "./ai-admission.service.js";
 import { errorCode, log, requestContext } from "../common/log.js";
 import type { PromptReference } from "./prompt-registry.js";
 import {
@@ -59,6 +63,7 @@ interface MutableProviderCall {
   startedClock: number;
   durationMs: number;
   finished: boolean;
+  providerStopped: boolean;
 }
 
 interface OperationScope {
@@ -70,6 +75,9 @@ interface OperationScope {
   startedClock: number;
   outcome: AiOperationOutcome;
   calls: MutableProviderCall[];
+  reservation?: AiAdmissionReservation;
+  plannedProviderCalls: number;
+  admissionRequired: boolean;
 }
 
 export interface ProviderCallToken {
@@ -152,6 +160,7 @@ export class AiUsageService {
   constructor(
     private readonly database: DatabaseService,
     private readonly access: DocumentAccessService,
+    private readonly admission?: AiAdmissionService,
   ) {}
 
   async runOperation<T>(
@@ -164,6 +173,9 @@ export class AiUsageService {
     if (!principal) return work();
     if (this.current.getStore()) return work();
     const verified = requirePrincipal(principal);
+    const admissionRequired =
+      descriptor.operation !== "assistant_course_info" &&
+      descriptor.mode !== "workspace";
     const rawRequestId = requestContext.getStore()?.requestId;
     const scope: OperationScope = {
       operationId: randomUUID(),
@@ -186,9 +198,31 @@ export class AiUsageService {
       startedClock: performance.now(),
       outcome: "unknown",
       calls: [],
+      plannedProviderCalls: 0,
+      admissionRequired,
     };
     return this.current.run(scope, async () => {
       try {
+        if (admissionRequired) {
+          if (!this.admission) {
+            if (requestContext.getStore())
+              throw new HttpException(
+                {
+                  code: "AI_ADMISSION_UNAVAILABLE",
+                  message:
+                    "Không thể kiểm tra lượt dùng AI an toàn lúc này. Hãy thử lại sau.",
+                },
+                503,
+              );
+          } else {
+            scope.reservation = await this.admission.reserve(
+              verified,
+              descriptor,
+              scope.operationId,
+            );
+            scope.plannedProviderCalls = scope.reservation.plannedProviderCalls;
+          }
+        }
         const result = await work();
         if (
           scope.outcome === "unknown" &&
@@ -201,6 +235,12 @@ export class AiUsageService {
           scope.outcome = classifyAiOutcome(error);
         throw error;
       } finally {
+        if (scope.reservation && this.admission)
+          await this.admission.finish(
+            scope.reservation,
+            scope.calls.every((call) => call.providerStopped),
+            scope.outcome,
+          );
         await this.persistBounded(scope);
       }
     });
@@ -243,9 +283,72 @@ export class AiUsageService {
       startedClock: performance.now(),
       durationMs: 0,
       finished: false,
+      providerStopped: false,
     };
     scope.calls.push(call);
     return { scope, call };
+  }
+
+  async preflightProviderCalls(providerCalls: number) {
+    const scope = this.current.getStore();
+    if (!scope?.reservation || !this.admission) {
+      if (scope?.admissionRequired && requestContext.getStore())
+        throw new HttpException(
+          {
+            code: "AI_ADMISSION_UNAVAILABLE",
+            message:
+              "Không thể kiểm tra lượt dùng AI an toàn lúc này. Hãy thử lại sau.",
+          },
+          503,
+        );
+      return;
+    }
+    if (providerCalls <= scope.plannedProviderCalls) return;
+    await this.admission.preflight(scope.reservation, providerCalls);
+    scope.plannedProviderCalls = providerCalls;
+  }
+
+  async authorizeProviderCall(token: ProviderCallToken | undefined) {
+    if (!token) {
+      if (requestContext.getStore())
+        throw new HttpException(
+          {
+            code: "AI_ADMISSION_UNAVAILABLE",
+            message:
+              "Không thể kiểm tra lượt dùng AI an toàn lúc này. Hãy thử lại sau.",
+          },
+          503,
+        );
+      return;
+    }
+    const { scope, call } = token;
+    if (!scope.reservation || !this.admission) {
+      if (scope.admissionRequired && requestContext.getStore()) {
+        call.finished = true;
+        scope.calls.splice(scope.calls.indexOf(call), 1);
+        throw new HttpException(
+          {
+            code: "AI_ADMISSION_UNAVAILABLE",
+            message:
+              "Không thể kiểm tra lượt dùng AI an toàn lúc này. Hãy thử lại sau.",
+          },
+          503,
+        );
+      }
+      call.providerStopped = true;
+      return;
+    }
+    try {
+      await this.admission.beginProviderAttempt(scope.reservation);
+    } catch (error) {
+      // The provider wrapper does not dispatch until this resolves. The
+      // operation-level finally path reconciles this same reservation ID with
+      // an idempotent terminal update; it never replays the provider call.
+      call.finished = true;
+      const index = scope.calls.indexOf(call);
+      if (index >= 0) scope.calls.splice(index, 1);
+      throw error;
+    }
   }
 
   updateProviderUsage(token: ProviderCallToken | undefined, raw: unknown) {
@@ -264,6 +367,7 @@ export class AiUsageService {
     token: ProviderCallToken | undefined,
     outcome: AiProviderOutcome,
     rawUsage?: unknown,
+    providerStopped = outcome === "success",
   ) {
     if (!token || token.call.finished) return;
     if (rawUsage !== undefined) this.updateProviderUsage(token, rawUsage);
@@ -272,6 +376,7 @@ export class AiUsageService {
       token.call.cost = estimateTokenCost(token.call.model, token.call.usage);
     }
     token.call.outcome = outcome;
+    token.call.providerStopped = providerStopped;
     token.call.completedAt = new Date();
     token.call.durationMs = duration(token.call.startedClock);
     token.call.finished = true;

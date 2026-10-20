@@ -19,7 +19,7 @@ import {
 
 let fixture;
 before(async () => {
-  fixture = await openDocumentsTenantFixture();
+  fixture = await openDocumentsTenantFixture({ migrationLimit: 19 });
   await fixture.admin.query(
     `INSERT INTO ai_usage_operations(operation_id,request_id,workspace_id,user_id,operation,mode,prompt_id,prompt_version,outcome,provider_call_count,started_at,completed_at,duration_ms)
      VALUES($1,$2,$3,$4,'assistant_question','documents','assistant.documents.question','rag-v1','success',1,NOW(),NOW(),1)`,
@@ -191,8 +191,12 @@ test("019 rollback dry-run rejects dependencies and schema drift, then apply/rea
   const target = new URL(process.env.TEST_DATABASE_URL);
   target.pathname = "/" + fixture.name;
   fixture.guard(target.href);
-  await migrate(target.href);
-  await migrate(target.href);
+  const through019 = async () =>
+    (await loadMigrations()).filter(
+      (item) => Number(item.name.slice(0, 3)) <= 19,
+    );
+  await migrate(target.href, { loadSource: through019 });
+  await migrate(target.href, { loadSource: through019 });
   const migrations = await loadMigrations();
   const after = await snapshot();
   assert.equal(after.ledger.length, 19);
@@ -219,8 +223,9 @@ test("019 rollback dry-run rejects dependencies and schema drift, then apply/rea
   );
   assert.deepEqual(after.ledger.slice(0, 18), before.ledger.slice(0, 18));
   assert.equal(
-    await runtimeCapabilityCatalogDigest((text, values) =>
-      fixture.admin.query(text, values),
+    await runtimeCapabilityCatalogDigest(
+      (text, values) => fixture.admin.query(text, values),
+      19,
     ),
     "c1e686aa68c3fac689544396b9ef29cab16cc93a7e394a89742a9a2a85abf73d",
   );

@@ -104,6 +104,7 @@ describe("GeminiService", () => {
     const token = { provider: "synthetic-call" };
     const usage = {
       startProviderCall: vi.fn(() => token),
+      authorizeProviderCall: vi.fn().mockResolvedValue(undefined),
       updateProviderModel: vi.fn(),
       finishProviderCall: vi.fn(),
     };
@@ -123,6 +124,21 @@ describe("GeminiService", () => {
       token,
       "gemini-2.5-flash-001",
     );
+  });
+
+  it("does not dispatch generation when durable admission denies the permit", async () => {
+    const denied = new Error("synthetic admission denial");
+    const token = { provider: "synthetic-call" };
+    const usage = {
+      startProviderCall: vi.fn(() => token),
+      authorizeProviderCall: vi.fn().mockRejectedValue(denied),
+      finishProviderCall: vi.fn(),
+    };
+    await expect(
+      new GeminiService(usage as never).generate(input),
+    ).rejects.toBeInstanceOf(Error);
+    expect(usage.authorizeProviderCall).toHaveBeenCalledExactlyOnceWith(token);
+    expect(generateContent).not.toHaveBeenCalled();
   });
 
   it("yields provider text incrementally using Gemini's streaming API", async () => {
@@ -157,6 +173,7 @@ describe("GeminiService", () => {
     );
     const usage = {
       startProviderCall: vi.fn(() => token),
+      authorizeProviderCall: vi.fn().mockResolvedValue(undefined),
       updateProviderModel: vi.fn(),
       updateProviderUsage: vi.fn(
         (providerToken: typeof token, raw: unknown) => {
@@ -200,10 +217,15 @@ describe("GeminiService", () => {
       "gemini-2.5-flash-001",
     );
     expect(finishProviderCall).toHaveBeenCalledOnce();
-    expect(finishProviderCall).toHaveBeenCalledWith(token, "success", {
-      promptTokenCount: 10,
-      totalTokenCount: 20,
-    });
+    expect(finishProviderCall).toHaveBeenCalledWith(
+      token,
+      "success",
+      {
+        promptTokenCount: 10,
+        totalTokenCount: 20,
+      },
+      true,
+    );
   });
 
   it("does not mark a normally closed stream successful when final usage is missing", async () => {
@@ -211,6 +233,7 @@ describe("GeminiService", () => {
     const finishProviderCall = vi.fn();
     const usage = {
       startProviderCall: vi.fn(() => token),
+      authorizeProviderCall: vi.fn().mockResolvedValue(undefined),
       updateProviderUsage: vi.fn(),
       finishProviderCall,
     };
@@ -229,10 +252,15 @@ describe("GeminiService", () => {
     ))
       parts.push(part);
     expect(parts.join()).toContain("final stream event");
-    expect(finishProviderCall).toHaveBeenCalledWith(token, "unknown", {
-      promptTokenCount: 10,
-      totalTokenCount: 16,
-    });
+    expect(finishProviderCall).toHaveBeenCalledWith(
+      token,
+      "unknown",
+      {
+        promptTokenCount: 10,
+        totalTokenCount: 16,
+      },
+      true,
+    );
   });
 
   it("records a provider stream read failure as error rather than cancellation", async () => {
@@ -240,6 +268,7 @@ describe("GeminiService", () => {
     const finishProviderCall = vi.fn();
     const usage = {
       startProviderCall: vi.fn(() => token),
+      authorizeProviderCall: vi.fn().mockResolvedValue(undefined),
       updateProviderUsage: vi.fn(),
       finishProviderCall,
     };
@@ -263,10 +292,15 @@ describe("GeminiService", () => {
     }).rejects.toMatchObject({ kind: "upstream" });
     expect(received.join()).toContain("partial answer");
     expect(finishProviderCall).toHaveBeenCalledOnce();
-    expect(finishProviderCall).toHaveBeenCalledWith(token, "error", {
-      promptTokenCount: 12,
-      totalTokenCount: 18,
-    });
+    expect(finishProviderCall).toHaveBeenCalledWith(
+      token,
+      "error",
+      {
+        promptTokenCount: 12,
+        totalTokenCount: 18,
+      },
+      false,
+    );
   });
 
   it("forwards ordinary first-token text without waiting for another provider chunk", async () => {

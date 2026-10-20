@@ -3,11 +3,13 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Optional,
 } from "@nestjs/common";
 import type { AssistantChatDto } from "./assistant-chat.dto.js";
 import type { AssistantReasonCode, PilotPrincipal } from "@examate/contracts";
 import { DocumentAccessService } from "../documents/document-access.service.js";
 import { DatabaseService } from "../database/database.service.js";
+import { AiUsageService } from "./ai-usage.service.js";
 import { log } from "../common/log.js";
 import { conversationConfig } from "../config/config.js";
 import {
@@ -73,6 +75,7 @@ export class AssistantService {
     private readonly retrieval: RagRetrievalService,
     private readonly access: DocumentAccessService,
     private readonly database: DatabaseService,
+    @Optional() private readonly usage?: AiUsageService,
   ) {}
 
   private authorize(principal?: PilotPrincipal) {
@@ -177,6 +180,7 @@ export class AssistantService {
       const generationStartedAt = Date.now();
       const parts = this.userParts(input);
       await this.authorize(verified);
+      await this.usage?.preflightProviderCalls(1);
       const prompt = generalPrompt(context.turns.length > 0);
       yield { type: "status", stage: "generating" };
 
@@ -264,6 +268,7 @@ export class AssistantService {
         input.history ?? [],
         conversationConfig().maxChars,
       );
+      await this.usage?.preflightProviderCalls(2);
       yield { type: "status", stage: "retrieving" };
 
       const retrievalStartedAt = Date.now();
@@ -319,6 +324,7 @@ export class AssistantService {
       userParts.push(rag.context);
       const generationStartedAt = Date.now();
       await this.authorize(verified);
+      await this.usage?.preflightProviderCalls(2);
       const prompt = documentsQuestionPrompt(
         rag.promptVersion,
         context.turns.length > 0,
@@ -425,6 +431,7 @@ export class AssistantService {
     const generationStartedAt = Date.now();
     const userParts = this.userParts(input);
     await this.authorize(principal);
+    await this.usage?.preflightProviderCalls(1);
     const prompt = generalPrompt(turns.length > 0);
     const answer = await this.provider.generate({
       systemInstruction: prompt.systemInstruction,
@@ -457,6 +464,7 @@ export class AssistantService {
     turns: ConversationTurn[] = [],
   ): Promise<AssistantAnswer> {
     const retrievalStartedAt = Date.now();
+    await this.usage?.preflightProviderCalls(2);
     let rag: RagContext;
     try {
       rag = await this.retrieval.retrieve(
@@ -637,6 +645,10 @@ export class AssistantService {
         message:
           "The document is too large to summarize safely in one request.",
       });
+
+    await this.usage?.preflightProviderCalls(
+      groups.length + (groups.length > 1 ? 1 : 0),
+    );
 
     const sectionSummaries: Array<{
       section: number;

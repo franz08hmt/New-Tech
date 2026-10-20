@@ -21,9 +21,9 @@ export function runtimeCapabilityError(message?: string) {
   return new RuntimeCapabilityContractError(message);
 }
 
-export const RUNTIME_CAPABILITY_CONTRACT_VERSION = 19;
+export const RUNTIME_CAPABILITY_CONTRACT_VERSION = 20;
 
-const managedRelations = [
+const baseManagedRelations = [
   "workspaces",
   "workspace_memberships",
   "tasks",
@@ -50,19 +50,31 @@ const managedRelations = [
   "ai_usage_operations",
   "ai_usage_provider_calls",
 ];
+const admissionRelations = [
+  "ai_admission_user_daily",
+  "ai_admission_operations",
+];
+const managedRelations = [...baseManagedRelations, ...admissionRelations];
+const managedRelationsFor = (version: number) =>
+  version >= 20 ? managedRelations : baseManagedRelations;
 
 const roleGroups = ["examate_business", "examate_auth", "examate_policy_owner"];
-const aiUsageRelations = ["ai_usage_operations", "ai_usage_provider_calls"];
+const aiUsageRelationsFor = (version: number) =>
+  version >= 20
+    ? ["ai_usage_operations", "ai_usage_provider_calls", ...admissionRelations]
+    : ["ai_usage_operations", "ai_usage_provider_calls"];
 
 // Generated once from a pristine PostgreSQL 17 database by applying the
 // committed migration source. Never derive or update this from a target DB.
 const expectedCatalogDigests: Readonly<Record<number, string>> = {
   18: "8a0093d63210bb1b01a649d8a3a0b95348578eca29111bf8c9513bcf4c7a58cc",
   19: "c1e686aa68c3fac689544396b9ef29cab16cc93a7e394a89742a9a2a85abf73d",
+  20: "b14a19fb148904116b166da9bbd5c4bf3649fd2b27e6947a525d5589a14a9986",
 };
 
-async function readContractCatalog(query: Query) {
-  const names = managedRelations;
+async function readContractCatalog(query: Query, version: number) {
+  const names = managedRelationsFor(version);
+  const usageNames = aiUsageRelationsFor(version);
   const roles = await query(
     `SELECT r.rolname,r.rolcanlogin,r.rolsuper,r.rolbypassrls,r.rolcreatedb,
       r.rolcreaterole,r.rolreplication,r.rolinherit,
@@ -180,7 +192,7 @@ async function readContractCatalog(query: Query) {
     WHERE n.nspname='public' AND c.relname=ANY($1::text[])
       AND a.attnum>0 AND NOT a.attisdropped
     ORDER BY c.relname,a.attnum`,
-    [aiUsageRelations],
+    [usageNames],
   );
   const aiUsageConstraints = await query(
     `SELECT c.relname,k.conname,k.contype::text AS type,pg_get_constraintdef(k.oid) AS definition,
@@ -189,7 +201,7 @@ async function readContractCatalog(query: Query) {
       JOIN pg_namespace n ON n.oid=c.relnamespace
     WHERE n.nspname='public' AND c.relname=ANY($1::text[])
     ORDER BY c.relname,k.conname`,
-    [aiUsageRelations],
+    [usageNames],
   );
   const aiUsageIndexes = await query(
     `SELECT c.relname AS table_name,i.relname AS index_name,pg_get_indexdef(i.oid) AS definition,
@@ -198,7 +210,7 @@ async function readContractCatalog(query: Query) {
       JOIN pg_class i ON i.oid=x.indexrelid JOIN pg_namespace n ON n.oid=c.relnamespace
     WHERE n.nspname='public' AND c.relname=ANY($1::text[])
     ORDER BY c.relname,i.relname`,
-    [aiUsageRelations],
+    [usageNames],
   );
   const aiUsageTriggers = await query(
     `SELECT c.relname,t.tgname,pg_get_triggerdef(t.oid) AS definition,t.tgisinternal
@@ -206,7 +218,7 @@ async function readContractCatalog(query: Query) {
       JOIN pg_namespace n ON n.oid=c.relnamespace
     WHERE n.nspname='public' AND c.relname=ANY($1::text[]) AND NOT t.tgisinternal
     ORDER BY c.relname,t.tgname`,
-    [aiUsageRelations],
+    [usageNames],
   );
   const helper = await query(
     `SELECT pg_get_functiondef(p.oid) AS definition,pg_get_userbyid(p.proowner) AS owner,
@@ -245,20 +257,26 @@ async function readContractCatalog(query: Query) {
   ];
 }
 
-export async function runtimeCapabilityCatalogDigest(query: Query) {
-  const catalog = await readContractCatalog(query);
+export async function runtimeCapabilityCatalogDigest(
+  query: Query,
+  version = RUNTIME_CAPABILITY_CONTRACT_VERSION,
+) {
+  const catalog = await readContractCatalog(query, version);
   return createHash("sha256").update(JSON.stringify(catalog)).digest("hex");
 }
 
-export async function runtimeCapabilityCatalogSnapshot(query: Query) {
-  return readContractCatalog(query);
+export async function runtimeCapabilityCatalogSnapshot(
+  query: Query,
+  version = RUNTIME_CAPABILITY_CONTRACT_VERSION,
+) {
+  return readContractCatalog(query, version);
 }
 
 export async function assertRuntimeCatalogContract(
   query: Query,
   version = RUNTIME_CAPABILITY_CONTRACT_VERSION,
 ) {
-  const digest = await runtimeCapabilityCatalogDigest(query);
+  const digest = await runtimeCapabilityCatalogDigest(query, version);
   if (
     !expectedCatalogDigests[version] ||
     digest !== expectedCatalogDigests[version]
@@ -290,7 +308,7 @@ export async function assertRuntimeCapabilityContract(
           OR (n.nspname='auth' AND c.relname='sessions'))
           AND c.relowner=r.oid) AS owns_managed_relation
     FROM pg_roles r WHERE r.rolname=session_user`,
-    [capability, managedRelations],
+    [capability, managedRelationsFor(RUNTIME_CAPABILITY_CONTRACT_VERSION)],
   );
   const row = roles.rows[0];
   if (
@@ -329,6 +347,7 @@ const managedPolicyRelations = [
   "pilot_auth_limits",
   "pilot_refresh_attempts",
   "pilot_oauth_attempts",
+  ...admissionRelations,
 ];
 
 export const EXPECTED_017_RUNTIME_POLICIES = [
@@ -376,6 +395,7 @@ export const EXPECTED_017_RUNTIME_POLICIES = [
 export async function lockManagedRuntimeRelations(query: Query) {
   await query(
     `LOCK TABLE ${managedPolicyRelations
+      .filter((name) => !admissionRelations.includes(name))
       .map((name) => `public.${name}`)
       .join(",")} IN ACCESS EXCLUSIVE MODE`,
   );

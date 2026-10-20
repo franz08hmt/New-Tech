@@ -67,7 +67,7 @@ test("Documents catalog: real LOGIN non-owner NOBYPASSRLS; no elevated membershi
     "SELECT * FROM assistant_feedback",
     "TRUNCATE documents",
     "CREATE TEMP TABLE forbidden(id int)",
-    "SET ROLE examate_test",
+    "SET ROLE examate_auth",
   ])
     await denied(f.db.query(sql));
 });

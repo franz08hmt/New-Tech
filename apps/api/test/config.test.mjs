@@ -8,6 +8,7 @@ import { rootCertificates } from "node:tls";
 import {
   appConfig,
   databaseConfig,
+  aiAdmissionConfig,
   projectRoot,
 } from "../dist/config/config.js";
 
@@ -165,4 +166,41 @@ test("application runtime refuses shared Auth/business or maintenance credential
     () => appConfig(),
     /MIGRATION_DATABASE_URL is not permitted in API runtime/,
   );
+});
+
+test("F04 admission uses finite defaults, explicit zero-deny, and rejects fail-open config", () => {
+  for (const key of Object.keys(process.env))
+    if (key.startsWith("AI_ADMISSION_")) delete process.env[key];
+  assert.deepEqual(aiAdmissionConfig(), {
+    dailyOperationsPerUser: 30,
+    concurrentOperationsPerUser: 2,
+    concurrentOperationsPerWorkspace: 5,
+    maxProviderCalls: {
+      general: 1,
+      documentsQuestion: 2,
+      summary: 17,
+      documentIndex: 150,
+    },
+    undispatchedLeaseSeconds: 120,
+  });
+  process.env.AI_ADMISSION_DAILY_OPERATIONS_PER_USER = "0";
+  process.env.AI_ADMISSION_MAX_CALLS_GENERAL = "0";
+  assert.equal(aiAdmissionConfig().dailyOperationsPerUser, 0);
+  assert.equal(aiAdmissionConfig().maxProviderCalls.general, 0);
+  process.env.AI_ADMISSION_ENABLED = "false";
+  assert.throws(() => aiAdmissionConfig(), /cannot disable admission/);
+});
+
+test("F04 admission rejects empty, fractional, oversized, and zero undispatched lease settings", () => {
+  for (const [name, value] of [
+    ["AI_ADMISSION_DAILY_OPERATIONS_PER_USER", ""],
+    ["AI_ADMISSION_CONCURRENT_OPERATIONS_PER_USER", "1.5"],
+    ["AI_ADMISSION_MAX_CALLS_SUMMARY", "101"],
+    ["AI_ADMISSION_UNDISPATCHED_LEASE_SECONDS", "0"],
+  ]) {
+    for (const key of Object.keys(process.env))
+      if (key.startsWith("AI_ADMISSION_")) delete process.env[key];
+    process.env[name] = value;
+    assert.throws(() => aiAdmissionConfig(), new RegExp(name));
+  }
 });

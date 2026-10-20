@@ -917,7 +917,10 @@ test("business LOGIN can index pending documents and replace chunks on repeated 
         { page: 2, text: "Second synthetic retrieval paragraph for re-index." },
       ],
     },
-    { recover: async (_buffer, pages) => ({ pages }) },
+    {
+      plannedProviderCalls: () => 0,
+      recover: async (_buffer, pages) => ({ pages }),
+    },
     {
       model: "gemini-fixture-v1",
       dimensions: 768,
@@ -1221,6 +1224,10 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
     GEMINI_TIMEOUT_MS: "500",
     GEMINI_EMBEDDING_MODEL: "gemini-embedding-001",
     DOCUMENT_OCR_ENABLED: "true",
+    AI_ADMISSION_ENABLED: "true",
+    AI_ADMISSION_DAILY_OPERATIONS_PER_USER: "100",
+    AI_ADMISSION_CONCURRENT_OPERATIONS_PER_USER: "5",
+    AI_ADMISSION_CONCURRENT_OPERATIONS_PER_WORKSPACE: "5",
   });
   await fixture.admin.query(
     `UPDATE documents SET storage_status='stored',processing_status='pending',
@@ -1304,6 +1311,7 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
     ocrPages: 0,
     cancelObserved: 0,
   };
+  let providerGate;
   const logs = [];
   t.mock.method(console, "log", (...values) => logs.push(String(values[0])));
   const fakeUsage = {
@@ -1321,6 +1329,10 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
     async generateContent(request) {
       const serialized = requestText(request);
       sdkCalls.generation.push(request);
+      if (serialized.includes("F04_CONCURRENCY_SENTINEL") && providerGate) {
+        providerGate.markEntered();
+        await providerGate.wait;
+      }
       if (serialized.includes("F031_TIMEOUT_SENTINEL"))
         return new Promise(() => {});
       if (serialized.includes("F031_PROVIDER_FAIL_SENTINEL"))
@@ -1503,7 +1515,7 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
       body: JSON.stringify(body),
       signal,
     });
-  const telemetryFor = async (response) => {
+  const telemetryFor = async (response, { admissionExpected = true } = {}) => {
     const requestId = response.headers.get("x-request-id");
     assert.match(requestId ?? "", /^[0-9a-f-]{36}$/i);
     let operation;
@@ -1545,8 +1557,146 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
       ),
       "provider calls inherit the verified operation's tenant and owner",
     );
-    return { operation, calls, requestId };
+    const admission = (
+      await fixture.admin.query(
+        `SELECT workspace_id::text,user_id::text,state,provider_attempts,
+          planned_provider_calls FROM ai_admission_operations WHERE operation_id=$1`,
+        [operation.operation_id],
+      )
+    ).rows[0];
+    const admitted =
+      operation.operation !== "assistant_course_info" &&
+      operation.mode !== "workspace";
+    if (admitted && admissionExpected) {
+      assert.ok(admission, "provider operation has a durable admission row");
+      assert.equal(admission.workspace_id, operation.workspace_id);
+      assert.equal(admission.user_id, operation.user_id);
+      assert.equal(admission.provider_attempts, calls.length);
+    } else assert.equal(admission, undefined);
+    return { operation, calls, admission, requestId };
   };
+
+  // A second live Nest API instance has its own one-connection LOGIN pools.
+  // The barrier holds the first paid-boundary call while the second instance
+  // attempts admission against the shared PostgreSQL ledger.
+  const replicaBusiness = new DatabaseService();
+  const replicaAuth = new AuthDatabaseService();
+  let replicaModule;
+  let replicaApp;
+  t.after(async () => {
+    if (replicaApp) await replicaApp.close();
+    else if (replicaModule) await replicaModule.close();
+    else
+      await Promise.all([
+        replicaBusiness.onModuleDestroy(),
+        replicaAuth.onModuleDestroy(),
+      ]);
+  });
+  await replicaBusiness.assertBusinessCapability();
+  await replicaAuth.assertCapability("examate_auth");
+  replicaModule = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(DatabaseService)
+    .useValue(replicaBusiness)
+    .overrideProvider(AuthDatabaseService)
+    .useValue(replicaAuth)
+    .overrideProvider(AUTH_CONFIG)
+    .useValue(() => auth.config)
+    .overrideProvider(AUTH_ADAPTER)
+    .useValue(adapter)
+    .overrideProvider(StorageService)
+    .useValue(storage)
+    .compile();
+  replicaModule.get(GeminiService).client = { models: fakeModels };
+  replicaModule.get(GeminiEmbeddingService).client = { models: fakeModels };
+  replicaModule.get(DocumentOcrService).client = { models: fakeModels };
+  replicaApp = replicaModule.createNestApplication({ logger: false });
+  configureApp(replicaApp);
+  await replicaApp.listen(0, "127.0.0.1");
+  const replicaBase = await replicaApp.getUrl();
+  let markProviderEntered;
+  let releaseProvider;
+  let providerEntries = 0;
+  const expectedProviderEntries = 5;
+  const providerEntered = new Promise((resolve) => {
+    markProviderEntered = resolve;
+  });
+  const providerWait = new Promise((resolve) => {
+    releaseProvider = resolve;
+  });
+  providerGate = {
+    markEntered: () => {
+      providerEntries += 1;
+      if (providerEntries === expectedProviderEntries) markProviderEntered();
+    },
+    wait: providerWait,
+  };
+  const beforeRacingCalls = sdkCalls.generation.length;
+  const concurrentRequests = Array.from(
+    { length: expectedProviderEntries },
+    (_, index) => {
+      const body = {
+        mode: "general",
+        message: `F04_CONCURRENCY_SENTINEL: hold provider operation ${index}.`,
+      };
+      return fetch(
+        index < 2
+          ? `${base}/api/assistant/chat`
+          : `${replicaBase}/api/assistant/chat`,
+        { ...json("POST", body), headers: writeHeaders() },
+      );
+    },
+  );
+  let entryTimer;
+  let admittedResponses;
+  try {
+    await Promise.race([
+      providerEntered,
+      new Promise((_, reject) => {
+        entryTimer = setTimeout(
+          () => reject(new Error("synthetic provider barrier was not reached")),
+          5_000,
+        );
+      }),
+    ]);
+    const streamCallsBeforeDenial = sdkCalls.streams.length;
+    const deniedInstanceRequest = await fetch(
+      `${replicaBase}/api/assistant/chat/stream`,
+      {
+        ...json("POST", {
+          mode: "general",
+          message: "F04_CONCURRENCY_SENTINEL: operation over the shared limit.",
+        }),
+        headers: writeHeaders(),
+      },
+    );
+    assert.equal(deniedInstanceRequest.status, 429);
+    assert.equal(
+      (await deniedInstanceRequest.json()).code,
+      "AI_CONCURRENT_LIMIT",
+    );
+    assert.equal(
+      sdkCalls.generation.length,
+      beforeRacingCalls + expectedProviderEntries,
+      "the denied second API instance makes no SDK/provider call",
+    );
+    assert.notEqual(
+      deniedInstanceRequest.headers.get("content-type")?.split(";")[0],
+      "text/event-stream",
+      "SSE admission denial happens before streaming headers",
+    );
+    assert.equal(sdkCalls.streams.length, streamCallsBeforeDenial);
+    await telemetryFor(deniedInstanceRequest, { admissionExpected: false });
+    releaseProvider();
+    admittedResponses = await Promise.all(concurrentRequests);
+  } finally {
+    clearTimeout(entryTimer);
+    releaseProvider();
+    providerGate = undefined;
+    await Promise.allSettled(concurrentRequests);
+  }
+  assert.ok(admittedResponses.every((response) => response.status === 200));
+  for (const response of admittedResponses) await telemetryFor(response);
+
   const refreshed = await fetch(`${base}/api/auth/refresh`, {
     ...json("POST", {}),
     headers: {
@@ -1604,6 +1754,12 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
   assert.equal(create.status, 201);
   assert.equal((await create.json()).title, "HTTP synthetic runtime task");
   const message = "Task nào chưa xong?";
+  const workspaceProviderCounts = {
+    generation: sdkCalls.generation.length,
+    streams: sdkCalls.streams.length,
+    embeddings: sdkCalls.embeddings.length,
+    ocrPages: sdkCalls.ocrPages,
+  };
   const chat = await fetch(`${base}/api/assistant/chat`, {
     ...json("POST", { mode: "workspace", message }),
     headers: {
@@ -1614,9 +1770,10 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
     },
   });
   assert.equal(chat.status, 200);
-  assert.equal(sdkCalls.generation.length, 0);
-  assert.equal(sdkCalls.streams.length, 0);
-  assert.equal(sdkCalls.embeddings.length, 0);
+  assert.equal(sdkCalls.generation.length, workspaceProviderCounts.generation);
+  assert.equal(sdkCalls.streams.length, workspaceProviderCounts.streams);
+  assert.equal(sdkCalls.embeddings.length, workspaceProviderCounts.embeddings);
+  assert.equal(sdkCalls.ocrPages, workspaceProviderCounts.ocrPages);
   const workspaceTelemetry = await telemetryFor(chat);
   assert.equal(workspaceTelemetry.operation.provider_call_count, 0);
   assert.deepEqual(workspaceTelemetry.calls, []);
@@ -1746,6 +1903,11 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
   assert.equal(timeoutTelemetry.calls[0].usage_status, "missing");
   assert.equal(timeoutTelemetry.calls[0].cost_status, "unknown_usage");
   assert.equal(timeoutTelemetry.calls[0].estimated_cost, null);
+  assert.equal(
+    timeoutTelemetry.admission.state,
+    "unknown",
+    "an upstream timeout keeps its concurrency reservation until reconciliation",
+  );
 
   const streamBefore = sdkCalls.streams.length;
   const generalStream = await postStream({
@@ -1842,6 +2004,11 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
   assert.equal(cancellationTelemetry.operation.provider_call_count, 1);
   assert.equal(cancellationTelemetry.calls.length, 1);
   assert.equal(cancellationTelemetry.calls[0].outcome, "cancelled");
+  assert.equal(
+    cancellationTelemetry.admission.state,
+    "unknown",
+    "client cancellation does not release a slot while upstream stop is unconfirmed",
+  );
   assert.equal(sdkCalls.cancelObserved, 1);
 
   const indexedDocumentId = A.unassigned;

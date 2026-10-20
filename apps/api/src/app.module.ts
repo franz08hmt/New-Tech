@@ -17,6 +17,7 @@ import { RagRetrievalService } from "./assistant/rag-retrieval.service.js";
 import { WorkspaceAssistantService } from "./assistant/workspace-assistant.service.js";
 import { WorkspaceRecordsService } from "./assistant/workspace-records.service.js";
 import { AiUsageService } from "./assistant/ai-usage.service.js";
+import { AiAdmissionService } from "./assistant/ai-admission.service.js";
 import { DatabaseService } from "./database/database.service.js";
 import { AuthDatabaseService } from "./database/auth-database.service.js";
 import { HealthController } from "./health/health.controller.js";
@@ -94,6 +95,7 @@ import { SPEECH_PROVIDER } from "./speech/speech.types.js";
     WorkspaceRecordsService,
     WorkspaceAssistantService,
     AiUsageService,
+    AiAdmissionService,
     SpeechService,
     SpeechAdmissionInterceptor,
     AudioInspector,

@@ -9,9 +9,10 @@ import { AUTH_CONFIG, AUTH_ADAPTER } from "../dist/auth/auth-config.js";
 import { GeminiService } from "../dist/assistant/gemini.service.js";
 import { GeminiEmbeddingService } from "../dist/assistant/gemini-embedding.service.js";
 import { AnswerReceiptService } from "../dist/assistant/answer-receipt.service.js";
+import { AiAdmissionService } from "../dist/assistant/ai-admission.service.js";
 import { configureApp } from "../dist/common/http.js";
 import { authFixture } from "./auth-fixture.mjs";
-import { json } from "./helpers.mjs";
+import { fixtureAdmission, json } from "./helpers.mjs";
 import { assertGroundedAnswer } from "./retrieval-positive.mjs";
 import {
   openRetrievalTenantFixture,
@@ -48,6 +49,8 @@ for (const role of ["manager", "member", "viewer", "absent"])
       workspaceTransaction: (...args) => f.db.workspaceTransaction(...args),
     };
     const module = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(AiAdmissionService)
+      .useValue(fixtureAdmission)
       .overrideProvider(DatabaseService)
       .useValue(database)
       .overrideProvider(StorageService)

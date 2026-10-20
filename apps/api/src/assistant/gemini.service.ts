@@ -64,6 +64,7 @@ export class GeminiService implements AssistantProvider {
         model: this.model,
         prompt: input.prompt,
       });
+      await this.usage?.authorizeProviderCall(providerCall);
       const response = await Promise.race([
         this.client.models.generateContent({
           model: this.model,
@@ -114,6 +115,8 @@ export class GeminiService implements AssistantProvider {
         this.usage?.finishProviderCall(
           providerCall,
           classifyProviderOutcome(failure),
+          undefined,
+          error instanceof ApiError,
         );
       log("error", "assistant.request.failed", {
         model: this.model,
@@ -174,6 +177,7 @@ export class GeminiService implements AssistantProvider {
         model: this.model,
         prompt: input.prompt,
       });
+      await this.usage?.authorizeProviderCall(providerCall);
 
       const stream = await Promise.race([
         this.client.models.generateContentStream({
@@ -226,6 +230,7 @@ export class GeminiService implements AssistantProvider {
                 ? "success"
                 : "unknown",
               streamUsage,
+              true,
             );
             providerCallFinished = true;
             break;
@@ -323,6 +328,7 @@ export class GeminiService implements AssistantProvider {
           providerCall,
           classifyProviderOutcome(failure),
           streamUsage,
+          error instanceof ApiError,
         );
       log("error", "assistant.request.failed", {
         model: this.model,

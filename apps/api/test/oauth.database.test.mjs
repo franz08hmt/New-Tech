@@ -586,6 +586,6 @@ test("016 rollback refuses the later F02 migration and preserves sessions and at
   assert.equal(
     (await f.admin.query("SELECT count(*)::int AS n FROM schema_migrations"))
       .rows[0].n,
-    19,
+    20,
   );
 });

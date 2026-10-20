@@ -5,6 +5,7 @@ import { AppModule } from "../dist/app.module.js";
 import { DatabaseService } from "../dist/database/database.service.js";
 import { StorageService } from "../dist/documents/storage.service.js";
 import { GeminiService } from "../dist/assistant/gemini.service.js";
+import { AiAdmissionService } from "../dist/assistant/ai-admission.service.js";
 import { DocumentIngestionService } from "../dist/documents/document-ingestion.service.js";
 import { RagRetrievalService } from "../dist/assistant/rag-retrieval.service.js";
 import { configureApp } from "../dist/common/http.js";
@@ -15,6 +16,32 @@ import { requirePrincipal } from "../dist/auth/principal.js";
 
 const fixtureWorkspaceId = "22222222-2222-4222-8222-222222222222";
 
+// These HTTP contract fixtures test their named service boundaries with fake
+// or legacy-schema databases. F04 enforcement is exercised separately by the
+// PG17 runtime integration using the real AiAdmissionService and LOGIN roles.
+export const fixtureAdmission = {
+  async reserve(principal, descriptor, operationId) {
+    const maxProviderCalls =
+      descriptor.operation === "document_index"
+        ? 150
+        : descriptor.operation === "assistant_summary"
+          ? 17
+          : descriptor.mode === "general"
+            ? 1
+            : 2;
+    return {
+      principal,
+      operationId,
+      operation: descriptor.operation,
+      permission: descriptor.operation === "document_index" ? "write" : "read",
+      maxProviderCalls,
+    };
+  },
+  async preflight() {},
+  async beginProviderAttempt() {},
+  async finish() {},
+};
+
 export async function httpApp(
   database,
   storage,
@@ -24,7 +51,9 @@ export async function httpApp(
   authProviders,
   listenOptions = { host: "127.0.0.1", port: 0 },
 ) {
-  let builder = Test.createTestingModule({ imports: [AppModule] });
+  let builder = Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(AiAdmissionService)
+    .useValue(fixtureAdmission);
   // Full-CRUD domain regressions use a trusted manager fixture. New role-matrix
   // suites use real AuthService/PilotAuthGuard and configurable memberships.
   if (!authProviders) {

@@ -181,7 +181,10 @@ test("concurrent A/B ingestion keeps document evidence and identity separate on 
         ];
       },
     },
-    ocr: { recover: async (_buffer, pages) => ({ pages }) },
+    ocr: {
+      plannedProviderCalls: () => 0,
+      recover: async (_buffer, pages) => ({ pages }),
+    },
     embeddings: {
       model: "gemini-embedding-001",
       dimensions: 768,

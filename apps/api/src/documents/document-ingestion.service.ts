@@ -5,6 +5,7 @@ import {
   HttpException,
   Injectable,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from "@nestjs/common";
@@ -33,6 +34,7 @@ import {
   DocumentOcrService,
 } from "./document-ocr.service.js";
 import { StorageService } from "./storage.service.js";
+import { AiUsageService } from "../assistant/ai-usage.service.js";
 
 interface IngestionDocument extends QueryResultRow {
   id: string;
@@ -57,6 +59,7 @@ export class DocumentIngestionService {
     private readonly ocr: DocumentOcrService,
     private readonly embeddings: GeminiEmbeddingService,
     private readonly access: DocumentAccessService,
+    @Optional() private readonly usage?: AiUsageService,
   ) {}
 
   async process(documentId: string, principal?: PilotPrincipal) {
@@ -70,12 +73,17 @@ export class DocumentIngestionService {
       await this.authorize(principal);
       const nativePages = await this.extractor.extract(buffer);
       await this.authorize(principal);
+      const ocrProviderCalls = this.ocr.plannedProviderCalls(nativePages);
+      await this.usage?.preflightProviderCalls(ocrProviderCalls);
       const { pages } = await this.ocr.recover(buffer, nativePages);
       const prepared = prepareDocumentPages(pages);
       const { chunks, quality } = prepared;
       if (chunks.length === 0)
         throw new DocumentChunkingError("NO_USEFUL_TEXT");
       await this.authorize(principal);
+      await this.usage?.preflightProviderCalls(
+        ocrProviderCalls + this.embeddings.documentBatchCount(chunks.length),
+      );
       const vectors = await this.embeddings.embedDocuments(
         document.name,
         chunks.map(({ content }) => content),

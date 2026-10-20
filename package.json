@@ -21,6 +21,7 @@
     "f02:apply-018": "npm run build --workspace @examate/api && node apps/api/scripts/pilot-apply-018.mjs",
     "f02:rollback-018": "npm run build --workspace @examate/api && node apps/api/scripts/pilot-rollback-018.mjs",
     "f03:rollback-019": "npm run build --workspace @examate/api && node apps/api/scripts/pilot-rollback-019.mjs",
+    "f04:rollback-020": "npm run build --workspace @examate/api && node apps/api/scripts/pilot-rollback-020.mjs",
     "dev:web": "npm run dev --workspace @examate/web",
     "dev:api": "npm run dev --workspace @examate/api",
     "build": "npm run build --workspaces --if-present",

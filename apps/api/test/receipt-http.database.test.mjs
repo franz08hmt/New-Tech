@@ -8,6 +8,7 @@ import { DatabaseService } from "../dist/database/database.service.js";
 import { StorageService } from "../dist/documents/storage.service.js";
 import { AnswerReceiptService } from "../dist/assistant/answer-receipt.service.js";
 import { FeedbackService } from "../dist/feedback/feedback.service.js";
+import { AiAdmissionService } from "../dist/assistant/ai-admission.service.js";
 import { AuthStore } from "../dist/auth/auth-store.js";
 import { AUTH_CONFIG, AUTH_ADAPTER } from "../dist/auth/auth-config.js";
 import { GeminiService } from "../dist/assistant/gemini.service.js";
@@ -28,6 +29,7 @@ import {
   digest,
 } from "./receipt-context-fixture.mjs";
 import { assertGroundedAnswer } from "./retrieval-positive.mjs";
+import { fixtureAdmission } from "./helpers.mjs";
 const [A, B] = tenants;
 
 async function readSse(response) {
@@ -76,6 +78,8 @@ async function withApp(role, run) {
       );
     auth.store.membership = f.auth.membership.bind(f.auth);
     const module = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(AiAdmissionService)
+      .useValue(fixtureAdmission)
       .overrideProvider(DatabaseService)
       .useValue({
         query: (...args) => f.db.query(...args),

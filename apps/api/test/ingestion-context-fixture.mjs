@@ -218,6 +218,7 @@ export function ingestionFixture() {
     extract: () => step("extract", structuredClone(fixedPages)),
   };
   const ocr = {
+    plannedProviderCalls: () => 0,
     recover: async (_buffer, pages) => ({ pages: await step("ocr", pages) }),
   };
   const embeddings = {

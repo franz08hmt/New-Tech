@@ -31,6 +31,7 @@ const expectedMigrationNames = [
   "017_runtime_rls.sql",
   "018_runtime_rls_reindex.sql",
   "019_ai_usage_telemetry.sql",
+  "020_ai_admission.sql",
 ];
 
 const saved = { ...process.env };
@@ -82,6 +83,35 @@ test("019 AI usage tables store bounded metadata only under active workspace INS
     migration.sql,
     /\b(question|answer|prompt|document_text|raw_error|access_token|signed_url)\s+(TEXT|VARCHAR|BYTEA)\b/i,
     "the schema contains metadata fields, not content or credentials",
+  );
+});
+
+test("020 admission ledger separates durable quota from telemetry with scoped least privilege", async () => {
+  const migration = (await loadMigrations()).find(
+    (m) => m.name === "020_ai_admission.sql",
+  );
+  assert.ok(migration);
+  for (const pattern of [
+    /CREATE TABLE public\.ai_admission_user_daily/,
+    /CREATE TABLE public\.ai_admission_operations/,
+    /Asia\/Ho_Chi_Minh/,
+    /ENABLE ROW LEVEL SECURITY/,
+    /REVOKE ALL ON public\.ai_admission_user_daily,public\.ai_admission_operations FROM PUBLIC/,
+    /GRANT SELECT \(user_id,budget_day,used_operations\)/,
+    /CREATE POLICY f04_admission_operations_insert/,
+    /current_setting\('examate\.user_id',true\)/,
+    /current_setting\('examate\.workspace_id',true\)/,
+    /unknown/,
+  ])
+    assert.match(migration.sql, pattern);
+  assert.doesNotMatch(
+    migration.sql,
+    /GRANT ALL|BYPASSRLS|SECURITY DEFINER|\bCASCADE\b/i,
+  );
+  assert.doesNotMatch(
+    migration.sql,
+    /^\s*(?:prompt|question|answer|document_text|access_token|signed_url)\s+(?:TEXT|VARCHAR|BYTEA)\b/im,
+    "admission rows contain counters and bounded operation state only",
   );
 });
 afterEach(() => {

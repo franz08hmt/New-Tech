@@ -63,7 +63,8 @@ const migrationsThrough016 = async () =>
     (migration) =>
       migration.name !== "017_runtime_rls.sql" &&
       migration.name !== "018_runtime_rls_reindex.sql" &&
-      migration.name !== "019_ai_usage_telemetry.sql",
+      migration.name !== "019_ai_usage_telemetry.sql" &&
+      migration.name !== "020_ai_admission.sql",
   );
 before(async () => {
   process.env.DATABASE_SSL = "false";
@@ -187,7 +188,7 @@ test("runtime is LOGIN non-owner NOBYPASSRLS with minimal privileges", async () 
     "SELECT * FROM auth.users",
     "SELECT * FROM schema_migrations",
     "CREATE TABLE public.b0d_denied(id INT)",
-    "SET ROLE examate_test",
+    "SET ROLE examate_auth",
     "INSERT INTO workspaces(id) VALUES(gen_random_uuid())",
     "DELETE FROM pilot_auth_limits",
   ])

@@ -68,6 +68,7 @@ describe("DocumentOcrService", () => {
         descriptors.push(descriptor);
         return Symbol("provider call");
       }),
+      authorizeProviderCall: vi.fn().mockResolvedValue(undefined),
       finishProviderCall: vi.fn((...args: unknown[]) => finishes.push(args)),
       updateProviderModel: vi.fn((...args: unknown[]) => models.push(args)),
     };
@@ -132,6 +133,22 @@ describe("DocumentOcrService", () => {
     await expect(
       service.recover(Buffer.from("%PDF-fixture"), pages),
     ).resolves.toEqual({ pages, attemptedPageNumbers: [] });
+    expect(mocks.generateContent).not.toHaveBeenCalled();
+  });
+
+  it("does not call OCR provider after admission denies a page permit", async () => {
+    const usage = {
+      startProviderCall: vi.fn(() => ({ provider: "synthetic-call" })),
+      authorizeProviderCall: vi
+        .fn()
+        .mockRejectedValue(new Error("synthetic admission denial")),
+      finishProviderCall: vi.fn(),
+    };
+    const service = new DocumentOcrService(usage as never);
+    await expect(
+      service.recover(Buffer.from("%PDF-fixture"), [{ page: 1, text: "1" }]),
+    ).rejects.toBeTruthy();
+    expect(usage.authorizeProviderCall).toHaveBeenCalledOnce();
     expect(mocks.generateContent).not.toHaveBeenCalled();
   });
 });

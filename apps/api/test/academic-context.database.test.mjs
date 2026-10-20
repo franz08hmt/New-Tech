@@ -159,7 +159,7 @@ test("academic catalog: direct LOGIN non-owner NOBYPASSRLS, exact grants and den
     "SELECT content FROM document_chunks",
     "CREATE TABLE public.forbidden_context(id int)",
     "CREATE TEMP TABLE forbidden_context(id int)",
-    "SET ROLE examate_test",
+    "SET ROLE examate_auth",
   ])
     await denied(f.db.query(sql));
 });

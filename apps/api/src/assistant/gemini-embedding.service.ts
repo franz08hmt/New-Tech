@@ -129,6 +129,7 @@ export class GeminiEmbeddingService {
         provider: "google",
         model: this.model,
       });
+      await this.usage?.authorizeProviderCall(providerCall);
       const response = await Promise.race([
         this.client!.models.embedContent({
           model: this.model,
@@ -159,6 +160,8 @@ export class GeminiEmbeddingService {
         this.usage?.finishProviderCall(
           providerCall,
           classifyProviderOutcome(failure),
+          undefined,
+          error instanceof ApiError,
         );
       throw failure;
     } finally {
@@ -183,6 +186,12 @@ export class GeminiEmbeddingService {
       return values.map((value) => value / magnitude);
     }
     return [...values];
+  }
+
+  documentBatchCount(documentChunks: number) {
+    if (!Number.isSafeInteger(documentChunks) || documentChunks < 0)
+      throw new EmbeddingError("invalid_input");
+    return Math.ceil(documentChunks / this.config.batchSize);
   }
 
   private normalizeError(error: unknown, timedOut = false): EmbeddingError {

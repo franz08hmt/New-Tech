@@ -165,6 +165,7 @@ function fixture() {
     ]),
   };
   const ocr = {
+    plannedProviderCalls: vi.fn(() => 0),
     recover: vi.fn(async (_buffer: Buffer, pages: unknown[]) => ({
       pages,
       attemptedPageNumbers: [] as number[],

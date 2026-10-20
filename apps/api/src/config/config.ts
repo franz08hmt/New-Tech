@@ -123,6 +123,87 @@ export function documentOcrConfig() {
   };
 }
 
+function boundedIntegerAllowZero(
+  name: string,
+  fallback: number,
+  max: number,
+  min = 0,
+) {
+  const raw = process.env[name];
+  const value = raw === undefined ? fallback : Number(raw.trim());
+  if (
+    !Number.isSafeInteger(value) ||
+    value < min ||
+    value > max ||
+    raw?.trim() === ""
+  )
+    throw new ConfigurationError(
+      `Invalid configuration: ${name} must be ${min}..${max}`,
+    );
+  return value;
+}
+
+export function aiAdmissionConfig() {
+  // Admission cannot be disabled or fail open. A configured zero limit means
+  // deny all operations of that scope; an absent value gets a finite default.
+  if (process.env.AI_ADMISSION_ENABLED?.trim().toLowerCase() === "false")
+    throw new ConfigurationError(
+      "Invalid configuration: AI_ADMISSION_ENABLED cannot disable admission",
+    );
+  if (
+    process.env.AI_ADMISSION_ENABLED !== undefined &&
+    process.env.AI_ADMISSION_ENABLED?.trim().toLowerCase() !== "true"
+  )
+    throw new ConfigurationError(
+      "Invalid configuration: AI_ADMISSION_ENABLED must be true",
+    );
+  return {
+    dailyOperationsPerUser: boundedIntegerAllowZero(
+      "AI_ADMISSION_DAILY_OPERATIONS_PER_USER",
+      30,
+      1000,
+    ),
+    concurrentOperationsPerUser: boundedIntegerAllowZero(
+      "AI_ADMISSION_CONCURRENT_OPERATIONS_PER_USER",
+      2,
+      50,
+    ),
+    concurrentOperationsPerWorkspace: boundedIntegerAllowZero(
+      "AI_ADMISSION_CONCURRENT_OPERATIONS_PER_WORKSPACE",
+      5,
+      200,
+    ),
+    maxProviderCalls: {
+      general: boundedIntegerAllowZero(
+        "AI_ADMISSION_MAX_CALLS_GENERAL",
+        1,
+        100,
+      ),
+      documentsQuestion: boundedIntegerAllowZero(
+        "AI_ADMISSION_MAX_CALLS_DOCUMENTS_QUESTION",
+        2,
+        100,
+      ),
+      summary: boundedIntegerAllowZero(
+        "AI_ADMISSION_MAX_CALLS_SUMMARY",
+        17,
+        100,
+      ),
+      documentIndex: boundedIntegerAllowZero(
+        "AI_ADMISSION_MAX_CALLS_DOCUMENT_INDEX",
+        150,
+        1000,
+      ),
+    },
+    undispatchedLeaseSeconds: boundedIntegerAllowZero(
+      "AI_ADMISSION_UNDISPATCHED_LEASE_SECONDS",
+      120,
+      600,
+      1,
+    ),
+  } as const;
+}
+
 function boolean(name: string, fallback: boolean) {
   const raw = process.env[name]?.trim().toLowerCase();
   if (raw === undefined || raw === "") return fallback;

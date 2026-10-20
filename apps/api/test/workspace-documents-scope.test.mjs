@@ -12,11 +12,12 @@ import { PdfTextExtractorService } from "../dist/documents/pdf-text-extractor.se
 import { DocumentOcrService } from "../dist/documents/document-ocr.service.js";
 import { GeminiEmbeddingService } from "../dist/assistant/gemini-embedding.service.js";
 import { GeminiService } from "../dist/assistant/gemini.service.js";
+import { AiAdmissionService } from "../dist/assistant/ai-admission.service.js";
 import { AuthStore } from "../dist/auth/auth-store.js";
 import { AUTH_ADAPTER, AUTH_CONFIG } from "../dist/auth/auth-config.js";
 import { configureApp } from "../dist/common/http.js";
 import { authFixture } from "./auth-fixture.mjs";
-import { json } from "./helpers.mjs";
+import { fixtureAdmission, json } from "./helpers.mjs";
 
 const ownWorkspace = "22222222-2222-4222-8222-222222222222";
 const foreignWorkspace = "33333333-3333-4333-8333-333333333333";
@@ -264,6 +265,8 @@ async function documentApp(role, run) {
     },
   ];
   const module = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(AiAdmissionService)
+    .useValue(fixtureAdmission)
     .overrideProvider(DatabaseService)
     .useValue(fixture.database)
     .overrideProvider(StorageService)
@@ -277,6 +280,7 @@ async function documentApp(role, run) {
     })
     .overrideProvider(DocumentOcrService)
     .useValue({
+      plannedProviderCalls: () => 0,
       recover: async () => {
         calls.ocr++;
         return { pages };
@@ -286,6 +290,7 @@ async function documentApp(role, run) {
     .useValue({
       model: "fixture-embedding",
       dimensions: 3,
+      documentBatchCount: (count) => Math.ceil(count / 16),
       embedDocuments: async (_title, chunks) => {
         calls.embedDocuments++;
         return chunks.map(() => [1, 0, 0]);

@@ -103,7 +103,7 @@ before(async () => {
   assert.equal(
     (await admin.query("SELECT count(*)::int AS n FROM schema_migrations"))
       .rows[0].n,
-    19,
+    20,
   );
   await admin.query(
     "INSERT INTO workspaces(id,active) VALUES($1,true),($2,false)",

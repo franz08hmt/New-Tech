@@ -40,6 +40,13 @@ export class DocumentOcrService {
 
   constructor(@Optional() private readonly usage?: AiUsageService) {}
 
+  plannedProviderCalls(pages: ExtractedPdfPage[]) {
+    if (!this.config.enabled || !this.config.configured) return 0;
+    return pages
+      .filter((page) => !assessDocumentText(page.text, page.page).useful)
+      .slice(0, this.config.maxPages).length;
+  }
+
   async recover(buffer: Buffer, pages: ExtractedPdfPage[]) {
     const candidates = pages
       .filter((page) => !assessDocumentText(page.text, page.page).useful)
@@ -135,6 +142,7 @@ export class DocumentOcrService {
         model: this.config.model,
         prompt: prompt.reference,
       });
+      await this.usage?.authorizeProviderCall(providerCall);
       const response = await Promise.race([
         this.client.models.generateContent({
           model: this.config.model,
@@ -186,6 +194,8 @@ export class DocumentOcrService {
         this.usage?.finishProviderCall(
           providerCall,
           classifyProviderOutcome(failure),
+          undefined,
+          error instanceof ApiError,
         );
       throw failure;
     } finally {

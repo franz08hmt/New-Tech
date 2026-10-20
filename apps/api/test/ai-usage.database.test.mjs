@@ -7,6 +7,7 @@ import { AuthDatabaseService } from "../dist/database/auth-database.service.js";
 import { AuthStore } from "../dist/auth/auth-store.js";
 import { DocumentAccessService } from "../dist/documents/document-access.service.js";
 import { AiUsageService } from "../dist/assistant/ai-usage.service.js";
+import { AiAdmissionService } from "../dist/assistant/ai-admission.service.js";
 import { requestContext } from "../dist/common/log.js";
 import {
   fixedId,
@@ -112,7 +113,11 @@ test("019 stores bounded usage through non-owner business context, scoped by ten
   });
 
   const access = new DocumentAccessService(new AuthStore(business));
-  const usage = new AiUsageService(business, access);
+  const usage = new AiUsageService(
+    business,
+    access,
+    new AiAdmissionService(business, access),
+  );
   const write = async (who, requestId, recordProviderCall = false) =>
     requestContext.run({ requestId }, () =>
       usage.runOperation(
@@ -136,6 +141,8 @@ test("019 stores bounded usage through non-owner business context, scoped by ten
                 version: "rag-v1",
               },
             });
+            await usage.preflightProviderCalls(1);
+            await usage.authorizeProviderCall(call);
             usage.finishProviderCall(call, "success", {
               promptTokenCount: 12,
               candidatesTokenCount: 7,
@@ -185,6 +192,45 @@ test("019 stores bounded usage through non-owner business context, scoped by ten
   );
   assert.ok(persisted.every((row) => row.outcome === "success"));
 
+  const admission = (
+    await fixture.admin.query(
+      `SELECT workspace_id::text,user_id::text,operation,state,
+        provider_attempts,planned_provider_calls
+       FROM ai_admission_operations ORDER BY created_at,operation_id`,
+    )
+  ).rows;
+  assert.equal(admission.length, 4);
+  assert.ok(admission.every((row) => row.state === "completed"));
+  const admissionOwners = admission
+    .map((row) => [row.user_id, row.provider_attempts])
+    .sort((left, right) =>
+      left[0] === right[0]
+        ? left[1] - right[1]
+        : left[0].localeCompare(right[0]),
+    );
+  assert.deepEqual(
+    admissionOwners,
+    [
+      [people.manager, 0],
+      [people.manager, 1],
+      [people.member, 0],
+      [people.viewer, 0],
+    ].sort((left, right) =>
+      left[0] === right[0]
+        ? left[1] - right[1]
+        : left[0].localeCompare(right[0]),
+    ),
+  );
+  assert.equal(
+    (
+      await fixture.admin.query(
+        "SELECT used_operations FROM ai_admission_user_daily WHERE user_id=$1",
+        [people.manager],
+      )
+    ).rows[0].used_operations,
+    2,
+  );
+
   const providerCalls = (
     await fixture.admin.query(
       `SELECT call_type,provider,model,prompt_id,prompt_version,outcome,
@@ -232,6 +278,9 @@ test("019 stores bounded usage through non-owner business context, scoped by ten
   });
 
   await assert.rejects(authDb.query("SELECT * FROM ai_usage_operations"), {
+    code: "42501",
+  });
+  await assert.rejects(authDb.query("SELECT * FROM ai_admission_operations"), {
     code: "42501",
   });
   await assert.rejects(
