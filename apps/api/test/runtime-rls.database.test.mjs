@@ -1519,6 +1519,11 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
     assert.equal(emptyDashboard.summary.providerCalls.tokens.total, null);
     assert.equal(emptyDashboard.summary.daily.length, 7);
     assert.equal(emptyDashboard.summary.telemetryIsBestEffort, true);
+    const emptyCosts = await fetch(
+      `${base}/api/admin/ai-usage/cost-breakdown`,
+      { headers: { Cookie: nextCookie } },
+    );
+    assert.equal(emptyCosts.status, 200);
 
     const repeatedFilter = await fetch(
       `${base}/api/admin/ai-usage?from=2026-10-01&from=2026-10-02`,
@@ -1537,12 +1542,61 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
       assert.equal(repeatedValue.status, 400, `rejects repeated ${query}`);
       assert.equal((await repeatedValue.json()).code, "AI_USAGE_QUERY_INVALID");
     }
+    for (const query of [
+      "group=currency&group=pricing_version",
+      "group=pricing_version",
+      "group=pricing_version&currency=usd",
+      "model=a&model=b",
+      "page=1&page=2",
+      "currency%5Bvalue%5D=USD",
+    ]) {
+      const invalidCostQuery = await fetch(
+        `${base}/api/admin/ai-usage/cost-breakdown?${query}`,
+        { headers: { Cookie: nextCookie } },
+      );
+      assert.equal(invalidCostQuery.status, 400, `rejects cost query ${query}`);
+      assert.equal(
+        (await invalidCostQuery.json()).code,
+        "AI_USAGE_QUERY_INVALID",
+      );
+    }
 
     const invalidDate = await fetch(
       `${base}/api/admin/ai-usage?from=2026-02-30`,
       { headers: { Cookie: nextCookie } },
     );
     assert.equal(invalidDate.status, 400);
+    for (const range of [
+      "from=0000-01-01&to=0000-01-01",
+      "from=9999-12-31&to=9999-12-31",
+      "to=0001-01-01",
+      "from=2026-01-01&to=2026-04-01",
+    ]) {
+      const response = await fetch(`${base}/api/admin/ai-usage?${range}`, {
+        headers: { Cookie: nextCookie },
+      });
+      assert.equal(
+        response.status,
+        400,
+        `rejects unsupported date range ${range}`,
+      );
+      assert.equal((await response.json()).code, "AI_USAGE_QUERY_INVALID");
+    }
+    for (const range of [
+      "from=0001-01-01&to=0001-01-01",
+      "from=9999-12-30&to=9999-12-30",
+      "from=2024-02-29&to=2024-02-29",
+      "from=2026-01-01&to=2026-03-31",
+    ]) {
+      const response = await fetch(`${base}/api/admin/ai-usage?${range}`, {
+        headers: { Cookie: nextCookie },
+      });
+      assert.equal(
+        response.status,
+        200,
+        `accepts supported date range ${range}`,
+      );
+    }
   } finally {
     await fixture.admin.query(
       "UPDATE workspace_memberships SET role='member' WHERE workspace_id=$1 AND user_id=$2",
@@ -1554,6 +1608,10 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
   });
   assert.equal(memberDashboard.status, 403);
   assert.equal((await memberDashboard.json()).code, "ROLE_FORBIDDEN");
+  const memberCosts = await fetch(`${base}/api/admin/ai-usage/cost-breakdown`, {
+    headers: { Cookie: nextCookie },
+  });
+  assert.equal(memberCosts.status, 403);
   await fixture.admin.query(
     "UPDATE workspace_memberships SET role='viewer' WHERE workspace_id=$1 AND user_id=$2",
     [A.id, people.member],
@@ -1563,6 +1621,11 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
       headers: { Cookie: nextCookie },
     });
     assert.equal(viewerDashboard.status, 403);
+    const viewerCosts = await fetch(
+      `${base}/api/admin/ai-usage/cost-breakdown`,
+      { headers: { Cookie: nextCookie } },
+    );
+    assert.equal(viewerCosts.status, 403);
   } finally {
     await fixture.admin.query(
       "UPDATE workspace_memberships SET role='member' WHERE workspace_id=$1 AND user_id=$2",
@@ -1582,6 +1645,11 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
       (await revokedDashboard.json()).code,
       "WORKSPACE_ACCESS_DENIED",
     );
+    const revokedCosts = await fetch(
+      `${base}/api/admin/ai-usage/cost-breakdown`,
+      { headers: { Cookie: nextCookie } },
+    );
+    assert.equal(revokedCosts.status, 403);
   } finally {
     await fixture.admin.query(
       "UPDATE workspace_memberships SET active=true WHERE workspace_id=$1 AND user_id=$2",
@@ -2788,6 +2856,298 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
       ],
     );
   }
+  const seedUsageOperation = async ({ operation, mode, day, calls }) => {
+    const operationId = randomUUID();
+    await fixture.admin.query(
+      `INSERT INTO ai_usage_operations(operation_id,request_id,workspace_id,user_id,
+        operation,mode,outcome,provider_call_count,started_at,completed_at,duration_ms,expires_at)
+       VALUES($1,$2,$3,$4,$5,$6,'success',$7,$8::timestamptz,$8::timestamptz,1,'infinity')`,
+      [
+        operationId,
+        randomUUID(),
+        B.id,
+        people.manager,
+        operation,
+        mode,
+        calls.length,
+        `${day} 12:00:00+07`,
+      ],
+    );
+    for (const [index, call] of calls.entries()) {
+      await fixture.admin.query(
+        `INSERT INTO ai_usage_provider_calls(call_id,operation_id,workspace_id,user_id,
+          provider,model,call_type,outcome,usage_status,input_tokens,output_tokens,total_tokens,
+          cost_status,estimated_cost,pricing_version,currency,duration_ms,started_at,completed_at,expires_at)
+         VALUES($1,$2,$3,$4,'google',$5,'generation',$6,$7,$8,0,$9,$10,$11,$12,$13,1,
+           $14::timestamptz,$14::timestamptz,$15::timestamptz)`,
+        [
+          randomUUID(),
+          operationId,
+          B.id,
+          people.manager,
+          call.model ?? "fixture-model",
+          call.outcome ?? "success",
+          call.usageStatus ?? "complete",
+          call.inputTokens ?? "0",
+          call.totalTokens ?? "0",
+          call.costStatus ?? "estimated",
+          call.cost ?? "1.000000000000",
+          call.pricingVersion ?? `fixture-v${String(index).padStart(2, "0")}`,
+          call.currency ?? "USD",
+          `${day} 12:${String(index % 60).padStart(2, "0")}:00+07`,
+          call.expiresIn ?? "infinity",
+        ],
+      );
+    }
+    return operationId;
+  };
+
+  for (const [day, count] of [
+    ["2026-12-01", 0],
+    ["2026-12-02", 1],
+    ["2026-12-03", 20],
+    ["2026-12-04", 21],
+  ]) {
+    await seedUsageOperation({
+      operation: "assistant_summary",
+      mode: "documents",
+      day,
+      calls: Array.from({ length: count }, (_, index) => ({
+        model: "fixture-summary-model",
+        pricingVersion: `fixture-${day}-${String(index).padStart(2, "0")}`,
+        cost: index === 0 ? "0" : "1",
+      })),
+    });
+  }
+  await seedUsageOperation({
+    operation: "assistant_summary",
+    mode: "documents",
+    day: "2026-12-05",
+    calls: [
+      ...Array.from({ length: 21 }, (_, index) => ({
+        model: "fixture-cost-model",
+        pricingVersion: `fixture-usd-${String(index).padStart(2, "0")}`,
+        currency: "USD",
+        cost: index === 0 ? "0" : "1",
+      })),
+      {
+        model: "fixture-cost-model",
+        pricingVersion: "fixture-eur-v1",
+        currency: "EUR",
+        cost: "3.5",
+      },
+      {
+        model: "fixture-cost-model",
+        costStatus: "unknown_usage",
+        cost: null,
+        pricingVersion: null,
+        currency: null,
+      },
+    ],
+  });
+  await seedUsageOperation({
+    operation: "document_index",
+    mode: null,
+    day: "2026-12-06",
+    calls: Array.from({ length: 23 }, (_, index) => ({
+      model: `fixture-model-${String(index).padStart(2, "0")}`,
+      costStatus: "unknown_price",
+      cost: null,
+      pricingVersion: null,
+      currency: null,
+      totalTokens: "1",
+    })),
+  });
+  const modelDetailOperationId = await seedUsageOperation({
+    operation: "assistant_question",
+    mode: "general",
+    day: "2026-12-07",
+    calls: [
+      ...Array.from({ length: 21 }, () => ({
+        model: "gemini-2.5-flash",
+        costStatus: "unknown_price",
+        cost: null,
+        pricingVersion: null,
+        currency: null,
+      })),
+      {
+        model: "fixture-other-model",
+        costStatus: "unknown_price",
+        cost: null,
+        pricingVersion: null,
+        currency: null,
+      },
+      {
+        model: "gemini-2.5-flash",
+        costStatus: "unknown_price",
+        cost: null,
+        pricingVersion: null,
+        currency: null,
+        expiresIn: "-infinity",
+      },
+    ],
+  });
+  const foreignCostOperationId = randomUUID();
+  await fixture.admin.query(
+    `INSERT INTO ai_usage_operations(operation_id,request_id,workspace_id,user_id,
+       operation,mode,outcome,provider_call_count,started_at,completed_at,duration_ms,expires_at)
+     VALUES($1,$2,$3,$4,'assistant_summary','documents','success',1,
+       '2026-12-05 12:00:00+07','2026-12-05 12:00:00+07',1,'infinity')`,
+    [foreignCostOperationId, randomUUID(), A.id, people.member],
+  );
+  await fixture.admin.query(
+    `INSERT INTO ai_usage_provider_calls(call_id,operation_id,workspace_id,user_id,
+       provider,model,call_type,outcome,usage_status,input_tokens,output_tokens,total_tokens,
+       cost_status,estimated_cost,pricing_version,currency,duration_ms,started_at,completed_at,expires_at)
+     VALUES($1,$2,$3,$4,'google','fixture-foreign-model','generation','success','complete',
+       0,0,0,'estimated',9999,'foreign-version','USD',1,
+       '2026-12-05 12:00:00+07','2026-12-05 12:00:00+07','infinity')`,
+    [randomUUID(), foreignCostOperationId, A.id, people.member],
+  );
+
+  for (const [day, expected] of [
+    ["2026-12-01", 0],
+    ["2026-12-02", 1],
+    ["2026-12-03", 20],
+    ["2026-12-04", 21],
+  ]) {
+    const response = await fetch(
+      `${base}/api/admin/ai-usage/cost-breakdown?group=pricing_version&currency=USD&from=${day}&to=${day}&operation=assistant_summary&mode=documents`,
+      { headers: { Cookie: nextCookie } },
+    );
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(Number(body.totalGroups), expected);
+  }
+  const costQuery =
+    "from=2026-12-05&to=2026-12-05&operation=assistant_summary&mode=documents";
+  const currencyCosts = await fetch(
+    `${base}/api/admin/ai-usage/cost-breakdown?${costQuery}`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(currencyCosts.status, 200);
+  const currencyCostBody = await currencyCosts.json();
+  assert.equal(currencyCostBody.totalGroups, "2");
+  assert.equal(currencyCostBody.totalEstimatedCalls, "22");
+  assert.deepEqual(
+    currencyCostBody.items.map(({ currency, estimatedCost }) => ({
+      currency,
+      estimatedCost,
+    })),
+    [
+      { currency: "EUR", estimatedCost: "3.500000000000" },
+      { currency: "USD", estimatedCost: "20.000000000000" },
+    ],
+  );
+  const eurVersions = await fetch(
+    `${base}/api/admin/ai-usage/cost-breakdown?${costQuery}&group=pricing_version&currency=EUR`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(eurVersions.status, 200);
+  const eurVersionsBody = await eurVersions.json();
+  assert.equal(eurVersionsBody.totalGroups, "1");
+  assert.equal(eurVersionsBody.totalEstimatedCost, "3.500000000000");
+  const versionPageOne = await fetch(
+    `${base}/api/admin/ai-usage/cost-breakdown?${costQuery}&group=pricing_version&currency=USD&pageSize=20`,
+    { headers: { Cookie: nextCookie } },
+  );
+  const versionPageTwo = await fetch(
+    `${base}/api/admin/ai-usage/cost-breakdown?${costQuery}&group=pricing_version&currency=USD&pageSize=20&page=2`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(versionPageOne.status, 200);
+  assert.equal(versionPageTwo.status, 200);
+  const versionsOne = await versionPageOne.json();
+  const versionsTwo = await versionPageTwo.json();
+  assert.equal(versionsOne.totalGroups, "21");
+  assert.equal(versionsOne.items.length, 20);
+  assert.equal(
+    versionsOne.items.find((item) => item.pricingVersion === "fixture-usd-00")
+      .estimatedCost,
+    "0.000000000000",
+  );
+  assert.equal(versionsTwo.items.length, 1);
+  assert.equal(versionsOne.totalEstimatedCost, "20.000000000000");
+  assert.equal(versionsTwo.totalEstimatedCost, versionsOne.totalEstimatedCost);
+  const costFilteredOverview = await fetch(
+    `${base}/api/admin/ai-usage?from=2026-12-05&to=2026-12-05&operation=assistant_summary&mode=documents`,
+    { headers: { Cookie: nextCookie } },
+  );
+  const costFilteredOverviewBody = await costFilteredOverview.json();
+  assert.equal(
+    costFilteredOverviewBody.summary.providerCalls.cost.estimatedCalls,
+    "22",
+  );
+  assert.equal(
+    costFilteredOverviewBody.summary.providerCalls.cost.unknownCalls,
+    "1",
+  );
+
+  const manyModels = await fetch(
+    `${base}/api/admin/ai-usage?from=2026-12-06&to=2026-12-06&operation=document_index`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(manyModels.status, 200);
+  const manyModelsBody = await manyModels.json();
+  assert.equal(manyModelsBody.summary.models.length, 20);
+  assert.deepEqual(manyModelsBody.summary.modelCoverage, {
+    totalModels: "23",
+    displayedModels: "20",
+    omittedModels: "3",
+    totalProviderCalls: "23",
+    displayedProviderCalls: "20",
+    omittedProviderCalls: "3",
+    knownTotalTokens: "23",
+    displayedKnownTotalTokens: "20",
+    omittedKnownTotalTokens: "3",
+    tokenSamples: "23",
+    displayedTokenSamples: "20",
+    omittedTokenSamples: "3",
+  });
+  const selectedModelCalls = await fetch(
+    `${base}/api/admin/ai-usage/operations/${modelDetailOperationId}/calls?model=gemini-2.5-flash&pageSize=20`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(selectedModelCalls.status, 200);
+  const selectedModelCallsBody = await selectedModelCalls.json();
+  assert.equal(selectedModelCallsBody.total, "21");
+  assert.ok(
+    selectedModelCallsBody.items.every(
+      (call) => call.model === "gemini-2.5-flash",
+    ),
+  );
+  const selectedModelOverview = await fetch(
+    `${base}/api/admin/ai-usage?from=2026-12-07&to=2026-12-07&operation=assistant_question&mode=general&model=gemini-2.5-flash`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(selectedModelOverview.status, 200);
+  const selectedModelOverviewBody = await selectedModelOverview.json();
+  assert.equal(selectedModelOverviewBody.summary.providerCalls.total, "21");
+  assert.equal(
+    selectedModelOverviewBody.operations.items[0].providerCalls,
+    "21",
+  );
+  const selectedModelCallsPageTwo = await fetch(
+    `${base}/api/admin/ai-usage/operations/${modelDetailOperationId}/calls?model=gemini-2.5-flash&pageSize=20&page=2`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal((await selectedModelCallsPageTwo.json()).total, "21");
+  const allModelCalls = await fetch(
+    `${base}/api/admin/ai-usage/operations/${modelDetailOperationId}/calls`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal((await allModelCalls.json()).total, "22");
+  const foreignOperationCalls = await fetch(
+    `${base}/api/admin/ai-usage/operations/${generalTelemetry.operation.operation_id}/calls`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(foreignOperationCalls.status, 404);
+  const repeatedCallModel = await fetch(
+    `${base}/api/admin/ai-usage/operations/${modelDetailOperationId}/calls?model=a&model=b`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(repeatedCallModel.status, 400);
+
   const managerDashboard = await fetch(
     `${base}/api/admin/ai-usage?from=2026-10-01&to=2026-11-30&pageSize=1`,
     { headers: { Cookie: nextCookie } },
@@ -2834,10 +3194,14 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
     managerDashboardBody.summary.providerCalls.cost.unknownCalls,
     "4",
   );
-  assert.equal(
-    managerDashboardBody.summary.providerCalls.cost.breakdown.length,
-    2,
+  const baseCostBreakdown = await fetch(
+    `${base}/api/admin/ai-usage/cost-breakdown?from=2026-10-01&to=2026-11-30`,
+    { headers: { Cookie: nextCookie } },
   );
+  assert.equal(baseCostBreakdown.status, 200);
+  const baseCostBreakdownBody = await baseCostBreakdown.json();
+  assert.equal(baseCostBreakdownBody.totalGroups, "2");
+  assert.equal(baseCostBreakdownBody.totalEstimatedCalls, "2");
   assert.notEqual(
     managerDashboardBody.operations.items[0].operationId,
     expiredOperationId,
@@ -2889,7 +3253,7 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
     { workspaceId: B.id, userId: people.manager, role: "manager" },
     (tx) => tx.query("SELECT workspace_id,user_id FROM ai_usage_operations"),
   );
-  assert.equal(memberScoped.rows.length, 7);
+  assert.equal(memberScoped.rows.length, 14);
   assert.ok(
     memberScoped.rows.every(
       (row) => row.workspace_id === B.id && row.user_id === people.manager,

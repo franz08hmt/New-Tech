@@ -723,6 +723,37 @@ export interface AiUsageDashboardQuery {
   page: number;
   pageSize: number;
 }
+export type AiUsageCostBreakdownGroup = "currency" | "pricing_version";
+export interface AiUsageCostBreakdownQuery {
+  from?: string;
+  to?: string;
+  operation?: AiUsageOperationName;
+  mode?: AiUsageOperationMode;
+  outcome?: AiUsageOperationOutcome;
+  model?: string;
+  group?: AiUsageCostBreakdownGroup;
+  currency?: string;
+  page?: number;
+  pageSize?: number;
+}
+export interface AiUsageCostBreakdownItem {
+  currency: string;
+  pricingVersion: string | null;
+  pricingVersionCount: string | null;
+  estimatedCalls: string;
+  estimatedCost: string;
+}
+export interface AiUsageCostBreakdownResponse {
+  group: AiUsageCostBreakdownGroup;
+  currency: string | null;
+  page: number;
+  pageSize: number;
+  totalGroups: string;
+  totalEstimatedCalls: string;
+  totalPages: number;
+  totalEstimatedCost: string | null;
+  items: AiUsageCostBreakdownItem[];
+}
 export interface AiUsageOperationCount {
   total: string;
   outcomes: Record<AiUsageOperationOutcome, string>;
@@ -743,12 +774,6 @@ export interface AiUsageProviderCallCount {
   cost: {
     estimatedCalls: string;
     unknownCalls: string;
-    breakdown: Array<{
-      currency: string;
-      pricingVersion: string;
-      calls: string;
-      estimatedCost: string;
-    }>;
   };
   latency: { sampleCount: string; averageMs: string | null; p95Ms: string | null };
 }
@@ -784,6 +809,20 @@ export interface AiUsageDashboardResponse {
       knownTotalTokens: string | null;
       tokenSamples: string;
     }>;
+    modelCoverage: {
+      totalModels: string;
+      displayedModels: string;
+      omittedModels: string;
+      totalProviderCalls: string;
+      displayedProviderCalls: string;
+      omittedProviderCalls: string;
+      knownTotalTokens: string | null;
+      displayedKnownTotalTokens: string | null;
+      omittedKnownTotalTokens: string | null;
+      tokenSamples: string;
+      displayedTokenSamples: string;
+      omittedTokenSamples: string;
+    };
     telemetryIsBestEffort: true;
     ttft: "not_collected";
     monetaryBudget: false;

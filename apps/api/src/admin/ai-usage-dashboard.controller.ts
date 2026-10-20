@@ -11,6 +11,7 @@ import type { AuthRequest } from "../auth/auth.service.js";
 import { AiUsageDashboardService } from "./ai-usage-dashboard.service.js";
 import {
   parseAiUsageCallsQuery,
+  parseAiUsageCostBreakdownQuery,
   parseAiUsageDashboardQuery,
 } from "./ai-usage-dashboard-query.js";
 
@@ -23,6 +24,14 @@ export class AiUsageDashboardController {
     return this.service.overview(
       req.principal as PilotPrincipal | undefined,
       parseAiUsageDashboardQuery(query),
+    );
+  }
+
+  @Get("cost-breakdown")
+  costBreakdown(@Req() req: AuthRequest, @Query() query: unknown) {
+    return this.service.costBreakdown(
+      req.principal as PilotPrincipal | undefined,
+      parseAiUsageCostBreakdownQuery(query),
     );
   }
 
