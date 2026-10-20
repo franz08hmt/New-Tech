@@ -21,7 +21,7 @@ total/totalPages from one tenant-scoped statement snapshot.
 | Tasks       | `TasksPanel` full list; dashboard urgent tasks and complete count remain a separate legacy consumer | `#tasks/<id>`; add scoped ID lookup                | status, owner/unassigned; title/status/due_date/created_at                  | API/DB tenant page/count, role controls/status update, focused target, FE stale query/page, focused + full gates            |
 | Courses     | expanded `CoursesPanel`; dashboard gallery, selectors, Assistant context remain separate            | `#courses/<slug>`; use existing scoped slug lookup | progress range; name/code/progress                                          | page beyond two rows, progress filter/sort, route lookup outside page, selector remains complete, focused + full gates      |
 | Exams       | paged `ExamsSearchPanel`; dashboard next-exam summary and course selector remain separate            | `#exams/<id>`; scoped `GET /api/exams/:id`          | course, date range; exam date/time/topic/course                             | valid DATE boundaries, foreign course, stable sort, CRUD refresh, compact dashboard remains aggregate, focused + full gates |
-| Study plans | expanded `StudyPlanPanel`; dashboard/course grouping remains a separate consumer                    | `#study-plan/<id>`; add scoped ID lookup           | course, completed, owner/unassigned, due range; due/title/course/completed  | groups retained within page, all-match completion summary, toggle/CRUD refresh, focused + full gates                        |
+| Study plans | `StudyPlansSearchPanel`; dashboard/course grouping and course selector remain separate consumers           | `#study-plan/<id>`; scoped `GET /api/study-plans/:id` | course, completed, owner/unassigned, due range; due/title/course/completed | groups retained within page, all-match completion summary, toggle/CRUD refresh, focused + full gates                        |
 | Expenses    | `BudgetPanel` list; course workspace expense section remains separate                               | `#finances/<id>`; add scoped ID lookup             | category, course/unassigned, period date range; spent_on/amount/description | filtered total/count/largest/by-course independent of page, date preservation, CRUD refresh, focused + full gates           |
 
 Selectors, course detail, dashboard summaries and compact course-workspace
@@ -30,6 +30,19 @@ still consumed, document them explicitly, and do not use a page as a summary or
 selector. The paged primary list itself must not load the full legacy list.
 Browser acceptance is required for whole F05.3; if browser automation is not
 available, code verification remains distinct from browser acceptance.
+
+Study Plans contract: `GET /api/study-plans/search` accepts optional metadata `q`, course ID,
+`completion=all|open|completed`, exact owner or `unassigned`, inclusive valid
+`dueFrom`/`dueTo`, allowlisted due-date/title/course/completion sorting, and
+bounded page/pageSize. Return the page plus all-filtered `total/completed/
+remaining` in one workspace-scoped statement. `StudyPlansSearchPanel` uses the
+paged endpoint and scoped `GET /api/study-plans/:id` for a focused deep-link
+target outside the current page/filter without changing list totals. Keep the
+dashboard/course-group consumers on the legacy list and course choices on the
+independent selector. The primary screen preserves course grouping within each
+page and role-gated create/toggle/delete. Acceptance includes date validation,
+RLS, multi-page stable order, all-match summary, CRUD refresh, stale principal
+responses and the focused/full test gates.
 
 ### F05.3 Tasks checkpoint
 

@@ -539,3 +539,21 @@ synthetic mutations so server-refresh behavior is actually exercised. Focused
 HTTP/DB and UI tests then passed. Human review has not yet been performed, and
 browser acceptance is pending because no approved browser automation capability
 was exposed in this session.
+
+## 2026-10-20 — F05.3 Study Plans slice (Codex)
+
+AI assistance inspected Study Plans schema, DTOs, service/route ordering, legacy
+dashboard and course-group consumers, course selector needs, and existing
+workspace paging patterns. It added a typed paged search contract and scoped
+detail lookup, with a primary paginated screen, server summary, filters, stable
+sorts, deep-link focus, and refresh after confirmed writes. The legacy list and
+course selector remain for independent consumers. No schema migration or
+external AI call was used.
+
+Verification used Nest HTTP with disposable PostgreSQL 17 and a real business
+LOGIN that is non-owner and `NOBYPASSRLS`; Auth/session and external services
+were synthetic test boundaries. The route regression was observed RED as 404
+before implementation and GREEN afterward. Focused FE/App tests, API build,
+typecheck, format and the focused DB test passed. No approved browser automation
+capability was exposed, so no visual/browser acceptance or independent human
+review is claimed.

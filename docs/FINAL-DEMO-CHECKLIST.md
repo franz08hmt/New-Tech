@@ -1059,3 +1059,41 @@ This is code/test evidence, not browser evidence. Study plans and Expenses still
 remain for F05.3; cloud rollout, Google live and remote-machine acceptance are
 unrelated and remain pending. No cloud/provider call, migration, push or deploy
 occurred.
+
+## F05.3 Study Plans slice — 20/10/2026
+
+The primary Study Plans screen now uses `GET /api/study-plans/search` with
+optional folded metadata search, course, completion, owner/unassigned and
+inclusive due-date filters; sort is allowlisted to due date, title, course or
+completion. The bounded page, total, and all-filtered completed/remaining
+summary come from one workspace-scoped SQL statement. Scoped
+`GET /api/study-plans/:id` supplies a focused deep-link view outside the current
+page/filter without changing paged totals. Dates are validated as real calendar
+dates, reversed ranges are rejected before the business transaction, and ties
+have stable ID ordering. No migration or provider call was added.
+
+The page keeps course grouping within the displayed page. The legacy array
+route remains for dashboard/course-group consumers, and the independent full
+course selector remains available for create/filter controls. Create, toggle
+and delete retain the existing role checks; confirmed writes trigger a read-only
+refresh. The page does not load the legacy full plans list.
+
+New focused verification on this checkpoint:
+
+- RED: before implementation, the real HTTP regression received 404 for
+  `GET /api/study-plans/search`; after implementation it passed against Nest
+  and disposable PostgreSQL 17 using a business LOGIN that is non-owner and
+  `NOBYPASSRLS`. The fixture covers two tenants, >2 pages, filters, stable
+  sorting, all-filter summary, out-of-range totals, viewer/member/manager and
+  inactive/no-membership denials, malformed queries and scoped lookup.
+- FE/App selection: `npm test --workspace @examate/web -- --run
+  src/App.test.tsx src/StudyPlansSearch.test.tsx` — 127/127 passed.
+- `npm run typecheck`, `npm run build`, and `npm run format:check` — exit 0 on
+  this module checkpoint. Focused database test — 1/1 passed.
+
+No approved browser automation capability was exposed, so desktop/mobile,
+keyboard, visual, console and network acceptance remain
+`BROWSER_ACCEPTANCE_PENDING`. Expenses remains the final F05.3 module, and
+whole F05 remains partial. Cloud rollout, Google live and remote-machine
+acceptance remain pending. No cloud/provider call, migration, push or deploy
+occurred.
