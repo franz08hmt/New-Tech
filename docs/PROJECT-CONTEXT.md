@@ -3,6 +3,61 @@
 Cập nhật 21/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
+## F06 local checkpoint — code verified, browser pending (21/10/2026)
+
+Implemented in `6fca9e3` (API/DB/contract) and `341776f` (web UI); starting
+HEAD was `ef0450c` on `feature/tai-assistant-integration-20261018`.
+
+F06 adds a manager-only read dashboard over the existing F03 telemetry. The
+additive read routes are `GET /api/admin/ai-usage` and
+`GET /api/admin/ai-usage/operations/:operationId/calls`. Migration 021 grants
+only column-scoped SELECT to `examate_business` and installs workspace + fresh
+manager-role SELECT policies; the Auth capability receives no telemetry read
+grant. Runtime startup verifies capability contract v21 and refuses drift; it
+does not repair grants. The migration uses the usual locked source preflight,
+and local rollback removes only F06 policies, column grants and ledger 021,
+preserving F03 telemetry and F04 admission rows.
+
+The report defaults to seven calendar dates in Asia/Ho_Chi_Minh and permits at
+most 90 inclusive dates, queried as UTC half-open `[from, day-after-to)`.
+Operations are selected by `started_at`; expired operations and calls are
+omitted. Summary, trend, model breakdown, total and requested operation page
+are computed in one statement/snapshot. Model filtering selects operations
+having a non-expired call for that exact model and counts only that model's
+calls in every KPI/chart/table. Without a model filter, it counts all
+non-expired calls belonging to matching operations. The operation outcome and
+provider-call outcome remain separate; an operation with no provider calls is
+valid. Bigint token totals remain decimal strings with sample counts and null
+for no known values. Estimated cost is grouped by stored currency and
+pricing-version; it is not recomputed, converted or treated as billing. TTFT
+is not collected. Telemetry remains best-effort and is not the F04 quota ledger
+or a realtime view of all blocked/in-flight requests.
+
+The API integration fixture runs Nest with separate business/Auth LOGIN roles
+(`NOBYPASSRLS`, non-owner) on disposable PostgreSQL 17. The F03 usage service
+and Gemini wrapper remain real; only Supabase/Auth and SDK transport are
+synthetic. It compares a wrapper-created row with persisted operation/call
+records and adds synthetic aggregate cases for zero-call operations, multiple
+calls, all usage states, large token sums, currencies/pricing versions, model
+cohort, expiry and independent pagination summary. A separate migration test
+checks manager/member RLS, Auth denial, conflict preflight, rollback preserving
+telemetry, and reapply. Browser tools were not exposed in this session, so
+F06 browser acceptance is `BROWSER_ACCEPTANCE_PENDING`; API/React tests are not
+browser evidence. This does not change F05 browser acceptance, cloud rollout,
+Google live or the Thắng machine status.
+
+Final verification on source descended from `ef0450c`: `npm run typecheck`,
+`npm test`, `npm run build`, `npm run format:check`, and guarded PG17
+`npm run test:database` all exited 0. `npm test` passed API Vitest 365/365,
+API Node 855/855, and Web 448/448 (1,668 total). The database command ran all
+39 serial test files successfully; its npm script does not emit one aggregate
+test count. Focused F06 suites passed API query validation 24/24, Web dashboard
+5/5, runtime HTTP/RLS 14/14 and migration lifecycle 1/1, with no failures,
+skips or cancellations in those focused suites. Format was rerun after final
+test and documentation edits. F06 is `F06_CODE_VERIFIED +
+BROWSER_ACCEPTANCE_PENDING`, not full F06 acceptance. No cloud writes, paid
+provider call, push or deployment occurred.
+
 ## F05.3.1 checkpoint — focused records and expense chart denominator
 
 Implementation and regression tests: `b826f80`.
@@ -637,7 +692,7 @@ chiếu lịch sử. Không chạy lại phần đã có hoặc biến kế ho�
 | F03 | Prompt tập trung/version; metadata request/provider calls, token, latency, outcome, chi phí ước tính                       | Code và tích hợp HTTP/DB PG17 đã kiểm; nghiệm thu browser desktop/375px sau instrumentation còn pending; chưa nhận F03 đầy đủ                                    |
 | F04 | B3: cap user/ngày, concurrency, fan-out summary/index/OCR; admission nguyên tử và bền vững                                 | Migration 020/contract v20 triển khai local; automated gates pass, browser acceptance pending; không phải monetary budget hay dashboard F06                      |
 | F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Documents, sidebar and all five F05.3 module screens have local automated coverage; browser acceptance pending, so whole F05 remains partial                      |
-| F06 | Dashboard AI cho admin đúng workspace: request/provider calls, token/cost/latency/lỗi/từ chối và filters                   | Pending; đây là yêu cầu usage dashboard, không phải Finances hay billing                                                                                         |
+| F06 | Dashboard AI cho admin đúng workspace: request/provider calls, token/cost/latency/lỗi/từ chối và filters                   | Local code/API/PG17 implementation and automated verification in this checkpoint; browser acceptance pending; not billing or F04 quota ledger                          |
 | F07 | N1 lưu bền, mở lại/xóa, retention/quyền; receipt/history/reset/account isolation                                           | Pending persistence; history trong tab/SSE và draft revision đã có, không viết lại                                                                               |
 | F08 | N2 Study Coach: structured quiz/flashcards, nguồn, preview/xác nhận lưu, luyện tập/tiến độ cá nhân                         | Pending                                                                                                                                                          |
 | F09 | B4: ít nhất 20 case thực thi có expected, cùng corpus/gold trước/sau, human review/guardrails/fallback/latency/cost        | Chưa nghiệm thu semantic/live; live runner còn BLOCKED, principal CLI hay HTTP chưa chốt                                                                         |

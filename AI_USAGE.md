@@ -612,3 +612,41 @@ desktop/mobile visual acceptance or independent human review is claimed. Only
 the disposable PG17 fixture was used; no cloud, provider, secrets, or external
 data were accessed. These checks do not accept whole F05 or complete pending
 browser/cloud/remote-machine work.
+
+## 2026-10-21 — F06 manager AI usage dashboard (Codex)
+
+Implementation commits: `6fca9e3` (API/DB/contract) and `341776f` (web UI),
+starting from `ef0450c` on the integration branch.
+
+AI assistance inspected F03 telemetry writes/pricing, F04 admission separation,
+migrations 019/020, the runtime capability contract, workspace transaction and
+fresh membership authorization patterns, and the current navigation/API
+conventions. It implemented the read-only manager API, bounded overview and
+provider-call detail contracts, migration 021 column grants/RLS, startup and
+migration preflight contract, guarded local rollback, and the responsive
+dashboard. It did not change admission limits, provider calls, RAG, prompts,
+pricing records, Auth behavior, or cloud configuration.
+
+The first database integration run exposed that the expanded synthetic telemetry
+fixture increased raw manager-visible rows, while an older assertion expected a
+single row. The assertion was corrected to prove that every raw visible row is
+still limited to the active workspace; expiry remains a dashboard query
+predicate rather than a raw RLS predicate. The page serializer was also aligned
+with the allowlisted selected sort after review. Focused PG17 migration and
+Nest/HTTP runs passed after these corrections, including a real
+`AiUsageService`/Gemini wrapper write, persisted row/call comparison, a
+non-owner business LOGIN, separate Auth LOGIN, manager/member/viewer/revoked
+checks, token sums above JavaScript safe integer, unknown/partial usage, stored
+pricing/currency separation, expiry, model cohort, and page-independent summary.
+Synthetic provider transport and Auth upstream were used; no paid or cloud
+provider was called. Browser capability was not exposed in this session, so
+F06 browser acceptance remains pending. No independent human review is
+claimed.
+
+Final gates on the source derived from `ef0450c` all exited 0: typecheck,
+`npm test` (API Vitest 365/365, API Node 855/855, Web 448/448; 1,668 total),
+build, format, and guarded PostgreSQL 17 `test:database`. The database runner
+completed 39 serial files successfully; it prints per-file summaries rather
+than an aggregate count. Focused F06 coverage was API query validation 24/24,
+Web dashboard 5/5, runtime HTTP/RLS 14/14, and migration lifecycle 1/1. No
+browser acceptance or independent human review is claimed.

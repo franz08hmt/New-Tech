@@ -441,3 +441,42 @@ the target becomes listed. If the target later leaves the page/filter, lookup
 must be performed again under the current principal. Expense course bars are
 normalized against the largest per-course total in the active filtered result;
 the “largest expense” summary continues to mean the largest individual row.
+
+## ADR-007 — Manager AI usage dashboard over best-effort telemetry
+
+F06, 21/10/2026. Keep F03 telemetry as the source for the dashboard, but expose
+it only through dedicated read-only manager endpoints. Migration 021 grants
+column-scoped SELECT to `examate_business` and adds SELECT policies requiring
+the transaction-local workspace plus the current manager membership. The
+Auth capability receives no telemetry reads. `AiUsageDashboardService`
+reauthorizes membership and role in each short workspace transaction; the
+business connection remains LOGIN/non-owner/`NOBYPASSRLS`. No elevated or
+maintenance connection participates in requests.
+
+The overview uses a single SQL statement for operations, provider attempts,
+exact totals, trend, model breakdown and one bounded operation page. The report
+range is inclusive calendar dates in `Asia/Ho_Chi_Minh`, translated to UTC
+`[from, day-after-to)`, max 90 days; operations cohort on `started_at`, then
+expiry filters apply to operations and calls. An exact model filter selects
+operations with a matching unexpired call and counts only that model's calls;
+without it, all unexpired calls belonging to matching operations are included.
+Provider-call drill-down is separately scoped to the current workspace and
+bounded to 50 rows per page. Query values and sort fields use strict allowlists.
+
+Tokens and counts that can exceed JavaScript safe integers are serialized as
+decimal strings. Null plus sample counts means unknown/missing; zero remains a
+known value. Costs use only stored estimates and remain separated by currency
+and pricing version. No historical repricing, conversion, prompt content or
+user email is exposed. TTFT is explicitly not collected. Summary and totals do
+not depend on the current page.
+
+Rejected alternatives: using F04 admission rows would conflate quota state and
+usage telemetry; using broad table SELECT would expose request IDs and
+unneeded columns; fetching full telemetry into Node would violate bounded
+response/snapshot behavior; joining calls directly to operations for the
+operation count would multiply operations with fan-out. The UI therefore says
+the view is best-effort, incomplete, not a bill and not a quota source. It
+cannot represent every pre-telemetry rejection or guarantee live in-flight
+counts. Startup capability checks detect drift at process start but do not
+prevent an authorized DBA from changing grants afterward. Disposable PG17
+evidence does not imply cloud rollout readiness.

@@ -1161,3 +1161,59 @@ is emitted). Browser automation was unavailable, so desktop/mobile reproduction,
 focus/overflow/console and visual chart acceptance remain
 `BROWSER_ACCEPTANCE_PENDING`; component tests are not browser evidence. No
 migration, provider, cloud, or deployment action occurred.
+
+## F06 — Manager AI usage dashboard (local code evidence; browser pending)
+
+Code commits: `6fca9e3` (API/DB/contract) and `341776f` (web UI), based on
+starting HEAD `ef0450c` on the integration branch.
+
+Routes: `GET /api/admin/ai-usage` and
+`GET /api/admin/ai-usage/operations/:operationId/calls`. Query defaults to the
+last seven inclusive `Asia/Ho_Chi_Minh` calendar dates, max 90; page size is 20
+and max 50. Repeated/non-scalar/unknown filters, invalid dates, enum/sort values
+and out-of-range page values return structured 400 before service. The current
+workspace comes from the verified session. Every request rechecks active
+membership and manager role inside a short business workspace transaction.
+
+Migration 021 (capability contract v21) was applied, rolled back, and reapplied
+on disposable PG17. It adds only manager RLS SELECT policies and column-scoped
+business SELECT grants for the dashboard metadata. Auth runtime reads remain
+denied. Rollback preserves all F03 telemetry rows and F04 admission state. A
+pre-existing PUBLIC policy blocks standard migration preflight before ledger
+write. No cloud migration or cloud grant was attempted.
+
+The HTTP/DB fixture uses real Nest controllers, session/membership checks,
+business/Auth LOGIN roles that are separate, non-owner and `NOBYPASSRLS`, the
+real F03 `AiUsageService`/Gemini wrapper path, and SDK/Auth fixtures only beyond
+the external boundaries. It verifies wrapper counters against persisted
+operation/call rows, multi-call and zero-call operations, success/error/timeout/
+cancelled/unknown/rejected outcome distinctions, complete/partial/missing/
+invalid usage, known zero vs null, a token aggregate above JavaScript's safe
+integer, multiple currencies/pricing versions, expiry, exact model cohort,
+tenant RLS, manager vs member/viewer/revoked access, and summary equality across
+pages. Synthetic rows are setup data only; one operation/call is written by the
+real service wrapper. Browser UI has not been exercised in this checkpoint.
+
+Final verification from source descended from `ef0450c`: typecheck, application
+tests, build, format, and guarded PG17 `test:database` all exited 0. Application
+tests passed API Vitest 365/365, API Node 855/855, and Web 448/448 (1,668 total).
+The database runner completed 39 serial test files with exit 0 and no file
+failure; its script does not emit an aggregate test count. Focused F06 results:
+API query validation 24/24, Web dashboard 5/5, runtime HTTP/RLS 14/14, and
+migration lifecycle 1/1. This supports `F06_CODE_VERIFIED`; browser acceptance
+remains `BROWSER_ACCEPTANCE_PENDING` because no browser tool was exposed. No
+browser result is inferred from API or React tests. This dashboard reports only
+persisted telemetry; it is not an invoice, hard monetary budget, complete
+request counter or realtime view. F05 browser acceptance, cloud rollout, Google
+live and Thắng's machine remain at their existing pending states.
+
+To rerun locally, use a marked disposable PostgreSQL 17 `TEST_DATABASE_URL`
+distinct from every runtime URL and run, sequentially:
+
+```text
+npm run typecheck
+npm test
+npm run build
+npm run format:check
+npm run test:database
+```
