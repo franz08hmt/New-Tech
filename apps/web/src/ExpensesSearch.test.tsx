@@ -7,7 +7,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Expense, ExpenseSearchPage } from "./api";
-import { ExpensesSearchPanel } from "./ExpensesSearchPanel";
+import { courseSpendPercent, ExpensesSearchPanel } from "./ExpensesSearchPanel";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
 import { configurePilotClient } from "./pilot-client";
 
@@ -81,6 +81,8 @@ function pageFor(url: string): ExpenseSearchPage {
   };
 }
 
+let responseFor: (url: string) => ExpenseSearchPage;
+
 function mount(
   role: "manager" | "member" | "viewer" = "manager",
   focusId?: string,
@@ -94,9 +96,14 @@ function mount(
 
 describe("ExpensesSearchPanel", () => {
   let calls: string[];
+  let outsideLookupCalls: number;
+  let outsideLookupFails: boolean;
 
   beforeEach(() => {
     calls = [];
+    outsideLookupCalls = 0;
+    outsideLookupFails = false;
+    responseFor = pageFor;
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date("2026-09-15T08:00:00.000Z"));
     configurePilotClient("a".repeat(43), true);
@@ -114,9 +121,13 @@ describe("ExpensesSearchPanel", () => {
             },
           ]);
         if (url.startsWith("/api/expenses/search"))
-          return Response.json(pageFor(url));
-        if (url === "/api/expenses/expense-outside")
+          return Response.json(responseFor(url));
+        if (url === "/api/expenses/expense-outside") {
+          outsideLookupCalls++;
+          if (outsideLookupFails)
+            return Response.json({ message: "not found" }, { status: 404 });
           return Response.json(outsideExpense);
+        }
         return Response.json({ message: "not found" }, { status: 404 });
       }),
     );
@@ -195,6 +206,265 @@ describe("ExpensesSearchPanel", () => {
       calls.some((call) => call.includes(`/api/expenses/${outsideExpense.id}`)),
     ).toBe(true);
     expect(screen.getByText("55.000 ₫")).toBeVisible();
+  });
+
+  it("hides a focused expense as soon as the active page includes it", async () => {
+    responseFor = (url) => {
+      const params = new URL(url, "http://127.0.0.1").searchParams;
+      const base = pageFor(url);
+      return params.has("fromDate")
+        ? base
+        : {
+            ...base,
+            items: [firstExpense, outsideExpense],
+            total: 2,
+            totalPages: 1,
+          };
+    };
+    mount("manager", outsideExpense.id);
+    expect(await screen.findByText(outsideExpense.description)).toBeVisible();
+    expect(
+      document.querySelectorAll(`[data-focus-id="${outsideExpense.id}"]`),
+    ).toHaveLength(1);
+
+    fireEvent.change(screen.getByLabelText("Khoảng thời gian chi tiêu"), {
+      target: { value: "all" },
+    });
+    await waitFor(() =>
+      expect(
+        calls.some((call) => {
+          if (!call.startsWith("GET /api/expenses/search?")) return false;
+          return !new URL(call.slice(4), "http://127.0.0.1").searchParams.has(
+            "fromDate",
+          );
+        }),
+      ).toBe(true),
+    );
+    await waitFor(() =>
+      expect(
+        document.querySelectorAll(`[data-focus-id="${outsideExpense.id}"]`),
+      ).toHaveLength(1),
+    );
+
+    fireEvent.change(screen.getByLabelText("Khoảng thời gian chi tiêu"), {
+      target: { value: "month" },
+    });
+    await waitFor(() => expect(outsideLookupCalls).toBe(2));
+    expect(
+      document.querySelectorAll(`[data-focus-id="${outsideExpense.id}"]`),
+    ).toHaveLength(1);
+  });
+
+  it("hides a stale lookup error when the list later contains that expense", async () => {
+    outsideLookupFails = true;
+    responseFor = (url) => {
+      const params = new URL(url, "http://127.0.0.1").searchParams;
+      const base = pageFor(url);
+      return params.has("fromDate")
+        ? base
+        : {
+            ...base,
+            items: [firstExpense, outsideExpense],
+            total: 2,
+            totalPages: 1,
+          };
+    };
+    mount("manager", outsideExpense.id);
+    expect(
+      await screen.findByText(
+        "This item is not available in the current workspace.",
+      ),
+    ).toBeVisible();
+
+    fireEvent.change(screen.getByLabelText("Khoảng thời gian chi tiêu"), {
+      target: { value: "all" },
+    });
+    expect(await screen.findByText(outsideExpense.description)).toBeVisible();
+    await waitFor(() =>
+      expect(
+        screen.queryByText(
+          "This item is not available in the current workspace.",
+        ),
+      ).toBeNull(),
+    );
+    expect(
+      document.querySelectorAll(`[data-focus-id="${outsideExpense.id}"]`),
+    ).toHaveLength(1);
+  });
+
+  it("normalizes course bars against the largest filtered course total", async () => {
+    const courseA = {
+      ...firstExpense,
+      id: "a-1",
+      amount: 10000,
+      course_id: "course-a",
+      course_slug: "course-a",
+      course_name: "Course A",
+      course_code: "A",
+    };
+    const courseASecond = { ...courseA, id: "a-2" };
+    const courseAThird = { ...courseA, id: "a-3", amount: 4000 };
+    const courseB = {
+      ...firstExpense,
+      id: "b-1",
+      amount: 10000,
+      course_id: "course-b",
+      course_slug: "course-b",
+      course_name: "Course B",
+      course_code: "B",
+    };
+    const summary = {
+      totalAmount: "44000",
+      largestAmount: "10000",
+      byCourse: [
+        {
+          course_id: "course-a",
+          course_slug: "course-a",
+          course_name: "Course A",
+          course_code: "A",
+          totalAmount: "24000",
+        },
+        {
+          course_id: "course-b",
+          course_slug: "course-b",
+          course_name: "Course B",
+          course_code: "B",
+          totalAmount: "20000",
+        },
+      ],
+    };
+    const courseBOtherExpenses = [
+      ...Array.from({ length: 17 }, (_, index) => ({
+        ...courseB,
+        id: `b-small-${index + 1}`,
+        amount: 500,
+      })),
+      { ...courseB, id: "b-final", amount: 1500 },
+    ];
+    const filteredExpenses = [
+      courseA,
+      courseASecond,
+      courseAThird,
+      courseB,
+      ...courseBOtherExpenses,
+    ];
+    responseFor = (url) => {
+      const page = Number(
+        new URL(url, "http://127.0.0.1").searchParams.get("page") ?? 1,
+      );
+      return {
+        items: filteredExpenses.slice((page - 1) * 20, page * 20),
+        page,
+        pageSize: 20,
+        total: filteredExpenses.length,
+        totalPages: 2,
+        summary,
+      };
+    };
+
+    mount();
+    await screen.findByText("Course A");
+    const courseAProgress = document.getElementById(
+      "spend-course-a",
+    ) as HTMLProgressElement;
+    const courseBProgress = document.getElementById(
+      "spend-course-b",
+    ) as HTMLProgressElement;
+    expect(Number(courseAProgress.getAttribute("value"))).toBe(100);
+    expect(Number(courseBProgress.getAttribute("value"))).toBeCloseTo(83.33, 2);
+    expect(screen.getByText(/so với môn có tổng chi cao nhất/)).toBeVisible();
+    const largest = screen
+      .getByText("Khoản lớn nhất trong kết quả")
+      .parentElement!.querySelector("dd");
+    expect(largest).toHaveTextContent("10.000 ₫");
+
+    fireEvent.click(screen.getByRole("button", { name: "Sau" }));
+    await waitFor(() => expect(screen.getByText("Trang 2 / 2")).toBeVisible());
+    expect(Number(courseBProgress.getAttribute("value"))).toBeCloseTo(83.33, 2);
+    expect(Number(courseAProgress.getAttribute("value"))).toBe(100);
+    expect(largest).toHaveTextContent("10.000 ₫");
+  });
+
+  it("keeps bar percentages finite for empty, zero, equal, and large values", () => {
+    expect(courseSpendPercent("0", "0")).toBe(0);
+    expect(courseSpendPercent("0", "24")).toBe(0);
+    expect(courseSpendPercent("24", "24")).toBe(100);
+    expect(courseSpendPercent("20000", "24000")).toBeCloseTo(83.33, 2);
+    const veryLarge = "900719925474099300000000000000";
+    expect(courseSpendPercent(veryLarge, veryLarge)).toBe(100);
+    expect(courseSpendPercent("0", veryLarge)).toBe(0);
+  });
+
+  it("gives tied top-spending courses equal full-length bars", async () => {
+    const courseA = {
+      ...firstExpense,
+      id: "equal-a",
+      amount: 12000,
+      course_id: "course-a",
+      course_slug: "course-a",
+      course_name: "Course A",
+      course_code: "A",
+    };
+    const courseB = {
+      ...courseA,
+      id: "equal-b",
+      course_id: "course-b",
+      course_slug: "course-b",
+      course_name: "Course B",
+      course_code: "B",
+    };
+    responseFor = () => ({
+      items: [courseA, courseB],
+      page: 1,
+      pageSize: 20,
+      total: 2,
+      totalPages: 1,
+      summary: {
+        totalAmount: "24000",
+        largestAmount: "12000",
+        byCourse: [
+          {
+            course_id: "course-a",
+            course_slug: "course-a",
+            course_name: "Course A",
+            course_code: "A",
+            totalAmount: "12000",
+          },
+          {
+            course_id: "course-b",
+            course_slug: "course-b",
+            course_name: "Course B",
+            course_code: "B",
+            totalAmount: "12000",
+          },
+        ],
+      },
+    });
+    mount();
+    await screen.findByText("Course A");
+    expect(
+      Number(document.getElementById("spend-course-a")?.getAttribute("value")),
+    ).toBe(100);
+    expect(
+      Number(document.getElementById("spend-course-b")?.getAttribute("value")),
+    ).toBe(100);
+  });
+
+  it("renders an empty aggregate without a progress bar or invalid number", async () => {
+    responseFor = () => ({
+      items: [],
+      page: 1,
+      pageSize: 20,
+      total: 0,
+      totalPages: 0,
+      summary: { totalAmount: "0", largestAmount: "0", byCourse: [] },
+    });
+    mount();
+    expect(
+      await screen.findByText("Không có khoản chi khớp bộ lọc này."),
+    ).toBeVisible();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(document.body.textContent).not.toMatch(/NaN|Infinity/);
   });
 
   it("keeps viewer read-only while preserving filtered reads", async () => {

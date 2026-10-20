@@ -87,9 +87,11 @@ function formatWholeDong(value: string) {
   return money.format(BigInt(value));
 }
 
-function courseSpendPercent(value: string, largest: string) {
-  const denominator = BigInt(largest);
+export function courseSpendPercent(value: string, largestCourseTotal: string) {
+  const denominator = BigInt(largestCourseTotal);
   if (denominator <= 0n) return 0;
+  // `largestCourseTotal` is computed from the same filtered groups, so this
+  // fixed-point ratio is bounded to 0..100 before converting to Number.
   return Number((BigInt(value) * 10_000n) / denominator) / 100;
 }
 
@@ -221,6 +223,16 @@ function ExpensesSearchPanelState({
 
   const rangeInvalid = !validRange(search.query);
   const summary = search.page?.summary;
+  const largestCourseTotal =
+    summary?.byCourse
+      .reduce(
+        (largest, group) =>
+          BigInt(group.totalAmount) > largest
+            ? BigInt(group.totalAmount)
+            : largest,
+        0n,
+      )
+      .toString() ?? "0";
   const hasFilters =
     Boolean(search.query.q?.trim()) ||
     search.query.category !== "all" ||
@@ -456,6 +468,10 @@ function ExpensesSearchPanelState({
                 <h3 id="spend-by-course" className="exam-group">
                   Chi theo môn học trong bộ lọc
                 </h3>
+                <p className="page-note">
+                  Độ dài thanh được so với môn có tổng chi cao nhất trong bộ
+                  lọc, không phải tỷ trọng của ngân sách.
+                </p>
                 <ul className="budget-bars">
                   {summary.byCourse.map((group) => (
                     <li key={group.course_id ?? "unassigned"}>
@@ -476,14 +492,14 @@ function ExpensesSearchPanelState({
                         id={`spend-${group.course_id ?? "none"}`}
                         value={courseSpendPercent(
                           group.totalAmount,
-                          summary.largestAmount,
+                          largestCourseTotal,
                         )}
                         max={100}
                       >
                         {Math.round(
                           courseSpendPercent(
                             group.totalAmount,
-                            summary.largestAmount,
+                            largestCourseTotal,
                           ),
                         )}
                         %

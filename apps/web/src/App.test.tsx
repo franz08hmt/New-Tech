@@ -2528,7 +2528,8 @@ describe("Academic workspace", () => {
       level: 3,
       name: "Chi theo môn học trong bộ lọc",
     });
-    const list = heading.nextElementSibling as HTMLElement;
+    const list =
+      heading.parentElement!.querySelector<HTMLElement>(".budget-bars")!;
     expect(within(list).getByText("150.000 ₫")).toBeInTheDocument();
     expect(within(list).getByText("35.000 ₫")).toBeInTheDocument();
     // Money that belongs to no subject must not silently vanish from the

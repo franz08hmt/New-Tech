@@ -206,6 +206,118 @@ describe("server-paged Exams route", () => {
     expect(screen.queryByText("Old workspace exam")).toBeNull();
   });
 
+  it("does not restore a delayed focused record after the principal changes", async () => {
+    vi.spyOn(api, "searchExams").mockResolvedValue(page([sample], 1));
+    let resolveOld!: (exam: Exam) => void;
+    const oldTarget = {
+      ...sample,
+      id: "old-target",
+      topic: "Old tenant target",
+    };
+    const newTarget = {
+      ...sample,
+      id: "old-target",
+      topic: "Current tenant target",
+    };
+    const getExam = vi
+      .spyOn(api, "getExam")
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (resolveOld = resolve)),
+      )
+      .mockResolvedValueOnce(newTarget);
+    const rendered = renderPanel("member", oldTarget.id);
+    await waitFor(() => expect(getExam).toHaveBeenCalledTimes(1));
+
+    rendered.rerender(
+      <PilotPrincipalContext.Provider
+        value={{
+          ...principal,
+          workspaceId: "33333333-3333-4333-8333-333333333333",
+        }}
+      >
+        <ExamsSearchPanel focusId={oldTarget.id} />
+      </PilotPrincipalContext.Provider>,
+    );
+    expect(await screen.findByText("Current tenant target")).toBeVisible();
+    await act(async () => resolveOld(oldTarget));
+
+    expect(screen.queryByText("Old tenant target")).toBeNull();
+    expect(
+      document.querySelectorAll(`[data-focus-id="${oldTarget.id}"]`),
+    ).toHaveLength(1);
+  });
+
+  it("renders a focused exam once when it enters the current search page", async () => {
+    const target = { ...sample, id: "exam-target", topic: "Target exam topic" };
+    const search = vi
+      .spyOn(api, "searchExams")
+      .mockImplementation(async (query) =>
+        query.q ? page([target], 1) : page([sample], 25),
+      );
+    const getExam = vi
+      .spyOn(api, "getExam")
+      .mockResolvedValueOnce(target)
+      .mockResolvedValueOnce({ ...target, topic: "Fresh target exam" });
+
+    renderPanel("member", target.id);
+    expect(await screen.findByText("Target exam topic")).toBeVisible();
+    expect(
+      document.querySelectorAll(`[data-focus-id="${target.id}"]`),
+    ).toHaveLength(1);
+
+    fireEvent.change(screen.getByLabelText("Search exams"), {
+      target: { value: "Target exam topic" },
+    });
+    await waitFor(() =>
+      expect(search).toHaveBeenLastCalledWith(
+        expect.objectContaining({ q: "Target exam topic", page: 1 }),
+        expect.any(AbortSignal),
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        document.querySelectorAll(`[data-focus-id="${target.id}"]`),
+      ).toHaveLength(1),
+    );
+
+    fireEvent.change(screen.getByLabelText("Search exams"), {
+      target: { value: "" },
+    });
+    expect(await screen.findByText("Fresh target exam")).toBeVisible();
+    expect(getExam).toHaveBeenCalledTimes(2);
+    expect(
+      document.querySelectorAll(`[data-focus-id="${target.id}"]`),
+    ).toHaveLength(1);
+  });
+
+  it("does not resurrect a delayed focused lookup after the target enters the page", async () => {
+    const target = { ...sample, id: "exam-target", topic: "Target exam topic" };
+    const search = vi
+      .spyOn(api, "searchExams")
+      .mockImplementation(async (query) =>
+        query.q ? page([target], 1) : page([sample], 25),
+      );
+    let resolveLookup!: (exam: Exam) => void;
+    vi.spyOn(api, "getExam").mockImplementation(
+      () => new Promise((resolve) => (resolveLookup = resolve)),
+    );
+
+    renderPanel("member", target.id);
+    await waitFor(() => expect(search).toHaveBeenCalledOnce());
+    fireEvent.change(screen.getByLabelText("Search exams"), {
+      target: { value: "Target exam topic" },
+    });
+    await screen.findByText("Target exam topic");
+    await act(async () => resolveLookup(target));
+
+    expect(
+      document.querySelectorAll(`[data-focus-id="${target.id}"]`),
+    ).toHaveLength(1);
+    expect(
+      screen.queryByText(/not available in the current workspace/i),
+    ).toBeNull();
+  });
+
   it("keeps viewer read-only while members can edit but not delete", async () => {
     vi.spyOn(api, "searchExams").mockResolvedValue(page([sample], 1));
     const viewer = renderPanel("viewer");
