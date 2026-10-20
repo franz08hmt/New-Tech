@@ -368,6 +368,41 @@ export interface Expense {
   updated_at: string;
 }
 
+export type ExpenseSearchSort = "spent_on" | "amount" | "description";
+export interface ExpenseSearchQuery {
+  q?: string;
+  category?: "all" | ExpenseCategory;
+  /** A workspace course UUID, or the `unassigned` sentinel. */
+  courseId?: string;
+  fromDate?: string;
+  toDate?: string;
+  sort?: ExpenseSearchSort;
+  direction?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+}
+export interface ExpenseCourseSummary {
+  course_id: string | null;
+  course_slug: string | null;
+  course_name: string;
+  course_code: string | null;
+  /** Exact whole-VND amount; returned as a decimal string to avoid bigint loss. */
+  totalAmount: string;
+}
+export interface ExpenseSearchPage {
+  items: Expense[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  /** Aggregates cover every row matching the filters, independent of page. */
+  summary: {
+    totalAmount: string;
+    largestAmount: string;
+    byCourse: ExpenseCourseSummary[];
+  };
+}
+
 /** Response of `GET /api/health`. */
 export interface HealthStatus {
   status: "ok" | "degraded";

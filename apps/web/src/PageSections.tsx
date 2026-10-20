@@ -15,7 +15,7 @@ import { ExamsPanel } from "./ExamsPanel";
 import { ExamsSearchPanel } from "./ExamsSearchPanel";
 import { StudyPlanPanel } from "./StudyPlanPanel";
 import { StudyPlansSearchPanel } from "./StudyPlansSearchPanel";
-import { BudgetPanel } from "./BudgetPanel";
+import { ExpensesSearchPanel } from "./ExpensesSearchPanel";
 import { CourseDetail } from "./CourseDetail";
 import { CoursesSearchPanel } from "./CoursesSearchPanel";
 import { DocumentsPanel } from "./DocumentsPanel";
@@ -132,7 +132,7 @@ export function PageSections({
         focusId={focusId}
       />
     );
-  if (pageId === "finances") return <BudgetPanel focusId={focusId} />;
+  if (pageId === "finances") return <ExpensesSearchPanel focusId={focusId} />;
   if (pageId === "assistant")
     return <AssistantSection onOpen={onOpenAssistant} />;
   return null;

@@ -10,6 +10,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceApp } from "./App";
 import type {
+  Expense,
   Exam,
   StoredDocument,
   StudyPlan,
@@ -83,6 +84,7 @@ const task: Task = {
   updated_at: "2026-09-09",
 };
 let appTasks: Task[];
+let appExpenses: Expense[];
 const course = {
   id: "course-1",
   slug: "cs-201",
@@ -346,7 +348,7 @@ function manyDocuments(): StoredDocument[] {
     created_at: new Date(Date.UTC(2026, 8, 15, 0, index)).toISOString(),
   }));
 }
-const expenseFixtures = [
+const expenseFixtures: Expense[] = [
   {
     id: "exp-1",
     amount: 35000,
@@ -480,6 +482,109 @@ function workspaceSearchResponse(url: string) {
     totalPages: Math.ceil(matching.length / pageSize),
   });
 }
+
+function expenseSearchResponse(rows: Expense[], url: string) {
+  const params = new URL(url, "http://127.0.0.1").searchParams;
+  const query = foldWorkspaceSearch(params.get("q") ?? "");
+  const category = params.get("category") ?? "all";
+  const courseId = params.get("courseId");
+  const fromDate = params.get("fromDate");
+  const toDate = params.get("toDate");
+  const sort = params.get("sort") ?? "spent_on";
+  const direction = params.get("direction") === "asc" ? 1 : -1;
+  const matching = rows
+    .filter(
+      (expense) =>
+        (!query ||
+          foldWorkspaceSearch(
+            `${expense.description} ${expense.course_name ?? ""} ${expense.course_code ?? ""}`,
+          ).includes(query)) &&
+        (category === "all" || expense.category === category) &&
+        (!courseId ||
+          (courseId === "unassigned"
+            ? expense.course_id === null
+            : expense.course_id === courseId)) &&
+        (!fromDate || expense.spent_on >= fromDate) &&
+        (!toDate || expense.spent_on <= toDate),
+    )
+    .sort((left, right) => {
+      const a =
+        sort === "amount"
+          ? left.amount
+          : sort === "description"
+            ? foldWorkspaceSearch(left.description)
+            : left.spent_on;
+      const b =
+        sort === "amount"
+          ? right.amount
+          : sort === "description"
+            ? foldWorkspaceSearch(right.description)
+            : right.spent_on;
+      const compared =
+        typeof a === "number" && typeof b === "number"
+          ? a - b
+          : String(a).localeCompare(String(b));
+      return compared * direction || left.id.localeCompare(right.id);
+    });
+  const groups = new Map<
+    string,
+    {
+      course_id: string | null;
+      course_slug: string | null;
+      course_name: string;
+      course_code: string | null;
+      totalAmount: bigint;
+    }
+  >();
+  for (const expense of matching) {
+    const key = expense.course_id ?? "unassigned";
+    const group = groups.get(key) ?? {
+      course_id: expense.course_id,
+      course_slug: expense.course_slug,
+      course_name: expense.course_name ?? "Không thuộc môn nào",
+      course_code: expense.course_code,
+      totalAmount: 0n,
+    };
+    group.totalAmount += BigInt(expense.amount);
+    groups.set(key, group);
+  }
+  const totalAmount = matching.reduce(
+    (sum, expense) => sum + BigInt(expense.amount),
+    0n,
+  );
+  const largestAmount = matching.reduce(
+    (max, expense) =>
+      BigInt(expense.amount) > max ? BigInt(expense.amount) : max,
+    0n,
+  );
+  const page = Number(params.get("page") ?? 1);
+  const pageSize = Number(params.get("pageSize") ?? 20);
+  return Response.json({
+    items: matching.slice((page - 1) * pageSize, page * pageSize),
+    page,
+    pageSize,
+    total: matching.length,
+    totalPages: matching.length ? Math.ceil(matching.length / pageSize) : 0,
+    summary: {
+      totalAmount: totalAmount.toString(),
+      largestAmount: largestAmount.toString(),
+      byCourse: [...groups.values()]
+        .sort((left, right) =>
+          left.totalAmount === right.totalAmount
+            ? String(left.course_id ?? "").localeCompare(
+                String(right.course_id ?? ""),
+              )
+            : left.totalAmount > right.totalAmount
+              ? -1
+              : 1,
+        )
+        .map((group) => ({
+          ...group,
+          totalAmount: group.totalAmount.toString(),
+        })),
+    },
+  });
+}
 /**
  * Builds the row a create endpoint returns: the submitted body, resolved
  * against the course fixtures, plus timestamps.
@@ -501,6 +606,7 @@ function createdRow(
 }
 beforeEach(() => {
   appExams = [...examFixtures];
+  appExpenses = [...expenseFixtures];
   appStudyPlans = [...planFixtures];
   appTasks = [
     task,
@@ -680,34 +786,38 @@ beforeEach(() => {
           { status: 200 },
         );
       }
+      if (url.startsWith("/api/expenses/search")) {
+        return expenseSearchResponse(appExpenses, url);
+      }
       if (url === "/api/expenses") {
         if (init?.method === "POST") {
-          // Echo what was sent, the way POST /api/expenses answers. Returning
-          // the whole fixture list here handed the component an array where it
-          // expected one row, and the sort that follows a create threw on
-          // `spent_on` being undefined — after the test had already passed,
-          // which is why it surfaced only as an unhandled error.
-          return new Response(
-            JSON.stringify(
-              createdRow(init, (body, course) => ({
-                id: "exp-new",
-                amount: body.amount,
-                description: body.description,
-                spent_on: body.spentOn,
-                category: body.category,
-                course_id: course?.id ?? null,
-                course_slug: course?.slug ?? null,
-                course_name: course?.name ?? null,
-                course_code: course?.code ?? null,
-              })),
-            ),
-            { status: 201 },
-          );
+          const created = createdRow(init, (body, course) => ({
+            id: "exp-new",
+            amount: body.amount,
+            description: body.description,
+            spent_on: body.spentOn,
+            category: body.category,
+            course_id: course?.id ?? null,
+            course_slug: course?.slug ?? null,
+            course_name: course?.name ?? null,
+            course_code: course?.code ?? null,
+          })) as Expense;
+          appExpenses = [created, ...appExpenses];
+          return Response.json(created, { status: 201 });
         }
-        return new Response(JSON.stringify(expenseFixtures), { status: 200 });
+        return Response.json(appExpenses);
       }
       if (url.startsWith("/api/expenses/") && init?.method === "DELETE") {
+        const id = url.slice("/api/expenses/".length);
+        appExpenses = appExpenses.filter((item) => item.id !== id);
         return new Response(null, { status: 204 });
+      }
+      if (url.startsWith("/api/expenses/")) {
+        const id = url.slice("/api/expenses/".length);
+        const expense = appExpenses.find((item) => item.id === id);
+        return expense
+          ? Response.json(expense)
+          : Response.json({ message: "not found" }, { status: 404 });
       }
       if (url.startsWith("/api/study-plans/search")) {
         const params = new URL(url, "http://127.0.0.1").searchParams;
@@ -2302,20 +2412,24 @@ describe("Academic workspace", () => {
     // Amounts repeat across the summary, the per-course bars and the rows, so
     // every assertion is scoped to the summary list it is actually about.
     const total = async () => {
-      const term = await screen.findByText(/^\u0110\u00e3 chi /);
+      const term = await screen.findByText("Tổng đã chi");
       return term.parentElement!.querySelector("dd")!.textContent;
     };
 
     expect(await total()).toBe("210.000 \u20ab");
 
-    fireEvent.click(screen.getByLabelText("Tu\u1ea7n n\u00e0y"));
+    fireEvent.change(screen.getByLabelText("Khoảng thời gian chi tiêu"), {
+      target: { value: "week" },
+    });
     // The week starts on Monday 14 Sep, so the 5 Sep fee drops out.
     expect(await total()).toBe("60.000 \u20ab");
     expect(
       screen.queryByText("L\u1ec7 ph\u00ed thi l\u1ea1i h\u1ecdc ph\u1ea7n"),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByLabelText("H\u00f4m nay"));
+    fireEvent.change(screen.getByLabelText("Khoảng thời gian chi tiêu"), {
+      target: { value: "day" },
+    });
     expect(await total()).toBe("35.000 \u20ab");
     expect(
       screen.queryByText("C\u00e0 ph\u00ea ng\u1ed3i h\u1ecdc nh\u00f3m"),
@@ -2328,19 +2442,26 @@ describe("Academic workspace", () => {
       description: "Sách giáo trình học kỳ trước",
       spent_on: "2026-08-20",
     };
-    function withExpenses(rows: object[]) {
+    function withExpenses(rows: Expense[]) {
       const existingFetch = globalThis.fetch;
       vi.stubGlobal(
         "fetch",
-        vi.fn(async (url: string, init?: RequestInit) =>
-          url === "/api/expenses" && init?.method !== "POST"
-            ? Response.json(rows)
-            : existingFetch(url, init),
-        ),
+        vi.fn(async (url: string, init?: RequestInit) => {
+          if (url.startsWith("/api/expenses/search"))
+            return expenseSearchResponse(rows, url);
+          if (url.startsWith("/api/expenses/") && init?.method !== "DELETE") {
+            const id = url.slice("/api/expenses/".length);
+            const expense = rows.find((row) => row.id === id);
+            return expense
+              ? Response.json(expense)
+              : Response.json({ message: "not found" }, { status: 404 });
+          }
+          return existingFetch(url, init);
+        }),
       );
     }
 
-    it("opens a wider period when the expense is outside this month, so its row exists", async () => {
+    it("opens an out-of-filter expense separately without changing the page or total", async () => {
       withExpenses([...expenseFixtures, august]);
       window.history.replaceState(null, "", "/#finances/exp-aug");
       render(<App />);
@@ -2348,10 +2469,15 @@ describe("Academic workspace", () => {
       expect(
         await screen.findByText("Sách giáo trình học kỳ trước"),
       ).toBeInTheDocument();
-      expect(screen.getByRole("radio", { name: "Tất cả" })).toBeChecked();
+      expect(screen.getByLabelText("Khoảng thời gian chi tiêu")).toHaveValue(
+        "month",
+      );
       expect(
-        document.querySelector('[data-focus-id="exp-aug"]'),
-      ).not.toBeNull();
+        screen.getByText(/không được cộng vào tổng hoặc trang kết quả/),
+      ).toBeInTheDocument();
+      expect(
+        document.querySelectorAll('[data-focus-id="exp-aug"]'),
+      ).toHaveLength(1);
     });
 
     it("leaves the period alone when the expense is already in it", async () => {
@@ -2360,7 +2486,9 @@ describe("Academic workspace", () => {
       render(<App />);
 
       await screen.findByText("Lệ phí thi lại học phần");
-      expect(screen.getByRole("radio", { name: "Tháng này" })).toBeChecked();
+      expect(screen.getByLabelText("Khoảng thời gian chi tiêu")).toHaveValue(
+        "month",
+      );
     });
 
     it("keeps this month as the default when no expense is linked", async () => {
@@ -2369,7 +2497,9 @@ describe("Academic workspace", () => {
       render(<App />);
 
       await screen.findByText("Lệ phí thi lại học phần");
-      expect(screen.getByRole("radio", { name: "Tháng này" })).toBeChecked();
+      expect(screen.getByLabelText("Khoảng thời gian chi tiêu")).toHaveValue(
+        "month",
+      );
       expect(
         screen.queryByText("Sách giáo trình học kỳ trước"),
       ).not.toBeInTheDocument();
@@ -2381,10 +2511,12 @@ describe("Academic workspace", () => {
       render(<App />);
       await screen.findByText("Lệ phí thi lại học phần");
 
-      fireEvent.click(screen.getByRole("radio", { name: "Tất cả" }));
+      fireEvent.change(screen.getByLabelText("Khoảng thời gian chi tiêu"), {
+        target: { value: "all" },
+      });
 
       expect(
-        screen.getByText("Sách giáo trình học kỳ trước"),
+        await screen.findByText("Sách giáo trình học kỳ trước"),
       ).toBeInTheDocument();
     });
   });
@@ -2394,7 +2526,7 @@ describe("Academic workspace", () => {
 
     const heading = await screen.findByRole("heading", {
       level: 3,
-      name: "Chi theo môn học",
+      name: "Chi theo môn học trong bộ lọc",
     });
     const list = heading.nextElementSibling as HTMLElement;
     expect(within(list).getByText("150.000 ₫")).toBeInTheDocument();

@@ -105,9 +105,11 @@ export function spendByCourse(expenses: Expense[]): CourseSpend[] {
   return [...totals.values()].sort((a, b) => b.total - a.total);
 }
 
-export function useExpenses(): ExpensesState {
+export function useExpenses({
+  loadList = true,
+}: { loadList?: boolean } = {}): ExpensesState {
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(loadList);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [requestNumber, setRequestNumber] = useState(0);
@@ -115,6 +117,12 @@ export function useExpenses(): ExpensesState {
   const reload = useCallback(() => setRequestNumber((value) => value + 1), []);
 
   useEffect(() => {
+    if (!loadList) {
+      setExpenses([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     let active = true;
     setLoading(true);
     setError(null);
@@ -137,7 +145,7 @@ export function useExpenses(): ExpensesState {
     return () => {
       active = false;
     };
-  }, [requestNumber]);
+  }, [loadList, requestNumber]);
 
   const create = useCallback<ExpensesState["create"]>(async (input) => {
     setBusy(true);

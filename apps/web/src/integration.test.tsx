@@ -130,17 +130,29 @@ it("keeps stored document visible when delete fails and retries a failed list", 
 });
 it("updates task status using server response and shows failed submission", async () => {
   window.history.replaceState(null, "", "/#tasks");
+  let currentTask = task;
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (_url: string, init?: RequestInit) => {
-      if (init?.method === "PATCH")
-        return Response.json({ ...task, status: "done" });
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "PATCH") {
+        currentTask = { ...task, status: "done" };
+        return Response.json(currentTask);
+      }
       if (init?.method === "POST")
         return Response.json(
           { message: ["title is invalid"], requestId: "demo-request" },
           { status: 400 },
         );
-      return Response.json([task]);
+      if (url.startsWith("/api/tasks/search"))
+        return Response.json({
+          items: [currentTask],
+          page: 1,
+          pageSize: 20,
+          total: 1,
+          totalPages: 1,
+          summary: { total: 1, done: currentTask.status === "done" ? 1 : 0 },
+        });
+      return Response.json([currentTask]);
     }),
   );
   render(

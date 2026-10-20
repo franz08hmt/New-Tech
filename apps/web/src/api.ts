@@ -28,6 +28,10 @@ export type {
   ExamSearchSort,
   Expense,
   ExpenseCategory,
+  ExpenseCourseSummary,
+  ExpenseSearchPage,
+  ExpenseSearchQuery,
+  ExpenseSearchSort,
   HealthStatus,
   SpeechLanguage,
   StoredDocument,
@@ -93,6 +97,10 @@ import type {
   Exam,
   Expense,
   ExpenseCategory,
+  ExpenseCourseSummary,
+  ExpenseSearchPage,
+  ExpenseSearchQuery,
+  ExpenseSearchSort,
   HealthStatus,
   SpeechLanguage,
   StoredDocument,
@@ -461,6 +469,20 @@ export const api = {
   deleteExam: (id: string) =>
     request<void>(`/api/exams/${id}`, { method: "DELETE" }),
   listExpenses: () => request<Expense[]>("/api/expenses"),
+  searchExpenses: (
+    query: ExpenseSearchQuery,
+    signal?: AbortSignal,
+  ): Promise<ExpenseSearchPage> => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query))
+      if (value !== undefined && value !== null) params.set(key, String(value));
+    const suffix = params.size ? `?${params.toString()}` : "";
+    return request<ExpenseSearchPage>(`/api/expenses/search${suffix}`, {
+      signal,
+    });
+  },
+  getExpense: (id: string, signal?: AbortSignal) =>
+    request<Expense>(`/api/expenses/${id}`, { signal }),
   createExpense: (input: {
     amount: number;
     description: string;
