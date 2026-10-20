@@ -637,6 +637,13 @@ lượt này; chúng không bị xóa hàng loạt.
   lifecycle-negative reads matched the exact eligibility oracle. Historical
   false-empty was not reproduced and remains INCONCLUSIVE; no ANN/ranking/scan
   policy change was made.
+- ACL fixture correction: the telemetry-failure test now snapshots table and
+  column ACLs, revokes the exact migration-019 INSERT columns, and restores those
+  column grants in `finally`. A deliberate table-wide INSERT restore mutation
+  failed the ACL snapshot assertion. After restore, the exact ACL snapshot and
+  business/Auth capability checks match baseline. Negative capability mutations
+  also prove a valid baseline, the specific catalog/visibility mutation, and a
+  valid capability after cleanup.
 - Latest gates: typecheck exit 0; npm test exit 0 (API Vitest 329, API Node 847,
   web 384; total 1,560); build exit 0; format:check exit 0; test:database exit 0
   on disposable PostgreSQL 17 (448 pass, 30 suites, 0 fail/skip/cancelled).

@@ -32,6 +32,14 @@ PG17 database gate pass. Application totals: API Vitest 329, API Node 847, web
 384 (1,560 total). Database: 448 pass across 30 serial suites, with zero failures,
 skips, or cancellations.
 
+A follow-up fixed the telemetry-failure test fixture: it now snapshots table and
+column ACLs, revokes only the migration-019 INSERT columns, and restores those
+column grants in `finally`. A deliberate table-wide INSERT restore mutation failed
+the ACL snapshot assertion; restored column grants return the capability and ACL
+snapshot to baseline. Negative capability tests now assert a valid baseline before
+each mutation and a valid capability after restoration. The PG17 database gate was
+rerun after this test change: 448/448 across 30 suites, zero fail/skip/cancelled.
+
 The required post-F03.1 desktop/375px browser run is BLOCKED: no browser/CUA
 automation tool is available in this session, and the prior isolated Chrome
 launch was rejected by tool policy. HTTP/DB tests do not replace that evidence.

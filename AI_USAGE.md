@@ -323,3 +323,13 @@ New gates: typecheck/build/format exit 0; API Vitest 329, API Node 847, web 384
 The shared-corpus run was bounded to 12 cycles and did not reproduce the historic
 false-empty; that finding remains inconclusive. F03_LOCAL_ACCEPTED is not claimed
 until the required browser run is completed.
+
+Follow-up verification corrected the telemetry-failure DB fixture's ACL cleanup.
+It now snapshots table/column grants, revokes and restores the INSERT columns
+from migration 019, and asserts the catalog snapshot plus both runtime capability
+checks return to baseline in `finally`. A table-wide INSERT cleanup mutation
+produced the expected RED ACL assertion; the column-scoped implementation is
+GREEN. The full disposable PG17 gate was rerun: 448 pass in 30 suites, no
+fail/skip/cancelled. The application gate was rerun: API Vitest 329, API Node 847,
+web 384; 1,560 total. Browser acceptance remains blocked by tool availability;
+no browser result or human review is claimed.
