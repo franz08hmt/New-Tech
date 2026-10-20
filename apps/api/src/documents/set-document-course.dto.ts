@@ -33,7 +33,10 @@ export class DocumentSearchQueryDto implements DocumentSearchQuery {
   @IsOptional()
   @IsString()
   @MaxLength(MAX_DOCUMENT_SEARCH_TEXT)
-  @ValidateIf((_object, value) => typeof value === "string" && value !== "")
+  // Only skip the content rule for the contract's empty query. Keeping the
+  // other validators active for arrays/objects prevents repeated query keys
+  // from bypassing @IsString and reaching DocumentsService.search().
+  @ValidateIf((_object, value) => value !== "")
   @Matches(/[\p{L}\p{N}]/u, {
     message: "q must contain at least one letter or number",
   })

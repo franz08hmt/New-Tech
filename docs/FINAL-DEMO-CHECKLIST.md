@@ -770,8 +770,11 @@ the matching total and stable sorting adds the document ID as a tie-breaker.
 Response metadata excludes PDF text, chunks, vectors and storage keys.
 
 The legacy full-array `GET /api/documents` remains for Assistant source loading
-and sidebar search; deep links continue through the scoped `GET /api/documents/:id`.
-The Documents page is not the Assistant's complete source universe. The sidebar
+and sidebar search. A route deep link outside the active Documents page uses a
+scoped `GET /api/documents/:id` and displays a separate focused card; a target
+already on the page is not duplicated. Sidebar result links use the same route
+behavior. The focused card does not change page items or totals, and the
+Documents page is not the Assistant's complete source universe. The sidebar
 still loads all document metadata, and search/pagination for other modules is
 pending. No migration or AI provider call was added.
 
@@ -819,3 +822,57 @@ No browser automation capability was exposed in this session. Desktop
 remain pending and are not inferred from React/HTTP tests. No cloud write,
 provider call, push or deployment occurred. Other modules and bounded sidebar
 search remain pending; this is not whole-app F05 acceptance.
+
+## F05.1 — query validation and scoped deep-link focus (20/10/2026)
+
+Finding A was reproduced before the fix through the real Nest/Express HTTP
+parser: `GET /api/documents/search?q=first&q=second` returned 500 because the
+DTO's conditional validator skipped non-string values and the service called
+`trim()`. The validator now skips only the content rule for the contract's
+empty string; string, maximum length and content checks remain active, while
+arrays and objects fail as 400 before `DocumentsService.search`. PG17/HTTP
+regressions cover repeated non-empty and empty keys, bracket array/object
+syntax, overlength input, special characters, Vietnamese text, missing/empty/
+whitespace input, safe error content, authenticated membership, and a service
+spy proving malformed requests make no search call. No search SQL or migration
+changed.
+
+Finding B was reproduced before the fix: a route ID outside page one did not
+appear until manually paging. `PageSections` now passes the route ID to
+`DocumentsPanel`. The panel uses the current page if it already contains the
+target; otherwise it issues one abortable, scoped `GET /api/documents/:id` and
+renders a separate focused card. This never changes the current page's items or
+total and never scans all pages. Direct route and sidebar-link regressions use
+40 synthetic documents. FE cases also cover out-of-filter and in-page targets,
+A-to-B response ordering, principal change with the same target ID, safe 403/
+404, read-only retry, viewer controls, and assign/re-index/delete on the focused
+card. Existing Assistant full-array sources and role/lifecycle handlers remain
+unchanged.
+
+RED/GREEN evidence: before the DTO correction, the actual HTTP regression
+failed with 500 instead of 400; after it, the focused Documents HTTP/PG17 suite
+passed 4/4 and the service-call spy stayed at zero for malformed queries.
+Before the focus wiring, the direct-route/sidebar integration regressions
+failed because no linked document was rendered; after it, the focused
+`DocumentsSearch.test.tsx` plus `App.test.tsx` run passed 138/138. These are
+automated tests, not browser evidence.
+
+Browser automation was checked in the current tool inventory and is not
+available. Therefore actual desktop 1440px/mobile 375px rendering, focus/scroll,
+keyboard navigation, browser network/console, and visual confirmation of the
+sidebar route remain pending. No browser or cloud acceptance is claimed. The
+final gate run on the F05.1 source revision exited 0 throughout:
+
+- `npm run typecheck` — exit 0.
+- `npm test` — exit 0; API Vitest 339/339, API Node 855/855, Web 403/403
+  (1,597 total; 0 failed, skipped or cancelled).
+- `npm run build` — exit 0.
+- `npm run format:check` — exit 0.
+- `npm run test:database` — exit 0 on the labeled PG17 disposable; 463/463
+  across 32 serial suite invocations, 0 failed, skipped or cancelled.
+
+Focused new/relevant evidence: `DocumentsSearch.test.tsx` plus `App.test.tsx`
+passed 140/140; the Nest/PG17 non-owner Documents HTTP suite passed 4/4,
+including the real-parser malformed-query cases. Browser acceptance remains
+pending as stated above. These are local regression results; they do not accept
+whole-app F05, other-module search, cloud rollout or live provider behavior.

@@ -37,7 +37,9 @@ export function useFocusTarget(focusId?: string) {
           window.setTimeout(() => attempt(waited + POLL_MS), POLL_MS);
         return;
       }
-      element.scrollIntoView({ block: "center", behavior: "auto" });
+      element.scrollIntoView?.({ block: "center", behavior: "auto" });
+      if (element.hasAttribute("data-focus-keyboard"))
+        element.focus({ preventScroll: true });
       element.classList.add("is-focus-target");
       marked = element;
       clear = window.setTimeout(() => {

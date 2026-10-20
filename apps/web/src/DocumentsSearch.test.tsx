@@ -5,9 +5,11 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DocumentSearchPage, StoredDocument } from "./api";
+import type { ComponentType } from "react";
+import { ApiError, type DocumentSearchPage, type StoredDocument } from "./api";
 import { api } from "./api";
 import { DocumentsPanel } from "./DocumentsPanel";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
@@ -61,6 +63,27 @@ function view(
   );
 }
 
+// Keep the route-facing prop in this regression before the panel's type is
+// extended, so RED reflects the missing lookup behavior rather than a TS error.
+const FocusableDocumentsPanel = DocumentsPanel as unknown as ComponentType<{
+  focusId?: string;
+}>;
+const focusView = (
+  focusId: string,
+  userId = "11111111-1111-4111-8111-111111111111",
+  role: "manager" | "member" | "viewer" = "manager",
+) => (
+  <PilotPrincipalContext.Provider
+    value={{
+      userId,
+      workspaceId: "22222222-2222-4222-8222-222222222222",
+      role,
+    }}
+  >
+    <FocusableDocumentsPanel focusId={focusId} />
+  </PilotPrincipalContext.Provider>
+);
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason?: unknown) => void;
@@ -105,6 +128,310 @@ afterEach(() => {
 });
 
 describe("Documents server search", () => {
+  it("loads a deep-linked document outside page one by its scoped id", async () => {
+    const target = row(99, "Page two target.pdf");
+    const lookup = vi.spyOn(api, "getDocument").mockResolvedValue(target);
+    render(focusView(target.id));
+
+    expect(
+      await screen.findByRole("heading", { name: "Linked document" }),
+    ).toBeVisible();
+    expect(await screen.findByText(target.name)).toBeVisible();
+    expect(lookup).toHaveBeenCalledExactlyOnceWith(
+      target.id,
+      expect.any(AbortSignal),
+    );
+    expect(api.searchDocuments).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("21 results", { exact: true })).toBeVisible();
+  });
+
+  it("does not duplicate a target already present on the current page", async () => {
+    const target = row(1, "Already on this page.pdf");
+    const lookup = vi.spyOn(api, "getDocument");
+    render(focusView(target.id));
+
+    expect(await screen.findByText("First.pdf")).toBeVisible();
+    await waitFor(() => expect(api.searchDocuments).toHaveBeenCalledTimes(1));
+    expect(lookup).not.toHaveBeenCalled();
+    expect(
+      document.querySelectorAll(`[data-focus-id="${target.id}"]`),
+    ).toHaveLength(1);
+  });
+
+  it("shows a filtered-out target separately without changing result totals", async () => {
+    const target = row(99, "Filtered target.pdf");
+    vi.spyOn(api, "getDocument").mockResolvedValue(target);
+    render(focusView(target.id));
+    fireEvent.change(screen.getByLabelText("Filter by processing status"), {
+      target: { value: "failed" },
+    });
+
+    expect(
+      await screen.findByText(/outside the current page or filters/i),
+    ).toBeVisible();
+    expect(api.searchDocuments).toHaveBeenLastCalledWith(
+      expect.objectContaining({ processing_status: "failed" }),
+      expect.any(AbortSignal),
+    );
+    expect(screen.getByText("21 results", { exact: true })).toBeVisible();
+    expect(await screen.findByText(target.name)).toBeVisible();
+  });
+
+  it("drops an old target response when navigation changes A to B", async () => {
+    const first = row(91, "Old linked document.pdf");
+    const second = row(92, "Current linked document.pdf");
+    const oldRead = deferred<StoredDocument>();
+    const newRead = deferred<StoredDocument>();
+    const lookup = vi
+      .spyOn(api, "getDocument")
+      .mockImplementation((id) =>
+        id === first.id ? oldRead.promise : newRead.promise,
+      );
+    const rendered = render(focusView(first.id));
+    await waitFor(() =>
+      expect(lookup).toHaveBeenCalledWith(first.id, expect.any(AbortSignal)),
+    );
+    const oldSignal = lookup.mock.calls[0][1]!;
+
+    rendered.rerender(focusView(second.id));
+    await waitFor(() =>
+      expect(lookup).toHaveBeenCalledWith(second.id, expect.any(AbortSignal)),
+    );
+    expect(oldSignal.aborted).toBe(true);
+    await act(async () => newRead.resolve(second));
+    expect(await screen.findByText(second.name)).toBeVisible();
+    await act(async () => oldRead.resolve(first));
+    expect(screen.queryByText(first.name)).toBeNull();
+    expect(screen.getByText(second.name)).toBeVisible();
+  });
+
+  it("does not show a delayed focused lookup after principal change", async () => {
+    const oldTarget = row(93, "Old principal document.pdf");
+    const newTarget = { ...oldTarget, name: "Current principal document.pdf" };
+    const oldRead = deferred<StoredDocument>();
+    const newRead = deferred<StoredDocument>();
+    let calls = 0;
+    const lookup = vi
+      .spyOn(api, "getDocument")
+      .mockImplementation((_id, signal) =>
+        signal?.aborted
+          ? Promise.reject(new DOMException("Aborted", "AbortError"))
+          : ++calls === 1
+            ? oldRead.promise
+            : newRead.promise,
+      );
+    const rendered = render(focusView(oldTarget.id));
+    await waitFor(() => expect(lookup).toHaveBeenCalledTimes(1));
+    rendered.rerender(
+      focusView(oldTarget.id, "33333333-3333-4333-8333-333333333333"),
+    );
+    await waitFor(() => expect(lookup).toHaveBeenCalledTimes(2));
+    await act(async () => newRead.resolve(newTarget));
+    expect(await screen.findByText(newTarget.name)).toBeVisible();
+    await act(async () => oldRead.resolve(oldTarget));
+    expect(screen.queryByText(oldTarget.name)).toBeNull();
+    expect(screen.getByText(newTarget.name)).toBeVisible();
+  });
+
+  it.each([400, 403, 404])(
+    "keeps a denied or missing focused target non-disclosing (%s)",
+    async (status) => {
+      const target = row(95, "Private target.pdf");
+      vi.spyOn(api, "getDocument").mockRejectedValue(
+        new ApiError("Sensitive workspace detail", "NOT_FOUND", status),
+      );
+      render(focusView(target.id));
+
+      expect(
+        await screen.findByText(
+          /no longer available in the current workspace/i,
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText(target.name)).toBeNull();
+      expect(screen.queryByText(/Sensitive workspace detail/)).toBeNull();
+    },
+  );
+
+  it("keeps focused lookup retry read-only after a transient failure", async () => {
+    const target = row(96, "Retry target.pdf");
+    const lookup = vi
+      .spyOn(api, "getDocument")
+      .mockRejectedValueOnce(new Error("temporary read failure"))
+      .mockResolvedValueOnce(target);
+    render(focusView(target.id));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not check this linked document",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retry document lookup" }),
+    );
+    expect(await screen.findByText(target.name)).toBeVisible();
+    expect(lookup).toHaveBeenCalledTimes(2);
+    expect(api.processDocument).not.toHaveBeenCalled();
+  });
+
+  it("keeps viewer focused cards read-only", async () => {
+    const target = row(97, "Viewer linked document.pdf");
+    vi.spyOn(api, "getDocument").mockResolvedValue(target);
+    render(focusView(target.id, undefined, "viewer"));
+
+    expect(await screen.findByText(target.name)).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: `Download ${target.name}` }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: `Index ${target.name}` }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: `Delete ${target.name}` }),
+    ).toBeNull();
+    expect(screen.getByLabelText(`Course for ${target.name}`)).toBeDisabled();
+  });
+
+  it("keeps the focused target while upload refreshes the paged library", async () => {
+    const target = row(96, "Existing focused document.pdf");
+    const uploaded = row(97, "New upload.pdf");
+    vi.spyOn(api, "getDocument").mockResolvedValue(target);
+    const upload = vi.spyOn(api, "uploadDocument").mockResolvedValue(uploaded);
+    render(focusView(target.id));
+
+    expect(await screen.findByText(target.name)).toBeVisible();
+    const file = new File(["%PDF-1.7\n"], uploaded.name, {
+      type: "application/pdf",
+    });
+    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+      target: { files: [file] },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: `Upload ${uploaded.name}` }),
+    );
+
+    await waitFor(() =>
+      expect(upload).toHaveBeenCalledExactlyOnceWith(file, undefined),
+    );
+    await waitFor(() => expect(api.searchDocuments).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(api.getDocument).toHaveBeenCalledTimes(2));
+    expect(screen.getByText(target.name)).toBeVisible();
+    expect(
+      screen.getByText(`${uploaded.name} stored successfully.`),
+    ).toBeVisible();
+    expect(api.processDocument).not.toHaveBeenCalled();
+  });
+
+  it("uses existing assign, re-index and delete handlers for the focused document", async () => {
+    const target = row(98, "Manage linked document.pdf");
+    const assigned = { ...target, course_id: "course-focused" };
+    const reconciled = { ...assigned, processing_status: "ready" as const };
+    vi.mocked(useCourses).mockReturnValue({
+      courses: [
+        {
+          id: "course-focused",
+          slug: "focused-course",
+          name: "Focused course",
+          code: "FC-1",
+          detail: "",
+          progress: 0,
+          tone: "slate",
+          cover: "",
+          cover_alt: "",
+          outline: [],
+          outcomes: [],
+          assessment: [],
+          created_at: "2026-10-20T00:00:00.000Z",
+          updated_at: "2026-10-20T00:00:00.000Z",
+        },
+      ],
+      loading: false,
+      error: null,
+      retry: vi.fn(),
+    } as never);
+    const lookup = vi
+      .spyOn(api, "getDocument")
+      .mockResolvedValueOnce(target)
+      .mockResolvedValueOnce(assigned)
+      .mockResolvedValueOnce(reconciled)
+      .mockRejectedValueOnce(
+        new ApiError("Not found", "DOCUMENT_NOT_FOUND", 404),
+      );
+    const process = vi.mocked(api.processDocument);
+    process
+      .mockResolvedValueOnce({
+        document_id: target.id,
+        processing_status: "ready",
+        chunk_count: 1,
+        indexed_at: "2026-10-20T00:00:00.000Z",
+        index_quality: {
+          total_page_count: 1,
+          useful_text_page_count: 1,
+          low_text_page_count: 0,
+          indexed_chunk_count: 1,
+          skipped_page_numbers: [],
+          needs_ocr: false,
+          ocr_page_count: 0,
+          ocr_page_numbers: [],
+        },
+      })
+      .mockRejectedValueOnce(new Error("Lost response"));
+    const assign = vi
+      .spyOn(api, "setDocumentCourse")
+      .mockResolvedValue(assigned);
+    const remove = vi.spyOn(api, "deleteDocument").mockResolvedValue();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(focusView(target.id));
+    const focusedCard = () =>
+      within(document.querySelector(`[data-focus-id="${target.id}"]`)!);
+
+    expect(await screen.findByText(target.name)).toBeVisible();
+    fireEvent.change(screen.getByLabelText(`Course for ${target.name}`), {
+      target: { value: "course-focused" },
+    });
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledExactlyOnceWith(
+        target.id,
+        "course-focused",
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText(`Course for ${target.name}`)).toHaveValue(
+        "course-focused",
+      ),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: `Re-index ${target.name}` }),
+    );
+    await waitFor(() =>
+      expect(api.processDocument).toHaveBeenCalledExactlyOnceWith(target.id),
+    );
+    expect(
+      await focusedCard().findByText(/Searchable content ready/),
+    ).toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: `Re-index ${target.name}` }),
+    );
+    await waitFor(() => expect(process).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(lookup).toHaveBeenCalledTimes(3));
+    expect(
+      await focusedCard().findByText(/Searchable content ready/),
+    ).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent("Lost response");
+    expect(process).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: `Delete ${target.name}` }),
+    );
+    expect(remove).toHaveBeenCalledExactlyOnceWith(target.id);
+    await waitFor(() => expect(lookup).toHaveBeenCalledTimes(4));
+    await waitFor(() =>
+      expect(
+        screen.getByText(/no longer available in the current workspace/i),
+      ).toBeVisible(),
+    );
+    expect(screen.queryByText(target.name)).toBeNull();
+  });
+
   it("sends bounded query controls to the server and resets pagination on filter changes", async () => {
     render(view());
     await screen.findByText("First.pdf");

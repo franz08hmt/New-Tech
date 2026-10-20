@@ -114,7 +114,12 @@ export function PageSections({
     );
   }
   if (pageId === "documents")
-    return <DocumentsPanel onDocumentsChanged={onDocumentsChanged} />;
+    return (
+      <DocumentsPanel
+        onDocumentsChanged={onDocumentsChanged}
+        focusId={focusId}
+      />
+    );
   if (pageId === "finances") return <BudgetPanel focusId={focusId} />;
   if (pageId === "assistant")
     return <AssistantSection onOpen={onOpenAssistant} />;

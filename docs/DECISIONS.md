@@ -369,7 +369,11 @@ space-separated metadata; user wildcard characters do not act as SQL wildcards.
 No PDF/chunk content, storage key, AI call or schema migration is involved.
 
 The page is not the Assistant's source universe. Assistant loading remains on
-the legacy scoped list and deep links use the scoped single-document lookup.
-The legacy sidebar still loads all document metadata; moving it, or adding
-search/pagination to other modules, is explicitly pending. One-statement
-consistency is per PostgreSQL statement, not a multi-request snapshot.
+the legacy scoped list. A route focus ID not present on the active result page
+uses one scoped `GET /api/documents/:id` and appears in a separate focused card;
+it does not alter the paged items or total, and an ID already on the page is
+not duplicated. The lookup is aborted/revision-checked across target and
+principal changes. The legacy sidebar still loads all document metadata;
+moving it, or adding search/pagination to other modules, is explicitly
+pending. One-statement consistency is per PostgreSQL statement, not a
+multi-request snapshot.

@@ -8,6 +8,7 @@ import {
 } from "./documents-tenant-fixture.mjs";
 import { authFixture } from "./auth-fixture.mjs";
 import { httpApp, json, pdfForm } from "./helpers.mjs";
+import { DocumentsService } from "../dist/documents/documents.service.js";
 const [A, B] = tenants;
 let f;
 before(async () => {
@@ -271,7 +272,7 @@ for (const role of ["manager", "member", "viewer"])
     }
   });
 
-test("Documents paged search is scoped, validated, stable and metadata-only on PG17 non-owner LOGIN", async () => {
+test("Documents paged search is scoped, validated, stable and metadata-only on PG17 non-owner LOGIN", async (t) => {
   const auth = authFixture();
   auth.config.workspaceId = A.id;
   auth.config.origin = "http://127.0.0.1:5173";
@@ -515,6 +516,34 @@ test("Documents paged search is scoped, validated, stable and metadata-only on P
           row.processing_status === "ready",
       ),
     );
+
+    // Regression: repeated q arrives as an array through the actual HTTP
+    // query parser. DTO validation must reject it before the service's trim
+    // or the tenant-scoped search statement runs.
+    const searchService = server.app.get(DocumentsService);
+    const searchSpy = t.mock.method(searchService, "search");
+    for (const malformed of [
+      "/documents/search?q=F05_REPEATED_QUERY_SENTINEL&q=second",
+      "/documents/search?q=&q=",
+      "/documents/search?q%5B%5D=first&q%5B%5D=second",
+      "/documents/search?q%5Bfield%5D=first",
+    ]) {
+      const calls = searchSpy.mock.callCount();
+      const response = await request(malformed);
+      const text = await response.text();
+      assert.equal(response.status, 400, malformed);
+      assert.equal(searchSpy.mock.callCount(), calls, malformed);
+      assert.doesNotMatch(text, /F05_REPEATED_QUERY_SENTINEL|first|second/);
+      assert.doesNotMatch(text, /TypeError|trim\(|stack|query/i);
+    }
+    for (const validEmpty of [
+      "/documents/search?q=",
+      "/documents/search?q=%20%20%20",
+    ]) {
+      const response = await request(validEmpty);
+      assert.equal(response.status, 200, validEmpty);
+      assert.equal((await response.json()).total, 225);
+    }
 
     for (const invalid of [
       "/documents/search?page=1&page=2",

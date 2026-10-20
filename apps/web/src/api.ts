@@ -442,8 +442,10 @@ export const api = {
     });
   },
   listDocuments: () => request<StoredDocument[]>("/api/documents"),
-  getDocument: (id: string) =>
-    request<StoredDocument>(`/api/documents/${encodeURIComponent(id)}`),
+  getDocument: (id: string, signal?: AbortSignal) =>
+    request<StoredDocument>(`/api/documents/${encodeURIComponent(id)}`, {
+      signal,
+    }),
   uploadDocument: (file: File, courseId?: string) => {
     const body = new FormData();
     body.append("file", file);

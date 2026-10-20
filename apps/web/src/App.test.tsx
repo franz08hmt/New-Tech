@@ -327,6 +327,17 @@ function documentSearchResponse(rows: readonly SearchFixture[], url: string) {
     totalPages: Math.ceil(filtered.length / pageSize),
   });
 }
+function manyDocuments(): StoredDocument[] {
+  return Array.from({ length: 40 }, (_, index) => ({
+    ...documentFixtures[0],
+    id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+    name:
+      index === 0
+        ? "Special target outside page one.pdf"
+        : `Paged document ${String(index + 1).padStart(2, "0")}.pdf`,
+    created_at: new Date(Date.UTC(2026, 8, 15, 0, index)).toISOString(),
+  }));
+}
 const expenseFixtures = [
   {
     id: "exp-1",
@@ -1137,6 +1148,99 @@ describe("Academic workspace", () => {
     expect(processCalls).toBe(1);
     expect(listReads).toBe(3);
   });
+  it("loads a direct deep link outside the first Documents page by scoped ID", async () => {
+    const records = manyDocuments();
+    const target = records[0];
+    const searchReads: string[] = [];
+    let targetReads = 0;
+    const existingFetch = globalThis.fetch;
+    window.history.replaceState(null, "", `/#documents/${target.id}`);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.startsWith("/api/documents/search")) {
+          searchReads.push(url);
+          return documentSearchResponse(records, url);
+        }
+        if (url === "/api/documents" && init?.method !== "POST")
+          return Response.json(records);
+        if (url === `/api/documents/${target.id}` && init?.method !== "POST") {
+          targetReads++;
+          return Response.json(target);
+        }
+        return existingFetch(url, init);
+      }),
+    );
+
+    render(<App />);
+    expect(
+      await screen.findByRole("heading", { name: "Linked document" }),
+    ).toBeVisible();
+    expect(await screen.findByText(target.name)).toBeVisible();
+    expect(screen.getByText("40 results")).toBeVisible();
+    expect(searchReads).toHaveLength(1);
+    expect(
+      new URL(searchReads[0], "http://127.0.0.1").searchParams.get("page"),
+    ).toBe("1");
+    expect(targetReads).toBe(1);
+    expect(
+      document.querySelectorAll(`[data-focus-id="${target.id}"]`),
+    ).toHaveLength(1);
+    expect(
+      document.querySelector(`[data-focus-id="${target.id}"]`),
+    ).toHaveAttribute("tabindex", "-1");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        document.querySelector(`[data-focus-id="${target.id}"]`),
+      ),
+    );
+  });
+
+  it("opens the sidebar's document link in a focused lookup without paging through the library", async () => {
+    const records = manyDocuments();
+    const target = records[0];
+    let targetReads = 0;
+    const searchReads: string[] = [];
+    const existingFetch = globalThis.fetch;
+    window.history.replaceState(null, "", "/#dashboard");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.startsWith("/api/documents/search")) {
+          searchReads.push(url);
+          return documentSearchResponse(records, url);
+        }
+        if (url === "/api/documents" && init?.method !== "POST")
+          return Response.json(records);
+        if (url === `/api/documents/${target.id}` && init?.method !== "POST") {
+          targetReads++;
+          return Response.json(target);
+        }
+        return existingFetch(url, init);
+      }),
+    );
+
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Find an object"), {
+      target: { value: "Special target outside page one" },
+    });
+    const results = await screen.findByRole("region", {
+      name: "Search results",
+    });
+    const resultLink = within(results).getByRole("link", {
+      name: /Special target outside page one/,
+    });
+    expect(resultLink).toHaveAttribute("href", `#documents/${target.id}`);
+    fireEvent.click(resultLink);
+
+    expect(
+      await screen.findByRole("heading", { name: "Linked document" }),
+    ).toBeVisible();
+    expect(await screen.findByText(target.name)).toBeVisible();
+    expect(targetReads).toBe(1);
+    expect(searchReads).toHaveLength(1);
+  });
+
   it("reconciles a failed index POST from the server before exposing the source", async () => {
     window.history.replaceState(null, "", "/#documents");
     let serverDocument = { ...documentFixtures[0] };

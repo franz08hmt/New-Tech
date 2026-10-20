@@ -3,6 +3,36 @@
 Cập nhật 20/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
+## F05.1 checkpoint — Documents search validation and deep-link focus (20/10/2026)
+
+F05.1 fixes two reproduced defects without changing the Documents search SQL,
+Assistant source contract, RLS or schema. `DocumentSearchQueryDto` now applies
+the empty-query exception only to its content rule. Repeated `q`, array and
+object values stay non-strings and fail HTTP validation before
+`DocumentsService.search`; missing, empty and whitespace queries preserve the
+existing contract. Before the fix the real Nest/Express request with repeated
+`q` returned 500; the regression now expects 400 and spies that the service is
+not called.
+
+`PageSections` forwards the route focus ID to `DocumentsPanel`. If it is not in
+the current result page, the panel makes one scoped `GET /api/documents/:id`
+and displays a separate focused card; it does not change the paged items/total
+or load every page. If the item is already on the page, it is not duplicated.
+The lookup is abortable and revision-keyed by principal/workspace and target;
+stale responses are ignored, and 400/401/403/404 do not disclose metadata.
+Transient lookup errors have an explicit read-only retry. Existing role-gated
+actions and Assistant's legacy full-array source loader remain unchanged.
+
+Focused FE regressions cover 40-item route and sidebar links, out-of-page and
+out-of-filter targets, A-to-B ordering, principal change, denied/missing IDs,
+read retry, viewer controls, and focused assign/re-index/delete. The actual
+HTTP/PG17 regression covers repeated/array/object query forms. Browser
+acceptance remains pending because this session exposes no browser automation
+tool; the current status is `F05.1_CODE_VERIFIED +
+F05.1_BROWSER_ACCEPTANCE_PENDING`, not browser acceptance or whole-app F05
+acceptance. Latest gates and exact counts
+are in [the demo checklist](FINAL-DEMO-CHECKLIST.md).
+
 ## F05 Documents search — local vertical slice (20/10/2026)
 
 The Documents screen uses an additive `GET /api/documents/search` endpoint
@@ -38,8 +68,10 @@ the list filter.
 
 The existing `GET /api/documents` array remains unpaged for `useDocuments`,
 Assistant source loading and the legacy sidebar search. The Documents page is
-not treated as the Assistant's full source set; a scoped `GET /api/documents/:id`
-still resolves deep links outside the current page. The legacy sidebar still
+not treated as the Assistant's full source set. For a route focus ID outside
+the current page, `DocumentsPanel` now performs a separate scoped
+`GET /api/documents/:id` and renders a focused card without changing page items
+or totals; sidebar links use the same route behavior. The legacy sidebar still
 loads its complete document list; bounded sidebar search and Tasks/Courses/
 Exams/Study plans/Expenses are outside this vertical slice. No migration, AI
 provider or semantic search call was added. Automated API/FE/PG17 evidence and
@@ -367,7 +399,7 @@ chiếu lịch sử. Không chạy lại phần đã có hoặc biến kế ho�
 | F02 | Hoàn tất B2: runtime non-owner/NOBYPASSRLS, grants tối thiểu, tenant RLS toàn app, rollout/rollback cloud                  | F02-A local acceptance đạt qua browser+Nest+PG17 LOGIN business/Auth non-owner; F02-B/cloud runtime provisioning/rollout vẫn pending, không coi B2 toàn app xong |
 | F03 | Prompt tập trung/version; metadata request/provider calls, token, latency, outcome, chi phí ước tính                       | Code và tích hợp HTTP/DB PG17 đã kiểm; nghiệm thu browser desktop/375px sau instrumentation còn pending; chưa nhận F03 đầy đủ                                    |
 | F04 | B3: cap user/ngày, concurrency, fan-out summary/index/OCR; admission nguyên tử và bền vững                                 | Migration 020/contract v20 triển khai local; automated gates pass, browser acceptance pending; không phải monetary budget hay dashboard F06                      |
-| F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Documents FE–API–DB vertical slice implemented with automated tests; browser acceptance pending; sidebar and other modules remain                                                                 |
+| F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Documents FE–API–DB vertical slice implemented with automated tests; browser acceptance pending; sidebar and other modules remain                                |
 | F06 | Dashboard AI cho admin đúng workspace: request/provider calls, token/cost/latency/lỗi/từ chối và filters                   | Pending; đây là yêu cầu usage dashboard, không phải Finances hay billing                                                                                         |
 | F07 | N1 lưu bền, mở lại/xóa, retention/quyền; receipt/history/reset/account isolation                                           | Pending persistence; history trong tab/SSE và draft revision đã có, không viết lại                                                                               |
 | F08 | N2 Study Coach: structured quiz/flashcards, nguồn, preview/xác nhận lưu, luyện tập/tiến độ cá nhân                         | Pending                                                                                                                                                          |
@@ -378,7 +410,7 @@ chiếu lịch sử. Không chạy lại phần đã có hoặc biến kế ho�
 | F13 | WASM PoC có profiling/benchmark, cancel/fallback/license; chỉ tích hợp nếu chứng minh lợi ích                              | Nhánh mở rộng, không bắt buộc rubric; tác vụ cụ thể chưa chốt                                                                                                    |
 | F14 | Native client tái sử dụng API: OAuth/deep link, secure storage, build/thiết bị                                             | Nhánh mở rộng, không bắt buộc rubric; stack chưa chốt                                                                                                            |
 | F15 | Đã bỏ khỏi kế hoạch phát triển: không mở rộng tool-using agent lên 3 tools                                                 | Theo Tài ngày 19/10/2026; chỉ giữ phạm vi 2 tools ban đầu, không tự thêm tool thứ ba hoặc nhận đạt capability B của rubric                                       |
-| F16 | Compose E2E/traceability, ít nhất 3 ADR, AI_USAGE, PDF 10–20 trang, slide tối đa 15 trang, video 3–5 phút, live change/Q&A | Pending bộ nộp; ADR-001–004 đã ghi, không nhận đã hoàn thành đầu ra F16                                                                                         |
+| F16 | Compose E2E/traceability, ít nhất 3 ADR, AI_USAGE, PDF 10–20 trang, slide tối đa 15 trang, video 3–5 phút, live change/Q&A | Pending bộ nộp; ADR-001–004 đã ghi, không nhận đã hoàn thành đầu ra F16                                                                                          |
 
 ### Điều chỉnh phạm vi đã chốt — 19/10/2026
 

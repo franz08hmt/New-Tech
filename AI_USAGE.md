@@ -435,3 +435,28 @@ still within 113 pages); the fixture was corrected to page 114, then both the
 focused and full DB suites passed. This was not a production defect. No
 independent human review is claimed. No cloud write, paid provider call, push
 or deployment occurred.
+
+## 2026-10-20 - F05.1 Documents validation and deep-link correction (Codex)
+
+AI assistance reproduced the repeated-query failure through the running Nest
+HTTP parser, added the PG17-backed validation regression, and changed the DTO
+condition so non-string values are rejected before the search service. It also
+connected the route focus ID to a separate, scoped document lookup and focused
+card. The FE regressions cover page/sidebar navigation, out-of-filter targets,
+stale request and principal changes, non-disclosure, permissions and lifecycle
+actions. The existing paged response and Assistant's legacy complete source
+list were left intact.
+
+Verification uses synthetic tenant/document data, the local PostgreSQL 17
+disposable and the existing non-owner business/Auth LOGIN fixture. No cloud,
+real account, Storage or AI provider was used. The HTTP regression failed with
+500 before the fix and expects 400 with zero search-service calls afterward;
+the route/sidebar FE integration cases failed before the focus wiring and pass
+after it. On the final pre-commit source, typecheck, test, build, format and
+database gates all exited 0. `npm test` passed API Vitest 339/339, API Node
+855/855 and Web 403/403 (1,597 total); guarded PG17 database tests passed
+463/463 across 32 serial suites. Focused Documents/App tests passed 140/140 and
+the Documents HTTP/PG17 suite passed 4/4. Exact commands and browser limits are
+recorded in the F05.1 section of FINAL-DEMO-CHECKLIST. Browser automation was
+not exposed, so desktop/mobile UI acceptance remains pending. No human review
+is claimed; no cloud writes, push or deployment occurred.

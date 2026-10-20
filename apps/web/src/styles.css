@@ -2075,6 +2075,25 @@
     font-size: 12px;
     font-weight: 600;
   }
+  .document-focused {
+    min-width: 0;
+    margin: 14px 0 18px;
+    padding: 14px;
+    border: 1px solid var(--color-line);
+    border-radius: 7px;
+    background: #fbfcfa;
+  }
+  .document-focused h3 {
+    margin: 0 0 7px;
+  }
+  .document-focused > p {
+    margin: 5px 0 10px;
+    color: var(--color-muted);
+    font-size: 10px;
+  }
+  .document-focused-card {
+    min-width: 0;
+  }
   .upload-panel > p {
     max-width: 460px;
     margin: 5px auto;

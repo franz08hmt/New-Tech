@@ -31,13 +31,20 @@ interface LocalDocument {
   state: "selected" | "uploading" | "failed";
   error?: string;
 }
+type FocusLookup = {
+  key: string;
+  status: "loading" | "ready" | "unavailable" | "error";
+  document?: StoredDocument;
+};
 const message = (error: unknown) =>
   error instanceof Error ? error.message : "Operation failed. Please retry.";
 
 export function DocumentsPanel({
   onDocumentsChanged,
+  focusId,
 }: {
   onDocumentsChanged?: () => void;
+  focusId?: string;
 }) {
   const principal = useContext(PilotPrincipalContext);
   const canWrite =
@@ -85,10 +92,16 @@ export function DocumentsPanel({
   const notifyAssistantAfterRead = useRef(false);
   const lifetime = useRef(0);
   const identity = `${principal?.userId ?? ""}:${principal?.workspaceId ?? ""}`;
+  const hasPrincipal = !!principal;
   // Synchronous identity check also covers a response resolving in the batch
   // before an old view's effect cleanup runs. PilotAccess normally remounts it.
   const currentIdentity = useRef(identity);
   currentIdentity.current = identity;
+  const focusKey = focusId ? `${identity}:${focusId}` : "";
+  const focusKeyRef = useRef(focusKey);
+  focusKeyRef.current = focusKey;
+  const focusRevision = useRef(0);
+  const focusController = useRef<AbortController | null>(null);
   const searchArgs = useMemo<DocumentSearchQuery>(
     () => ({
       q: searchQuery || undefined,
@@ -128,6 +141,10 @@ export function DocumentsPanel({
     Record<string, { denied: boolean }>
   >({});
   const [indexErrors, setIndexErrors] = useState<Record<string, string>>({});
+  const [focusLookup, setFocusLookup] = useState<FocusLookup | null>(null);
+  const [focusRetryVersion, setFocusRetryVersion] = useState(0);
+  const pageContainsFocus =
+    !!focusId && !readPending && documents.some((item) => item.id === focusId);
   useEffect(() => {
     if (!canWrite) {
       setSelected([]);
@@ -229,6 +246,73 @@ export function DocumentsPanel({
     searchArgs,
     sort,
     storageFilter,
+  ]);
+  useEffect(() => {
+    const revisionAtStart = ++focusRevision.current;
+    const key = focusKey;
+    const owner = identity;
+    focusController.current?.abort();
+    focusController.current = null;
+    if (!focusId || !hasPrincipal) {
+      setFocusLookup(null);
+      return;
+    }
+    if (readPending && !listError) {
+      setFocusLookup({ key, status: "loading" });
+      return;
+    }
+    if (!listError && pageContainsFocus) {
+      // The active result page already supplies the focus target. Do not
+      // duplicate its card or alter the page's count/items.
+      setFocusLookup(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    focusController.current = controller;
+    setFocusLookup({ key, status: "loading" });
+    const isCurrent = () =>
+      revisionAtStart === focusRevision.current &&
+      owner === currentIdentity.current &&
+      key === focusKeyRef.current &&
+      !controller.signal.aborted;
+    void api
+      .getDocument(focusId, controller.signal)
+      .then((result) => {
+        if (isCurrent())
+          setFocusLookup(
+            result.id === focusId
+              ? { key, status: "ready", document: result }
+              : { key, status: "unavailable" },
+          );
+      })
+      .catch((caught: unknown) => {
+        if (!isCurrent()) return;
+        setFocusLookup({
+          key,
+          status:
+            caught instanceof ApiError &&
+            [400, 401, 403, 404].includes(caught.status)
+              ? "unavailable"
+              : "error",
+        });
+      });
+    return () => {
+      controller.abort();
+      if (focusController.current === controller)
+        focusController.current = null;
+      if (revisionAtStart === focusRevision.current) focusRevision.current++;
+    };
+  }, [
+    focusId,
+    focusKey,
+    focusRetryVersion,
+    identity,
+    listError,
+    pageContainsFocus,
+    hasPrincipal,
+    readPending,
+    refreshVersion,
   ]);
 
   function selectFiles(event: ChangeEvent<HTMLInputElement>) {
@@ -385,6 +469,7 @@ export function DocumentsPanel({
       setDocuments((current) =>
         current.map((row) => (row.id === id ? result : row)),
       );
+      updateFocusedDocument(result);
       confirmIndex(id);
     } catch (cause) {
       if (!isCurrent()) return;
@@ -393,9 +478,20 @@ export function DocumentsPanel({
         // visible without revealing anything about the inaccessible document.
         setError(requestError);
         setDocuments((current) => current.filter((row) => row.id !== id));
+        setFocusLookup((current) =>
+          current?.key === focusKey && current.document?.id === id
+            ? { key: current.key, status: "unavailable" }
+            : current,
+        );
         confirmIndex(id);
         return;
       }
+      if (cause instanceof ApiError && [401, 403].includes(cause.status))
+        setFocusLookup((current) =>
+          current?.key === focusKey && current.document?.id === id
+            ? { key: current.key, status: "unavailable" }
+            : current,
+        );
       setIndexReads((current) => ({
         ...current,
         [id]: {
@@ -452,6 +548,11 @@ export function DocumentsPanel({
             : row,
         ),
       );
+      updateFocusedDocument({
+        ...item,
+        processing_status: result.processing_status,
+        index_quality: result.index_quality,
+      });
       setNotice(
         `Đã lập chỉ mục "${item.name}" thành ${result.chunk_count} đoạn để Assistant truy xuất.`,
       );
@@ -469,6 +570,12 @@ export function DocumentsPanel({
       // One safe read only; no replay of an uncertain POST. Auth transport
       // already notifies the pilot gate on session/workspace denial.
       if (!denied) await reconcileIndex(item.id, isCurrent, requestError);
+      else
+        setFocusLookup((current) =>
+          current?.key === focusKey && current.document?.id === item.id
+            ? { key: current.key, status: "unavailable" }
+            : current,
+        );
     } finally {
       if (isCurrent()) {
         finish(item.id);
@@ -497,6 +604,11 @@ export function DocumentsPanel({
       if (!isCurrent()) return;
       deleted = true;
       setDocuments((current) => current.filter((row) => row.id !== item.id));
+      setFocusLookup((current) =>
+        current?.key === focusKey && current.document?.id === item.id
+          ? { key: current.key, status: "unavailable" }
+          : current,
+      );
       setNotice(`${item.name} deleted.`);
     } catch (caught) {
       if (!isCurrent()) return;
@@ -535,6 +647,55 @@ export function DocumentsPanel({
       finish(item.id);
     }
   }
+  function updateFocusedDocument(item: StoredDocument) {
+    setFocusLookup((current) =>
+      current?.key === focusKey &&
+      current.status === "ready" &&
+      current.document?.id === item.id
+        ? { ...current, document: item }
+        : current,
+    );
+  }
+  function renderStoredDocument(item: StoredDocument) {
+    return (
+      <>
+        <DocumentCard
+          name={item.name}
+          size={item.size_bytes}
+          state={item.storage_status}
+          busy={busyIds.includes(item.id)}
+          processingStatus={item.processing_status ?? "pending"}
+          indexQuality={item.index_quality}
+          error={indexErrors[item.id]}
+          indexUnconfirmed={!!indexReads[item.id]}
+          onCheckStatus={
+            indexReads[item.id] && !indexReads[item.id].denied
+              ? () => void checkIndex(item.id)
+              : undefined
+          }
+          onProcess={canWrite ? () => void process(item) : undefined}
+          onDownload={() => void download(item)}
+          onRemove={canDelete ? () => void remove(item) : undefined}
+        />
+        <label className="document-course">
+          <span className="sr-only">Course for {item.name}</span>
+          <select
+            value={item.course_id ?? ""}
+            disabled={!canWrite || busyIds.includes(item.id)}
+            onChange={(event) => void refile(item, event.target.value || null)}
+          >
+            <option value="">Chưa gắn môn nào</option>
+            {courses.courses.map((course) => (
+              <option key={course.id} value={course.id}>
+                {course.name} ({course.code})
+              </option>
+            ))}
+          </select>
+        </label>
+      </>
+    );
+  }
+  const currentFocusLookup = focusLookup?.key === focusKey ? focusLookup : null;
   return (
     <section
       className="document-layout"
@@ -778,12 +939,66 @@ export function DocumentsPanel({
               Chưa tải được danh sách: {listError}
             </p>
           )}
+          {focusId && focusKey && !pageContainsFocus && currentFocusLookup && (
+            <section
+              className="document-focused"
+              aria-labelledby="linked-document-title"
+            >
+              <h3 id="linked-document-title">Linked document</h3>
+              {currentFocusLookup.status === "loading" && (
+                <p aria-live="polite">Loading linked document…</p>
+              )}
+              {currentFocusLookup.status === "unavailable" && (
+                <p role="status">
+                  This linked document is no longer available in the current
+                  workspace.
+                </p>
+              )}
+              {currentFocusLookup.status === "error" && (
+                <div>
+                  <p className="error-message" role="alert">
+                    Could not check this linked document. The list and its
+                    filters remain unchanged.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setFocusRetryVersion((value) => value + 1)}
+                  >
+                    Retry document lookup
+                  </button>
+                </div>
+              )}
+              {currentFocusLookup.status === "ready" &&
+                currentFocusLookup.document && (
+                  <>
+                    <p>
+                      This linked document is outside the current page or
+                      filters. It is shown separately; the result count and list
+                      below are unchanged.
+                    </p>
+                    <div
+                      className="document-focused-card"
+                      data-focus-id={currentFocusLookup.document.id}
+                      data-focus-keyboard
+                      tabIndex={-1}
+                    >
+                      {renderStoredDocument(currentFocusLookup.document)}
+                    </div>
+                  </>
+                )}
+            </section>
+          )}
           {readPending && !listError ? (
             <p aria-live="polite">Loading documents…</p>
           ) : !listError ? (
             <ul>
               {visibleDocuments.map((item) => (
-                <li key={item.id} data-focus-id={item.id}>
+                <li
+                  key={item.id}
+                  data-focus-id={item.id}
+                  data-focus-keyboard
+                  tabIndex={-1}
+                >
                   <DocumentCard
                     name={item.name}
                     size={item.size_bytes}
