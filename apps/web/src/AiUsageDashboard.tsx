@@ -144,7 +144,7 @@ export function AiUsageDashboard() {
     page: 1,
     pageSize: 20,
   }));
-  const [revision, setRevision] = useState(0);
+  const [refreshGeneration, setRefreshGeneration] = useState(0);
   const [payload, setPayload] = useState<{
     key: string;
     data: AiUsageDashboardResponse;
@@ -169,8 +169,9 @@ export function AiUsageDashboard() {
   const callsRequestRevision = useRef(0);
   const costRequestRevision = useRef(0);
   const key = JSON.stringify([identity, filters]);
-  const keyRef = useRef(key);
-  keyRef.current = key;
+  const overviewRequestKey = JSON.stringify([key, refreshGeneration]);
+  const overviewRequestKeyRef = useRef(overviewRequestKey);
+  overviewRequestKeyRef.current = overviewRequestKey;
   const costCohortKey = JSON.stringify([
     identity,
     filters.from,
@@ -190,8 +191,9 @@ export function AiUsageDashboard() {
     activeCostView.currency,
     activeCostView.page,
   ]);
-  const costKeyRef = useRef(costKey);
-  costKeyRef.current = costKey;
+  const costRequestKey = JSON.stringify([costKey, refreshGeneration]);
+  const costRequestKeyRef = useRef(costRequestKey);
+  costRequestKeyRef.current = costRequestKey;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -205,22 +207,22 @@ export function AiUsageDashboard() {
         if (
           !controller.signal.aborted &&
           requestId === requestRevision.current &&
-          keyRef.current === key
+          overviewRequestKeyRef.current === overviewRequestKey
         )
-          setPayload({ key, data });
+          setPayload({ key: overviewRequestKey, data });
       })
       .catch((reason: unknown) => {
         if (
           controller.signal.aborted ||
           requestId !== requestRevision.current ||
-          keyRef.current !== key
+          overviewRequestKeyRef.current !== overviewRequestKey
         )
           return;
         const state = friendlyError(reason);
-        setError({ key, ...state });
+        setError({ key: overviewRequestKey, ...state });
       });
     return () => controller.abort();
-  }, [key, revision]);
+  }, [overviewRequestKey]);
 
   useEffect(() => {
     setCostView(undefined);
@@ -254,24 +256,24 @@ export function AiUsageDashboard() {
         if (
           !controller.signal.aborted &&
           requestId === costRequestRevision.current &&
-          costKeyRef.current === costKey
+          costRequestKeyRef.current === costRequestKey
         )
-          setCostPayload({ key: costKey, data });
+          setCostPayload({ key: costRequestKey, data });
       })
       .catch((reason: unknown) => {
         if (
           controller.signal.aborted ||
           requestId !== costRequestRevision.current ||
-          costKeyRef.current !== costKey
+          costRequestKeyRef.current !== costRequestKey
         )
           return;
-        setCostError({ key: costKey, ...friendlyError(reason) });
+        setCostError({ key: costRequestKey, ...friendlyError(reason) });
       });
     return () => controller.abort();
-  }, [costKey, costRevision]);
+  }, [costRequestKey, costRevision]);
 
-  const active = payload?.key === key ? payload.data : undefined;
-  const activeError = error?.key === key ? error : undefined;
+  const active = payload?.key === overviewRequestKey ? payload.data : undefined;
+  const activeError = error?.key === overviewRequestKey ? error : undefined;
   const loading = !active && !activeError && Boolean(principal);
   const summary = active?.summary;
   const dailyMaximum = useMemo(() => {
@@ -321,14 +323,17 @@ export function AiUsageDashboard() {
           callsPage,
         ])
       : "";
-  const callsKeyRef = useRef(callsKey);
-  callsKeyRef.current = callsKey;
+  const callsRequestKey = callsKey
+    ? JSON.stringify([callsKey, refreshGeneration])
+    : "";
+  const callsRequestKeyRef = useRef(callsRequestKey);
+  callsRequestKeyRef.current = callsRequestKey;
   useEffect(() => {
     const controller = new AbortController();
     const requestId = ++callsRequestRevision.current;
     setCallsPayload(undefined);
     setCallsError(undefined);
-    if (!callsKey || !selection || selection.baseKey !== key)
+    if (!callsRequestKey || !selection || selection.baseKey !== key)
       return () => controller.abort();
     void api
       .aiUsageProviderCalls(
@@ -342,30 +347,35 @@ export function AiUsageDashboard() {
         if (
           !controller.signal.aborted &&
           requestId === callsRequestRevision.current &&
-          callsKeyRef.current === callsKey
+          callsRequestKeyRef.current === callsRequestKey
         )
-          setCallsPayload({ key: callsKey, data });
+          setCallsPayload({ key: callsRequestKey, data });
       })
       .catch((reason: unknown) => {
         if (
           controller.signal.aborted ||
           requestId !== callsRequestRevision.current ||
-          callsKeyRef.current !== callsKey
+          callsRequestKeyRef.current !== callsRequestKey
         )
           return;
-        setCallsError({ key: callsKey, ...friendlyError(reason) });
+        setCallsError({
+          key: callsRequestKey,
+          ...friendlyError(reason),
+        });
       });
     return () => controller.abort();
-  }, [callsKey, callsRevision, filters.model]);
+  }, [callsRequestKey, callsRevision]);
 
-  const calls = callsPayload?.key === callsKey ? callsPayload.data : undefined;
+  const calls =
+    callsPayload?.key === callsRequestKey ? callsPayload.data : undefined;
   const visibleCallsError =
-    callsError?.key === callsKey ? callsError : undefined;
-  const callsLoading = Boolean(callsKey) && !calls && !visibleCallsError;
+    callsError?.key === callsRequestKey ? callsError : undefined;
+  const callsLoading = Boolean(callsRequestKey) && !calls && !visibleCallsError;
   const totalPages = active?.operations.totalPages ?? 0;
   const activeCost =
-    costPayload?.key === costKey ? costPayload.data : undefined;
-  const activeCostError = costError?.key === costKey ? costError : undefined;
+    costPayload?.key === costRequestKey ? costPayload.data : undefined;
+  const activeCostError =
+    costError?.key === costRequestKey ? costError : undefined;
   const costLoading = Boolean(principal) && !activeCost && !activeCostError;
 
   if (!principal)
@@ -522,7 +532,7 @@ export function AiUsageDashboard() {
           </button>
           <button
             type="button"
-            onClick={() => setRevision((value) => value + 1)}
+            onClick={() => setRefreshGeneration((generation) => generation + 1)}
           >
             Tải lại
           </button>
@@ -547,7 +557,9 @@ export function AiUsageDashboard() {
           {!activeError.forbidden && (
             <button
               type="button"
-              onClick={() => setRevision((value) => value + 1)}
+              onClick={() =>
+                setRefreshGeneration((generation) => generation + 1)
+              }
             >
               Thử lại
             </button>

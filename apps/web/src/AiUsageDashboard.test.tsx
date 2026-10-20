@@ -196,6 +196,29 @@ function costBreakdownResponse(
   };
 }
 
+function dashboardWithEstimatedCalls(calls: string) {
+  const response = dashboardResponse();
+  response.summary.providerCalls.total = calls;
+  response.summary.providerCalls.cost.estimatedCalls = calls;
+  response.summary.providerCalls.cost.unknownCalls = "0";
+  return response;
+}
+
+function usdCostBreakdown(calls: string, amount: string) {
+  return costBreakdownResponse({
+    totalEstimatedCalls: calls,
+    items: [
+      {
+        currency: "USD",
+        pricingVersion: null,
+        pricingVersionCount: "1",
+        estimatedCalls: calls,
+        estimatedCost: amount,
+      },
+    ],
+  });
+}
+
 function mount(principal: typeof manager | undefined = manager) {
   return render(
     <PilotPrincipalContext.Provider value={principal}>
@@ -439,6 +462,262 @@ describe("AiUsageDashboard", () => {
     );
     await waitFor(() => expect(api.aiUsageDashboard).toHaveBeenCalledTimes(2));
     expect(api.aiUsageCostBreakdown).toHaveBeenCalledTimes(1);
+  });
+
+  it("refreshes overview and cost figures together after new telemetry arrives", async () => {
+    vi.mocked(api.aiUsageDashboard)
+      .mockResolvedValueOnce(dashboardWithEstimatedCalls("22"))
+      .mockResolvedValueOnce(dashboardWithEstimatedCalls("23"));
+    vi.mocked(api.aiUsageCostBreakdown)
+      .mockResolvedValueOnce(usdCostBreakdown("22", "22.000000000000"))
+      .mockResolvedValueOnce(usdCostBreakdown("23", "24.000000000000"));
+    mount();
+
+    await screen.findByText(/22 calls có giá đã lưu/);
+    expect(screen.getByText("22.000000000000 USD")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tải lại" }));
+
+    await waitFor(() => {
+      expect(api.aiUsageDashboard).toHaveBeenCalledTimes(2);
+      expect(api.aiUsageCostBreakdown).toHaveBeenCalledTimes(2);
+      expect(screen.getByText(/23 calls có giá đã lưu/)).toBeTruthy();
+      expect(screen.getByText("24.000000000000 USD")).toBeTruthy();
+    });
+    expect(vi.mocked(api.aiUsageDashboard).mock.calls[1][0]).toEqual(
+      vi.mocked(api.aiUsageDashboard).mock.calls[0][0],
+    );
+    expect(screen.queryByText("22.000000000000 USD")).toBeNull();
+  });
+
+  it("refreshes the selected pricing-version page without resetting its view", async () => {
+    vi.mocked(api.aiUsageDashboard).mockResolvedValue(
+      dashboardWithEstimatedCalls("22"),
+    );
+    vi.mocked(api.aiUsageCostBreakdown)
+      .mockResolvedValueOnce(usdCostBreakdown("22", "22.000000000000"))
+      .mockResolvedValueOnce(
+        costBreakdownResponse({
+          group: "pricing_version",
+          currency: "USD",
+          totalGroups: "21",
+          totalEstimatedCalls: "22",
+          totalPages: 2,
+          totalEstimatedCost: "22.000000000000",
+          items: [
+            {
+              currency: "USD",
+              pricingVersion: "price-v1",
+              pricingVersionCount: null,
+              estimatedCalls: "1",
+              estimatedCost: "1.000000000000",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        costBreakdownResponse({
+          group: "pricing_version",
+          currency: "USD",
+          totalGroups: "21",
+          totalEstimatedCalls: "22",
+          totalPages: 2,
+          totalEstimatedCost: "22.000000000000",
+          items: [
+            {
+              currency: "USD",
+              pricingVersion: "price-v2",
+              pricingVersionCount: null,
+              estimatedCalls: "21",
+              estimatedCost: "21.000000000000",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        costBreakdownResponse({
+          group: "pricing_version",
+          currency: "USD",
+          totalGroups: "21",
+          totalEstimatedCalls: "23",
+          totalPages: 2,
+          totalEstimatedCost: "24.000000000000",
+          items: [
+            {
+              currency: "USD",
+              pricingVersion: "price-v2",
+              pricingVersionCount: null,
+              estimatedCalls: "22",
+              estimatedCost: "23.000000000000",
+            },
+          ],
+        }),
+      );
+    mount();
+    await screen.findByText("22.000000000000 USD");
+    fireEvent.click(screen.getByRole("button", { name: "Pricing versions" }));
+    await screen.findByText(/tổng đủ pricing version: 22\.000000000000 USD/);
+    fireEvent.click(
+      within(
+        screen.getByRole("navigation", { name: "Trang nhóm chi phí" }),
+      ).getByRole("button", { name: "Sau" }),
+    );
+    await screen.findByText(/21\.000000000000 USD/);
+    expect(api.aiUsageCostBreakdown).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 2 }),
+      expect.any(AbortSignal),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Tải lại" }));
+
+    await waitFor(() =>
+      expect(api.aiUsageCostBreakdown).toHaveBeenCalledTimes(4),
+    );
+    expect(api.aiUsageCostBreakdown).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        group: "pricing_version",
+        currency: "USD",
+        page: 2,
+      }),
+      expect.any(AbortSignal),
+    );
+    await screen.findByText(/23\.000000000000 USD/);
+    expect(
+      screen.getByText(/tổng đủ pricing version: 24.000000000000 USD/),
+    ).toBeTruthy();
+  });
+
+  it("does not let an earlier cost response overwrite the refresh", async () => {
+    let resolveInitial!: (value: AiUsageCostBreakdownResponse) => void;
+    vi.mocked(api.aiUsageDashboard)
+      .mockResolvedValueOnce(dashboardWithEstimatedCalls("22"))
+      .mockResolvedValueOnce(dashboardWithEstimatedCalls("23"));
+    vi.mocked(api.aiUsageCostBreakdown)
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (resolveInitial = resolve)),
+      )
+      .mockResolvedValueOnce(usdCostBreakdown("23", "24.000000000000"));
+    mount();
+    await screen.findByText(/22 calls có giá đã lưu/);
+    await waitFor(() =>
+      expect(api.aiUsageCostBreakdown).toHaveBeenCalledTimes(1),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Tải lại" }));
+    await screen.findByText("24.000000000000 USD");
+    await act(async () =>
+      resolveInitial(usdCostBreakdown("22", "22.000000000000")),
+    );
+    expect(screen.getByText("24.000000000000 USD")).toBeTruthy();
+    expect(screen.queryByText("22.000000000000 USD")).toBeNull();
+  });
+
+  it("clears stale cost during refresh and shows a cost-specific read error", async () => {
+    vi.mocked(api.aiUsageDashboard)
+      .mockResolvedValueOnce(dashboardWithEstimatedCalls("22"))
+      .mockResolvedValueOnce(dashboardWithEstimatedCalls("23"));
+    vi.mocked(api.aiUsageCostBreakdown)
+      .mockResolvedValueOnce(usdCostBreakdown("22", "22.000000000000"))
+      .mockRejectedValueOnce(new Error("fixture read failure"));
+    mount();
+    await screen.findByText("22.000000000000 USD");
+
+    fireEvent.click(screen.getByRole("button", { name: "Tải lại" }));
+
+    await waitFor(() =>
+      expect(api.aiUsageCostBreakdown).toHaveBeenCalledTimes(2),
+    );
+    expect(await screen.findByText(/Chưa tải được telemetry/)).toBeTruthy();
+    expect(screen.queryByText("22.000000000000 USD")).toBeNull();
+    expect(screen.getByText(/23 calls có giá đã lưu/)).toBeTruthy();
+  });
+
+  it("retries only the cost breakdown when its own retry is used", async () => {
+    mockOverview();
+    vi.mocked(api.aiUsageCostBreakdown)
+      .mockRejectedValueOnce(new Error("fixture read failure"))
+      .mockResolvedValueOnce(
+        costBreakdownResponse({
+          items: [
+            {
+              currency: "EUR",
+              pricingVersion: null,
+              pricingVersionCount: "1",
+              estimatedCalls: "2",
+              estimatedCost: "8.000000000000",
+            },
+          ],
+        }),
+      );
+    mount();
+    const retry = await screen.findByRole("button", {
+      name: "Thử tải breakdown",
+    });
+
+    fireEvent.click(retry);
+
+    await screen.findByText("8.000000000000 EUR");
+    expect(api.aiUsageDashboard).toHaveBeenCalledTimes(1);
+    expect(api.aiUsageCostBreakdown).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops a pending cost response when the principal changes", async () => {
+    let resolveOld!: (value: AiUsageCostBreakdownResponse) => void;
+    vi.mocked(api.aiUsageDashboard).mockResolvedValue(dashboardResponse());
+    vi.mocked(api.aiUsageCostBreakdown)
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (resolveOld = resolve)),
+      )
+      .mockResolvedValueOnce(
+        costBreakdownResponse({
+          items: [
+            {
+              currency: "EUR",
+              pricingVersion: null,
+              pricingVersionCount: "1",
+              estimatedCalls: "1",
+              estimatedCost: "8.000000000000",
+            },
+          ],
+        }),
+      );
+    const view = mount(manager);
+    await screen.findByText(/prompt-general/);
+    await waitFor(() =>
+      expect(api.aiUsageCostBreakdown).toHaveBeenCalledTimes(1),
+    );
+
+    view.rerender(
+      <PilotPrincipalContext.Provider value={otherManager}>
+        <AiUsageDashboard />
+      </PilotPrincipalContext.Provider>,
+    );
+
+    await screen.findByText("8.000000000000 EUR");
+    await act(async () =>
+      resolveOld(usdCostBreakdown("22", "22.000000000000")),
+    );
+    expect(screen.queryByText("22.000000000000 USD")).toBeNull();
+    expect(screen.getByText("8.000000000000 EUR")).toBeTruthy();
+  });
+
+  it("refreshes provider detail that remains open", async () => {
+    mockOverview();
+    vi.mocked(api.aiUsageProviderCalls)
+      .mockResolvedValueOnce(providerCallsResponse("old-model"))
+      .mockResolvedValueOnce(providerCallsResponse("fresh-model"));
+    mount();
+    await screen.findByText(/prompt-general/);
+    fireEvent.click(screen.getByRole("button", { name: "Provider calls" }));
+    await screen.findByText("old-model");
+
+    fireEvent.click(screen.getByRole("button", { name: "Tải lại" }));
+
+    await waitFor(() =>
+      expect(api.aiUsageProviderCalls).toHaveBeenCalledTimes(2),
+    );
+    await screen.findByText("fresh-model");
+    expect(screen.queryByText("old-model")).toBeNull();
   });
 
   it("labels the model table as top-20 and discloses omitted coverage", async () => {
