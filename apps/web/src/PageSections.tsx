@@ -90,7 +90,8 @@ export function PageSections({
       </>
     );
   }
-  if (pageId === "tasks") return <TasksPanel workspace={workspace} expanded />;
+  if (pageId === "tasks")
+    return <TasksPanel workspace={workspace} expanded focusId={focusId} />;
   if (pageId === "exams") {
     return (
       <>

@@ -319,7 +319,9 @@ export function WorkspaceApp() {
   const [search, setSearch] = useState("");
   const heading = useRef<HTMLHeadingElement>(null);
   const menuToggle = useRef<HTMLButtonElement>(null);
-  const workspace = useWorkspace();
+  // The dashboard owns the compact urgent-task list and its complete count.
+  // Expanded module lists use their bounded server search endpoint instead.
+  const workspace = useWorkspace(route.page.id === "dashboard");
   const assistantDocuments = useDocuments();
   const coursesState = useCourses();
   const selectedCourse = route.courseSlug

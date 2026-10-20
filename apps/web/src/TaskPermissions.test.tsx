@@ -49,7 +49,7 @@ function fixtureWorkspace(overrides: Partial<Workspace> = {}): Workspace {
     error: null,
     reload: vi.fn(async () => {}),
     create: vi.fn(async () => true),
-    update: vi.fn(async () => {}),
+    update: vi.fn(async () => true),
     ...overrides,
   };
 }
@@ -59,6 +59,29 @@ function taskView(
   role?: PilotPrincipal["role"],
   expanded = true,
 ) {
+  vi.spyOn(api, "searchTasks").mockImplementation(async (query) => {
+    const filtered = workspace.tasks.filter(
+      (item) =>
+        (query.status === undefined ||
+          query.status === "all" ||
+          item.status === query.status) &&
+        (query.owner === undefined ||
+          (query.owner === "unassigned"
+            ? item.owner_name === null
+            : item.owner_name === query.owner)),
+    );
+    return {
+      items: filtered,
+      page: 1,
+      pageSize: 20,
+      total: filtered.length,
+      totalPages: filtered.length ? 1 : 0,
+      summary: {
+        total: filtered.length,
+        done: filtered.filter((item) => item.status === "done").length,
+      },
+    };
+  });
   return (
     <PilotPrincipalContext.Provider value={role ? principal(role) : undefined}>
       <TasksPanel workspace={workspace} expanded={expanded} />
@@ -74,39 +97,50 @@ afterEach(() => {
 });
 
 describe("Task permissions", () => {
-  it("lets a viewer read and filter tasks with a Vietnamese read-only explanation", () => {
+  it("lets a viewer read and filter tasks with a Vietnamese read-only explanation", async () => {
     const workspace = fixtureWorkspace();
     render(taskView(workspace, "viewer"));
 
-    expect(screen.getByText(/quyền xem/i)).toBeVisible();
-    expect(screen.getByText(task.title)).toBeVisible();
+    expect(screen.getByText(/read-only access/i)).toBeVisible();
+    expect(await screen.findByText(task.title)).toBeVisible();
     expect(screen.getByText("Prepare project demo")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Add task" })).toBeNull();
     expect(screen.queryByLabelText("Task title")).toBeNull();
-    expect(screen.getByLabelText("Status")).toBeEnabled();
-    expect(screen.getByLabelText("Owner filter")).toBeEnabled();
+    expect(screen.getByLabelText("Filter tasks by status")).toBeEnabled();
+    expect(screen.getByLabelText("Filter tasks by owner")).toBeEnabled();
 
-    fireEvent.change(screen.getByLabelText("Owner filter"), {
+    fireEvent.change(screen.getByLabelText("Filter tasks by owner"), {
+      target: { value: "named" },
+    });
+    fireEvent.change(screen.getByLabelText("Owner name filter"), {
       target: { value: "Tài" },
     });
+    await waitFor(() =>
+      expect(api.searchTasks).toHaveBeenLastCalledWith(
+        expect.objectContaining({ owner: "Tài", page: 1 }),
+        expect.any(AbortSignal),
+      ),
+    );
     expect(screen.getByText(task.title)).toBeVisible();
     expect(screen.queryByText("Prepare project demo")).toBeNull();
-    fireEvent.change(screen.getByLabelText("Status"), {
+    fireEvent.change(screen.getByLabelText("Filter tasks by status"), {
       target: { value: "done" },
     });
-    expect(screen.getByText("No tasks match these filters.")).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByText("No tasks match this search.")).toBeVisible(),
+    );
     expect(workspace.create).not.toHaveBeenCalled();
     expect(workspace.update).not.toHaveBeenCalled();
   });
 
-  it("disables both viewer status controls and rejects attempted status changes", () => {
+  it("disables both viewer status controls and rejects attempted status changes", async () => {
     const workspace = fixtureWorkspace();
     render(taskView(workspace, "viewer"));
 
-    const complete = screen.getByRole("button", {
+    const complete = await screen.findByRole("button", {
       name: `Complete ${task.title}`,
     });
-    const status = screen.getByLabelText(`Status for ${task.title}`);
+    const status = await screen.findByLabelText(`Status for ${task.title}`);
     expect(complete).toBeDisabled();
     expect(status).toBeDisabled();
     expect(
@@ -117,19 +151,14 @@ describe("Task permissions", () => {
     expect(workspace.update).not.toHaveBeenCalled();
   });
 
-  it("fails closed when no server-verified principal is available", () => {
+  it("fails closed when no server-verified principal is available", async () => {
     const workspace = fixtureWorkspace();
     render(taskView(workspace));
 
-    expect(screen.getByText(task.title)).toBeVisible();
+    expect(await screen.findByText(/Sign in to view tasks/i)).toBeVisible();
     expect(screen.queryByRole("button", { name: "Add task" })).toBeNull();
     expect(screen.queryByLabelText("Task title")).toBeNull();
-    expect(
-      screen.getByRole("button", { name: `Complete ${task.title}` }),
-    ).toBeDisabled();
-    const status = screen.getByLabelText(`Status for ${task.title}`);
-    expect(status).toBeDisabled();
-    fireEvent.change(status, { target: { value: "done" } });
+    expect(api.searchTasks).not.toHaveBeenCalled();
     expect(workspace.update).not.toHaveBeenCalled();
     expect(workspace.create).not.toHaveBeenCalled();
   });
@@ -138,7 +167,7 @@ describe("Task permissions", () => {
     const workspace = fixtureWorkspace({ error: "Tasks are unavailable." });
     render(taskView(workspace, "viewer", false));
 
-    expect(screen.getByText(/quyền xem/i)).toBeVisible();
+    expect(screen.getByText(/read-only access/i)).toBeVisible();
     expect(screen.getByRole("link", { name: "View tasks" })).toHaveAttribute(
       "href",
       "#tasks",
@@ -156,12 +185,12 @@ describe("Task permissions", () => {
       const workspace = fixtureWorkspace();
       render(taskView(workspace, role));
 
-      expect(screen.queryByText(/quyền xem/i)).toBeNull();
+      expect(screen.queryByText(/read-only access/i)).toBeNull();
       const add = screen.getByRole("button", { name: "Add task" });
-      const complete = screen.getByRole("button", {
+      const complete = await screen.findByRole("button", {
         name: `Complete ${task.title}`,
       });
-      const status = screen.getByLabelText(`Status for ${task.title}`);
+      const status = await screen.findByLabelText(`Status for ${task.title}`);
       expect(add).toBeEnabled();
       expect(complete).toBeEnabled();
       expect(status).toBeEnabled();
@@ -169,7 +198,7 @@ describe("Task permissions", () => {
       fireEvent.change(screen.getByLabelText("Task title"), {
         target: { value: "Build course page" },
       });
-      fireEvent.change(screen.getByLabelText("Owner"), {
+      fireEvent.change(screen.getByLabelText("Task owner"), {
         target: { value: "Thắng" },
       });
       fireEvent.change(screen.getByLabelText("Due date"), {
@@ -190,14 +219,26 @@ describe("Task permissions", () => {
       });
       expect(screen.getByLabelText("Task title")).toHaveValue("");
 
-      fireEvent.change(status, { target: { value: "in_progress" } });
-      expect(workspace.update).toHaveBeenCalledWith(task.id, "in_progress");
-      fireEvent.click(complete);
-      expect(workspace.update).toHaveBeenCalledWith(task.id, "done");
+      await waitFor(() => expect(api.searchTasks).toHaveBeenCalledTimes(2));
+      const currentStatus = await screen.findByLabelText(
+        `Status for ${task.title}`,
+      );
+      fireEvent.change(currentStatus, { target: { value: "in_progress" } });
+      await waitFor(() =>
+        expect(workspace.update).toHaveBeenCalledWith(task.id, "in_progress"),
+      );
+      await waitFor(() => expect(api.searchTasks).toHaveBeenCalledTimes(3));
+      await screen.findByLabelText(`Status for ${task.title}`);
+      fireEvent.click(
+        screen.getByRole("button", { name: `Complete ${task.title}` }),
+      );
+      await waitFor(() =>
+        expect(workspace.update).toHaveBeenCalledWith(task.id, "done"),
+      );
     },
   );
 
-  it("removes a member's open draft when the verified role changes to viewer", () => {
+  it("removes a member's open draft when the verified role changes to viewer", async () => {
     const workspace = fixtureWorkspace();
     const view = render(taskView(workspace, "member"));
     const title = screen.getByLabelText("Task title");
@@ -205,12 +246,12 @@ describe("Task permissions", () => {
     const oldForm = title.closest("form")!;
 
     view.rerender(taskView(workspace, "viewer"));
-    expect(screen.getByText(/quyền xem/i)).toBeVisible();
+    expect(screen.getByText(/read-only access/i)).toBeVisible();
     expect(screen.queryByLabelText("Task title")).toBeNull();
     expect(screen.queryByRole("button", { name: "Add task" })).toBeNull();
     expect(oldForm).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: `Complete ${task.title}` }),
+      await screen.findByRole("button", { name: `Complete ${task.title}` }),
     ).toBeDisabled();
     const status = screen.getByLabelText(`Status for ${task.title}`);
     expect(status).toBeDisabled();

@@ -28,6 +28,9 @@ export type {
   SpeechTranscriptionResponse,
   StudyPlan,
   Task,
+  TaskSearchPage,
+  TaskSearchQuery,
+  TaskSearchSort,
   TaskStatus,
   WorkspaceSearchItem,
   WorkspaceSearchKind,
@@ -83,6 +86,9 @@ import type {
   SpeechTranscriptionResponse,
   StudyPlan,
   Task,
+  TaskSearchPage,
+  TaskSearchQuery,
+  TaskSearchSort,
   TaskStatus,
   WorkspaceSearchItem,
   WorkspaceSearchKind,
@@ -496,7 +502,19 @@ export const api = {
   deleteDocument: (id: string) =>
     request<void>(`/api/documents/${id}`, { method: "DELETE" }),
   health: () => request<HealthStatus>("/api/health"),
-  listTasks: () => request<Task[]>("/api/tasks"),
+  listTasks: (signal?: AbortSignal) =>
+    request<Task[]>("/api/tasks", { signal }),
+  searchTasks: (query: TaskSearchQuery, signal?: AbortSignal) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query))
+      if (value !== undefined && value !== null && value !== "")
+        params.set(key, String(value));
+    return request<TaskSearchPage>(`/api/tasks/search?${params.toString()}`, {
+      signal,
+    });
+  },
+  getTask: (id: string, signal?: AbortSignal) =>
+    request<Task>(`/api/tasks/${encodeURIComponent(id)}`, { signal }),
   createTask: (input: {
     title: string;
     ownerName?: string;

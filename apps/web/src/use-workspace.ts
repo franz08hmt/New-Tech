@@ -1,36 +1,52 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type Task, type TaskStatus } from "./api";
 
-export function useWorkspace() {
+export function useWorkspace(loadDashboardTasks = true) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const version = useRef(0);
   const mutating = useRef(false);
+  const activeRequest = useRef<AbortController | null>(null);
   const reload = useCallback(async () => {
-    if (mutating.current) return;
+    if (!loadDashboardTasks || mutating.current) return;
+    activeRequest.current?.abort();
+    const controller = new AbortController();
+    activeRequest.current = controller;
     const currentVersion = ++version.current;
     setLoading(true);
     setError(null);
     try {
-      const next = await api.listTasks();
+      const next = await api.listTasks(controller.signal);
       if (currentVersion === version.current) setTasks(next);
     } catch (caught) {
-      if (currentVersion !== version.current) return;
+      if (currentVersion !== version.current || controller.signal.aborted)
+        return;
       setError(
         `Tasks are unavailable. ${caught instanceof Error ? caught.message : "Please retry."}`,
       );
     } finally {
       if (currentVersion === version.current) setLoading(false);
+      if (activeRequest.current === controller) activeRequest.current = null;
     }
-  }, []);
+  }, [loadDashboardTasks]);
   useEffect(() => {
-    void reload();
+    if (loadDashboardTasks) {
+      void reload();
+    } else {
+      activeRequest.current?.abort();
+      version.current++;
+      setTasks([]);
+      setError(null);
+      setLoading(false);
+    }
     return () => {
       version.current++;
+      activeRequest.current?.abort();
+      activeRequest.current = null;
     };
-  }, [reload]);
+  }, [loadDashboardTasks, reload]);
   async function create(input: Parameters<typeof api.createTask>[0]) {
     if (mutating.current) return false;
     mutating.current = true;
@@ -52,8 +68,8 @@ export function useWorkspace() {
       setBusy(false);
     }
   }
-  async function update(id: string, status: TaskStatus) {
-    if (mutating.current) return;
+  async function update(id: string, status: TaskStatus): Promise<boolean> {
+    if (mutating.current) return false;
     mutating.current = true;
     version.current++;
     setLoading(false);
@@ -64,10 +80,12 @@ export function useWorkspace() {
       setTasks((current) =>
         current.map((task) => (task.id === id ? updated : task)),
       );
+      return true;
     } catch (caught) {
       setError(
         `Could not update task. Your previous status has been kept. ${caught instanceof Error ? caught.message : ""}`,
       );
+      return false;
     } finally {
       mutating.current = false;
       setBusy(false);

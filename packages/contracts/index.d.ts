@@ -58,6 +58,26 @@ export interface Task {
   updated_at: string;
 }
 
+export type TaskSearchSort = "title" | "status" | "due_date" | "created_at";
+export interface TaskSearchQuery {
+  q?: string;
+  status?: TaskStatus | "all";
+  /** `unassigned` selects NULL owner_name; other values are exact owner labels. */
+  owner?: string;
+  sort?: TaskSearchSort;
+  direction?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+}
+export interface TaskSearchPage {
+  items: Task[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  summary: { total: number; done: number };
+}
+
 /**
  * A document as the API exposes it.
  *

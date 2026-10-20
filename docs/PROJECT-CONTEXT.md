@@ -3,6 +3,58 @@
 Cập nhật 20/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
+## F05.3 checklist — server-side lists for the remaining five modules
+
+Implementation order is Tasks → Courses → Exams → Study plans → Expenses.
+Each slice adds an additive typed `/search` endpoint, short authorized
+workspace query, page/filter/sort UI, focused regression, and a checkpoint
+commit before starting the next slice. Common bounds are page 1–1,000,000,
+pageSize default 20/max 50, trimmed optional `q` (blank means browse; nonblank
+must be 2–120 characters), and the existing Vietnamese case/diacritic/`đ` and
+punctuation fold. Repeated/non-scalar or malformed query values fail at the
+HTTP boundary; a nonblank value folding empty returns
+`SEARCH_QUERY_UNSUPPORTED` before SQL. All pages return items/page/pageSize/
+total/totalPages from one tenant-scoped statement snapshot.
+
+| Slice | List consumer and separate consumers | Route/deep link | Filters and sorts | Acceptance/check |
+|---|---|---|---|---|
+| Tasks | `TasksPanel` full list; dashboard urgent tasks and complete count remain a separate legacy consumer | `#tasks/<id>`; add scoped ID lookup | status, owner/unassigned; title/status/due_date/created_at | API/DB tenant page/count, role controls/status update, focused target, FE stale query/page, focused + full gates |
+| Courses | expanded `CoursesPanel`; dashboard gallery, selectors, Assistant context remain separate | `#courses/<slug>`; use existing scoped slug lookup | progress range; name/code/progress | page beyond two rows, progress filter/sort, route lookup outside page, selector remains complete, focused + full gates |
+| Exams | expanded `ExamsPanel`; dashboard next-exam summary remains separate | `#exams/<id>`; add scoped ID lookup | course, date range; exam date/time/topic/course | valid DATE boundaries, foreign course, stable sort, CRUD refresh, compact dashboard remains aggregate, focused + full gates |
+| Study plans | expanded `StudyPlanPanel`; dashboard/course grouping remains a separate consumer | `#study-plan/<id>`; add scoped ID lookup | course, completed, owner/unassigned, due range; due/title/course/completed | groups retained within page, all-match completion summary, toggle/CRUD refresh, focused + full gates |
+| Expenses | `BudgetPanel` list; course workspace expense section remains separate | `#finances/<id>`; add scoped ID lookup | category, course/unassigned, period date range; spent_on/amount/description | filtered total/count/largest/by-course independent of page, date preservation, CRUD refresh, focused + full gates |
+
+Selectors, course detail, dashboard summaries and compact course-workspace
+sections have independent complete-data needs. Keep their legacy contracts where
+still consumed, document them explicitly, and do not use a page as a summary or
+selector. The paged primary list itself must not load the full legacy list.
+Browser acceptance is required for whole F05.3; if browser automation is not
+available, code verification remains distinct from browser acceptance.
+
+### F05.3 Tasks checkpoint
+
+Tasks is the first completed vertical slice. `GET /api/tasks/search` accepts
+optional folded `q`, status (`all|todo|in_progress|done`), exact owner or the
+`unassigned` sentinel, sort (`title|status|due_date|created_at`), direction,
+page (1–1,000,000), and pageSize (20 default, 50 maximum). One
+workspace-authorized statement returns page items, total, and matching/done
+summary; the existing array `GET /api/tasks` remains for the dashboard-only
+urgent list and complete count. The Tasks screen does not load that full list.
+`GET /api/tasks/:id` is a scoped deep-link lookup for a task outside the active
+page, with a separate focused card that does not alter result totals.
+
+The screen has debounced title/owner search, status and owner filters, sort,
+direction, page size, reset, and distinct short/unsupported/loading/error/empty
+states. Query and verified principal changes derive page 1 before dispatch;
+abort and key/revision checks reject late results. Status/create writes retain
+the existing mutation endpoints and then refresh via GET. The dashboard keeps
+its distinct legacy summary consumer. Focused FE tests (12, including the
+existing permission suite) pass; the disposable PostgreSQL 17 HTTP/runtime fixture
+checks >2 pages, filtering, totals, cross-tenant isolation, roles and invalid
+query rejection. Focused typecheck, API build, web build, format and database
+test passed. Whole-F05 browser acceptance is still pending. Courses, Exams,
+Study plans and Expenses remain pending and are not implemented by this slice.
+
 ## F05.2.1 checkpoint — sidebar page reset and unsupported folded queries
 
 The sidebar now scopes its pagination state to the trimmed effective query and
