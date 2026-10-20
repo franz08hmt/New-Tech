@@ -3,7 +3,55 @@
 Cập nhật 20/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
-## Latest checkpoint — F04.1 provider admission fixes (20/10/2026)
+## F05 Documents search — local vertical slice (20/10/2026)
+
+The Documents screen uses an additive `GET /api/documents/search` endpoint
+with query `q`, `course=all|unassigned|<UUID>`, `storage_status`,
+`processing_status`, `sort`, `direction`, `page`, and `pageSize`. Defaults are
+page 1, 20 rows, `created_at` descending; page size is capped at 50 and page at
+1,000,000. The typed response is `{ items, page, pageSize, total, totalPages }`.
+Repeated/malformed parameters and values outside the allowlists return 400.
+
+Search trims and folds case/diacritics (`đ` to `d`) and punctuation to spaces,
+matching the existing sidebar's Vietnamese typing behavior against document
+name and course name/code/slug. Wildcard characters are ordinary separators;
+search remains parameterized. Fixed sort expressions use NULLS LAST and an ID
+tie-breaker. One SQL statement computes filtered rows, total and page so they
+share a PostgreSQL statement snapshot. Membership is re-authorized in the same
+workspace transaction before the query; explicit workspace predicates remain.
+
+The API validates repeated/malformed values and allowlists before parameterized
+SQL. An exact course ID is validated as UUID and scoped by the verified workspace;
+a valid foreign course naturally returns no matching rows. The query runs after
+fresh membership authorization in a workspace transaction, with explicit tenant
+predicate retained. Items and count are derived by one SQL statement, so they
+share one PostgreSQL statement snapshot and an out-of-range page retains the
+correct total. No PDF content, chunks, embeddings or storage key is returned.
+
+The Documents screen now has debounced search, course/storage/processing filters,
+allowlisted sort/direction, bounded page size, reset and previous/next controls.
+Reads use AbortController plus query/principal revision checks. A failed read is
+shown as an error with read-only retry, never as an empty library. Mutations
+reconcile against the paged endpoint; deletion errors also refresh rather than
+assuming the item disappeared. The upload-course selector remains separate from
+the list filter.
+
+The existing `GET /api/documents` array remains unpaged for `useDocuments`,
+Assistant source loading and the legacy sidebar search. The Documents page is
+not treated as the Assistant's full source set; a scoped `GET /api/documents/:id`
+still resolves deep links outside the current page. The legacy sidebar still
+loads its complete document list; bounded sidebar search and Tasks/Courses/
+Exams/Study plans/Expenses are outside this vertical slice. No migration, AI
+provider or semantic search call was added. Automated API/FE/PG17 evidence and
+the browser acceptance status are recorded in [the demo checklist](FINAL-DEMO-CHECKLIST.md).
+
+F05 Documents code/tests were committed as `9981912` from starting HEAD
+`fe84d1f`. Current automated gates passed: typecheck, test (1,583 total),
+build, format and PG17 database (463/463). Browser acceptance is still pending
+because this session exposes no browser automation tool; this does not mark
+whole-app F05 complete. The focused Documents HTTP/PG17 suite is 4/4.
+
+## Previous checkpoint — F04.1 provider admission fixes (20/10/2026)
 
 Code/test commit: `fed6cd8`.
 
@@ -319,7 +367,7 @@ chiếu lịch sử. Không chạy lại phần đã có hoặc biến kế ho�
 | F02 | Hoàn tất B2: runtime non-owner/NOBYPASSRLS, grants tối thiểu, tenant RLS toàn app, rollout/rollback cloud                  | F02-A local acceptance đạt qua browser+Nest+PG17 LOGIN business/Auth non-owner; F02-B/cloud runtime provisioning/rollout vẫn pending, không coi B2 toàn app xong |
 | F03 | Prompt tập trung/version; metadata request/provider calls, token, latency, outcome, chi phí ước tính                       | Code và tích hợp HTTP/DB PG17 đã kiểm; nghiệm thu browser desktop/375px sau instrumentation còn pending; chưa nhận F03 đầy đủ                                    |
 | F04 | B3: cap user/ngày, concurrency, fan-out summary/index/OCR; admission nguyên tử và bền vững                                 | Migration 020/contract v20 triển khai local; automated gates pass, browser acceptance pending; không phải monetary budget hay dashboard F06                      |
-| F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Pending; chưa có vertical slice được nghiệm thu                                                                                                                  |
+| F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Documents FE–API–DB vertical slice implemented with automated tests; browser acceptance pending; sidebar and other modules remain                                                                 |
 | F06 | Dashboard AI cho admin đúng workspace: request/provider calls, token/cost/latency/lỗi/từ chối và filters                   | Pending; đây là yêu cầu usage dashboard, không phải Finances hay billing                                                                                         |
 | F07 | N1 lưu bền, mở lại/xóa, retention/quyền; receipt/history/reset/account isolation                                           | Pending persistence; history trong tab/SSE và draft revision đã có, không viết lại                                                                               |
 | F08 | N2 Study Coach: structured quiz/flashcards, nguồn, preview/xác nhận lưu, luyện tập/tiến độ cá nhân                         | Pending                                                                                                                                                          |
@@ -330,7 +378,7 @@ chiếu lịch sử. Không chạy lại phần đã có hoặc biến kế ho�
 | F13 | WASM PoC có profiling/benchmark, cancel/fallback/license; chỉ tích hợp nếu chứng minh lợi ích                              | Nhánh mở rộng, không bắt buộc rubric; tác vụ cụ thể chưa chốt                                                                                                    |
 | F14 | Native client tái sử dụng API: OAuth/deep link, secure storage, build/thiết bị                                             | Nhánh mở rộng, không bắt buộc rubric; stack chưa chốt                                                                                                            |
 | F15 | Đã bỏ khỏi kế hoạch phát triển: không mở rộng tool-using agent lên 3 tools                                                 | Theo Tài ngày 19/10/2026; chỉ giữ phạm vi 2 tools ban đầu, không tự thêm tool thứ ba hoặc nhận đạt capability B của rubric                                       |
-| F16 | Compose E2E/traceability, ít nhất 3 ADR, AI_USAGE, PDF 10–20 trang, slide tối đa 15 trang, video 3–5 phút, live change/Q&A | Pending bộ nộp; hiện có ADR-001, không nhận đã đủ 3 ADR                                                                                                          |
+| F16 | Compose E2E/traceability, ít nhất 3 ADR, AI_USAGE, PDF 10–20 trang, slide tối đa 15 trang, video 3–5 phút, live change/Q&A | Pending bộ nộp; ADR-001–004 đã ghi, không nhận đã hoàn thành đầu ra F16                                                                                         |
 
 ### Điều chỉnh phạm vi đã chốt — 19/10/2026
 

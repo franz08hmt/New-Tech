@@ -350,3 +350,26 @@ server messages. Unexpected permit/database errors map to
 sanitizers. Admission denial is an operation rejection, not a provider attempt,
 and is not written as provider-failure telemetry. This does not change the F04
 quota, concurrency or fan-out policy.
+
+## ADR-005 — Additive Documents search and pagination
+
+F05 Documents vertical slice, 20/10/2026. The existing full-array
+`GET /api/documents` remains intact for Assistant source loading and the legacy
+sidebar. The Documents UI uses `GET /api/documents/search` with validated
+metadata filters and bounded page/pageSize. This avoids silently changing
+legacy consumers to page one while keeping server-side filtering and pagination
+for the library screen.
+
+The API freshly authorizes workspace membership in a business workspace
+transaction and applies the same explicit workspace/filter predicates to a
+single SQL statement that computes total and page rows. Fixed SQL sort
+expressions, NULLS LAST and an ID tie-breaker provide deterministic ordering.
+Search folds case/diacritics (including Vietnamese `đ`) and punctuation into
+space-separated metadata; user wildcard characters do not act as SQL wildcards.
+No PDF/chunk content, storage key, AI call or schema migration is involved.
+
+The page is not the Assistant's source universe. Assistant loading remains on
+the legacy scoped list and deep links use the scoped single-document lookup.
+The legacy sidebar still loads all document metadata; moving it, or adding
+search/pagination to other modules, is explicitly pending. One-statement
+consistency is per PostgreSQL statement, not a multi-request snapshot.

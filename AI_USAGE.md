@@ -412,3 +412,26 @@ PG17 database 462/462; typecheck, build and format also exited 0. Browser
 automation was unavailable in this session, so cancellation/draft UX remains
 pending; no human review is claimed. No cloud writes, credential changes, push
 or deployment occurred.
+
+## 2026-10-20 - F05 Documents search and pagination (Codex)
+
+AI assistance inspected the existing Documents consumers and implemented an
+additive paged API, shared contract/validation, workspace-scoped SQL, UI query
+controls and stale-response guards. It added synthetic PG17/Nest and FE
+regressions, including a failing pre-route assertion, then corrected issues
+found by typecheck and focused tests. The old complete-list API remains for
+Assistant/sidebar consumers; the paged Documents response is not treated as the
+Assistant source universe.
+
+Verification uses only synthetic document/course/workspace data and the local
+PG17 disposable with the existing non-owner runtime fixture. No cloud, Storage,
+AI provider or user data was used. The current session exposes no browser
+automation tool, so browser acceptance is explicitly pending. Test counts and
+final commands on code commit `9981912` are: typecheck/build/format exit 0;
+`npm test` 1,583 passed (API Vitest 339, API Node 855, Web 389); and guarded
+`npm run test:database` 463/463 passed on PG17. The Documents HTTP/DB suite is
+4/4. Its initial full run exposed an out-of-range fixture mistake (page 99 was
+still within 113 pages); the fixture was corrected to page 114, then both the
+focused and full DB suites passed. This was not a production defect. No
+independent human review is claimed. No cloud write, paid provider call, push
+or deployment occurred.

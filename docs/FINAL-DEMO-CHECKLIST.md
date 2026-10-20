@@ -753,3 +753,69 @@ session exposed no browser/CUA capability. This remains browser acceptance
 pending; no HTTP result is represented as browser evidence. F04.1 code and
 automated verification are green, but this is not full F04 local acceptance.
 No cloud write, paid provider call, push or deployment occurred.
+
+## F05 Documents search vertical slice — 20/10/2026
+
+The Documents UI now calls the additive `GET /api/documents/search` contract:
+`q`, `course=all|unassigned|<UUID>`, `storage_status`,
+`processing_status`, `sort`, `direction`, `page`, and `pageSize`. Page defaults
+to 1, size to 20, maximum size is 50, and page is bounded to 1,000,000. Invalid,
+repeated, oversized and non-allowlisted values receive 400. Search is trimmed,
+case/diacritic-insensitive (including Vietnamese without tone and `đ`/`d`), and
+punctuation folds to separators; `%`, `_`, quote and backslash do not become SQL
+wildcards or query syntax. Metadata search includes document name and course
+name/code/slug. A single workspace-authorized SQL statement applies explicit
+workspace and filter predicates to both page and count. Out-of-range pages keep
+the matching total and stable sorting adds the document ID as a tie-breaker.
+Response metadata excludes PDF text, chunks, vectors and storage keys.
+
+The legacy full-array `GET /api/documents` remains for Assistant source loading
+and sidebar search; deep links continue through the scoped `GET /api/documents/:id`.
+The Documents page is not the Assistant's complete source universe. The sidebar
+still loads all document metadata, and search/pagination for other modules is
+pending. No migration or AI provider call was added.
+
+RED evidence: before the route existed, the real Nest/PG17 non-owner LOGIN
+regression received 400 from the dynamic document-ID route where it expected a
+200 search page. After the additive route and DTO/query implementation, the
+focused Documents HTTP/DB suite passed 4/4. The disposable contains 225 synthetic
+workspace-A documents and 3 workspace-B documents; it checks tenant-scoped
+counts/results, metadata-only output, page 2 and out-of-range page totals,
+Vietnamese folding, literal punctuation, course metadata, stable ties, combined
+filters, malformed/repeated values, foreign-course non-disclosure, membership
+revocation and zero provider calls. PostgreSQL accepted an `EXPLAIN (FORMAT JSON)`
+for the exact captured parameterized search statement; no `ANALYZE` or claim of
+performance improvement is made.
+
+Focused FE regression: `DocumentsSearch.test.tsx`, `DocumentsPermissions.test.tsx`
+and `DocumentsReconciliation.test.tsx` passed 48 tests. It covers server query
+controls/page reset, debounce, stale query and principal responses, a separate
+read-error retry (GET only), empty-library versus filtered no-match, and existing
+role/lifecycle permissions. A list read failure is not shown as an empty result;
+stale query data is hidden while the new query resolves. Upload/assign/index/
+re-index/delete trigger reconciliation without replaying writes. Upload course
+selection remains separate from list filtering.
+
+Final source revision: `9981912` (Documents code/tests); the documentation
+checkpoint is committed separately. Gates on this revision all exited 0:
+
+- `npm run typecheck` — exit 0.
+- `npm test` — exit 0; API Vitest 339/339, API Node 855/855, Web 389/389
+  (1,583 total; 0 failed, skipped or cancelled).
+- `npm run build` — exit 0 (Nest and Vite production build).
+- `npm run format:check` — exit 0.
+- `npm run test:database` — exit 0 on the labeled loopback PostgreSQL 17
+  disposable; 463/463 passed, 0 failed, skipped or cancelled. The new
+  Documents HTTP/DB suite is 4/4 on a non-owner business LOGIN. Its `EXPLAIN`
+  was structural (`FORMAT JSON`, without `ANALYZE`).
+
+The first full DB attempt caught a fixture arithmetic error: page 99 with 225
+rows and page size 2 is still in range. The regression now requests page 114;
+the focused Documents suite and the full DB gate then passed. This was a test
+expectation correction, not a product defect.
+
+No browser automation capability was exposed in this session. Desktop
+1440px/mobile 375px layout, keyboard interaction, network and browser console
+remain pending and are not inferred from React/HTTP tests. No cloud write,
+provider call, push or deployment occurred. Other modules and bounded sidebar
+search remain pending; this is not whole-app F05 acceptance.
