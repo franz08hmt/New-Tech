@@ -1026,3 +1026,36 @@ desktop/mobile viewport and console acceptance remain `BROWSER_ACCEPTANCE_PENDIN
 Exams, Study plans and Expenses are not implemented by this checkpoint, so this
 does not accept whole F05.3. No cloud/provider calls, migration, push or deploy
 occurred.
+
+## F05.3 Exams slice — 20/10/2026
+
+The primary Exams page now uses the additive typed `GET /api/exams/search`;
+the response contains `items`, `page`, `pageSize`, `total`, and `totalPages`.
+Search covers topic, course name/code and room; filters cover course and inclusive
+calendar-date bounds; sort is allowlisted to exam date/time, topic or course with
+stable ID tie-breaking. Query values are validated at the HTTP boundary, dates
+are strict calendar dates, and a reversed range is rejected before SQL. One
+workspace-authorized SQL statement produces the page and total from the same
+snapshot. Scoped `GET /api/exams/:id` serves deep links outside the page. No
+migration or provider call was added.
+
+The legacy `GET /api/exams` remains for the independent compact dashboard next
+exam summary, and the full courses list remains for the course selector. The
+paged Exams screen does not load the unbounded exam list. Create/edit/delete
+permissions are unchanged; a successful mutation triggers a read-only search
+refresh. Tests distinguish the all-matching paged list from the dashboard's
+upcoming-only presentation.
+
+New focused verification on the Exams checkpoint:
+
+- HTTP/PG17/Nest suite: `node --test apps/api/test/exam-search-http.database.test.mjs` — exit 0, 1/1. The fixture uses a business LOGIN role that is non-owner and `NOBYPASSRLS`; synthetic Auth/session and fake external services remain test boundaries. It covers 24+ rows over three pages, tenant isolation, date/course filters, Vietnamese search, stable sort, page beyond end with correct total, manager/member/viewer/no-membership, scoped ID lookup and zero provider calls.
+- Focused Web selection: `npm test --workspace @examate/web -- --run src/App.test.tsx src/ExamsSearch.test.tsx -t "exam|Exam"` — exit 0, 15 passed, 113 filtered by the name selector. It covers the paged route, API request, role controls, mutation refresh behavior, and dashboard's separate summary consumer.
+- `npm run typecheck`, `npm run build`, and `npm run format:check` — exit 0 on the module checkpoint.
+- RED evidence: before implementation, the real HTTP test failed because `GET /api/exams/search` returned 404. After implementation it passed against the disposable PG17/Nest fixture.
+
+No browser tool was exposed, so desktop/mobile layout, keyboard, focus, visual
+mutation, console and network acceptance remain `BROWSER_ACCEPTANCE_PENDING`.
+This is code/test evidence, not browser evidence. Study plans and Expenses still
+remain for F05.3; cloud rollout, Google live and remote-machine acceptance are
+unrelated and remain pending. No cloud/provider call, migration, push or deploy
+occurred.

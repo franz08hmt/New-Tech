@@ -20,7 +20,7 @@ total/totalPages from one tenant-scoped statement snapshot.
 | ----------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | Tasks       | `TasksPanel` full list; dashboard urgent tasks and complete count remain a separate legacy consumer | `#tasks/<id>`; add scoped ID lookup                | status, owner/unassigned; title/status/due_date/created_at                  | API/DB tenant page/count, role controls/status update, focused target, FE stale query/page, focused + full gates            |
 | Courses     | expanded `CoursesPanel`; dashboard gallery, selectors, Assistant context remain separate            | `#courses/<slug>`; use existing scoped slug lookup | progress range; name/code/progress                                          | page beyond two rows, progress filter/sort, route lookup outside page, selector remains complete, focused + full gates      |
-| Exams       | expanded `ExamsPanel`; dashboard next-exam summary remains separate                                 | `#exams/<id>`; add scoped ID lookup                | course, date range; exam date/time/topic/course                             | valid DATE boundaries, foreign course, stable sort, CRUD refresh, compact dashboard remains aggregate, focused + full gates |
+| Exams       | paged `ExamsSearchPanel`; dashboard next-exam summary and course selector remain separate            | `#exams/<id>`; scoped `GET /api/exams/:id`          | course, date range; exam date/time/topic/course                             | valid DATE boundaries, foreign course, stable sort, CRUD refresh, compact dashboard remains aggregate, focused + full gates |
 | Study plans | expanded `StudyPlanPanel`; dashboard/course grouping remains a separate consumer                    | `#study-plan/<id>`; add scoped ID lookup           | course, completed, owner/unassigned, due range; due/title/course/completed  | groups retained within page, all-match completion summary, toggle/CRUD refresh, focused + full gates                        |
 | Expenses    | `BudgetPanel` list; course workspace expense section remains separate                               | `#finances/<id>`; add scoped ID lookup             | category, course/unassigned, period date range; spent_on/amount/description | filtered total/count/largest/by-course independent of page, date preservation, CRUD refresh, focused + full gates           |
 
@@ -83,6 +83,37 @@ this Courses checkpoint `npm run typecheck`, `npm run build`, and
 `npm run format:check` exited 0. Browser acceptance remains pending because no
 approved browser automation capability was exposed. Exams, Study plans and
 Expenses remain pending; whole-F05.3 is not accepted by this checkpoint.
+
+### F05.3 Exams checkpoint
+
+The primary Exams route now uses `GET /api/exams/search` with optional folded
+topic/course/room search, course ID, inclusive `fromDate`/`toDate`, allowlisted
+exam date/time, topic, or course sort, and bounded page/pageSize. Strict date
+validation rejects impossible dates and the service rejects a reversed range
+before opening the business transaction. A single tenant-scoped statement
+returns matching metadata and an accurate total from one snapshot; exam dates
+remain `YYYY-MM-DD`. `GET /api/exams/:id` is a scoped lookup for deep links and
+does not change paged totals. The legacy array route remains for the compact
+dashboard next-exam summary; full course choices remain a separate selector
+consumer. The paged Exams screen itself does not fetch the legacy exams array.
+
+The page preserves role-gated create/edit/delete actions and refreshes from the
+search endpoint after a successful mutation. Date/course filters and sort reset
+pagination, request identity is scoped to verified user/workspace/role, and
+focused records stay separate from the list. The dashboard retains its distinct
+upcoming-exam behavior; the paged list includes past exams when they match the
+selected filters.
+
+Focused new evidence: the Exams FE/App selection passed 15 tests (113 were
+filtered out by the test name selector); the Nest/PG17 HTTP fixture passed 1/1
+with a real non-owner business login and separate synthetic Auth fixture. It
+checks 24+ records over three pages, date/course filters, Vietnamese search,
+stable ordering, empty out-of-range pages with correct totals, role/membership,
+and scoped lookup without provider calls. Before implementation the HTTP test
+was RED because `/api/exams/search` returned 404. Typecheck, build and format
+passed on this module checkpoint. Browser acceptance is still pending because
+no approved browser automation tool is exposed; Study plans and Expenses remain
+unfinished and whole-F05.3 is not accepted.
 
 ## F05.2.1 checkpoint — sidebar page reset and unsupported folded queries
 

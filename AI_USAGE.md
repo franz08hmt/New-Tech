@@ -521,3 +521,21 @@ list remains only for dashboard and independent selectors; the Courses list
 does not use it. A real disposable PostgreSQL 17/Nest HTTP fixture, Web tests,
 typecheck, API/Web build and formatting checks were run; browser automation was
 not exposed, so no browser acceptance or independent human review is claimed.
+
+## 2026-10-20 — F05.3 Exams slice (Codex)
+
+Task: add bounded server-side Exams search, filtering, sorting, pagination and
+scoped ID lookup while preserving the separate dashboard summary and course
+selector. Tools used: local PowerShell, Git, Node/Nest, Vitest and a guarded
+disposable PostgreSQL 17 fixture. No external source/data service or AI
+provider was used.
+
+Review/correction: the first HTTP regression run against the old source returned
+404 for `/api/exams/search`, which established the route-absence RED. During FE
+integration, old tests still expected the previous unpaged list markup on the
+Exams route. Those checks were separated into dashboard-summary expectations
+and paged-screen CRUD/error expectations; the fixture was updated to persist
+synthetic mutations so server-refresh behavior is actually exercised. Focused
+HTTP/DB and UI tests then passed. Human review has not yet been performed, and
+browser acceptance is pending because no approved browser automation capability
+was exposed in this session.
