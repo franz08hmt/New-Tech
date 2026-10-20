@@ -7,13 +7,25 @@ import type {
   AiUsageOperationName,
   AiUsageOperationOutcome,
   AiUsageDashboardSort,
+  AiUsageCostBreakdownResponse,
   AiUsageProviderCallsResponse,
 } from "./api";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
 
 type Filters = AiUsageDashboardQuery;
-type ReadError = { key: string; forbidden: boolean; message: string };
+type ReadError = {
+  key: string;
+  forbidden: boolean;
+  invalid: boolean;
+  message: string;
+};
 type Selection = { operationId: string; page: number; baseKey: string };
+type CostView = {
+  cohortKey: string;
+  group: "currency" | "pricing_version";
+  currency?: string;
+  page: number;
+};
 
 function hcmToday() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -61,16 +73,26 @@ function friendlyError(error: unknown) {
     )
       return {
         forbidden: true,
+        invalid: false,
         message: "Chỉ manager có membership hiện tại mới xem được trang này.",
       };
     if (error.status === 401 || error.code === "AUTH_REQUIRED")
       return {
         forbidden: true,
+        invalid: false,
         message: "Phiên đăng nhập không còn quyền xem trang này.",
+      };
+    if (error.status === 400 && error.code === "AI_USAGE_QUERY_INVALID")
+      return {
+        forbidden: false,
+        invalid: true,
+        message:
+          "Ngày hoặc bộ lọc không hợp lệ. Chọn ngày từ 0001-01-01 đến 9999-12-30 và khoảng tối đa 90 ngày.",
       };
   }
   return {
     forbidden: false,
+    invalid: false,
     message:
       "Chưa tải được telemetry. Hãy thử tải lại; thao tác này chỉ đọc dữ liệu.",
   };
@@ -136,11 +158,40 @@ export function AiUsageDashboard() {
   const [callsError, setCallsError] = useState<ReadError>();
   const [callsRevision, setCallsRevision] = useState(0);
   const [callsPage, setCallsPage] = useState(1);
+  const [costView, setCostView] = useState<CostView>();
+  const [costRevision, setCostRevision] = useState(0);
+  const [costPayload, setCostPayload] = useState<{
+    key: string;
+    data: AiUsageCostBreakdownResponse;
+  }>();
+  const [costError, setCostError] = useState<ReadError>();
   const requestRevision = useRef(0);
   const callsRequestRevision = useRef(0);
+  const costRequestRevision = useRef(0);
   const key = JSON.stringify([identity, filters]);
   const keyRef = useRef(key);
   keyRef.current = key;
+  const costCohortKey = JSON.stringify([
+    identity,
+    filters.from,
+    filters.to,
+    filters.operation,
+    filters.mode,
+    filters.outcome,
+    filters.model,
+  ]);
+  const activeCostView: CostView =
+    costView?.cohortKey === costCohortKey
+      ? costView
+      : { cohortKey: costCohortKey, group: "currency", page: 1 };
+  const costKey = JSON.stringify([
+    costCohortKey,
+    activeCostView.group,
+    activeCostView.currency,
+    activeCostView.page,
+  ]);
+  const costKeyRef = useRef(costKey);
+  costKeyRef.current = costKey;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -171,6 +222,54 @@ export function AiUsageDashboard() {
     return () => controller.abort();
   }, [key, revision]);
 
+  useEffect(() => {
+    setCostView(undefined);
+    setSelection(undefined);
+    setCallsPage(1);
+  }, [identity]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const requestId = ++costRequestRevision.current;
+    setCostPayload(undefined);
+    setCostError(undefined);
+    if (!principal) return () => controller.abort();
+    void api
+      .aiUsageCostBreakdown(
+        {
+          from: filters.from,
+          to: filters.to,
+          operation: filters.operation,
+          mode: filters.mode,
+          outcome: filters.outcome,
+          model: filters.model,
+          group: activeCostView.group,
+          currency: activeCostView.currency,
+          page: activeCostView.page,
+          pageSize: 20,
+        },
+        controller.signal,
+      )
+      .then((data) => {
+        if (
+          !controller.signal.aborted &&
+          requestId === costRequestRevision.current &&
+          costKeyRef.current === costKey
+        )
+          setCostPayload({ key: costKey, data });
+      })
+      .catch((reason: unknown) => {
+        if (
+          controller.signal.aborted ||
+          requestId !== costRequestRevision.current ||
+          costKeyRef.current !== costKey
+        )
+          return;
+        setCostError({ key: costKey, ...friendlyError(reason) });
+      });
+    return () => controller.abort();
+  }, [costKey, costRevision]);
+
   const active = payload?.key === key ? payload.data : undefined;
   const activeError = error?.key === key ? error : undefined;
   const loading = !active && !activeError && Boolean(principal);
@@ -190,9 +289,16 @@ export function AiUsageDashboard() {
     return maximum;
   }, [summary?.daily]);
 
-  const updateFilter = <K extends keyof Filters>(field: K, value: Filters[K]) =>
+  const updateFilter = <K extends keyof Filters>(
+    field: K,
+    value: Filters[K],
+  ) => {
     setFilters((current) => ({ ...current, [field]: value, page: 1 }));
-  const clearFilters = () =>
+    setCostView(undefined);
+    setSelection(undefined);
+    setCallsPage(1);
+  };
+  const clearFilters = () => {
     setFilters((current) => ({
       from: daysBefore(hcmToday(), 6),
       to: hcmToday(),
@@ -201,10 +307,19 @@ export function AiUsageDashboard() {
       page: 1,
       pageSize: current.pageSize,
     }));
+    setCostView(undefined);
+    setSelection(undefined);
+    setCallsPage(1);
+  };
 
   const callsKey =
     selection?.baseKey === key
-      ? JSON.stringify([identity, selection.operationId, callsPage])
+      ? JSON.stringify([
+          identity,
+          selection.operationId,
+          filters.model,
+          callsPage,
+        ])
       : "";
   const callsKeyRef = useRef(callsKey);
   callsKeyRef.current = callsKey;
@@ -220,6 +335,7 @@ export function AiUsageDashboard() {
         selection.operationId,
         callsPage,
         20,
+        filters.model,
         controller.signal,
       )
       .then((data) => {
@@ -240,13 +356,17 @@ export function AiUsageDashboard() {
         setCallsError({ key: callsKey, ...friendlyError(reason) });
       });
     return () => controller.abort();
-  }, [callsKey, callsRevision]);
+  }, [callsKey, callsRevision, filters.model]);
 
   const calls = callsPayload?.key === callsKey ? callsPayload.data : undefined;
   const visibleCallsError =
     callsError?.key === callsKey ? callsError : undefined;
   const callsLoading = Boolean(callsKey) && !calls && !visibleCallsError;
   const totalPages = active?.operations.totalPages ?? 0;
+  const activeCost =
+    costPayload?.key === costKey ? costPayload.data : undefined;
+  const activeCostError = costError?.key === costKey ? costError : undefined;
+  const costLoading = Boolean(principal) && !activeCost && !activeCostError;
 
   if (!principal)
     return (
@@ -271,6 +391,7 @@ export function AiUsageDashboard() {
           <input
             type="date"
             value={filters.from}
+            min="0001-01-01"
             max={filters.to}
             onChange={(event) => updateFilter("from", event.target.value)}
           />
@@ -281,6 +402,7 @@ export function AiUsageDashboard() {
             type="date"
             value={filters.to}
             min={filters.from}
+            max="9999-12-30"
             onChange={(event) => updateFilter("to", event.target.value)}
           />
         </label>
@@ -417,7 +539,9 @@ export function AiUsageDashboard() {
           <h2>
             {activeError.forbidden
               ? "Không có quyền xem"
-              : "Chưa tải được telemetry"}
+              : activeError.invalid
+                ? "Bộ lọc không hợp lệ"
+                : "Chưa tải được telemetry"}
           </h2>
           <p>{activeError.message}</p>
           {!activeError.forbidden && (
@@ -495,21 +619,14 @@ export function AiUsageDashboard() {
             </article>
             <article className="panel">
               <h2>Chi phí ước tính đã biết</h2>
-              {summary.providerCalls.cost.breakdown.length ? (
-                summary.providerCalls.cost.breakdown.map((cost) => (
-                  <strong key={`${cost.currency}:${cost.pricingVersion}`}>
-                    {cost.estimatedCost} {cost.currency} · {cost.pricingVersion}
-                  </strong>
-                ))
-              ) : (
-                <strong>Chưa có ước tính</strong>
-              )}
-              <small>
+              <strong>
                 {formatInteger(summary.providerCalls.cost.estimatedCalls)} calls
-                có giá đã lưu;{" "}
+                có giá đã lưu
+              </strong>
+              <small>
                 {formatInteger(summary.providerCalls.cost.unknownCalls)} chưa
-                ước tính. Giá hiển thị theo pricing version đã ghi, không phải
-                billing.
+                ước tính. Chi tiết theo currency và pricing version bên dưới,
+                không phải billing.
               </small>
             </article>
             <article className="panel">
@@ -610,11 +727,175 @@ export function AiUsageDashboard() {
                 <p role="status">Không có provider call trong cohort này.</p>
               )}
               <p className="ai-usage-caption">
-                Chi phí được cộng riêng theo currency và pricing version ở KPI;
-                không quy đổi tiền tệ.
+                Top 20 / {formatInteger(summary.modelCoverage.totalModels)}{" "}
+                model. Bỏ qua{" "}
+                {formatInteger(summary.modelCoverage.omittedModels)} model (
+                {formatInteger(summary.modelCoverage.omittedProviderCalls)}{" "}
+                calls); token đã biết bị bỏ qua:{" "}
+                {formatInteger(summary.modelCoverage.omittedKnownTotalTokens)}{" "}
+                trong {formatInteger(summary.modelCoverage.omittedTokenSamples)}{" "}
+                mẫu.
               </p>
             </section>
           </div>
+
+          <section
+            className="panel ai-usage-cost-breakdown"
+            aria-labelledby="ai-usage-cost-title"
+          >
+            <header className="ai-usage-section-heading">
+              <div>
+                <h2 id="ai-usage-cost-title">Chi phí theo currency</h2>
+                <p>
+                  Tổng tiền được giữ riêng theo currency. Pricing version được
+                  phân trang; không quy đổi hoặc cộng chéo currency.
+                </p>
+              </div>
+              {activeCostView.group === "pricing_version" && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCostView({
+                      cohortKey: costCohortKey,
+                      group: "currency",
+                      page: 1,
+                    })
+                  }
+                >
+                  Tất cả currency
+                </button>
+              )}
+            </header>
+            <p>
+              {activeCostView.group === "pricing_version"
+                ? "Currency " +
+                  activeCostView.currency +
+                  "; tổng đủ pricing version: " +
+                  (activeCost?.totalEstimatedCost ?? "đang tải") +
+                  " " +
+                  activeCostView.currency +
+                  "."
+                : "Mỗi dòng là tổng của toàn bộ pricing version trong cohort."}
+            </p>
+            {costLoading && (
+              <p role="status" aria-busy="true">
+                Đang tải breakdown chi phí…
+              </p>
+            )}
+            {activeCostError && (
+              <div role="alert">
+                <p>{activeCostError.message}</p>
+                {!activeCostError.forbidden && (
+                  <button
+                    type="button"
+                    onClick={() => setCostRevision((value) => value + 1)}
+                  >
+                    Thử tải breakdown
+                  </button>
+                )}
+              </div>
+            )}
+            {activeCost && (
+              <>
+                {activeCost.items.length ? (
+                  <div className="ai-usage-table-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Currency</th>
+                          <th>Pricing version</th>
+                          <th>Calls có estimate</th>
+                          <th>Chi phí ước tính đã biết</th>
+                          <th>Chi tiết</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {activeCost.items.map((item) => (
+                          <tr
+                            key={
+                              item.currency +
+                              ":" +
+                              (item.pricingVersion ?? "all")
+                            }
+                          >
+                            <th scope="row">{item.currency}</th>
+                            <td>
+                              {item.pricingVersion ??
+                                formatInteger(item.pricingVersionCount) +
+                                  " versions"}
+                            </td>
+                            <td>{formatInteger(item.estimatedCalls)}</td>
+                            <td>
+                              {item.estimatedCost} {item.currency}
+                            </td>
+                            <td>
+                              {activeCostView.group === "currency" && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setCostView({
+                                      cohortKey: costCohortKey,
+                                      group: "pricing_version",
+                                      currency: item.currency,
+                                      page: 1,
+                                    })
+                                  }
+                                >
+                                  Pricing versions
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p role="status">
+                    Không có chi phí estimate đã ghi trong cohort này.
+                  </p>
+                )}
+                <nav
+                  className="ai-usage-pagination"
+                  aria-label="Trang nhóm chi phí"
+                >
+                  <button
+                    type="button"
+                    disabled={activeCost.page <= 1 || costLoading}
+                    onClick={() =>
+                      setCostView({
+                        ...activeCostView,
+                        page: activeCost.page - 1,
+                      })
+                    }
+                  >
+                    Trước
+                  </button>
+                  <span>
+                    Trang {activeCost.page} /{" "}
+                    {Math.max(1, activeCost.totalPages)} ·{" "}
+                    {formatInteger(activeCost.totalGroups)} nhóm ·{" "}
+                    {formatInteger(activeCost.totalEstimatedCalls)} calls có
+                    estimate
+                  </span>
+                  <button
+                    type="button"
+                    disabled={
+                      activeCost.page >= activeCost.totalPages || costLoading
+                    }
+                    onClick={() =>
+                      setCostView({
+                        ...activeCostView,
+                        page: activeCost.page + 1,
+                      })
+                    }
+                  >
+                    Sau
+                  </button>
+                </nav>
+              </>
+            )}
+          </section>
 
           <section
             className="panel ai-usage-operations"

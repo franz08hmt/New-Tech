@@ -3,6 +3,10 @@
 // the app already imports its types from "./api" — the module stays the single
 // door to the backend, it just no longer owns a second copy of the shapes.
 export type {
+  AiUsageCostBreakdownGroup,
+  AiUsageCostBreakdownItem,
+  AiUsageCostBreakdownQuery,
+  AiUsageCostBreakdownResponse,
   AiUsageDashboardOperation,
   AiUsageDashboardQuery,
   AiUsageDashboardResponse,
@@ -81,6 +85,8 @@ import {
   changePilotSession,
 } from "./pilot-session-transport";
 import type {
+  AiUsageCostBreakdownQuery,
+  AiUsageCostBreakdownResponse,
   AiUsageDashboardQuery,
   AiUsageDashboardResponse,
   AiUsageProviderCallsResponse,
@@ -234,16 +240,35 @@ export const api = {
       { signal },
     );
   },
+  aiUsageCostBreakdown: (
+    query: AiUsageCostBreakdownQuery,
+    signal?: AbortSignal,
+  ) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query))
+      if (value !== undefined) params.set(key, String(value));
+    return request<AiUsageCostBreakdownResponse>(
+      `/api/admin/ai-usage/cost-breakdown?${params.toString()}`,
+      { signal },
+    );
+  },
   aiUsageProviderCalls: (
     operationId: string,
     page = 1,
     pageSize = 20,
+    model?: string,
     signal?: AbortSignal,
-  ) =>
-    request<AiUsageProviderCallsResponse>(
-      `/api/admin/ai-usage/operations/${encodeURIComponent(operationId)}/calls?page=${page}&pageSize=${pageSize}`,
+  ) => {
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+    if (model !== undefined) params.set("model", model);
+    return request<AiUsageProviderCallsResponse>(
+      `/api/admin/ai-usage/operations/${encodeURIComponent(operationId)}/calls?${params.toString()}`,
       { signal },
-    ),
+    );
+  },
   speechStatus: (signal?: AbortSignal) =>
     request<SpeechStatusResponse>("/api/speech/status", { signal }),
   transcribeSpeech: (
