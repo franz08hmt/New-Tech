@@ -58,6 +58,49 @@ test and documentation edits. F06 is `F06_CODE_VERIFIED +
 BROWSER_ACCEPTANCE_PENDING`, not full F06 acceptance. No cloud writes, paid
 provider call, push or deployment occurred.
 
+### F06.1 contract — bounded complete cost cohorts, model-preserving detail, safe dates
+
+The additive cost detail route is
+`GET /api/admin/ai-usage/cost-breakdown`. It pages complete totals by
+currency (`group=currency`, default) or exact pricing-version groups for one
+validated currency (`group=pricing_version&currency=USD`). Both use the same
+date/operation/mode/outcome/model cohort, page default 20/max 50, exact decimal
+strings, estimated-call counts, and explicit group/page metadata. Currency rows
+sum all matching pricing versions without cross-currency totals. Pricing-version
+pages expose the full exact currency total so later pages reconcile to the same
+amount. Overview keeps full-cohort estimated/unknown call counts but no longer
+returns a silently truncated cost list. Model rows show top 20 and expose total,
+omitted model/call, and known-token/sample coverage. Provider-call detail
+inherits the active overview model filter; SQL count, items and pagination share
+that predicate.
+
+Accepted report dates are `0001-01-01` through `9999-12-30`. The upper date is
+exclusive-bound safe: adding one day yields the still-supported PostgreSQL date
+`9999-12-31`; year 0000 and `9999-12-31` are rejected before workspace SQL.
+Defaults are validated too, and the browser date controls share the bounds.
+
+F06.1 keeps migration 021 and the least-privilege manager/RLS path unchanged;
+the added cost endpoint reuses its business LOGIN SELECT capability and performs
+fresh manager authorization. The regression fixture also writes a matching
+synthetic cost row in the other tenant and confirms it does not affect totals.
+Provider-call detail expires calls before both count and page selection. Query
+rejections remain structured 400 responses, and the UI distinguishes invalid
+date/filter input from a read/network failure. Browser acceptance is still
+pending; these statements are API/UI test results only until a browser run is
+available.
+
+F06.1 verification on the final source tree: `npm run typecheck`, `npm test`,
+`npm run build`, `npm run format:check`, and guarded PG17 `npm run test:database`
+all exited 0. The fresh application run passed API Vitest 384/384 (27 files),
+API Node 855/855, and Web 454/454 (29 files), 1,693 tests total. The database
+runner passed 470/470 tests in 39 serial files with 0 failed, skipped, or
+cancelled. Focused F06.1 query and dashboard suites passed 43/43 and 11/11;
+new HTTP/RLS regressions are included in the full database run. No browser
+automation was exposed, so F06 remains `F06_CODE_VERIFIED +
+BROWSER_ACCEPTANCE_PENDING`, not full acceptance. Cloud rollout, Google live,
+F05 browser acceptance, and the Thắng machine remain pending. No migration,
+cloud write, paid provider call, push, or deployment occurred.
+
 ## F05.3.1 checkpoint — focused records and expense chart denominator
 
 Implementation and regression tests: `b826f80`.

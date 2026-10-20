@@ -649,3 +649,36 @@ build, format, and guarded PostgreSQL 17 `test:database` (470/470 across 39
 serial files, 0 failed/skipped/cancelled). Focused F06 coverage was API query
 validation 24/24, Web dashboard 5/5, runtime HTTP/RLS 14/14, and migration
 lifecycle 1/1. No browser acceptance or independent human review is claimed.
+
+## 2026-10-21 — F06.1 dashboard review corrections (Codex)
+
+AI assistance inspected the independent review harness as diagnostic input,
+then moved the covered cases into repository-owned API, HTTP/PG17, and web
+regressions. It added a bounded paginated cost-breakdown contract: currency
+groups sum all matching pricing versions per currency, while pricing-version
+pages retain the full exact decimal total for the selected currency. It also
+made top-20 model coverage explicit, propagated the active model filter into
+provider-call detail, and bounded accepted report dates so the exclusive upper
+bound stays valid. The existing migration, manager RLS, least-privilege
+capability, telemetry semantics, admission ledger, and provider flow were not
+changed.
+
+RED evidence included API query failures for the missing cost query contract,
+unsupported date boundaries, and missing detail model filter; a request to the
+old built API against disposable Nest/PG17 also reproduced `0000-01-01` as an
+HTTP 500. GREEN verification added bounded group totals, 0/1/20/21/22
+pricing-version cases, multiple currencies, zero and unknown cost, 23 model
+coverage, model-filtered and unfiltered detail, expiry, cross-tenant sentinels,
+and invalid-then-valid date requests. Provider/Auth external boundaries were
+synthetic; DB and Nest HTTP paths remained real. No cloud/provider was used.
+No human review or browser visual acceptance is claimed. Browser tools were not
+exposed in this session, so desktop/mobile, keyboard, console, and layout
+acceptance remain pending.
+
+Final F06.1 verification on the task tree: typecheck, application tests, build,
+format, and guarded PG17 database tests exited 0. The fresh application tests
+passed API Vitest 384/384, API Node 855/855, and Web 454/454 (1,693 total).
+The database runner passed 470/470 across 39 serial files; failed, skipped and
+cancelled counts were all zero. Focused API query and web dashboard suites
+passed 43/43 and 11/11. This is code/automated verification only; browser
+acceptance remains pending.

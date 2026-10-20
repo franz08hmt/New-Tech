@@ -189,6 +189,54 @@ npm run format:check
 npm run test:database
 ```
 
+## F06.1 — dashboard aggregation and boundary corrections
+
+F06.1 begins at `084c308` and leaves migrations 019–021 and all runtime
+capabilities unchanged. It adds `GET /api/admin/ai-usage/cost-breakdown`: the
+default page groups exact estimated costs by currency across every stored
+pricing version; selecting one currency pages its version rows. Each view
+returns `totalGroups`, `totalEstimatedCalls`, pagination, and exact decimal
+strings. Version detail repeats the full exact currency total across every
+page. Currency totals are never combined. The overview retains complete
+estimated/unknown call counts and its model table explicitly says top 20 with
+omitted model, call, known-token and token-sample coverage.
+
+Provider-call detail accepts the validated overview `model` filter and applies
+it in the same scoped CTE for count and items; clearing the overview model still
+shows every unexpired call for that operation. Both overview and breakdown
+accept only `0001-01-01` through `9999-12-30`. PostgreSQL derives the exclusive
+upper date (`to + 1 day`) after validation, avoiding ISO extended-year slicing
+and the unsupported year 10000.
+
+RED evidence: new query regressions first failed for unsupported year edges,
+the valid model detail query and the missing cost-breakdown parser. The runtime
+HTTP test against the pre-change API build returned 500 for year 0000 instead
+of 400. GREEN evidence is recorded below after final gates. The PG17 HTTP
+fixture uses separate non-owner/NOBYPASSRLS business and Auth LOGINs, real Nest
+routes and RLS; only external Auth/provider boundaries are synthetic. It seeds
+0/1/20/21/22 pricing groups, zero and unknown costs, multiple currencies,
+23 models, a 21-call selected model plus another model, an expired selected
+call, and a matching other-tenant cost sentinel. It checks cost totals across
+pages, top-20 coverage, filtered/unfiltered detail, malformed query rejection,
+and manager/member/viewer/revoked access.
+
+Browser tool inventory in this session exposed no browser/CUA automation, so
+desktop/mobile layout and interaction remain `BROWSER_ACCEPTANCE_PENDING`;
+React/HTTP tests are not browser evidence. F05 browser acceptance, cloud
+rollout, Google live and Thắng's machine keep their previous pending status.
+No migration, cloud/provider call, push or deployment occurred.
+
+Fresh F06.1 verification: typecheck, build, format, and guarded PG17 database
+gate exited 0; `npm test` exited 0 with API Vitest 384/384 (27 files), API
+Node 855/855, and Web 454/454 (29 files), 1,693 total. Database tests passed
+470/470 across 39 serial files, with 0 failed, skipped, or cancelled. Focused
+query and dashboard tests passed 43/43 and 11/11. The supported-date API
+regressions, bounded cost cohorts, top-20 model coverage and filtered detail
+were included in those runs. Browser acceptance was unavailable and remains
+pending; no browser pass is inferred from these tests.
+Re-run with the command block above against a marked disposable PostgreSQL 17
+target distinct from runtime/cloud URLs; do not run against Supabase.
+
 Browser tool Playwright phải có sẵn ngoài dependencies app; đặt PLAYWRIGHT_MODULE
 trỏ module đã cài (không chứa credential), không tự npm install package Auth.
 

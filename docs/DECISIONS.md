@@ -480,3 +480,21 @@ cannot represent every pre-telemetry rejection or guarantee live in-flight
 counts. Startup capability checks detect drift at process start but do not
 prevent an authorized DBA from changing grants afterward. Disposable PG17
 evidence does not imply cloud rollout readiness.
+
+### F06.1 — bounded breakdown, cohort fidelity and date domain
+
+The overview no longer carries a `LIMIT 20` cost breakdown. A read-only
+`/cost-breakdown` route returns complete totals grouped by currency, with a
+separate bounded pricing-version view for one currency. Decimal amounts stay
+strings from PostgreSQL `NUMERIC`; each response includes group count, page
+metadata and estimated-call coverage, while the pricing-version view includes
+the exact all-version total for that currency. It never sums unlike
+currencies. Model display is explicitly top 20 with total and omitted
+model/call/token coverage. Provider-call detail accepts the already validated
+model filter so detail count and items stay in the same selected cohort.
+
+Report dates are restricted to `0001-01-01`…`9999-12-30`. SQL derives the
+exclusive upper bound from the PostgreSQL date (`to + 1 day`) only after API
+validation; `9999-12-31` is therefore representable as the boundary without
+attempting year 10000. Invalid dates fail before workspace/report SQL. This
+does not change F03 telemetry, migration 021, RLS/grants, or F04 admission.
