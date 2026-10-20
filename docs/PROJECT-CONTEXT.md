@@ -3,6 +3,66 @@
 Cập nhật 20/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
+## Current checkpoint — F04 local implementation (20/10/2026)
+
+F04 implementation revision: `d716c13`.
+
+F03 remains **F03_CODE_VERIFIED + F03_BROWSER_ACCEPTANCE_PENDING**. On this
+revision the focused PG17 integration test exercised Nest HTTP through two API
+instances, separate business/Auth LOGIN pools, live Auth/session/membership/RLS,
+the real `AiUsageService` and provider wrappers, and synthetic SDK transport. It
+passed 14/14 cases. Provider counters matched persisted telemetry; workspace SQL
+made no provider call; timeout/cancel retained admission state `unknown` while
+the upstream stop was unconfirmed. Browser evidence is still required and was
+not replaced by this HTTP/DB test.
+
+F04 is implemented locally behind migration `020_ai_admission.sql` and runtime
+capability contract v20. Current finite defaults are 30 logical operations per
+verified user per Asia/Ho_Chi_Minh DB day (shared across that user's workspaces),
+2 active operations per user, 5 per workspace, and provider-call caps of 1 for
+general chat, 2 for document questions, 17 for summary (up to 16 sections plus
+synthesis), and 150 for indexing (up to 25 OCR pages plus batches for 2,000
+chunks at batch size 16). Every provider dispatch requires a durable permit.
+Workspace SQL with no provider work consumes no AI operation. Configured zero
+denies that limit; missing values use the finite defaults, malformed/unbounded
+values fail startup, and admission cannot be disabled.
+
+The DB reservation is atomic across API instances. The daily operation is
+consumed at reservation and is not refunded after provider failure, cancel, or
+unknown outcome. Provider calls run outside transactions. A 120-second lease
+applies only before dispatch; stale undispatched reservations can be terminalized
+and do not occupy a slot. Once dispatched, an operation with unconfirmed stop
+remains `unknown` and holds concurrency; lease expiry never releases that slot.
+This is intentionally conservative and can require operator investigation after
+a process/provider failure. Cost is not budgeted; F03 usage remains best-effort
+and is not the quota ledger.
+
+Final local gates on this revision: typecheck, application tests, build,
+format:check, and the guarded PostgreSQL 17.11 `test:database` all exited 0.
+`npm test` passed API Vitest 332/332, API Node 850/850, and web 384/384 (1,566
+total); the database chain passed 462/462 with zero failed, skipped, or cancelled.
+The full HTTP/DB admission proof passed 14/14 over two Nest instances and real
+non-owner business/Auth LOGIN pools, with synthetic upstream SDK/Storage/Auth.
+The disposable DB tests also prove concurrent admission across backend PIDs,
+quota rollover, fan-out rejection, and conservative lost-ACK/unknown handling.
+General-chat and document-question fan-out is persisted in the initial atomic
+reservation before handler work and before SSE headers. A zero provider-call cap
+is rejected before operation accounting or provider dispatch; the focused
+regression passed in the final suite.
+The final run found and corrected only stale test fixtures: full-chain migration
+counts now include 020, SET ROLE negatives target the provisioned Auth capability,
+and OCR fakes implement the new planned-call contract. The earlier 1,560-app /
+448-DB figures remain historical F03.1 evidence, not these gate results.
+
+Browser/CUA automation was not available in this session. No browser result is
+inferred from HTTP/SQL tests; desktop/mobile denial UX remains pending. No cloud
+migration/write, paid provider, push, or deployment is part of this work.
+
+Current status: **F03_CODE_VERIFIED + F03_BROWSER_ACCEPTANCE_PENDING**;
+**F04_IMPLEMENTED + AUTOMATED_GATES_PASS + BROWSER_ACCEPTANCE_PENDING**. This is
+not F04_LOCAL_ACCEPTED. Cloud rollout, Google live, Auth extended, Thắng's
+machine, F06, and semantic/live RAG acceptance remain pending.
+
 ## Latest checkpoint - F03.1 review (20/10/2026)
 
 F03.1 addressed the token-usage consistency and expiring signed-PDF-link findings.
@@ -231,8 +291,8 @@ chiếu lịch sử. Không chạy lại phần đã có hoặc biến kế ho�
 | --- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | F01 | Google PKCE, JWT-backed phiên hiện có, membership/role, replay/account race                                                | Local đã triển khai; F01.1 rollback/preflight local hardening accepted. Google live, Thắng và Auth extended pending                                              |
 | F02 | Hoàn tất B2: runtime non-owner/NOBYPASSRLS, grants tối thiểu, tenant RLS toàn app, rollout/rollback cloud                  | F02-A local acceptance đạt qua browser+Nest+PG17 LOGIN business/Auth non-owner; F02-B/cloud runtime provisioning/rollout vẫn pending, không coi B2 toàn app xong |
-| F03 | Prompt tập trung/version; metadata request/provider calls, token, latency, outcome, chi phí ước tính                       | Foundation local ở contract v19 + migration 019, prompt registry và usage persistence đã kiểm PG17 disposable; F04 budget và F06 dashboard chưa làm              |
-| F04 | B3: cap user/ngày, concurrency, fan-out summary/index/OCR; admission nguyên tử và bền vững                                 | Pending; timeout/context cap/Auth throttle không thay budget AI                                                                                                  |
+| F03 | Prompt tập trung/version; metadata request/provider calls, token, latency, outcome, chi phí ước tính                       | Code và tích hợp HTTP/DB PG17 đã kiểm; nghiệm thu browser desktop/375px sau instrumentation còn pending; chưa nhận F03 đầy đủ                                    |
+| F04 | B3: cap user/ngày, concurrency, fan-out summary/index/OCR; admission nguyên tử và bền vững                                 | Migration 020/contract v20 triển khai local; automated gates pass, browser acceptance pending; không phải monetary budget hay dashboard F06                      |
 | F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Pending; chưa có vertical slice được nghiệm thu                                                                                                                  |
 | F06 | Dashboard AI cho admin đúng workspace: request/provider calls, token/cost/latency/lỗi/từ chối và filters                   | Pending; đây là yêu cầu usage dashboard, không phải Finances hay billing                                                                                         |
 | F07 | N1 lưu bền, mở lại/xóa, retention/quyền; receipt/history/reset/account isolation                                           | Pending persistence; history trong tab/SSE và draft revision đã có, không viết lại                                                                               |

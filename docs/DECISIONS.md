@@ -248,3 +248,88 @@ F06; không thêm queue/retry; không cho Auth capability xem dữ liệu usage.
 capability contract v19 so source/catalog đã quản lý, nhưng local PG17 pass không
 chứng minh cloud role provisioning. RLS bảo vệ lỗi scope SQL theo context đã xác
 thực, không xác minh JWT từ custom GUC và không chống toàn bộ process/server takeover.
+
+## ADR-004 — Durable AI operation admission (F04)
+
+Local decision on 20/10/2026. Migration 020 and runtime capability contract v20
+are source-only until a separately authorized cloud rollout. The final five
+automated gates pass on disposable PG17; browser denial UX remains to be verified
+before local acceptance.
+
+### Decision and policy
+
+Admission uses a dedicated PostgreSQL ledger, not F03 best-effort telemetry or an
+in-process semaphore. One logical operation is reserved before provider work;
+provider attempts are separately permitted and counted before dispatch. Identity
+comes from the guard-verified principal. Daily quota is per verified user across
+their workspaces, using the DB calendar date in `Asia/Ho_Chi_Minh`.
+
+Finite defaults are 30 logical operations/user/day, 2 concurrent operations/user,
+5 concurrent operations/workspace, and provider-attempt caps of 1 general chat,
+2 document question, 17 summary (16 sections plus synthesis), and 150 indexing
+(25 OCR pages plus 125 embedding batches at batch size 16 for a 2,000-chunk cap).
+The 120-second lease covers only undispatched reservations. Missing config selects
+these defaults; zero denies that dimension; malformed, extreme, or explicit
+disable/fail-open config prevents startup. These are operation and fan-out caps,
+not monetary limits. Unknown token/cost usage remains unknown.
+
+Reserve takes short transaction-scoped advisory locks in fixed order (user,
+workspace), locks the user's daily row, counts active reservations visible for
+that verified user/workspace, then inserts the operation and charges the daily
+unit atomically. Each dispatch takes a fresh short transaction, checks current
+membership/role, locks the operation and requires a remaining planned permit.
+SDK, embedding, OCR, and streaming work run outside transactions. Workspace SQL
+without provider work is not admitted as AI.
+
+### State and recovery
+
+`reserved` is undispatched and lease-bounded. On a later request, expired
+undispatched rows are terminalized; their daily unit is not refunded. Before each
+provider attempt, a committed permit moves the operation to `running` and
+increments its attempt count. Confirmed completion/failure/cancel terminalizes
+the operation. If provider stop or finalization is uncertain after dispatch, the
+state stays `unknown` and holds user/workspace concurrency indefinitely until
+operator verification; lease expiry never proves the remote call stopped. This
+can reduce availability after a crash but avoids silently exceeding concurrency.
+Lost reserve/permit acknowledgements reconcile only by the same server operation
+ID and never replay provider work. Telemetry failure cannot bypass admission or
+change an already-determined business response.
+
+### Capability and limits
+
+Migration 020 grants the business capability only the required columns for its
+own daily/operation rows, protected by RLS. Business still has no table ownership,
+superuser, `BYPASSRLS`, DDL, `TRUNCATE`, or maintenance capability. Auth has no
+admission/business access; maintenance migration/rollback remains a separate CLI
+credential. The rollback runner defaults to dry-run, requires exact disposable
+target confirmation for apply, checks checksum/later migrations/dependencies,
+locks and rechecks before a `DROP RESTRICT`, and never uses `CASCADE`.
+
+RLS transaction GUCs scope SQL but do not independently verify the principal. A
+compromised API process with the business credential could forge its own context;
+startup catalog checks also cannot prevent a DBA changing grants after startup.
+Unknown dispatched rows are intentionally not auto-reconciled because the app
+cannot prove an upstream provider stopped. The DB ledger bounds active admission
+by configured concurrency, but terminal rows are pruned in bounded batches during
+later reservations; there is no background scheduler in this phase. Local PG17
+tests do not establish Supabase grants, capacity, or cloud rollout readiness.
+
+## ADR-004 verification note
+
+Focused disposable PG17 evidence: migration/rollback tests 4/4, admission DB tests
+10/10, and Nest HTTP integration 14/14 on this worktree. The latter used two API
+instances, separate real non-owner Auth/business LOGIN pools, real sessions,
+membership, RLS, admission, usage persistence and provider wrappers; only external
+Auth/SDK/Storage/PDF boundaries were synthetic. Final gates passed: API Vitest
+332, API Node 850, web 384 (1,566 application tests total), plus 462/462 PG17
+database tests, all with zero failures/skips/cancellations. The full test chain
+also exercised runtime RLS, ingestion, OAuth, and migration rollback.
+
+No browser/CUA automation was exposed in the session. Browser success/denial UX
+remains pending, so this is not F04 local acceptance. The disposable database and
+synthetic provider do not establish Supabase/cloud readiness or a monetary budget.
+
+Known general-chat and document-question provider-call fan-out is stored with
+the initial reservation before handler work begins. This rejects a zero fan-out
+cap before SSE headers or provider dispatch. A separate database regression
+checks that the planned count is already durable at reservation time.

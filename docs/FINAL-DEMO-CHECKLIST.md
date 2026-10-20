@@ -653,3 +653,59 @@ lượt này; chúng không bị xóa hàng loạt.
 - No cloud writes, external provider calls, push, or deployment occurred. F04/F06
   remain unimplemented; Google live, cloud rollout, Auth extended and Thang's
   machine remain pending.
+
+## F04 durable AI admission — local implementation evidence (20/10/2026)
+
+F03 browser status remains **F03_CODE_VERIFIED + F03_BROWSER_ACCEPTANCE_PENDING**.
+The browser acceptance gate is not substituted by the PG17 integration run.
+
+F04 source adds migration `020_ai_admission.sql`, runtime capability contract v20,
+`AiAdmissionService`, provider-wrapper permits, and guarded local rollback
+`npm run f04:rollback-020`. No cloud migration or provider call occurred.
+
+Policy defaults: 30 logical operations per verified user per database day in
+`Asia/Ho_Chi_Minh` (not reset by workspace changes); 2 active operations per user;
+5 per workspace; provider-call maxima are 1 general, 2 document question, 17
+summary, and 150 document index. Index maximum is derived from 25 OCR pages plus
+125 embedding batches for 2,000 chunks at batch size 16. Defaults are finite;
+missing values use defaults, zero denies the affected scope, invalid/extreme
+values fail startup, and admission cannot be disabled. These are operation,
+concurrency and fan-out limits, not a USD cap.
+
+Each operation reserves a daily unit before work; errors, cancellation and unknown
+provider outcomes do not refund it. Transactions finish before SDK/Storage/OCR work.
+Every SDK attempt checks a persisted permit. A bounded 120-second lease only covers
+work that has not dispatched; stale undispatched work can expire. A dispatched
+attempt remains concurrency-active as `unknown` unless upstream stop is confirmed;
+lease expiry does not release it. This deliberately favors preventing an over-cap
+run over automatic recovery and may leave an operation requiring investigation.
+F03 telemetry may be missing and is not consulted for admission.
+
+New focused PG17 evidence: `node --test apps/api/test/runtime-rls.database.test.mjs`
+passed 14/14 after building. The test launches two Nest API instances with separate
+business/Auth LOGIN non-owner pools and shares one disposable database. It holds
+five provider calls across instances and verifies the sixth receives 429 before
+SSE headers/provider dispatch. SDK counters match persisted operation/call rows;
+workspace SQL has zero SDK calls; timeout and client cancellation record one
+attempt and keep admission state `unknown`. The Nest/auth/RLS/database services,
+admission, usage persistence, and provider wrappers are real. Supabase Auth adapter,
+SDK transport/responses, Storage and PDF bytes are synthetic. No browser was run.
+
+Final gates on the source revision under test: `npm run typecheck` exit 0;
+`npm test` exit 0 (API Vitest 332, API Node 850, web 384; 1,566 total);
+`npm run build` exit 0; `npm run format:check` exit 0; and `npm run test:database`
+exit 0 on guarded PostgreSQL 17.11 (462 pass, 0 fail/skip/cancelled). The test
+database used `TEST_DATABASE_URL` on a labeled loopback disposable; `DATABASE_URL`
+was empty. During final verification, legacy fixtures were corrected to count all
+20 source migrations in full-chain tests, use an existing `examate_auth` role for
+the SET ROLE denial assertion, and supply the OCR fan-out estimate in ingestion
+fakes. The final complete chain passed after those fixture-only corrections.
+The final regression also verifies question fan-out is durably planned during
+initial reservation before handler work or SSE headers; a zero cap is rejected
+before provider dispatch.
+
+F04 code revision `d716c13`: **F04_IMPLEMENTED + AUTOMATED_GATES_PASS + BROWSER_ACCEPTANCE_PENDING**.
+The browser/CUA tool inventory for this session was empty; therefore desktop and
+375px admission UX remains unverified and this is not F04_LOCAL_ACCEPTED. HTTP/DB
+tests are not browser evidence. Run the five commands above in order with the
+guarded PG17 disposable to reproduce the automated gates.

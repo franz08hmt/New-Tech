@@ -299,6 +299,36 @@ service was reused and left running. Other marked test databases/roles remained
 in the disposable cluster without reliable attribution to this run, so they were
 not bulk-cleaned.
 
+## 2026-10-20 — F04 durable AI admission implementation (Codex)
+
+AI assistance implemented a durable admission ledger and provider-call gate for
+F04, plus PG17 migration/rollback and two-instance HTTP integration tests. The
+daily ledger is separate from F03 telemetry. Operations are charged at reservation
+time by verified user, with the DB's `Asia/Ho_Chi_Minh` date; provider attempts
+are independently counted before SDK dispatch. Conservative unknown outcomes keep
+their concurrency slot until upstream stop is confirmed. No USD budget is claimed.
+
+The first focused migration run exposed that teardown tried to snapshot tables
+after migration rollback had removed them; the fixture now compares only the
+objects expected in each state. The first admission test exposed a missing
+column-level SELECT grant for `started_at`; the migration grant and source-derived
+capability digest were corrected, then the pristine-apply and rollback tests were
+rerun. A later RLS test was corrected to use a different same-workspace user so it
+tests actual user isolation rather than a globally scoped verified user's own
+cross-workspace admission metadata. Focused migration tests passed 4/4 and focused
+admission tests passed 9/9. The runtime HTTP/DB integration passed 14/14 after a
+new assertion verified timeout and cancellation retain `unknown` reservations.
+
+Verification used local Git/PowerShell, installed Node/npm/TypeScript/Vitest and
+PostgreSQL 17 disposable with synthetic Auth/SDK/Storage/PDF fixtures. Nest,
+Auth/session/membership/RLS, business/Auth LOGIN pools, `AiUsageService`,
+`AiAdmissionService`, Gemini/embedding/OCR wrappers and PostgreSQL persistence
+were real in the focused HTTP/DB run. Browser/CUA was unavailable and was not
+replaced by HTTP evidence. At the time of this focused run, the full five-gate
+rerun was still pending; its final result is recorded in the later F04 entry
+below. No cloud write, paid provider, dependency installation, push or deployment
+was performed.
+
 ## 2026-10-20 - F03.1 review corrections (Codex)
 
 AI assistance reviewed and corrected Gemini usage normalization and the signed-PDF
@@ -333,3 +363,32 @@ GREEN. The full disposable PG17 gate was rerun: 448 pass in 30 suites, no
 fail/skip/cancelled. The application gate was rerun: API Vitest 329, API Node 847,
 web 384; 1,560 total. Browser acceptance remains blocked by tool availability;
 no browser result or human review is claimed.
+
+## 2026-10-20 - F04 final local implementation and verification (Codex)
+
+Implementation commit: `d716c13`.
+
+The final full test run exposed stale compatibility fixtures, not a runtime
+admission failure: the shared ingestion fake lacked the OCR fan-out planning
+method; the pre-F02 CLI fixture counted only through migration 016 despite source
+020; full-chain academic/workspace fixtures expected 19 ledger rows instead of
+20; and privilege tests attempted `SET ROLE` to a nonexistent legacy role. I
+corrected only fixtures and expectations: OCR fakes report zero planned external
+calls, full-chain counts include 020 while rollback-019/016 fixtures keep their
+explicit migration limits, and SET ROLE denial targets the real provisioned
+`examate_auth` capability. Focused ingestion 44/44, DB ingestion 26/26, CLI 14/14,
+academic/documents 30/30, workspace context 19/19, and OAuth 11/11 passed. The
+final complete PG17 database gate passed 462/462 with no failure, skip, or
+cancellation. The application gate passed API Vitest 332, API Node 850, and web
+384 (1,566 total); typecheck/build/format also exited 0. The final regression
+also proves question fan-out is recorded in the initial reservation before
+handler work/SSE headers; a zero cap rejects before operation accounting or
+provider dispatch. A mutation that removed the persisted planned count failed
+the expected assertion and passed after restoration.
+
+No browser/CUA tool was exposed, so F03/F04 browser acceptance remains pending.
+No browser result is inferred from HTTP tests, and no cloud writes or paid
+provider calls occurred. F03 remains `F03_CODE_VERIFIED +
+F03_BROWSER_ACCEPTANCE_PENDING`; F04 is `F04_IMPLEMENTED + AUTOMATED_GATES_PASS +
+BROWSER_ACCEPTANCE_PENDING`, not local acceptance. No independent human review is
+claimed in this entry.
