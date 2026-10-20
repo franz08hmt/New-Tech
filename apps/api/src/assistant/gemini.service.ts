@@ -7,6 +7,11 @@ import {
   classifyProviderOutcome,
   type ProviderCallToken,
 } from "./ai-usage.service.js";
+import { safeAiAdmissionError } from "./ai-admission.service.js";
+import {
+  createProviderDeadline,
+  settleProviderCall,
+} from "./provider-lifecycle.js";
 import { AssistantError } from "./assistant.types.js";
 import type {
   AssistantGeneration,
@@ -40,9 +45,11 @@ export class GeminiService implements AssistantProvider {
   async generate(input: AssistantGeneration): Promise<string> {
     const startedAt = Date.now();
     const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    let deadline: ReturnType<typeof createProviderDeadline> | undefined;
     let providerCall: ProviderCallToken | undefined;
     let providerCallFinished = false;
+    let permitAuthorized = false;
+    let providerDispatched = false;
     try {
       if (!this.config.apiKey) throw new AssistantError("not_configured");
       // Lazy initialization keeps status/startup independent of the SDK/network.
@@ -51,13 +58,9 @@ export class GeminiService implements AssistantProvider {
         vertexai: false,
         httpOptions: { retryOptions: { attempts: 1 } },
       });
-      const timeout = new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => {
-          // Abort the transport as well as bounding the caller's wait.
-          controller.abort();
-          reject(new AssistantError("timeout"));
-        }, this.config.timeoutMs);
-      });
+      deadline = createProviderDeadline(this.config.timeoutMs, () =>
+        controller.abort(),
+      );
       providerCall = this.usage?.startProviderCall({
         type: "generation",
         provider: "google",
@@ -65,33 +68,48 @@ export class GeminiService implements AssistantProvider {
         prompt: input.prompt,
       });
       await this.usage?.authorizeProviderCall(providerCall);
-      const response = await Promise.race([
-        this.client.models.generateContent({
-          model: this.model,
-          contents: [
-            ...(input.conversation ?? []).map(({ role, text }) => ({
-              role,
-              parts: [{ text }],
-            })),
-            { role: "user", parts: input.userParts.map((text) => ({ text })) },
-          ],
-          config: {
-            systemInstruction: input.systemInstruction,
-            maxOutputTokens: this.config.maxOutputTokens,
-            candidateCount: 1,
-            responseModalities: ["TEXT"],
-            ...(input.responseMimeType
-              ? { responseMimeType: input.responseMimeType }
-              : {}),
-            ...(input.responseJsonSchema
-              ? { responseJsonSchema: input.responseJsonSchema }
-              : {}),
-            abortSignal: controller.signal,
-            httpOptions: { retryOptions: { attempts: 1 } },
-          },
-        }),
-        timeout,
+      permitAuthorized = true;
+      if (deadline.hasExpired()) {
+        this.usage?.discardProviderCallBeforeDispatch(providerCall);
+        providerCallFinished = true;
+        throw new AssistantError("timeout");
+      }
+      providerDispatched = true;
+      const result = await Promise.race([
+        settleProviderCall(() =>
+          this.client!.models.generateContent({
+            model: this.model,
+            contents: [
+              ...(input.conversation ?? []).map(({ role, text }) => ({
+                role,
+                parts: [{ text }],
+              })),
+              {
+                role: "user",
+                parts: input.userParts.map((text) => ({ text })),
+              },
+            ],
+            config: {
+              systemInstruction: input.systemInstruction,
+              maxOutputTokens: this.config.maxOutputTokens,
+              candidateCount: 1,
+              responseModalities: ["TEXT"],
+              ...(input.responseMimeType
+                ? { responseMimeType: input.responseMimeType }
+                : {}),
+              ...(input.responseJsonSchema
+                ? { responseJsonSchema: input.responseJsonSchema }
+                : {}),
+              abortSignal: controller.signal,
+              httpOptions: { retryOptions: { attempts: 1 } },
+            },
+          }),
+        ),
+        deadline.event,
       ]);
+      if (result.kind === "timeout") throw new AssistantError("timeout");
+      if (result.kind === "error") throw result.error;
+      const response = result.value;
       if (response.modelVersion)
         this.usage?.updateProviderModel(providerCall, response.modelVersion);
       this.usage?.finishProviderCall(
@@ -110,8 +128,14 @@ export class GeminiService implements AssistantProvider {
       });
       return answer;
     } catch (error: unknown) {
+      const admissionError = safeAiAdmissionError(error);
+      if (admissionError) throw admissionError;
+      if (permitAuthorized && !providerDispatched && !providerCallFinished) {
+        this.usage?.discardProviderCallBeforeDispatch(providerCall);
+        providerCallFinished = true;
+      }
       const failure = this.normalizeError(error, controller.signal.aborted);
-      if (!providerCallFinished)
+      if (permitAuthorized && providerDispatched && !providerCallFinished)
         this.usage?.finishProviderCall(
           providerCall,
           classifyProviderOutcome(failure),
@@ -127,7 +151,7 @@ export class GeminiService implements AssistantProvider {
       // Never preserve SDK messages, causes, headers or response bodies.
       throw failure;
     } finally {
-      clearTimeout(timer);
+      deadline?.dispose();
     }
   }
 
@@ -137,24 +161,21 @@ export class GeminiService implements AssistantProvider {
   ): AsyncGenerator<string> {
     const startedAt = Date.now();
     const controller = new AbortController();
-    let timedOut = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    let deadline: ReturnType<typeof createProviderDeadline> | undefined;
     let providerCall: ProviderCallToken | undefined;
     let providerCallFinished = false;
+    let permitAuthorized = false;
+    let providerDispatched = false;
     let streamUsage: unknown;
     const forwardAbort = () => controller.abort();
+    let resolveInterrupted!: (event: { kind: "interrupted" }) => void;
+    const interrupted = new Promise<{ kind: "interrupted" }>((resolve) => {
+      resolveInterrupted = resolve;
+    });
+    const notifyInterrupted = () => resolveInterrupted({ kind: "interrupted" });
     signal?.addEventListener("abort", forwardAbort, { once: true });
-    const interrupted = new Promise<never>((_resolve, reject) => {
-      controller.signal.addEventListener(
-        "abort",
-        () =>
-          reject(
-            timedOut
-              ? new AssistantError("timeout")
-              : new DOMException("Request cancelled", "AbortError"),
-          ),
-        { once: true },
-      );
+    controller.signal.addEventListener("abort", notifyInterrupted, {
+      once: true,
     });
 
     try {
@@ -166,10 +187,9 @@ export class GeminiService implements AssistantProvider {
         vertexai: false,
         httpOptions: { retryOptions: { attempts: 1 } },
       });
-      timer = setTimeout(() => {
-        timedOut = true;
-        controller.abort();
-      }, this.config.timeoutMs);
+      deadline = createProviderDeadline(this.config.timeoutMs, () =>
+        controller.abort(),
+      );
 
       providerCall = this.usage?.startProviderCall({
         type: "generation_stream",
@@ -178,34 +198,57 @@ export class GeminiService implements AssistantProvider {
         prompt: input.prompt,
       });
       await this.usage?.authorizeProviderCall(providerCall);
+      permitAuthorized = true;
+      if (deadline.hasExpired()) {
+        this.usage?.discardProviderCallBeforeDispatch(providerCall);
+        providerCallFinished = true;
+        throw new AssistantError("timeout");
+      }
+      if (signal?.aborted) {
+        this.usage?.discardProviderCallBeforeDispatch(providerCall);
+        providerCallFinished = true;
+        throw new DOMException("Request cancelled", "AbortError");
+      }
 
-      const stream = await Promise.race([
-        this.client.models.generateContentStream({
-          model: this.model,
-          contents: [
-            ...(input.conversation ?? []).map(({ role, text }) => ({
-              role,
-              parts: [{ text }],
-            })),
-            { role: "user", parts: input.userParts.map((text) => ({ text })) },
-          ],
-          config: {
-            systemInstruction: input.systemInstruction,
-            maxOutputTokens: this.config.maxOutputTokens,
-            candidateCount: 1,
-            responseModalities: ["TEXT"],
-            ...(input.responseMimeType
-              ? { responseMimeType: input.responseMimeType }
-              : {}),
-            ...(input.responseJsonSchema
-              ? { responseJsonSchema: input.responseJsonSchema }
-              : {}),
-            abortSignal: controller.signal,
-            httpOptions: { retryOptions: { attempts: 1 } },
-          },
-        }),
+      providerDispatched = true;
+      const streamResult = await Promise.race([
+        settleProviderCall(() =>
+          this.client!.models.generateContentStream({
+            model: this.model,
+            contents: [
+              ...(input.conversation ?? []).map(({ role, text }) => ({
+                role,
+                parts: [{ text }],
+              })),
+              {
+                role: "user",
+                parts: input.userParts.map((text) => ({ text })),
+              },
+            ],
+            config: {
+              systemInstruction: input.systemInstruction,
+              maxOutputTokens: this.config.maxOutputTokens,
+              candidateCount: 1,
+              responseModalities: ["TEXT"],
+              ...(input.responseMimeType
+                ? { responseMimeType: input.responseMimeType }
+                : {}),
+              ...(input.responseJsonSchema
+                ? { responseJsonSchema: input.responseJsonSchema }
+                : {}),
+              abortSignal: controller.signal,
+              httpOptions: { retryOptions: { attempts: 1 } },
+            },
+          }),
+        ),
         interrupted,
       ]);
+      if (streamResult.kind === "interrupted")
+        throw deadline.hasExpired()
+          ? new AssistantError("timeout")
+          : new DOMException("Request cancelled", "AbortError");
+      if (streamResult.kind === "error") throw streamResult.error;
+      const stream = streamResult.value;
       const iterator = stream[Symbol.asyncIterator]();
       let complete = false;
       let providerReadFailed = false;
@@ -216,7 +259,16 @@ export class GeminiService implements AssistantProvider {
         while (true) {
           let next: Awaited<ReturnType<typeof iterator.next>>;
           try {
-            next = await Promise.race([iterator.next(), interrupted]);
+            const result = await Promise.race([
+              settleProviderCall(() => iterator.next()),
+              interrupted,
+            ]);
+            if (result.kind === "interrupted")
+              throw deadline?.hasExpired()
+                ? new AssistantError("timeout")
+                : new DOMException("Request cancelled", "AbortError");
+            if (result.kind === "error") throw result.error;
+            next = result.value;
           } catch (error) {
             providerReadFailed = true;
             throw error;
@@ -285,7 +337,7 @@ export class GeminiService implements AssistantProvider {
           if (!providerReadFailed) {
             this.usage?.finishProviderCall(
               providerCall,
-              timedOut ? "timeout" : "cancelled",
+              deadline?.hasExpired() ? "timeout" : "cancelled",
               streamUsage,
             );
             providerCallFinished = true;
@@ -313,8 +365,14 @@ export class GeminiService implements AssistantProvider {
         streaming: true,
       });
     } catch (error: unknown) {
+      const admissionError = safeAiAdmissionError(error);
+      if (admissionError) throw admissionError;
+      if (permitAuthorized && !providerDispatched && !providerCallFinished) {
+        this.usage?.discardProviderCallBeforeDispatch(providerCall);
+        providerCallFinished = true;
+      }
       if (signal?.aborted) {
-        if (!providerCallFinished)
+        if (permitAuthorized && providerDispatched && !providerCallFinished)
           this.usage?.finishProviderCall(
             providerCall,
             "cancelled",
@@ -322,8 +380,11 @@ export class GeminiService implements AssistantProvider {
           );
         throw new DOMException("Request cancelled", "AbortError");
       }
-      const failure = this.normalizeError(error, timedOut);
-      if (!providerCallFinished)
+      const failure = this.normalizeError(
+        error,
+        deadline?.hasExpired() ?? false,
+      );
+      if (permitAuthorized && providerDispatched && !providerCallFinished)
         this.usage?.finishProviderCall(
           providerCall,
           classifyProviderOutcome(failure),
@@ -339,8 +400,9 @@ export class GeminiService implements AssistantProvider {
       });
       throw failure;
     } finally {
-      clearTimeout(timer);
+      deadline?.dispose();
       signal?.removeEventListener("abort", forwardAbort);
+      controller.signal.removeEventListener("abort", notifyInterrupted);
     }
   }
 

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AssistantChatDto } from "./assistant-chat.dto.js";
 import { AssistantController } from "./assistant.controller.js";
 import { AssistantService } from "./assistant.service.js";
+import { AiAdmissionError } from "./ai-admission.service.js";
 import { DocumentAccessService } from "../documents/document-access.service.js";
 import type { AssistantProvider, AssistantStatus } from "./assistant.types.js";
 import type { WorkspaceAssistantService } from "./workspace-assistant.service.js";
@@ -120,6 +121,69 @@ class StreamTestResponse extends EventEmitter {
 }
 
 describe("AssistantController", () => {
+  it("preserves the admission status and safe code for JSON chat", async () => {
+    const { controller, service } = fixture({
+      ...common,
+      status: "ready",
+      model: "gemini-2.5-flash",
+    });
+    const denied = new AiAdmissionError(
+      "AI_FANOUT_LIMIT",
+      429,
+      "Synthetic safe admission message.",
+    );
+    vi.spyOn(service, "chat").mockRejectedValueOnce(denied);
+
+    await expect(
+      controller.chat({ message: "Synthetic question", mode: "general" }, {
+        principal,
+      } as never),
+    ).rejects.toSatisfy((error: unknown) => {
+      expect(error).toBe(denied);
+      return (
+        (error as AiAdmissionError).getStatus() === 429 &&
+        (error as AiAdmissionError).code === "AI_FANOUT_LIMIT"
+      );
+    });
+  });
+
+  it("writes an admission error terminal event for SSE after headers", async () => {
+    const { controller, provider } = fixture({
+      ...common,
+      status: "ready",
+      model: "gemini-2.5-flash",
+    });
+    const denied = new AiAdmissionError(
+      "AI_ADMISSION_UNAVAILABLE",
+      503,
+      "Synthetic safe admission message.",
+    );
+    vi.mocked(provider.generateStream!).mockImplementationOnce(
+      async function* () {
+        throw denied;
+      },
+    );
+    const response = new StreamTestResponse();
+    const request = Object.assign(new EventEmitter(), { principal });
+
+    await controller.streamChat(
+      { message: "Synthetic question", mode: "general" },
+      request as never,
+      response as never,
+    );
+
+    const events = response.chunks.map((chunk) =>
+      JSON.parse(chunk.replace(/^data: /, "").trim()),
+    );
+    expect(events.at(-1)).toEqual({
+      type: "error",
+      code: "AI_ADMISSION_UNAVAILABLE",
+      message: "Synthetic safe admission message.",
+    });
+    expect(events.some((event) => event.type === "done")).toBe(false);
+    expect(response.writableEnded).toBe(true);
+  });
+
   it.each([
     {
       input: { message: "Question", mode: "general" as const },

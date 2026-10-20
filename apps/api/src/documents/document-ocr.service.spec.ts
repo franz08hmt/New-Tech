@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { GoogleGenAI } from "@google/genai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AiAdmissionError } from "../assistant/ai-admission.service.js";
 import { DocumentOcrService } from "./document-ocr.service.js";
 
 const mocks = vi.hoisted(() => ({
@@ -137,18 +138,56 @@ describe("DocumentOcrService", () => {
   });
 
   it("does not call OCR provider after admission denies a page permit", async () => {
+    const denied = new AiAdmissionError(
+      "AI_FANOUT_LIMIT",
+      429,
+      "Synthetic admission denial.",
+    );
     const usage = {
       startProviderCall: vi.fn(() => ({ provider: "synthetic-call" })),
-      authorizeProviderCall: vi
-        .fn()
-        .mockRejectedValue(new Error("synthetic admission denial")),
+      authorizeProviderCall: vi.fn().mockRejectedValue(denied),
       finishProviderCall: vi.fn(),
     };
     const service = new DocumentOcrService(usage as never);
     await expect(
       service.recover(Buffer.from("%PDF-fixture"), [{ page: 1, text: "1" }]),
-    ).rejects.toBeTruthy();
+    ).rejects.toBe(denied);
     expect(usage.authorizeProviderCall).toHaveBeenCalledOnce();
     expect(mocks.generateContent).not.toHaveBeenCalled();
+    expect(usage.finishProviderCall).not.toHaveBeenCalled();
+    expect(JSON.stringify(vi.mocked(console.log).mock.calls)).not.toContain(
+      "document.ocr_failed",
+    );
+  });
+
+  it("aborts one dispatched OCR request at its provider deadline", async () => {
+    vi.useFakeTimers();
+    let aborted = false;
+    mocks.generateContent.mockImplementation(
+      ({ config }: { config?: { abortSignal?: AbortSignal } }) =>
+        new Promise((_resolve, reject) => {
+          config?.abortSignal?.addEventListener(
+            "abort",
+            () => {
+              aborted = true;
+              reject(new Error("synthetic private SDK detail"));
+            },
+            { once: true },
+          );
+        }),
+    );
+    const pending = expect(
+      new DocumentOcrService().recover(Buffer.from("%PDF-fixture"), [
+        { page: 1, text: "1" },
+      ]),
+    ).rejects.toMatchObject({ code: "OCR_TIMEOUT" });
+    await vi.advanceTimersByTimeAsync(30_000);
+    await pending;
+    expect(aborted).toBe(true);
+    expect(mocks.generateContent).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(JSON.stringify(vi.mocked(console.log).mock.calls)).not.toContain(
+      "synthetic private SDK detail",
+    );
   });
 });

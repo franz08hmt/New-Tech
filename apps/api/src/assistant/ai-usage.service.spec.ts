@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { ForbiddenException } from "@nestjs/common";
+import { AiAdmissionError } from "./ai-admission.service.js";
 import { AiUsageService, classifyAiOutcome } from "./ai-usage.service.js";
 
 const principal = {
@@ -256,5 +258,100 @@ describe("AiUsageService", () => {
       ),
     ).resolves.toBe("business result");
     log.mockRestore();
+  });
+
+  it("preserves a safe membership denial and omits an undispatched provider attempt", async () => {
+    const f = fixture();
+    const admission = {
+      reserve: vi.fn(async () => ({ operationId: "synthetic-operation" })),
+      beginProviderAttempt: vi.fn(async () => {
+        throw new ForbiddenException({
+          code: "WORKSPACE_ACCESS_DENIED",
+          message: "private provider-side detail",
+        });
+      }),
+      finish: vi.fn(async () => {}),
+    };
+    const service = new AiUsageService(
+      f.database as never,
+      f.access as never,
+      admission as never,
+    );
+
+    const denied = await service
+      .runOperation(principal, descriptor, async () => {
+        const call = service.startProviderCall({
+          type: "generation",
+          provider: "google",
+          model: "gemini-2.5-flash",
+        });
+        await service.authorizeProviderCall(call);
+        return "must not dispatch";
+      })
+      .then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+
+    expect(denied).toBeInstanceOf(AiAdmissionError);
+    expect((denied as AiAdmissionError).getStatus()).toBe(403);
+    expect((denied as AiAdmissionError).getResponse()).toEqual({
+      code: "WORKSPACE_ACCESS_DENIED",
+      message: "Bạn không còn quyền vào workspace này.",
+    });
+
+    expect(f.calls).toHaveLength(2);
+    expect(f.calls[1].values[9]).toBe(0);
+    expect(JSON.stringify(f.calls)).not.toContain(
+      "private provider-side detail",
+    );
+    expect(admission.finish).toHaveBeenCalledWith(
+      expect.objectContaining({ operationId: "synthetic-operation" }),
+      true,
+      "rejected",
+    );
+  });
+
+  it("maps unexpected permit failures to safe admission unavailable", async () => {
+    const f = fixture();
+    const admission = {
+      reserve: vi.fn(async () => ({ operationId: "synthetic-operation" })),
+      beginProviderAttempt: vi.fn(async () => {
+        throw Object.assign(new Error("raw database secret"), {
+          code: "XX001",
+        });
+      }),
+      finish: vi.fn(async () => {}),
+    };
+    const service = new AiUsageService(
+      f.database as never,
+      f.access as never,
+      admission as never,
+    );
+
+    const denied = await service
+      .runOperation(principal, descriptor, async () => {
+        const call = service.startProviderCall({
+          type: "embedding_query",
+          provider: "google",
+          model: "gemini-embedding-001",
+        });
+        await service.authorizeProviderCall(call);
+        return "must not dispatch";
+      })
+      .then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+
+    expect(denied).toBeInstanceOf(AiAdmissionError);
+    expect((denied as AiAdmissionError).getStatus()).toBe(503);
+    expect((denied as AiAdmissionError).getResponse()).toMatchObject({
+      code: "AI_ADMISSION_UNAVAILABLE",
+    });
+
+    expect(f.calls).toHaveLength(2);
+    expect(f.calls[1].values[9]).toBe(0);
+    expect(JSON.stringify(f.calls)).not.toContain("raw database secret");
   });
 });

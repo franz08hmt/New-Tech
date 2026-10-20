@@ -3,11 +3,16 @@ import { Injectable, Optional } from "@nestjs/common";
 import { createCanvas } from "@napi-rs/canvas";
 import { log } from "../common/log.js";
 import { documentOcrConfig } from "../config/config.js";
+import { safeAiAdmissionError } from "../assistant/ai-admission.service.js";
 import {
   AiUsageService,
   classifyProviderOutcome,
   type ProviderCallToken,
 } from "../assistant/ai-usage.service.js";
+import {
+  createProviderDeadline,
+  settleProviderCall,
+} from "../assistant/provider-lifecycle.js";
 import { ocrPagePrompt } from "../assistant/prompt-registry.js";
 import {
   assessDocumentText,
@@ -108,6 +113,8 @@ export class DocumentOcrService {
         await task.destroy();
       }
     } catch (error: unknown) {
+      const admissionError = safeAiAdmissionError(error);
+      if (admissionError) throw admissionError;
       const failure = this.normalizeError(error);
       log("error", "document.ocr_failed", {
         model: this.config.model,
@@ -125,16 +132,15 @@ export class DocumentOcrService {
       httpOptions: { retryOptions: { attempts: 1 } },
     });
     const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    let deadline: ReturnType<typeof createProviderDeadline> | undefined;
     let providerCall: ProviderCallToken | undefined;
     let providerCallFinished = false;
+    let permitAuthorized = false;
+    let providerDispatched = false;
     try {
-      const timeout = new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => {
-          controller.abort();
-          reject(new DocumentOcrError("OCR_TIMEOUT"));
-        }, this.config.timeoutMs);
-      });
+      deadline = createProviderDeadline(this.config.timeoutMs, () =>
+        controller.abort(),
+      );
       const prompt = ocrPagePrompt();
       providerCall = this.usage?.startProviderCall({
         type: "ocr_page",
@@ -143,33 +149,45 @@ export class DocumentOcrService {
         prompt: prompt.reference,
       });
       await this.usage?.authorizeProviderCall(providerCall);
-      const response = await Promise.race([
-        this.client.models.generateContent({
-          model: this.config.model,
-          contents: [
-            {
-              role: "user",
-              parts: [
-                { text: prompt.systemInstruction },
-                {
-                  inlineData: {
-                    mimeType: "image/png",
-                    data: image.toString("base64"),
+      permitAuthorized = true;
+      if (deadline.hasExpired()) {
+        this.usage?.discardProviderCallBeforeDispatch(providerCall);
+        providerCallFinished = true;
+        throw new DocumentOcrError("OCR_TIMEOUT");
+      }
+      providerDispatched = true;
+      const result = await Promise.race([
+        settleProviderCall(() =>
+          this.client!.models.generateContent({
+            model: this.config.model,
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  { text: prompt.systemInstruction },
+                  {
+                    inlineData: {
+                      mimeType: "image/png",
+                      data: image.toString("base64"),
+                    },
                   },
-                },
-              ],
+                ],
+              },
+            ],
+            config: {
+              candidateCount: 1,
+              responseModalities: ["TEXT"],
+              maxOutputTokens: 8192,
+              abortSignal: controller.signal,
+              httpOptions: { retryOptions: { attempts: 1 } },
             },
-          ],
-          config: {
-            candidateCount: 1,
-            responseModalities: ["TEXT"],
-            maxOutputTokens: 8192,
-            abortSignal: controller.signal,
-            httpOptions: { retryOptions: { attempts: 1 } },
-          },
-        }),
-        timeout,
+          }),
+        ),
+        deadline.event,
       ]);
+      if (result.kind === "timeout") throw new DocumentOcrError("OCR_TIMEOUT");
+      if (result.kind === "error") throw result.error;
+      const response = result.value;
       if (response.modelVersion)
         this.usage?.updateProviderModel(providerCall, response.modelVersion);
       this.usage?.finishProviderCall(
@@ -189,8 +207,14 @@ export class DocumentOcrService {
       const text = normalizeDocumentText(raw);
       return text && assessDocumentText(text).useful ? text : "";
     } catch (error: unknown) {
+      const admissionError = safeAiAdmissionError(error);
+      if (admissionError) throw admissionError;
+      if (permitAuthorized && !providerDispatched && !providerCallFinished) {
+        this.usage?.discardProviderCallBeforeDispatch(providerCall);
+        providerCallFinished = true;
+      }
       const failure = this.normalizeError(error);
-      if (!providerCallFinished)
+      if (permitAuthorized && providerDispatched && !providerCallFinished)
         this.usage?.finishProviderCall(
           providerCall,
           classifyProviderOutcome(failure),
@@ -199,11 +223,13 @@ export class DocumentOcrService {
         );
       throw failure;
     } finally {
-      clearTimeout(timer);
+      deadline?.dispose();
     }
   }
 
   private normalizeError(error: unknown) {
+    const admissionError = safeAiAdmissionError(error);
+    if (admissionError) return admissionError;
     if (error instanceof DocumentOcrError) return error;
     if (error instanceof ApiError) {
       if ([408, 504].includes(error.status))

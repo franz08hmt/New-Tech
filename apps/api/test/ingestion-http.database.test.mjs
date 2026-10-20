@@ -7,6 +7,7 @@ import {
 import { httpApp, json } from "./helpers.mjs";
 import { authFixture } from "./auth-fixture.mjs";
 import { EmbeddingError } from "../dist/assistant/gemini-embedding.service.js";
+import { AiAdmissionError } from "../dist/assistant/ai-admission.service.js";
 let f;
 const [A, B] = tenants;
 before(async () => {
@@ -109,6 +110,25 @@ for (const role of ["manager", "member", "viewer", "absent"])
         const failed = await post();
         assert.equal(failed.status, 503);
         assert.equal((await failed.json()).code, "EMBEDDING_QUOTA");
+        assert.equal(
+          (
+            await f.admin.query(
+              "SELECT processing_status FROM documents WHERE id=$1",
+              [A.document],
+            )
+          ).rows[0].processing_status,
+          "failed",
+        );
+        f.state.hooks.embedding = () => {
+          throw new AiAdmissionError(
+            "AI_FANOUT_LIMIT",
+            429,
+            "Synthetic safe admission message.",
+          );
+        };
+        const admissionDenied = await post();
+        assert.equal(admissionDenied.status, 429);
+        assert.equal((await admissionDenied.json()).code, "AI_FANOUT_LIMIT");
         assert.equal(
           (
             await f.admin.query(

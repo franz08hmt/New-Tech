@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { ApiError, GoogleGenAI } from "@google/genai";
 import type { GenerateContentParameters } from "@google/genai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AiAdmissionError } from "./ai-admission.service.js";
 import { GeminiService } from "./gemini.service.js";
 
 const { generateContent, generateContentStream } = vi.hoisted(() => ({
@@ -127,7 +128,11 @@ describe("GeminiService", () => {
   });
 
   it("does not dispatch generation when durable admission denies the permit", async () => {
-    const denied = new Error("synthetic admission denial");
+    const denied = new AiAdmissionError(
+      "AI_FANOUT_LIMIT",
+      429,
+      "Synthetic admission denial.",
+    );
     const token = { provider: "synthetic-call" };
     const usage = {
       startProviderCall: vi.fn(() => token),
@@ -136,9 +141,35 @@ describe("GeminiService", () => {
     };
     await expect(
       new GeminiService(usage as never).generate(input),
-    ).rejects.toBeInstanceOf(Error);
+    ).rejects.toBe(denied);
     expect(usage.authorizeProviderCall).toHaveBeenCalledExactlyOnceWith(token);
     expect(generateContent).not.toHaveBeenCalled();
+    expect(usage.finishProviderCall).not.toHaveBeenCalled();
+    expect(console.log).not.toHaveBeenCalled();
+  });
+
+  it("preserves stream admission denial after headers without calling the SDK", async () => {
+    const denied = new AiAdmissionError(
+      "AI_ADMISSION_UNAVAILABLE",
+      503,
+      "Synthetic admission outage.",
+    );
+    const token = { provider: "synthetic-call" };
+    const usage = {
+      startProviderCall: vi.fn(() => token),
+      authorizeProviderCall: vi.fn().mockRejectedValue(denied),
+      finishProviderCall: vi.fn(),
+    };
+    await expect(async () => {
+      for await (const _part of new GeminiService(
+        usage as never,
+      ).generateStream(input)) {
+        // The permit is denied before the SDK stream is created.
+      }
+    }).rejects.toBe(denied);
+    expect(generateContentStream).not.toHaveBeenCalled();
+    expect(usage.finishProviderCall).not.toHaveBeenCalled();
+    expect(console.log).not.toHaveBeenCalled();
   });
 
   it("yields provider text incrementally using Gemini's streaming API", async () => {

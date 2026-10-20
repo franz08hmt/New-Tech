@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { ApiError, GoogleGenAI } from "@google/genai";
 import type { EmbedContentParameters } from "@google/genai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AiAdmissionError } from "./ai-admission.service.js";
 import {
   EmbeddingError,
   GeminiEmbeddingService,
@@ -129,18 +130,25 @@ describe("GeminiEmbeddingService", () => {
 
   it("does not dispatch an embedding batch when admission denies its permit", async () => {
     const token = { provider: "synthetic-call" };
+    const denied = new AiAdmissionError(
+      "WORKSPACE_ACCESS_DENIED",
+      403,
+      "Synthetic membership denial.",
+    );
     const usage = {
       startProviderCall: vi.fn(() => token),
-      authorizeProviderCall: vi
-        .fn()
-        .mockRejectedValue(new Error("synthetic admission denial")),
+      authorizeProviderCall: vi.fn().mockRejectedValue(denied),
       finishProviderCall: vi.fn(),
     };
     await expect(
       new GeminiEmbeddingService(usage as never).embedQuery("synthetic query"),
-    ).rejects.toBeInstanceOf(EmbeddingError);
+    ).rejects.toBe(denied);
     expect(usage.authorizeProviderCall).toHaveBeenCalledOnce();
     expect(embedContent).not.toHaveBeenCalled();
+    expect(usage.finishProviderCall).not.toHaveBeenCalled();
+    expect(JSON.stringify(vi.mocked(console.log).mock.calls)).not.toContain(
+      "embedding.request.failed",
+    );
   });
 
   it("embeds one query without a document title", async () => {

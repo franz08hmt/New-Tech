@@ -47,6 +47,55 @@ function rejection(code: string) {
   );
 }
 
+const admissionStatusByCode: Readonly<Record<string, number>> = {
+  AI_DAILY_LIMIT: 429,
+  AI_CONCURRENT_LIMIT: 429,
+  AI_FANOUT_LIMIT: 429,
+  AI_ADMISSION_RESERVATION_EXPIRED: 429,
+  AI_ADMISSION_UNAVAILABLE: 503,
+  AUTH_REQUIRED: 401,
+  WORKSPACE_ACCESS_DENIED: 403,
+  ROLE_FORBIDDEN: 403,
+};
+
+const admissionMessageByCode: Readonly<Record<string, string>> = {
+  AI_DAILY_LIMIT: "Bạn đã dùng hết lượt AI hôm nay. Hãy thử lại vào ngày mai.",
+  AI_CONCURRENT_LIMIT:
+    "Bạn đang có quá nhiều yêu cầu AI chạy cùng lúc. Hãy thử lại sau.",
+  AI_FANOUT_LIMIT:
+    "Yêu cầu cần vượt giới hạn xử lý AI hiện tại. Hãy thu gọn yêu cầu.",
+  AI_ADMISSION_RESERVATION_EXPIRED:
+    "Yêu cầu AI đã hết thời gian chờ trước khi bắt đầu. Bạn có thể gửi lại thủ công.",
+  AI_ADMISSION_UNAVAILABLE:
+    "Không thể kiểm tra lượt dùng AI an toàn lúc này. Hãy thử lại sau.",
+  AUTH_REQUIRED: "Đăng nhập lại để tiếp tục yêu cầu AI.",
+  WORKSPACE_ACCESS_DENIED: "Bạn không còn quyền vào workspace này.",
+  ROLE_FORBIDDEN: "Vai trò hiện tại không cho phép yêu cầu này.",
+};
+
+/** Preserve only known, server-authored admission/auth failures. */
+export function safeAiAdmissionError(
+  error: unknown,
+): AiAdmissionError | undefined {
+  if (error instanceof AiAdmissionError) return error;
+  if (!(error instanceof HttpException)) return undefined;
+  const response = error.getResponse();
+  const code =
+    typeof response === "object" && response !== null && "code" in response
+      ? response.code
+      : undefined;
+  if (
+    typeof code !== "string" ||
+    admissionStatusByCode[code] !== error.getStatus()
+  )
+    return undefined;
+  return new AiAdmissionError(
+    code,
+    admissionStatusByCode[code],
+    admissionMessageByCode[code],
+  );
+}
+
 function permissionFor(
   descriptor: AiOperationDescriptor,
 ): AiAdmissionPermission {

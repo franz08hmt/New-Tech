@@ -2,11 +2,16 @@ import { ApiError, GoogleGenAI } from "@google/genai";
 import { Injectable, Optional } from "@nestjs/common";
 import { log } from "../common/log.js";
 import { geminiEmbeddingConfig } from "../config/config.js";
+import { safeAiAdmissionError } from "./ai-admission.service.js";
 import {
   AiUsageService,
   classifyProviderOutcome,
   type ProviderCallToken,
 } from "./ai-usage.service.js";
+import {
+  createProviderDeadline,
+  settleProviderCall,
+} from "./provider-lifecycle.js";
 
 export type EmbeddingFailure =
   | "not_configured"
@@ -90,6 +95,8 @@ export class GeminiEmbeddingService {
       });
       return embeddings;
     } catch (error: unknown) {
+      const admissionError = safeAiAdmissionError(error);
+      if (admissionError) throw admissionError;
       const failure = this.normalizeError(error);
       log("error", "embedding.request.failed", {
         model: this.model,
@@ -109,18 +116,15 @@ export class GeminiEmbeddingService {
     title?: string,
   ) {
     const controller = new AbortController();
-    let timedOut = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    let deadline: ReturnType<typeof createProviderDeadline> | undefined;
     let providerCall: ProviderCallToken | undefined;
     let providerCallFinished = false;
+    let permitAuthorized = false;
+    let providerDispatched = false;
     try {
-      const timeout = new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => {
-          timedOut = true;
-          controller.abort();
-          reject(new EmbeddingError("timeout"));
-        }, this.config.timeoutMs);
-      });
+      deadline = createProviderDeadline(this.config.timeoutMs, () =>
+        controller.abort(),
+      );
       providerCall = this.usage?.startProviderCall({
         type:
           taskType === "RETRIEVAL_QUERY"
@@ -130,23 +134,35 @@ export class GeminiEmbeddingService {
         model: this.model,
       });
       await this.usage?.authorizeProviderCall(providerCall);
-      const response = await Promise.race([
-        this.client!.models.embedContent({
-          model: this.model,
-          contents: texts.map((text) => ({
-            role: "user",
-            parts: [{ text }],
-          })),
-          config: {
-            taskType,
-            ...(title ? { title } : {}),
-            outputDimensionality: this.dimensions,
-            abortSignal: controller.signal,
-            httpOptions: { retryOptions: { attempts: 1 } },
-          },
-        }),
-        timeout,
+      permitAuthorized = true;
+      if (deadline.hasExpired()) {
+        this.usage?.discardProviderCallBeforeDispatch(providerCall);
+        providerCallFinished = true;
+        throw new EmbeddingError("timeout");
+      }
+      providerDispatched = true;
+      const result = await Promise.race([
+        settleProviderCall(() =>
+          this.client!.models.embedContent({
+            model: this.model,
+            contents: texts.map((text) => ({
+              role: "user",
+              parts: [{ text }],
+            })),
+            config: {
+              taskType,
+              ...(title ? { title } : {}),
+              outputDimensionality: this.dimensions,
+              abortSignal: controller.signal,
+              httpOptions: { retryOptions: { attempts: 1 } },
+            },
+          }),
+        ),
+        deadline.event,
       ]);
+      if (result.kind === "timeout") throw new EmbeddingError("timeout");
+      if (result.kind === "error") throw result.error;
+      const response = result.value;
       this.usage?.finishProviderCall(providerCall, "success");
       providerCallFinished = true;
       if (response.embeddings?.length !== texts.length)
@@ -155,8 +171,17 @@ export class GeminiEmbeddingService {
         this.validateAndNormalize(item.values),
       );
     } catch (error: unknown) {
-      const failure = this.normalizeError(error, timedOut);
-      if (!providerCallFinished)
+      const admissionError = safeAiAdmissionError(error);
+      if (admissionError) throw admissionError;
+      if (permitAuthorized && !providerDispatched && !providerCallFinished) {
+        this.usage?.discardProviderCallBeforeDispatch(providerCall);
+        providerCallFinished = true;
+      }
+      const failure = this.normalizeError(
+        error,
+        deadline?.hasExpired() ?? false,
+      );
+      if (permitAuthorized && providerDispatched && !providerCallFinished)
         this.usage?.finishProviderCall(
           providerCall,
           classifyProviderOutcome(failure),
@@ -165,7 +190,7 @@ export class GeminiEmbeddingService {
         );
       throw failure;
     } finally {
-      clearTimeout(timer);
+      deadline?.dispose();
     }
   }
 

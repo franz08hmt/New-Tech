@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { AssistantService } from "./assistant.service.js";
 import { EmbeddingError } from "./gemini-embedding.service.js";
+import { AiAdmissionError } from "./ai-admission.service.js";
 import { DocumentAccessService } from "../documents/document-access.service.js";
 const principal = {
   userId: "55555555-5555-4555-8555-555555555555",
@@ -862,6 +863,21 @@ describe("AssistantService grounded orchestration", () => {
     ).rejects.toMatchObject({
       kind: "timeout",
     });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("preserves retrieval admission status and code before generation", async () => {
+    const { service, retrieval, generate } = fixture();
+    const denied = new AiAdmissionError(
+      "AI_ADMISSION_UNAVAILABLE",
+      503,
+      "Synthetic safe admission message.",
+    );
+    retrieval.retrieve.mockRejectedValue(denied);
+
+    await expect(service.chat({ message: "Question" }, principal)).rejects.toBe(
+      denied,
+    );
     expect(generate).not.toHaveBeenCalled();
   });
 

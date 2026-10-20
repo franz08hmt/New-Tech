@@ -6,7 +6,9 @@ import { requirePrincipal } from "../auth/principal.js";
 import { DocumentAccessService } from "../documents/document-access.service.js";
 import { DatabaseService } from "../database/database.service.js";
 import {
+  AiAdmissionError,
   AiAdmissionService,
+  safeAiAdmissionError,
   type AiAdmissionReservation,
 } from "./ai-admission.service.js";
 import { errorCode, log, requestContext } from "../common/log.js";
@@ -78,6 +80,17 @@ interface OperationScope {
   reservation?: AiAdmissionReservation;
   plannedProviderCalls: number;
   admissionRequired: boolean;
+}
+
+function safeAdmissionFailure(error: unknown): AiAdmissionError {
+  return (
+    safeAiAdmissionError(error) ??
+    new AiAdmissionError(
+      "AI_ADMISSION_UNAVAILABLE",
+      503,
+      "Không thể xác nhận quyền dùng AI an toàn lúc này. Hãy thử lại sau.",
+    )
+  );
 }
 
 export interface ProviderCallToken {
@@ -347,8 +360,17 @@ export class AiUsageService {
       call.finished = true;
       const index = scope.calls.indexOf(call);
       if (index >= 0) scope.calls.splice(index, 1);
-      throw error;
+      throw safeAdmissionFailure(error);
     }
+  }
+
+  /** Remove a permitted call when no SDK dispatch occurred. */
+  discardProviderCallBeforeDispatch(token: ProviderCallToken | undefined) {
+    if (!token || token.call.finished) return;
+    token.call.finished = true;
+    token.call.providerStopped = true;
+    const index = token.scope.calls.indexOf(token.call);
+    if (index >= 0) token.scope.calls.splice(index, 1);
   }
 
   updateProviderUsage(token: ProviderCallToken | undefined, raw: unknown) {
