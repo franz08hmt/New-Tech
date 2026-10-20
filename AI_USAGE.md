@@ -645,8 +645,7 @@ claimed.
 
 Final gates on the source derived from `ef0450c` all exited 0: typecheck,
 `npm test` (API Vitest 365/365, API Node 855/855, Web 448/448; 1,668 total),
-build, format, and guarded PostgreSQL 17 `test:database`. The database runner
-completed 39 serial files successfully; it prints per-file summaries rather
-than an aggregate count. Focused F06 coverage was API query validation 24/24,
-Web dashboard 5/5, runtime HTTP/RLS 14/14, and migration lifecycle 1/1. No
-browser acceptance or independent human review is claimed.
+build, format, and guarded PostgreSQL 17 `test:database` (470/470 across 39
+serial files, 0 failed/skipped/cancelled). Focused F06 coverage was API query
+validation 24/24, Web dashboard 5/5, runtime HTTP/RLS 14/14, and migration
+lifecycle 1/1. No browser acceptance or independent human review is claimed.

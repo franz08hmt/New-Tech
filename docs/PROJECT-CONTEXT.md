@@ -49,11 +49,11 @@ Google live or the Thắng machine status.
 Final verification on source descended from `ef0450c`: `npm run typecheck`,
 `npm test`, `npm run build`, `npm run format:check`, and guarded PG17
 `npm run test:database` all exited 0. `npm test` passed API Vitest 365/365,
-API Node 855/855, and Web 448/448 (1,668 total). The database command ran all
-39 serial test files successfully; its npm script does not emit one aggregate
-test count. Focused F06 suites passed API query validation 24/24, Web dashboard
-5/5, runtime HTTP/RLS 14/14 and migration lifecycle 1/1, with no failures,
-skips or cancellations in those focused suites. Format was rerun after final
+API Node 855/855, and Web 448/448 (1,668 total). PG17 database tests passed
+470/470 across 39 serial files, with 0 failed, skipped or cancelled. Focused
+F06 suites passed API query validation 24/24, Web dashboard 5/5, runtime HTTP/RLS
+14/14 and migration lifecycle 1/1, also with 0 failed, skipped or cancelled.
+Format was rerun after final
 test and documentation edits. F06 is `F06_CODE_VERIFIED +
 BROWSER_ACCEPTANCE_PENDING`, not full F06 acceptance. No cloud writes, paid
 provider call, push or deployment occurred.

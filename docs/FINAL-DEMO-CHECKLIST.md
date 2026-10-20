@@ -1197,8 +1197,8 @@ real service wrapper. Browser UI has not been exercised in this checkpoint.
 Final verification from source descended from `ef0450c`: typecheck, application
 tests, build, format, and guarded PG17 `test:database` all exited 0. Application
 tests passed API Vitest 365/365, API Node 855/855, and Web 448/448 (1,668 total).
-The database runner completed 39 serial test files with exit 0 and no file
-failure; its script does not emit an aggregate test count. Focused F06 results:
+The database runner completed 39 serial test files; PG17 passed 470/470 with
+0 failed, skipped or cancelled. Focused F06 results:
 API query validation 24/24, Web dashboard 5/5, runtime HTTP/RLS 14/14, and
 migration lifecycle 1/1. This supports `F06_CODE_VERIFIED`; browser acceptance
 remains `BROWSER_ACCEPTANCE_PENDING` because no browser tool was exposed. No
