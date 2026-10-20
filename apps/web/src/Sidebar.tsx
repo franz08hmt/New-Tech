@@ -113,6 +113,12 @@ export function Sidebar({
               Nhập ít nhất 2 ký tự có chữ hoặc số.
             </p>
           )}
+          {results.unsupported && (
+            <p role="status" className="search-empty">
+              Từ khóa không có ký tự tìm kiếm phù hợp. Hãy thử chữ tiếng Việt,
+              chữ Latin hoặc chữ số.
+            </p>
+          )}
           {!results.tooShort && (
             <div className="sidebar-search-controls">
               <label>
@@ -176,17 +182,21 @@ export function Sidebar({
             </div>
           )}
           {!results.tooShort &&
+            !results.unsupported &&
             !results.loading &&
             !results.error &&
             !results.total && (
               <p className="search-empty">Không tìm thấy gì khớp.</p>
             )}
-          {!results.tooShort && !results.loading && !results.error && (
-            <p className="search-count" role="status">
-              {results.total} kết quả
-            </p>
-          )}
-          {results.hits.length > 0 && (
+          {!results.tooShort &&
+            !results.unsupported &&
+            !results.loading &&
+            !results.error && (
+              <p className="search-count" role="status">
+                {results.total} kết quả
+              </p>
+            )}
+          {results.hits.length > 0 && !results.unsupported && (
             <ul>
               {results.hits.map((hit) => (
                 <li key={hit.key}>
@@ -201,30 +211,33 @@ export function Sidebar({
               ))}
             </ul>
           )}
-          {results.totalPages > 1 && !results.loading && !results.error && (
-            <nav
-              className="sidebar-search-pagination"
-              aria-label="Search result pages"
-            >
-              <button
-                type="button"
-                disabled={results.page <= 1}
-                onClick={results.previousPage}
+          {results.totalPages > 1 &&
+            !results.unsupported &&
+            !results.loading &&
+            !results.error && (
+              <nav
+                className="sidebar-search-pagination"
+                aria-label="Search result pages"
               >
-                Trước
-              </button>
-              <span>
-                {results.page} / {results.totalPages}
-              </span>
-              <button
-                type="button"
-                disabled={results.page >= results.totalPages}
-                onClick={results.nextPage}
-              >
-                Sau
-              </button>
-            </nav>
-          )}
+                <button
+                  type="button"
+                  disabled={results.page <= 1}
+                  onClick={results.previousPage}
+                >
+                  Trước
+                </button>
+                <span>
+                  {results.page} / {results.totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={results.page >= results.totalPages}
+                  onClick={results.nextPage}
+                >
+                  Sau
+                </button>
+              </nav>
+            )}
         </section>
       )}
 

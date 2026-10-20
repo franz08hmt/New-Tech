@@ -404,3 +404,12 @@ only from the result kind and validated route identifier. This ADR does not
 add whole-screen search/pagination to the six modules, semantic search,
 provider calls or schema migration. Browser interaction and visual acceptance
 remain pending until an approved browser automation capability is available.
+
+F05.2.1 preserves the endpoint contract when a query changes: client page state
+is scoped to the trimmed query and verified principal, so the new request starts
+at page 1 without changing the server's out-of-range-page semantics. If the
+existing Vietnamese-friendly fold removes every character from a non-empty
+query, the service returns safe 400 `SEARCH_QUERY_UNSUPPORTED` before opening a
+workspace transaction. The client displays that condition explicitly. This
+does not introduce multilingual search or change the shared Documents folding
+behavior.

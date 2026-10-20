@@ -4,7 +4,7 @@ import type {
   WorkspaceSearchKind,
   WorkspaceSearchSort,
 } from "@examate/contracts";
-import { api } from "./api";
+import { ApiError, api } from "./api";
 import { CATEGORY_LABELS } from "./use-expenses";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
 
@@ -45,6 +45,7 @@ interface SearchState {
   key: string;
   loading: boolean;
   error: string | null;
+  unsupported: boolean;
   data: {
     hits: SearchHit[];
     total: number;
@@ -102,7 +103,11 @@ export function useWorkspaceSearch(query: string) {
   const [kind, setKindValue] = useState<WorkspaceSearchKind>("all");
   const [sort, setSortValue] = useState<WorkspaceSearchSort>("kind");
   const [direction, setDirectionValue] = useState<"asc" | "desc">("asc");
-  const [page, setPage] = useState(1);
+  const pageScope = JSON.stringify([identity, trimmedQuery]);
+  const [pageState, setPageState] = useState({ scope: "", page: 1 });
+  // A changed effective query or principal is immediately page one, before
+  // either effect can schedule a request with the previous page.
+  const page = pageState.scope === pageScope ? pageState.page : 1;
   const [retryRevision, setRetryRevision] = useState(0);
   const [state, setState] = useState<SearchState | null>(null);
   const revision = useRef(0);
@@ -117,11 +122,22 @@ export function useWorkspaceSearch(query: string) {
   ]);
 
   useEffect(() => {
+    if (pageState.scope !== pageScope)
+      setPageState({ scope: pageScope, page: 1 });
+  }, [pageScope, pageState.scope]);
+
+  useEffect(() => {
     const currentRevision = ++revision.current;
     if (!ready || !identity) return;
 
     const controller = new AbortController();
-    setState({ key, loading: true, error: null, data: null });
+    setState({
+      key,
+      loading: true,
+      error: null,
+      unsupported: false,
+      data: null,
+    });
     const timer = setTimeout(() => {
       void api
         .searchWorkspace(
@@ -148,6 +164,7 @@ export function useWorkspaceSearch(query: string) {
             key,
             loading: false,
             error: null,
+            unsupported: false,
             data: {
               hits,
               total: result.total,
@@ -157,13 +174,27 @@ export function useWorkspaceSearch(query: string) {
             },
           });
         })
-        .catch(() => {
+        .catch((error: unknown) => {
           if (controller.signal.aborted || revision.current !== currentRevision)
             return;
+          if (
+            error instanceof ApiError &&
+            error.code === "SEARCH_QUERY_UNSUPPORTED"
+          ) {
+            setState({
+              key,
+              loading: false,
+              error: null,
+              unsupported: true,
+              data: null,
+            });
+            return;
+          }
           setState({
             key,
             loading: false,
             error: "Chưa tìm được lúc này. Kiểm tra kết nối rồi thử lại nhé.",
+            unsupported: false,
             data: null,
           });
         });
@@ -189,7 +220,7 @@ export function useWorkspaceSearch(query: string) {
   const current = state?.key === key ? state : null;
   const hits = current?.data?.hits ?? [];
 
-  const resetPage = () => setPage(1);
+  const resetPage = () => setPageState({ scope: pageScope, page: 1 });
   return {
     hits,
     total: current?.data?.total ?? 0,
@@ -200,6 +231,7 @@ export function useWorkspaceSearch(query: string) {
     tooShort: trimmedQuery.length > 0 && !ready,
     loading: ready && Boolean(identity) && (current?.loading ?? true),
     error: current?.error ?? null,
+    unsupported: current?.unsupported ?? false,
     kind,
     sort,
     direction,
@@ -215,11 +247,13 @@ export function useWorkspaceSearch(query: string) {
       setDirectionValue(next);
       resetPage();
     },
-    previousPage: () => setPage((value) => Math.max(1, value - 1)),
+    previousPage: () =>
+      setPageState({ scope: pageScope, page: Math.max(1, page - 1) }),
     nextPage: () =>
-      setPage((value) =>
-        Math.min(current?.data?.totalPages ?? value, value + 1),
-      ),
+      setPageState({
+        scope: pageScope,
+        page: Math.min(current?.data?.totalPages ?? page, page + 1),
+      }),
     retry: () => setRetryRevision((value) => value + 1),
   };
 }

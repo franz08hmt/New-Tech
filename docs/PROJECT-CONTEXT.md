@@ -3,6 +3,29 @@
 Cập nhật 20/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
+## F05.2.1 checkpoint — sidebar page reset and unsupported folded queries
+
+The sidebar now scopes its pagination state to the trimmed effective query and
+verified principal identity. A query or account/workspace change derives page 1
+immediately, before an effect can issue a request; filter/sort changes still
+reset page intentionally. Abort, revision, and response-key guards remain in
+place, and the API still returns an accurate total for an out-of-range page.
+
+Workspace search now folds `q` once before opening the business transaction.
+If non-empty input folds to no supported search characters, `GET /api/search`
+returns 400 with `SEARCH_QUERY_UNSUPPORTED`; no workspace transaction or search
+SQL runs. The sidebar presents that response as an unsupported query rather
+than an empty result or generic network error. Documents search semantics and
+its shared helper were not changed.
+
+F05.2.1 RED/GREEN evidence and current gate results are in
+[FINAL-DEMO-CHECKLIST](FINAL-DEMO-CHECKLIST.md). Browser interaction remains
+pending because this session exposed no approved browser automation tool. This
+does not accept whole-app F05: search/filter/sort/pagination on the other module
+screens is still pending. Current status is
+`F05.2.1_CODE_VERIFIED + F05.2.1_BROWSER_ACCEPTANCE_PENDING`; it is not
+whole-app F05 acceptance.
+
 ## F05.2 contract/checklist — workspace sidebar search
 
 F05.2 thêm `GET /api/search` cho sáu loại course/exam/plan/document/expense/task.

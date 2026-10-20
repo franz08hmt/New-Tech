@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { BadRequestException } from "@nestjs/common";
 import { WorkspaceSearchService } from "./workspace-search.service.js";
 import type { DatabaseTransaction } from "../database/database.service.js";
 import type { PilotPrincipal } from "@examate/contracts";
@@ -76,5 +77,38 @@ describe("WorkspaceSearchService", () => {
       12,
       12,
     ]);
+  });
+
+  it("rejects a query folded to empty before opening a business workspace transaction", async () => {
+    const database = {
+      workspaceTransaction: vi.fn(async () => {
+        throw new Error("unsupported query must not open a transaction");
+      }),
+      query: vi.fn(() => {
+        throw new Error("search must not run a global query");
+      }),
+    };
+    const access = { authorize: vi.fn() };
+    const service = new WorkspaceSearchService(
+      database as never,
+      access as never,
+    );
+    let caught: unknown;
+    try {
+      await service.search(principal, { q: "你好" });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(BadRequestException);
+    const badRequest = caught as BadRequestException;
+    expect(badRequest.getStatus()).toBe(400);
+    expect(badRequest.getResponse()).toEqual({
+      code: "SEARCH_QUERY_UNSUPPORTED",
+      message: "Từ khóa không có ký tự tìm kiếm phù hợp.",
+    });
+    expect(database.workspaceTransaction).not.toHaveBeenCalled();
+    expect(database.query).not.toHaveBeenCalled();
+    expect(access.authorize).not.toHaveBeenCalled();
   });
 });

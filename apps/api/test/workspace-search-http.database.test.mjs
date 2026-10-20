@@ -122,9 +122,21 @@ async function login(role, { membership = true } = {}) {
   auth.store.membership = fixture.auth.membership.bind(fixture.auth);
   const external = { count: 0 };
   const facade = {
-    query: (...args) => fixture.db.query(...args),
-    transaction: (...args) => fixture.db.transaction(...args),
-    workspaceTransaction: (...args) => fixture.db.workspaceTransaction(...args),
+    queries: 0,
+    transactions: 0,
+    workspaceTransactions: 0,
+    query(...args) {
+      this.queries++;
+      return fixture.db.query(...args);
+    },
+    transaction(...args) {
+      this.transactions++;
+      return fixture.db.transaction(...args);
+    },
+    workspaceTransaction(...args) {
+      this.workspaceTransactions++;
+      return fixture.db.workspaceTransaction(...args);
+    },
   };
   const server = await httpApp(
     facade,
@@ -162,6 +174,7 @@ async function login(role, { membership = true } = {}) {
         ...init,
         headers: { ...headers, ...init.headers },
       }),
+    databaseCalls: facade,
     userId: auth.userId,
   };
 }
@@ -288,6 +301,38 @@ test("workspace search uses non-owner tenant SQL, one snapshot, validation and c
     }
     assert.equal(searchCalls.mock.callCount(), spyCount);
 
+    const beforeUnsupportedQuery = {
+      queries: manager.databaseCalls.queries,
+      transactions: manager.databaseCalls.transactions,
+      workspaceTransactions: manager.databaseCalls.workspaceTransactions,
+    };
+    for (const path of [
+      "/search?q=%E4%BD%A0%E5%A5%BD",
+      "/search?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82",
+    ]) {
+      const response = await manager.request(path);
+      assert.equal(response.status, 400, path);
+      const body = await response.json();
+      assert.deepEqual(
+        { code: body.code, message: body.message },
+        {
+          code: "SEARCH_QUERY_UNSUPPORTED",
+          message: "Từ khóa không có ký tự tìm kiếm phù hợp.",
+        },
+      );
+      assert.doesNotMatch(JSON.stringify(body), /你好|Привет|SELECT|stack/i);
+    }
+    assert.deepEqual(
+      {
+        queries: manager.databaseCalls.queries,
+        transactions: manager.databaseCalls.transactions,
+        workspaceTransactions: manager.databaseCalls.workspaceTransactions,
+      },
+      beforeUnsupportedQuery,
+      "a query folded to empty must not query business storage or open a transaction",
+    );
+    const deniedSearchCalls = searchCalls.mock.callCount();
+
     const noCookie = await manager.server.request("/search?q=searchneedle");
     assert.equal(noCookie.status, 401);
 
@@ -314,7 +359,7 @@ test("workspace search uses non-owner tenant SQL, one snapshot, validation and c
     );
     const revoked = await manager.request("/search?q=searchneedle");
     assert.ok([401, 403].includes(revoked.status));
-    assert.equal(searchCalls.mock.callCount(), spyCount);
+    assert.equal(searchCalls.mock.callCount(), deniedSearchCalls);
     assert.equal(manager.external.count, 0);
 
     const absent = await login("viewer", { membership: false });

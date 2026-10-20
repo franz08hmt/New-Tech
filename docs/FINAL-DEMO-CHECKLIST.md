@@ -937,3 +937,57 @@ not search/filter/sort/pagination on the other module screens and not whole-app
 F05. No cloud writes, external provider calls, push or deployment occurred.
 The repeated-query mutation was blocked as noted above; source/gates and its
 HTTP regression are verified, but that particular mutation is not claimed.
+
+## F05.2.1 — sidebar pagination reset and unsupported folded query (20/10/2026)
+
+Finding A came from page state living separately from the effective search key:
+after page 2, a changed query or principal could request page 2 again. The hook
+now scopes page state to the trimmed query plus verified user/workspace/role and
+derives page 1 immediately whenever that scope changes. Existing abort and
+revision/key guards still discard late responses; filter/sort actions still
+reset page, and server out-of-range pages still preserve the true total.
+
+Finding B came from `foldSearchText("你好")` producing an empty needle and the
+service constructing a match-all pattern. The service now checks the fold before
+opening the business workspace transaction and returns 400 with the stable safe
+code `SEARCH_QUERY_UNSUPPORTED`. The sidebar shows a dedicated unsupported-query
+status; it does not display a zero-result success or generic network failure.
+The Documents query helper/semantics are unchanged. Existing HTTP tests continue
+to cover Vietnamese accents, `đ`/`d`, case, filename and punctuation behavior.
+
+RED/GREEN evidence:
+
+- Before the implementation, the new FE regressions failed because changed
+  query, cleared/re-entered query and principal switch each reused page 2; the
+  out-of-order response case also exposed the old page competing with the new
+  query. After the scoped page-state change, all pass. The related filter reset
+  test still asserts a request at page 1.
+- Before the implementation, the service regression entered the workspace
+  transaction for a fold-empty query. Afterward it returns the safe 400 before
+  transaction or search SQL. The Nest HTTP/PG17 regression sends Chinese and
+  Cyrillic through the real query parser and verifies 400, no reflected query,
+  and no new business transaction. Existing repeated/array/object and malformed
+  pagination HTTP checks remain in this same fixture.
+- Focused FE workspace + Documents search tests: 25/25; service tests: 2/2;
+  Nest/PG17 workspace-search HTTP test: 1/1. Mutation testing was not run.
+
+Full gates on the final F05.2.1 source revision:
+
+- `npm run typecheck` — exit 0.
+- `npm test` — exit 0: API Vitest 341/341, API Node 855/855, Web 412/412;
+  1,608 total, 0 failed/skipped/cancelled.
+- `npm run build` — exit 0.
+- `npm run format:check` — exit 0 after formatting `Sidebar.tsx` only.
+- `npm run test:database` — exit 0 on disposable loopback PostgreSQL 17 with
+  the repository guard and standard runtime-role preparer. The command runs
+  serial Node suites and does not emit one aggregate test count; the dedicated
+  workspace-search HTTP suite passed 1/1, with no database suite failures,
+  skips or cancellations.
+
+Browser automation was not exposed in this session, so desktop/mobile query
+change, clear/re-enter, filter/sort, keyboard/focus, mobile overflow and
+console/network acceptance remain `BROWSER_ACCEPTANCE_PENDING`. React and HTTP
+tests are not represented as browser evidence. No cloud writes, external
+provider calls, migration changes, push or deployment occurred. F05 remains
+PARTIAL because search/filter/sort/pagination for the other module screens is
+still outside this vertical slice.

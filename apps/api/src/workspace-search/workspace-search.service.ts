@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import type {
   PilotPrincipal,
   WorkspaceSearchItem,
@@ -112,11 +112,18 @@ export class WorkspaceSearchService {
     query: WorkspaceSearchQuery,
   ): Promise<WorkspaceSearchPage> {
     const verified = requirePrincipal(principal);
+    const folded = foldSearchText(query.q);
+    if (!folded) {
+      throw new BadRequestException({
+        code: "SEARCH_QUERY_UNSUPPORTED",
+        message: "Từ khóa không có ký tự tìm kiếm phù hợp.",
+      });
+    }
     const result = await this.database.workspaceTransaction(
       verified,
       async (tx) => {
         await this.access.authorize(verified, "read", tx);
-        return this.searchRows(tx, verified.workspaceId, query);
+        return this.searchRows(tx, verified.workspaceId, query, folded);
       },
     );
     return {
@@ -135,10 +142,10 @@ export class WorkspaceSearchService {
     tx: DatabaseTransaction,
     workspaceId: string,
     query: WorkspaceSearchQuery,
+    folded: string,
   ) {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 12;
-    const folded = foldSearchText(query.q);
     const result = await tx.query<SearchResultRow>(
       searchSql(query.sort ?? "kind", query.direction ?? "asc"),
       [

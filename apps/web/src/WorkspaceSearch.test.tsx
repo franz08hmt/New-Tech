@@ -9,7 +9,7 @@ import {
 } from "@testing-library/react";
 import { Sidebar } from "./Sidebar";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
-import { api } from "./api";
+import { ApiError, api } from "./api";
 import { configurePilotClient } from "./pilot-client";
 import type { WorkspaceSearchPage } from "@examate/contracts";
 
@@ -246,6 +246,114 @@ describe("workspace sidebar search", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sau" }));
     await waitFor(() => expect(searchWorkspace).toHaveBeenCalledTimes(5));
     expect(searchWorkspace.mock.calls[4][0].page).toBe(2);
+
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Filter search results by type" }),
+      { target: { value: "task" } },
+    );
+    await waitFor(() => expect(searchWorkspace).toHaveBeenCalledTimes(6));
+    expect(searchWorkspace.mock.calls[5][0].page).toBe(1);
+  });
+
+  it("starts a changed query on page one and ignores the old page response", async () => {
+    const oldPageTwo = deferred<WorkspaceSearchPage>();
+    const searchWorkspace = vi
+      .spyOn(api, "searchWorkspace")
+      .mockImplementation((query) => {
+        if (query.q === "Review pagination" && query.page === 1)
+          return Promise.resolve({
+            ...resultPage([sixKinds[0]]),
+            total: 24,
+            totalPages: 2,
+          });
+        if (query.q === "Review pagination" && query.page === 2)
+          return oldPageTwo.promise;
+        return Promise.resolve({
+          ...resultPage(query.page === 1 ? [sixKinds[3]] : []),
+          total: 1,
+          totalPages: 1,
+        });
+      });
+    function Harness() {
+      const [search, setSearch] = useState("");
+      return (
+        <PilotPrincipalContext.Provider value={principal}>
+          <Sidebar
+            pages={[]}
+            currentId="dashboard"
+            menuOpen={false}
+            search={search}
+            onSearch={setSearch}
+            onClose={() => {}}
+          />
+        </PilotPrincipalContext.Provider>
+      );
+    }
+    render(<Harness />);
+    const input = screen.getByRole("searchbox", { name: "Find an object" });
+    fireEvent.change(input, { target: { value: "Review pagination" } });
+    await waitFor(() => expect(searchWorkspace).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Sau" }));
+    await waitFor(() => expect(searchWorkspace).toHaveBeenCalledTimes(2));
+    expect(searchWorkspace.mock.calls[1][0]).toMatchObject({
+      q: "Review pagination",
+      page: 2,
+    });
+
+    fireEvent.change(input, { target: { value: "Review pagination 01" } });
+    await waitFor(() => expect(searchWorkspace).toHaveBeenCalledTimes(3));
+    expect(searchWorkspace.mock.calls[2][0]).toMatchObject({
+      q: "Review pagination 01",
+      page: 1,
+    });
+    expect(resultLink(`#documents/${itemIds[3]}`)).toBeInTheDocument();
+
+    oldPageTwo.resolve({
+      ...resultPage([sixKinds[5]]),
+      total: 24,
+      totalPages: 2,
+      page: 2,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(resultLink(`#tasks/${itemIds[5]}`)).toBeNull();
+    expect(resultLink(`#documents/${itemIds[3]}`)).toBeInTheDocument();
+    expect(screen.getByText("1 kết quả")).toBeInTheDocument();
+  });
+
+  it("does not carry a page across clearing and re-entering a query", async () => {
+    const searchWorkspace = vi
+      .spyOn(api, "searchWorkspace")
+      .mockImplementation(async (query) => ({
+        ...resultPage([sixKinds[5]]),
+        total: 24,
+        totalPages: 2,
+        page: query.page ?? 1,
+      }));
+    function Harness() {
+      const [search, setSearch] = useState("");
+      return (
+        <PilotPrincipalContext.Provider value={principal}>
+          <Sidebar
+            pages={[]}
+            currentId="dashboard"
+            menuOpen={false}
+            search={search}
+            onSearch={setSearch}
+            onClose={() => {}}
+          />
+        </PilotPrincipalContext.Provider>
+      );
+    }
+    render(<Harness />);
+    const input = screen.getByRole("searchbox", { name: "Find an object" });
+    fireEvent.change(input, { target: { value: "Review pagination" } });
+    await waitFor(() => expect(searchWorkspace).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Sau" }));
+    await waitFor(() => expect(searchWorkspace).toHaveBeenCalledTimes(2));
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.change(input, { target: { value: "Review pagination" } });
+    await waitFor(() => expect(searchWorkspace).toHaveBeenCalledTimes(3));
+    expect(searchWorkspace.mock.calls[2][0].page).toBe(1);
   });
 
   it("ignores a slow old query even when its transport resolves after the new query", async () => {
@@ -288,18 +396,36 @@ describe("workspace sidebar search", () => {
   });
 
   it("hides the previous principal's results immediately and drops its late response", async () => {
-    const oldResult = deferred<WorkspaceSearchPage>();
+    const oldPageTwo = deferred<WorkspaceSearchPage>();
     const newResult = deferred<WorkspaceSearchPage>();
+    let invocation = 0;
     const searchWorkspace = vi
       .spyOn(api, "searchWorkspace")
-      .mockReturnValueOnce(oldResult.promise)
-      .mockReturnValueOnce(newResult.promise);
+      .mockImplementation((query) => {
+        invocation++;
+        if (invocation === 1)
+          return Promise.resolve({
+            ...resultPage([sixKinds[0]]),
+            total: 24,
+            totalPages: 2,
+          });
+        if (query.page === 2) return oldPageTwo.promise;
+        return newResult.promise;
+      });
     function Harness() {
       const [search, setSearch] = useState("");
       const [who, setWho] = useState(principal);
       return (
         <PilotPrincipalContext.Provider value={who}>
-          <button onClick={() => setWho({ ...principal, userId: itemIds[0] })}>
+          <button
+            onClick={() =>
+              setWho({
+                ...principal,
+                userId: itemIds[0],
+                workspaceId: itemIds[1],
+              })
+            }
+          >
             Switch principal
           </button>
           <Sidebar
@@ -321,14 +447,25 @@ describe("workspace sidebar search", () => {
       },
     );
     await waitFor(() => expect(searchWorkspace).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole("button", { name: "Switch principal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sau" }));
     await waitFor(() => expect(searchWorkspace).toHaveBeenCalledTimes(2));
-    expect(searchWorkspace.mock.calls[0][1]?.aborted).toBe(true);
+    expect(searchWorkspace.mock.calls[1][0].page).toBe(2);
+    fireEvent.click(screen.getByRole("button", { name: "Switch principal" }));
+    await waitFor(() => expect(searchWorkspace).toHaveBeenCalledTimes(3));
+    // The previous principal's page-two request is aborted and the new
+    // principal begins at page one.
+    expect(searchWorkspace.mock.calls[1][1]?.aborted).toBe(true);
+    expect(searchWorkspace.mock.calls[2][0].page).toBe(1);
     newResult.resolve(resultPage([sixKinds[5]]));
     const taskLink = () =>
       document.querySelector(`.sidebar-results a[href="#tasks/${itemIds[5]}"]`);
     await waitFor(() => expect(taskLink()).toBeInTheDocument());
-    oldResult.resolve(resultPage([sixKinds[0]]));
+    oldPageTwo.resolve({
+      ...resultPage([sixKinds[0]]),
+      total: 24,
+      totalPages: 2,
+      page: 2,
+    });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(document.querySelector('a[href="#courses/cs-201"]')).toBeNull();
   });
@@ -364,5 +501,44 @@ describe("workspace sidebar search", () => {
     await screen.findByRole("button", { name: "Thử tìm lại" });
     fireEvent.click(screen.getByRole("button", { name: "Thử tìm lại" }));
     await waitFor(() => expect(searchWorkspace).toHaveBeenCalledTimes(2));
+  });
+
+  it("shows an explicit unsupported-query status for text the server cannot fold", async () => {
+    const searchWorkspace = vi
+      .spyOn(api, "searchWorkspace")
+      .mockRejectedValue(
+        new ApiError(
+          "Từ khóa không có ký tự tìm kiếm phù hợp.",
+          "SEARCH_QUERY_UNSUPPORTED",
+          400,
+        ),
+      );
+    function Harness() {
+      const [search, setSearch] = useState("");
+      return (
+        <PilotPrincipalContext.Provider value={principal}>
+          <Sidebar
+            pages={[]}
+            currentId="dashboard"
+            menuOpen={false}
+            search={search}
+            onSearch={setSearch}
+            onClose={() => {}}
+          />
+        </PilotPrincipalContext.Provider>
+      );
+    }
+    render(<Harness />);
+    fireEvent.change(
+      screen.getByRole("searchbox", { name: "Find an object" }),
+      { target: { value: "你好" } },
+    );
+
+    await waitFor(() => expect(searchWorkspace).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Từ khóa không có ký tự tìm kiếm phù hợp",
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(document.querySelector(".sidebar-results ul")).toBeNull();
   });
 });

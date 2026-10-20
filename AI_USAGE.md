@@ -482,3 +482,26 @@ the real HTTP parser in the standard database suite. Browser automation was
 not exposed, so desktop/mobile, keyboard, layout and console acceptance remain
 pending. No independent human review, cloud write, external AI call, push or
 deployment is claimed.
+
+## 2026-10-20 — F05.2.1 workspace-search corrections (Codex)
+
+AI assistance reviewed the current sidebar pagination hook, the workspace
+search service and its DTO/parser boundary, then added regressions before
+changing implementation. On the baseline, the FE tests observed that a new
+query, cleared-and-reentered query, or principal switch reused page 2; a late
+page-2 response could also compete with the new query. The service test observed
+that a query whose current fold becomes empty proceeded into the business
+transaction. The corrected tests pass with query/principal-scoped page state,
+immediate derived page 1, and a server 400 before transaction/SQL. The UI maps
+only the stable `SEARCH_QUERY_UNSUPPORTED` code to a specific status message;
+other failures retain the retryable read-error state.
+
+New verification on this source: focused sidebar and Documents search tests
+passed 25/25, the service tests passed 2/2, and Nest/PG17 HTTP search passed
+1/1 with separate Auth/business non-owner LOGIN fixture roles. The complete
+application tests passed API Vitest 341/341, API Node 855/855, and Web 412/412.
+Typecheck, build, formatting and the serial guarded PostgreSQL 17 database gate
+are recorded in the F05.2.1 checklist entry. Browser automation was not exposed
+in this session, so no visual/browser acceptance is claimed. No model/provider,
+cloud, credential or migration change was made; no human review or mutation run
+is claimed.
