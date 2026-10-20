@@ -3,6 +3,29 @@
 Cập nhật 20/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
+## F05.2 contract/checklist — workspace sidebar search
+
+F05.2 thêm `GET /api/search` cho sáu loại course/exam/plan/document/expense/task.
+Contract: q được trim, 2–120 ký tự có ít nhất một chữ hoặc số; kind
+`all|course|exam|plan|document|expense|task`; sort `kind|label`; direction
+`asc|desc`; page 1–1.000.000; pageSize mặc định 12, tối đa 50. Query lặp,
+malformed hoặc ngoài allowlist trả 400 trước service. Response metadata là
+`{items,page,pageSize,total,totalPages}`. Một câu SQL tenant-scoped tính items
+và total cùng statement snapshot sau fresh membership authorization trên
+business transaction; không gọi AI/Storage. Sidebar dùng debounce 280 ms,
+lọc loại, sort, hướng, paging, retry GET và principal/query revision guard; nó
+không còn tải sáu list API. Route chỉ sinh từ allowlist, course dùng slug, các
+loại khác dùng UUID. Legacy Documents/Assistant list contract không đổi.
+
+F05.2 source, HTTP/DB và FE regression đã đạt kiểm tự động: `npm test` 1,604
+pass (340 API Vitest, 855 API Node, 409 Web); typecheck, build, format và
+`test:database` đều exit 0 trên lượt mới. HTTP/PG17 search suite đạt 1/1. Kết
+quả đầy đủ, RED→GREEN và giới hạn mutation nằm trong
+[FINAL-DEMO-CHECKLIST](FINAL-DEMO-CHECKLIST.md). Trạng thái là
+`F05.2_CODE_VERIFIED + F05.2_BROWSER_ACCEPTANCE_PENDING`; browser desktop/mobile
+chưa chạy. F05.2 không làm search/pagination cho các màn hình module còn lại,
+nên whole-app F05 vẫn PARTIAL.
+
 ## F05.1 checkpoint — Documents search validation and deep-link focus (20/10/2026)
 
 F05.1 fixes two reproduced defects without changing the Documents search SQL,
@@ -66,16 +89,16 @@ reconcile against the paged endpoint; deletion errors also refresh rather than
 assuming the item disappeared. The upload-course selector remains separate from
 the list filter.
 
-The existing `GET /api/documents` array remains unpaged for `useDocuments`,
-Assistant source loading and the legacy sidebar search. The Documents page is
+The existing `GET /api/documents` array remains unpaged for `useDocuments` and
+Assistant source loading. The Documents page is
 not treated as the Assistant's full source set. For a route focus ID outside
 the current page, `DocumentsPanel` now performs a separate scoped
 `GET /api/documents/:id` and renders a focused card without changing page items
-or totals; sidebar links use the same route behavior. The legacy sidebar still
-loads its complete document list; bounded sidebar search and Tasks/Courses/
-Exams/Study plans/Expenses are outside this vertical slice. No migration, AI
-provider or semantic search call was added. Automated API/FE/PG17 evidence and
-the browser acceptance status are recorded in [the demo checklist](FINAL-DEMO-CHECKLIST.md).
+or totals; sidebar links use the same route behavior. Bounded sidebar search
+was added in F05.2; search/pagination on the six module screens remains outside
+this vertical slice. No migration, AI provider or semantic search call was
+added. Automated API/FE/PG17 evidence and browser acceptance status are
+recorded in [the demo checklist](FINAL-DEMO-CHECKLIST.md).
 
 F05 Documents code/tests were committed as `9981912` from starting HEAD
 `fe84d1f`. Current automated gates passed: typecheck, test (1,583 total),
@@ -399,7 +422,7 @@ chiếu lịch sử. Không chạy lại phần đã có hoặc biến kế ho�
 | F02 | Hoàn tất B2: runtime non-owner/NOBYPASSRLS, grants tối thiểu, tenant RLS toàn app, rollout/rollback cloud                  | F02-A local acceptance đạt qua browser+Nest+PG17 LOGIN business/Auth non-owner; F02-B/cloud runtime provisioning/rollout vẫn pending, không coi B2 toàn app xong |
 | F03 | Prompt tập trung/version; metadata request/provider calls, token, latency, outcome, chi phí ước tính                       | Code và tích hợp HTTP/DB PG17 đã kiểm; nghiệm thu browser desktop/375px sau instrumentation còn pending; chưa nhận F03 đầy đủ                                    |
 | F04 | B3: cap user/ngày, concurrency, fan-out summary/index/OCR; admission nguyên tử và bền vững                                 | Migration 020/contract v20 triển khai local; automated gates pass, browser acceptance pending; không phải monetary budget hay dashboard F06                      |
-| F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Documents FE–API–DB vertical slice implemented with automated tests; browser acceptance pending; sidebar and other modules remain                                |
+| F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Documents and bounded six-kind sidebar search have automated local coverage; browser pending; search/pagination on other module screens remains                 |
 | F06 | Dashboard AI cho admin đúng workspace: request/provider calls, token/cost/latency/lỗi/từ chối và filters                   | Pending; đây là yêu cầu usage dashboard, không phải Finances hay billing                                                                                         |
 | F07 | N1 lưu bền, mở lại/xóa, retention/quyền; receipt/history/reset/account isolation                                           | Pending persistence; history trong tab/SSE và draft revision đã có, không viết lại                                                                               |
 | F08 | N2 Study Coach: structured quiz/flashcards, nguồn, preview/xác nhận lưu, luyện tập/tiến độ cá nhân                         | Pending                                                                                                                                                          |

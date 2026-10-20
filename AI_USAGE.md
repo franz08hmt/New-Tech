@@ -460,3 +460,25 @@ the Documents HTTP/PG17 suite passed 4/4. Exact commands and browser limits are
 recorded in the F05.1 section of FINAL-DEMO-CHECKLIST. Browser automation was
 not exposed, so desktop/mobile UI acceptance remains pending. No human review
 is claimed; no cloud writes, push or deployment occurred.
+
+## 2026-10-20 — F05.2 workspace sidebar search (Codex)
+
+AI assistance inspected the six sidebar search consumers and implemented the
+typed paged API, tenant-scoped SQL, Vietnamese text-folding reuse, and sidebar
+debounce/filter/sort/pagination with stale-principal guards. It added FE and
+Nest/PG17 HTTP regressions; the database fixture uses synthetic records and
+separate business/Auth LOGIN roles, while provider calls are asserted absent.
+The implementation preserves the Documents page and Assistant source-list
+contracts and constructs only allowlisted internal routes.
+
+New verification on the local source: typecheck, test, build, format and guarded
+PG17 database gates exited 0. `npm test` passed 340 API Vitest, 855 API Node
+and 409 Web tests (1,604 total); the new `/api/search` HTTP/PG17 test passed
+1/1 separately. A tenant-scope mutation and a stale-response mutation each
+failed their targeted assertions and passed after restoration. The dedicated
+repeated-query validation mutation was blocked by the environment's command
+policy and is not claimed; repeated-key rejection itself is covered through
+the real HTTP parser in the standard database suite. Browser automation was
+not exposed, so desktop/mobile, keyboard, layout and console acceptance remain
+pending. No independent human review, cloud write, external AI call, push or
+deployment is claimed.

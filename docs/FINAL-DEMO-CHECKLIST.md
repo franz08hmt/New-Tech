@@ -876,3 +876,64 @@ passed 140/140; the Nest/PG17 non-owner Documents HTTP suite passed 4/4,
 including the real-parser malformed-query cases. Browser acceptance remains
 pending as stated above. These are local regression results; they do not accept
 whole-app F05, other-module search, cloud rollout or live provider behavior.
+
+## F05.2 — bounded workspace search in the sidebar (20/10/2026)
+
+The sidebar now calls the typed `GET /api/search` endpoint rather than loading
+the six complete legacy lists. Its contract trims `q` (2–120 characters,
+including at least one letter or number), accepts `kind=all|course|exam|plan|
+document|expense|task`, `sort=kind|label`, `direction=asc|desc`, pages 1–1,000,000,
+and page sizes 1–50 (default 12). Invalid, repeated or non-scalar parameters
+return 400 before search SQL. The response is `{ items, page, pageSize, total,
+totalPages }`; out-of-range pages retain the filtered total.
+
+The Nest service uses the verified principal, rechecks membership in a short
+business workspace transaction, and executes one tenant-scoped PostgreSQL
+statement for all six kinds, count and page under the same statement snapshot.
+Joins retain workspace predicates and the query returns only sidebar metadata;
+it does not call AI, Storage or OCR. Search text keeps the existing Vietnamese
+case/diacritic/`đ` folding and punctuation-as-separator behavior. The UI uses a
+280 ms debounce, server filters, stable sort, paging, a read-only retry and
+abort plus revision/key checks for query/principal changes. Routes are built
+from the kind allowlist; course routes use validated slugs and other routes use
+validated IDs. Documents outside the current Documents page continue through
+the F05.1 scoped focus lookup; Assistant source loading remains independent.
+
+RED/GREEN and mutation evidence: the frontend regression first observed the
+old hook invoking the six full-list APIs; it now asserts those calls stay at
+zero and the paged endpoint receives the selected controls. A tenant-predicate
+mutation failed the SQL-scope unit assertion (one branch lost its explicit
+workspace condition); restoring the predicate returned the test to green. A
+stale-response mutation failed when an older response replaced the latest
+result; restoring the revision/abort guard passed it. The HTTP/PG17 test runs
+through Nest's real query parser and non-owner business/Auth LOGIN fixture; it
+checks repeated and array/object parameters, invalid allowlists, Unicode and
+punctuation, six kinds, roles, absent/revoked membership, exact tenant totals,
+stable order, metadata-only response, and zero provider calls. A dedicated
+test-only mutation of repeated-query validation could not be run because the
+environment blocked that mutation-test command; the live-HTTP regression for
+repeated keys remains in the standard database runner and passes.
+
+The tested F05.2 source is committed as API `6d21b67` and FE `74a39c8`, based
+on `b6cd749`. The new API/FE and quality gates ran as follows:
+
+- `npm run typecheck` — exit 0.
+- `npm test` — exit 0; API Vitest 340/340, API Node 855/855, Web 409/409
+  (1,604 total; 0 failed, skipped or cancelled).
+- `npm run build` — exit 0 (Nest and Vite production builds).
+- `npm run format:check` — exit 0 after formatting only the changed source and
+  test files flagged by the first check.
+- `npm run test:database` — exit 0 against the labeled loopback PG17.11
+  disposable; the runner completed all serial suites with no failing command.
+  The new `/api/search` Nest/PG17 suite also ran separately: 1/1 passed,
+  0 failed/skipped/cancelled. The database runner does not emit one aggregate
+  test count, so no aggregate count is inferred here.
+
+No browser automation tool was exposed in the current session. Desktop
+1440px/mobile 375px, keyboard/menu behavior, visual routing, console/network
+and overflow therefore remain `BROWSER_ACCEPTANCE_PENDING`; the React and HTTP
+tests are not browser evidence. This verifies the six-kind sidebar code path,
+not search/filter/sort/pagination on the other module screens and not whole-app
+F05. No cloud writes, external provider calls, push or deployment occurred.
+The repeated-query mutation was blocked as noted above; source/gates and its
+HTTP regression are verified, but that particular mutation is not claimed.

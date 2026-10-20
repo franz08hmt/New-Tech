@@ -373,7 +373,34 @@ the legacy scoped list. A route focus ID not present on the active result page
 uses one scoped `GET /api/documents/:id` and appears in a separate focused card;
 it does not alter the paged items or total, and an ID already on the page is
 not duplicated. The lookup is aborted/revision-checked across target and
-principal changes. The legacy sidebar still loads all document metadata;
-moving it, or adding search/pagination to other modules, is explicitly
-pending. One-statement consistency is per PostgreSQL statement, not a
-multi-request snapshot.
+principal changes. F05.2 moves sidebar search to a separately paged endpoint
+while the legacy Documents and Assistant list APIs remain unchanged.
+Search/pagination on other module screens is explicitly pending.
+One-statement consistency is per PostgreSQL statement, not a multi-request
+snapshot.
+
+## ADR-006 — Bounded tenant-scoped workspace sidebar search
+
+F05.2 adds read-only `GET /api/search` for course, exam, study plan, document,
+expense and task metadata. The sidebar must not fetch six full lists and filter
+them in the browser. Its validated query has a minimum useful trimmed string,
+allowlisted type/sort/direction, and bounded page/pageSize; the response returns
+the current page and a separately accurate total.
+
+The service obtains workspace/user from the verified principal, re-authorizes
+read membership on the same short business workspace transaction, and performs
+all six tenant-qualified branches, joins, search filtering, count, sort and
+pagination in one parameterized SQL statement. Thus page/count use one database
+statement snapshot. A fixed SQL map selects sort expressions; tie-breaks are
+stable. The metadata projection excludes document content, chunks, storage
+keys, credentials and provider data. Case/diacritic/punctuation folding is
+shared with Documents search to preserve its existing Vietnamese search
+behavior. Assistant source loading continues using its own legacy source
+contract; one sidebar page is never treated as the Assistant's full corpus.
+
+The client debounces requests, aborts superseded reads and also checks a
+principal/query/control revision before rendering. Internal routes are formed
+only from the result kind and validated route identifier. This ADR does not
+add whole-screen search/pagination to the six modules, semantic search,
+provider calls or schema migration. Browser interaction and visual acceptance
+remain pending until an approved browser automation capability is available.
