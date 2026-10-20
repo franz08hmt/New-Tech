@@ -422,3 +422,14 @@ query, the service returns safe 400 `SEARCH_QUERY_UNSUPPORTED` before opening a
 workspace transaction. The client displays that condition explicitly. This
 does not introduce multilingual search or change the shared Documents folding
 behavior.
+
+F05.3 continues the additive paged-list pattern for Tasks, Courses, Exams,
+Study plans and Expenses. Legacy array routes remain for separately scoped
+dashboard summaries, complete course selectors, or course-workspace sections;
+the primary paged screens do not load those arrays to build their lists. In
+Expenses, one tenant-scoped SQL statement applies search/date/course/category
+filters before page, count, and summary. Exact whole-VND aggregate values are
+serialized as decimal strings so totals do not lose precision in JavaScript.
+This adds no schema or capability changes. Browser acceptance remains pending;
+the decision records a local API/DB/UI contract, not whole-project F05
+acceptance.

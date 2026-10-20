@@ -1097,3 +1097,48 @@ keyboard, visual, console and network acceptance remain
 whole F05 remains partial. Cloud rollout, Google live and remote-machine
 acceptance remain pending. No cloud/provider call, migration, push or deploy
 occurred.
+
+## F05.3 Expenses slice — 20/10/2026
+
+The primary Finances page now requests `GET /api/expenses/search`; the paged
+screen no longer loads `/api/expenses` as its list. Search covers description
+and joined course metadata; filters cover category, course/unassigned and
+explicit inclusive day/week/month/all/custom date ranges. Sort is restricted to
+spent date, amount, or description. Scoped `GET /api/expenses/:id` displays a
+deep-link target separately from the active page and aggregate. One workspace-
+scoped SQL statement returns page, total, largest amount, exact whole-VND sum,
+and per-course totals over the full filtered set. Monetary aggregate values are
+decimal strings so PostgreSQL `bigint` totals are not rounded in JavaScript.
+Legacy list consumers in the course workspace and the independent course
+selector remain separate; no migration or AI/provider call was required.
+
+RED/GREEN and focused evidence:
+
+- RED: the new Nest HTTP/PG17 regression initially received 404 for
+  `/api/expenses/search`; after implementation it passed 1/1 on PostgreSQL 17
+  through a business LOGIN that is non-owner and `NOBYPASSRLS`, with a separate
+  synthetic Auth/session fixture. It checks two tenants, multiple pages,
+  Vietnamese/accent folding, punctuation, category/course/date filters,
+  stable equal-date order, exact filtered aggregates, null-course totals,
+  out-of-range page totals, role/membership denial, malformed queries, no SQL
+  on invalid input, and scoped foreign-ID denial.
+- Focused Expenses/App selection, `npm test --workspace @examate/web -- --run
+  src/ExpensesSearch.test.tsx src/App.test.tsx`: 127/127 passed. The full app
+  suite includes the regression and passed API Vitest 341/341, API Node 855/855
+  and Web 434/434 (1,630 total).
+- An initial full Web run found an existing Tasks integration fixture omitted
+  the paged `summary` field. The test fixture was corrected to model the current
+  `/api/tasks/search` contract and confirmed status update; its focused test and
+  the full rerun passed.
+- Final gates: `npm run typecheck`, `npm test`, `npm run build`,
+  `npm run format:check`, and `npm run test:database` on guarded disposable
+  PG17 all exited 0. The database script reports each DB file separately; the
+  new Expenses file passed 1/1 with 0 failures, skips or cancellations.
+
+No browser automation capability was exposed in this session. Desktop/mobile
+visual, keyboard, console, overflow, and mutation-in-browser checks remain
+`BROWSER_ACCEPTANCE_PENDING`; React tests are not browser evidence. The five
+F05.3 module code slices have automated local coverage, but whole F05 remains
+partial pending browser acceptance. Cloud rollout, Google live, and Thắng's
+machine remain pending. No cloud writes, external provider calls, migration,
+push, or deployment occurred.

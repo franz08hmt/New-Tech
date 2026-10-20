@@ -557,3 +557,36 @@ before implementation and GREEN afterward. Focused FE/App tests, API build,
 typecheck, format and the focused DB test passed. No approved browser automation
 capability was exposed, so no visual/browser acceptance or independent human
 review is claimed.
+
+## 2026-10-20 — F05.3 Expenses slice (Codex)
+
+AI assistance inspected the expense schema/types, route ordering, legacy budget
+and course-workspace consumers, course selector, date semantics, and existing
+workspace paging/search patterns. It added an additive typed Expenses search
+route and scoped ID lookup, a server-paged Finances view, full-filter aggregate
+summary, and FE/HTTP/PG17 regressions. The SQL is a single workspace-scoped
+statement; amounts are whole VND and aggregate values are returned as decimal
+strings to avoid precision loss. Existing write endpoints and the separate
+course-workspace legacy list remain in place. No migration or external provider
+was needed.
+
+Review correction: the focused App integration test initially retained the old
+exact chart-heading text; it was updated to assert the new heading that
+explicitly identifies the active-filter aggregate. A test DB runner entry was
+also corrected to occur once, and the package file's accidental UTF-8 BOM was
+removed. New verification: the Nest/PG17 HTTP suite passed 1/1 with a separate
+business LOGIN non-owner/`NOBYPASSRLS` and synthetic Auth/session fixtures; the
+Expenses FE and App selection passed 127/127; API build and typecheck exited 0.
+The route test had first produced the expected RED 404 before implementation.
+No approved browser automation capability was exposed, so desktop/mobile visual
+acceptance and human review are not claimed. No cloud, provider, migration,
+push, or deployment action occurred.
+
+The final full test run passed API Vitest 341/341, API Node 855/855 and Web
+434/434 (1,630 total). Typecheck, production build, format check, and the serial
+guarded PG17 database gate each exited 0. During the first full run, the older
+Tasks integration test fixture returned an array where the current paged
+endpoint requires `items` plus `summary`; after correcting that fixture to
+reflect the contract and server-confirmed status mutation, its focused test and
+the complete application suite passed. The shared test correction does not
+change production behavior. No human review or browser acceptance is claimed.

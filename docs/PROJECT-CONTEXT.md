@@ -22,7 +22,7 @@ total/totalPages from one tenant-scoped statement snapshot.
 | Courses     | expanded `CoursesPanel`; dashboard gallery, selectors, Assistant context remain separate            | `#courses/<slug>`; use existing scoped slug lookup | progress range; name/code/progress                                          | page beyond two rows, progress filter/sort, route lookup outside page, selector remains complete, focused + full gates      |
 | Exams       | paged `ExamsSearchPanel`; dashboard next-exam summary and course selector remain separate            | `#exams/<id>`; scoped `GET /api/exams/:id`          | course, date range; exam date/time/topic/course                             | valid DATE boundaries, foreign course, stable sort, CRUD refresh, compact dashboard remains aggregate, focused + full gates |
 | Study plans | `StudyPlansSearchPanel`; dashboard/course grouping and course selector remain separate consumers           | `#study-plan/<id>`; scoped `GET /api/study-plans/:id` | course, completed, owner/unassigned, due range; due/title/course/completed | groups retained within page, all-match completion summary, toggle/CRUD refresh, focused + full gates                        |
-| Expenses    | `BudgetPanel` list; course workspace expense section remains separate                               | `#finances/<id>`; add scoped ID lookup             | category, course/unassigned, period date range; spent_on/amount/description | filtered total/count/largest/by-course independent of page, date preservation, CRUD refresh, focused + full gates           |
+| Expenses    | `ExpensesSearchPanel` paged list; course-workspace expense section remains separate                | `#finances/<id>`; scoped ID lookup                 | category, course/unassigned, period date range; spent_on/amount/description | filtered total/count/largest/by-course independent of page, date preservation, CRUD refresh, focused + full gates           |
 
 Selectors, course detail, dashboard summaries and compact course-workspace
 sections have independent complete-data needs. Keep their legacy contracts where
@@ -30,6 +30,41 @@ still consumed, document them explicitly, and do not use a page as a summary or
 selector. The paged primary list itself must not load the full legacy list.
 Browser acceptance is required for whole F05.3; if browser automation is not
 available, code verification remains distinct from browser acceptance.
+
+### F05.3 Expenses checkpoint
+
+The primary Finances screen now uses `GET /api/expenses/search`. Optional
+trimmed metadata `q`, category, course or `unassigned`, inclusive `fromDate` /
+`toDate`, allowlisted spent date/amount/description sort, direction, and bounded
+page/pageSize are validated before the workspace transaction. Impossible dates
+and reversed ranges are rejected. A single statement scopes rows and course
+joins by workspace, then returns page items, exact VND totals as decimal strings,
+largest amount, matching count, and per-course totals from the same filtered
+snapshot. Page changes do not alter aggregates. `GET /api/expenses/:id` is a
+scoped deep-link lookup whose focused card does not alter list totals.
+
+The month/week/day/all period controls map to explicit inclusive calendar-date
+ranges; custom dates preserve `YYYY-MM-DD` without UTC day shifts. Create and
+manager-only delete keep existing write endpoints and trigger read-only search
+refresh after confirmed success. The main screen does not load the legacy
+unpaged expense list. The independent full course selector and the separate
+course-workspace expense consumer retain their legacy list needs.
+
+New focused evidence: real Nest HTTP plus disposable PostgreSQL 17 passed 1/1
+using a business LOGIN that is non-owner and `NOBYPASSRLS`, with two workspaces,
+more than two pages, Vietnamese/accent folding, punctuation, exact filtered
+aggregates, null-course grouping, stable tie ordering, out-of-range totals,
+role/membership checks, malformed filters, and scoped foreign-ID denial. The
+focused Expenses FE/App selection passed 127/127; the old route was observed
+RED as 404 before implementation. Final gates on this source checkpoint all
+exited 0: typecheck, full `npm test`, build, format, and the guarded serial
+PG17 `test:database`. The full application suite passed API Vitest 341/341,
+API Node 855/855, and Web 434/434 (1,630 total). The database runner reports
+per-file results; the new Expenses HTTP/PG17 file passed 1/1 with no skip,
+failure or cancellation. No migration or provider call was added. No approved
+browser automation capability was exposed; desktop/mobile visual acceptance
+remains `BROWSER_ACCEPTANCE_PENDING`. This verifies all five F05.3 module code
+paths, not browser acceptance or whole-project completion.
 
 Study Plans contract: `GET /api/study-plans/search` accepts optional metadata `q`, course ID,
 `completion=all|open|completed`, exact owner or `unassigned`, inclusive valid
@@ -570,7 +605,7 @@ chiếu lịch sử. Không chạy lại phần đã có hoặc biến kế ho�
 | F02 | Hoàn tất B2: runtime non-owner/NOBYPASSRLS, grants tối thiểu, tenant RLS toàn app, rollout/rollback cloud                  | F02-A local acceptance đạt qua browser+Nest+PG17 LOGIN business/Auth non-owner; F02-B/cloud runtime provisioning/rollout vẫn pending, không coi B2 toàn app xong |
 | F03 | Prompt tập trung/version; metadata request/provider calls, token, latency, outcome, chi phí ước tính                       | Code và tích hợp HTTP/DB PG17 đã kiểm; nghiệm thu browser desktop/375px sau instrumentation còn pending; chưa nhận F03 đầy đủ                                    |
 | F04 | B3: cap user/ngày, concurrency, fan-out summary/index/OCR; admission nguyên tử và bền vững                                 | Migration 020/contract v20 triển khai local; automated gates pass, browser acceptance pending; không phải monetary budget hay dashboard F06                      |
-| F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Documents, sidebar, Tasks and Courses have automated local coverage; browser pending; Exams, Study plans and Expenses screens remain                             |
+| F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Documents, sidebar and all five F05.3 module screens have local automated coverage; browser acceptance pending, so whole F05 remains partial                      |
 | F06 | Dashboard AI cho admin đúng workspace: request/provider calls, token/cost/latency/lỗi/từ chối và filters                   | Pending; đây là yêu cầu usage dashboard, không phải Finances hay billing                                                                                         |
 | F07 | N1 lưu bền, mở lại/xóa, retention/quyền; receipt/history/reset/account isolation                                           | Pending persistence; history trong tab/SSE và draft revision đã có, không viết lại                                                                               |
 | F08 | N2 Study Coach: structured quiz/flashcards, nguồn, preview/xác nhận lưu, luyện tập/tiến độ cá nhân                         | Pending                                                                                                                                                          |
