@@ -8,7 +8,13 @@ import {
   UnsupportedMediaTypeException,
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import type { StoredDocument, PilotPrincipal } from "@examate/contracts";
+import type {
+  DocumentSearchPage,
+  DocumentSearchQuery,
+  DocumentSearchSort,
+  StoredDocument,
+  PilotPrincipal,
+} from "@examate/contracts";
 import { DocumentAccessService } from "./document-access.service.js";
 import { DatabaseService } from "../database/database.service.js";
 import type { DatabaseTransaction } from "../database/database.service.js";
@@ -80,6 +86,40 @@ const DOCUMENT_COLUMNS = `d.id,
 
 const DOCUMENT_FROM = `FROM documents d
   LEFT JOIN courses c ON c.id = d.course_id AND c.workspace_id = d.workspace_id`;
+
+const SEARCH_FOLD_SOURCE =
+  "àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ";
+const SEARCH_FOLD_TARGET =
+  "a".repeat(17) +
+  "e".repeat(11) +
+  "i".repeat(5) +
+  "o".repeat(17) +
+  "u".repeat(11) +
+  "y".repeat(5) +
+  "d";
+
+function foldedSearchSql(expression: string) {
+  return `regexp_replace(translate(lower(normalize(${expression}, NFC)), '${SEARCH_FOLD_SOURCE}', '${SEARCH_FOLD_TARGET}'), '[^a-z0-9]+', ' ', 'g')`;
+}
+
+function foldSearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/gi, "d")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+const DOCUMENT_SORT_SQL: Record<DocumentSearchSort, (alias: string) => string> =
+  {
+    created_at: (alias) => `${alias}.created_at`,
+    name: (alias) => `lower(${alias}.name)`,
+    course_name: (alias) => `lower(${alias}.course_name)`,
+    storage_status: (alias) => `${alias}.storage_status`,
+    processing_status: (alias) => `${alias}.processing_status`,
+  };
 /**
  * Recovers a filename that multipart parsing handed back as Latin-1.
  *
@@ -187,6 +227,100 @@ export class DocumentsService {
       },
     );
     return result.rows.map(publicDocument);
+  }
+
+  async search(
+    principal: PilotPrincipal | undefined,
+    query: DocumentSearchQuery,
+  ): Promise<DocumentSearchPage> {
+    requirePrincipal(principal);
+    const result = await this.database.workspaceTransaction(
+      principal,
+      async (tx) => {
+        const { workspaceId } = await this.access.authorize(
+          principal,
+          "read",
+          tx,
+        );
+        const values: unknown[] = [workspaceId];
+        const predicates = ["d.workspace_id = $1"];
+        const parameter = (value: unknown) => {
+          values.push(value);
+          return `$${values.length}`;
+        };
+        const trimmedQuery = query.q?.trim();
+        if (trimmedQuery) {
+          const needle = foldSearchText(trimmedQuery);
+          if (!needle) predicates.push("FALSE");
+          else {
+            const term = parameter(needle);
+            predicates.push(
+              `(${["d.name", "c.name", "c.code", "c.slug"]
+                .map(
+                  (column) => `strpos(${foldedSearchSql(column)}, ${term}) > 0`,
+                )
+                .join(" OR ")})`,
+            );
+          }
+        }
+        if (query.course === "unassigned")
+          predicates.push("d.course_id IS NULL");
+        else if (query.course && query.course !== "all")
+          predicates.push(`d.course_id = ${parameter(query.course)}`);
+        if (query.storage_status)
+          predicates.push(
+            `d.storage_status = ${parameter(query.storage_status)}`,
+          );
+        if (query.processing_status)
+          predicates.push(
+            `d.processing_status = ${parameter(query.processing_status)}`,
+          );
+
+        const page = query.page ?? 1;
+        const pageSize = query.pageSize ?? 20;
+        const offset = (page - 1) * pageSize;
+        const limitParameter = parameter(pageSize);
+        const offsetParameter = parameter(offset);
+        const direction = query.direction === "asc" ? "ASC" : "DESC";
+        const sort = DOCUMENT_SORT_SQL[query.sort ?? "created_at"];
+        const sortOrder = (alias: string) =>
+          `${sort(alias)} ${direction} NULLS LAST, ${alias}.id ASC`;
+
+        return tx.query<{
+          items: DocumentRecord[];
+          total: string;
+        }>(
+          `WITH filtered AS MATERIALIZED (
+             SELECT ${DOCUMENT_COLUMNS} ${DOCUMENT_FROM}
+             WHERE ${predicates.join(" AND ")}
+           ), totals AS (
+             SELECT count(*)::text AS total FROM filtered
+           ), page_rows AS (
+             SELECT * FROM filtered f
+             ORDER BY ${sortOrder("f")}
+             OFFSET ${offsetParameter} LIMIT ${limitParameter}
+           ), page_items AS (
+             SELECT COALESCE(
+               jsonb_agg(to_jsonb(p) ORDER BY ${sortOrder("p")}),
+               '[]'::jsonb
+             ) AS items
+             FROM page_rows p
+           )
+           SELECT page_items.items, totals.total
+           FROM page_items CROSS JOIN totals`,
+          values,
+        );
+      },
+    );
+    const row = result.rows[0];
+    const total = Number(row?.total ?? 0);
+    return {
+      items: (row?.items ?? []).map(publicDocument),
+      page: query.page ?? 1,
+      pageSize: query.pageSize ?? 20,
+      total,
+      totalPages: Math.ceil(total / (query.pageSize ?? 20)),
+    };
   }
 
   private async find(id: string, workspaceId: string, tx: DatabaseTransaction) {

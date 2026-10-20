@@ -104,6 +104,7 @@ function asRole(children: ReactNode, role?: Role) {
 }
 let documents: DocumentsState;
 let anchorClick: ReturnType<typeof vi.spyOn>;
+let serverDocuments: StoredDocument[];
 function unavailable(button: HTMLElement | null) {
   if (button) expect(button).toBeDisabled();
 }
@@ -126,17 +127,46 @@ async function select(input: HTMLElement, file = pdf()) {
   return file;
 }
 beforeEach(() => {
-  vi.spyOn(api, "listDocuments").mockResolvedValue([stored, unassigned]);
-  vi.spyOn(api, "uploadDocument").mockImplementation(
-    async (file, courseId) => ({
+  serverDocuments = [stored, unassigned];
+  vi.spyOn(api, "listDocuments").mockResolvedValue(serverDocuments);
+  vi.spyOn(api, "searchDocuments").mockImplementation(async (query = {}) => {
+    let rows = serverDocuments;
+    if (query.course === "unassigned")
+      rows = rows.filter((row) => row.course_id === null);
+    else if (query.course && query.course !== "all")
+      rows = rows.filter((row) => row.course_id === query.course);
+    if (query.storage_status)
+      rows = rows.filter((row) => row.storage_status === query.storage_status);
+    if (query.processing_status)
+      rows = rows.filter(
+        (row) => row.processing_status === query.processing_status,
+      );
+    return {
+      items: rows,
+      page: query.page ?? 1,
+      pageSize: query.pageSize ?? 20,
+      total: rows.length,
+      totalPages: rows.length ? 1 : 0,
+    };
+  });
+  vi.spyOn(api, "uploadDocument").mockImplementation(async (file, courseId) => {
+    const uploaded = {
       ...stored,
       id: "document-new",
       name: file.name,
       course_id: courseId ?? null,
-    }),
-  );
+    };
+    serverDocuments = [uploaded, ...serverDocuments];
+    return uploaded;
+  });
   vi.spyOn(api, "setDocumentCourse").mockImplementation(
-    async (id, courseId) => ({ ...stored, id, course_id: courseId }),
+    async (id, courseId) => {
+      const updated = { ...stored, id, course_id: courseId };
+      serverDocuments = serverDocuments.map((row) =>
+        row.id === id ? updated : row,
+      );
+      return updated;
+    },
   );
   vi.spyOn(api, "processDocument").mockResolvedValue({
     document_id: stored.id,
@@ -154,7 +184,9 @@ beforeEach(() => {
       ocr_page_numbers: [],
     },
   });
-  vi.spyOn(api, "deleteDocument").mockResolvedValue(undefined);
+  vi.spyOn(api, "deleteDocument").mockImplementation(async (id) => {
+    serverDocuments = serverDocuments.filter((row) => row.id !== id);
+  });
   vi.spyOn(api, "downloadDocument").mockResolvedValue({
     url: "http://127.0.0.1/fixture.pdf",
     expiresIn: 60,
@@ -398,10 +430,11 @@ describe("Document permissions from the verified principal", () => {
         target: { value: "none" },
       });
       expect(screen.queryByText(stored.name)).toBeNull();
-      expect(screen.getByText(unassigned.name)).toBeVisible();
+      expect(await screen.findByText(unassigned.name)).toBeVisible();
       fireEvent.change(screen.getByLabelText("Filter by course"), {
         target: { value: "all" },
       });
+      expect(await screen.findByText(stored.name)).toBeVisible();
       await act(async () => {
         fireEvent.click(
           screen.getByRole("button", { name: `Download ${stored.name}` }),
@@ -409,17 +442,20 @@ describe("Document permissions from the verified principal", () => {
       });
       expect(api.downloadDocument).toHaveBeenCalledExactlyOnceWith(stored.id);
       expect(anchorClick).toHaveBeenCalledOnce();
+      const listCalls = vi.mocked(api.searchDocuments).mock.calls.length;
       await act(async () => {
         fireEvent.click(screen.getByRole("button", { name: "Refresh list" }));
       });
-      expect(api.listDocuments).toHaveBeenCalledTimes(2);
+      await waitFor(() =>
+        expect(api.searchDocuments).toHaveBeenCalledTimes(listCalls + 1),
+      );
       noWrites();
     },
   );
   it.each(["manager", "member", "viewer"] as const)(
     "preserves the failed-list retry for %s",
     async (role) => {
-      vi.mocked(api.listDocuments).mockRejectedValueOnce(
+      vi.mocked(api.searchDocuments).mockRejectedValueOnce(
         new Error("Chưa tải được danh sách, thử lại nhé."),
       );
       render(asRole(<DocumentsPanel />, role));
@@ -428,7 +464,7 @@ describe("Document permissions from the verified principal", () => {
         fireEvent.click(screen.getByRole("button", { name: "Retry list" }));
       });
       await loaded();
-      expect(api.listDocuments).toHaveBeenCalledTimes(2);
+      expect(api.searchDocuments).toHaveBeenCalledTimes(2);
       noWrites();
     },
   );

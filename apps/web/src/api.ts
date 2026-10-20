@@ -14,6 +14,9 @@ export type {
   CourseAssessment,
   CourseTone,
   CourseTopic,
+  DocumentSearchPage,
+  DocumentSearchQuery,
+  DocumentSearchSort,
   DocumentProcessingResult,
   Exam,
   Expense,
@@ -62,6 +65,8 @@ import type {
   AssistantChatResponse,
   AssistantStreamStage,
   Course,
+  DocumentSearchPage,
+  DocumentSearchQuery,
   DocumentProcessingResult,
   Exam,
   Expense,
@@ -425,6 +430,17 @@ export const api = {
     }),
   deleteStudyPlan: (id: string) =>
     request<void>(`/api/study-plans/${id}`, { method: "DELETE" }),
+  // Keep the unpaged legacy transport for Assistant/sidebar consumers. The
+  // Documents screen opts into this bounded server query explicitly.
+  searchDocuments: (query: DocumentSearchQuery = {}, signal?: AbortSignal) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query))
+      if (value !== undefined && value !== null) params.set(key, String(value));
+    const suffix = params.size ? `?${params.toString()}` : "";
+    return request<DocumentSearchPage>(`/api/documents/search${suffix}`, {
+      signal,
+    });
+  },
   listDocuments: () => request<StoredDocument[]>("/api/documents"),
   getDocument: (id: string) =>
     request<StoredDocument>(`/api/documents/${encodeURIComponent(id)}`),

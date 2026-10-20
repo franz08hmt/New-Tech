@@ -32,6 +32,18 @@ const documentRow = {
   size_bytes: 100,
   storage_status: "stored",
 };
+const documentPage = (url: string) =>
+  Response.json({
+    items: [documentRow],
+    page: Number(
+      new URL(url, "http://127.0.0.1").searchParams.get("page") ?? 1,
+    ),
+    pageSize: Number(
+      new URL(url, "http://127.0.0.1").searchParams.get("pageSize") ?? 20,
+    ),
+    total: 1,
+    totalPages: 1,
+  });
 // Existing document CRUD regressions require the verified manager capability.
 // Viewer/member/no-principal affordances are covered by DocumentsPermissions.
 function DocumentsApp() {
@@ -63,6 +75,7 @@ it("loads stored documents after remount, downloads and deletes through API", as
           url: "https://storage.example.test/file",
           expiresIn: 60,
         });
+      if (url.startsWith("/api/documents/search")) return documentPage(url);
       return Response.json(url === "/api/documents" ? [documentRow] : []);
     }),
   );
@@ -99,7 +112,9 @@ it("keeps stored document visible when delete fails and retries a failed list", 
           { message: "Storage unavailable" },
           { status: 503 },
         );
-      if (url === "/api/documents" && ++lists === 1) throw new Error("offline");
+      if (url.startsWith("/api/documents/search") && ++lists === 1)
+        throw new Error("offline");
+      if (url.startsWith("/api/documents/search")) return documentPage(url);
       return Response.json(url === "/api/documents" ? [documentRow] : []);
     }),
   );
@@ -111,7 +126,7 @@ it("keeps stored document visible when delete fails and retries a failed list", 
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Storage unavailable",
   );
-  expect(screen.getByText("saved.pdf")).toBeVisible();
+  expect(await screen.findByText("saved.pdf")).toBeVisible();
 });
 it("updates task status using server response and shows failed submission", async () => {
   window.history.replaceState(null, "", "/#tasks");

@@ -87,6 +87,34 @@ export interface StoredDocument {
   updated_at: string;
 }
 
+export type DocumentSearchSort =
+  | "created_at"
+  | "name"
+  | "course_name"
+  | "storage_status"
+  | "processing_status";
+
+export interface DocumentSearchQuery {
+  /** Trimmed, case/diacritic-insensitive metadata search, at most 120 chars. */
+  q?: string;
+  /** all, unassigned, or a course UUID in the verified workspace. */
+  course?: string;
+  storage_status?: "stored" | "deleting" | "legacy";
+  processing_status?: "pending" | "processing" | "ready" | "failed";
+  sort?: DocumentSearchSort;
+  direction?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+}
+
+export interface DocumentSearchPage {
+  items: StoredDocument[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
 /** Processing coverage returned for an indexed PDF; extracted text stays server-side. */
 export interface DocumentIndexQuality {
   total_page_count: number;

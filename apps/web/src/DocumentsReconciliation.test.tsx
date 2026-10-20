@@ -82,7 +82,13 @@ beforeEach(() => {
     error: "",
     reload: vi.fn(),
   } as never);
-  vi.spyOn(api, "listDocuments").mockResolvedValue([item, other]);
+  vi.spyOn(api, "searchDocuments").mockResolvedValue({
+    items: [item, other],
+    page: 1,
+    pageSize: 20,
+    total: 2,
+    totalPages: 1,
+  });
   vi.spyOn(api, "processDocument").mockRejectedValue(
     new Error("Request ACK unavailable"),
   );

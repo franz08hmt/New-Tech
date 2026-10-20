@@ -20,6 +20,7 @@ import { AiUsageService } from "../assistant/ai-usage.service.js";
 import type { PdfFile } from "./documents.service.js";
 import type { AuthRequest } from "../auth/auth.service.js";
 import {
+  DocumentSearchQueryDto,
   DownloadDocumentQueryDto,
   SetDocumentCourseDto,
   UploadDocumentDto,
@@ -34,6 +35,12 @@ export class DocumentsController {
   ) {}
   @Get() list(@Req() req: AuthRequest) {
     return this.documents.list(req.principal);
+  }
+  @Get("search") search(
+    @Query() query: DocumentSearchQueryDto,
+    @Req() req: AuthRequest,
+  ) {
+    return this.documents.search(req.principal, query);
   }
   @Get(":id")
   get(@Param("id", new ParseUUIDPipe()) id: string, @Req() req: AuthRequest) {

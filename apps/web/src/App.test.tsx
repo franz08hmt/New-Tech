@@ -234,7 +234,7 @@ const planFixtures = [
     updated_at: "2026-09-15T00:00:00.000Z",
   },
 ];
-const documentFixtures = [
+const documentFixtures: StoredDocument[] = [
   {
     id: "doc-1",
     name: "de-cuong-thuat-toan.pdf",
@@ -266,6 +266,67 @@ const documentFixtures = [
     updated_at: "2026-09-14T00:00:00.000Z",
   },
 ];
+type SearchFixture = Pick<
+  StoredDocument,
+  | "id"
+  | "name"
+  | "course_id"
+  | "course_name"
+  | "course_code"
+  | "course_slug"
+  | "storage_status"
+  | "processing_status"
+  | "created_at"
+>;
+function documentSearchResponse(rows: readonly SearchFixture[], url: string) {
+  const params = new URL(url, "http://127.0.0.1").searchParams;
+  const q = params.get("q")?.toLowerCase();
+  let filtered = [...rows];
+  const course = params.get("course") ?? "all";
+  if (course === "unassigned")
+    filtered = filtered.filter((row) => row.course_id === null);
+  else if (course !== "all")
+    filtered = filtered.filter((row) => row.course_id === course);
+  const storage = params.get("storage_status");
+  if (storage)
+    filtered = filtered.filter((row) => row.storage_status === storage);
+  const processing = params.get("processing_status");
+  if (processing)
+    filtered = filtered.filter((row) => row.processing_status === processing);
+  if (q)
+    filtered = filtered.filter((row) =>
+      [row.name, row.course_name, row.course_code, row.course_slug]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(q)),
+    );
+  const sort = params.get("sort") ?? "created_at";
+  const direction = params.get("direction") === "asc" ? 1 : -1;
+  const sortValue = (row: SearchFixture) => {
+    if (sort === "name") return row.name.toLowerCase();
+    if (sort === "course_name") return row.course_name?.toLowerCase() ?? null;
+    if (sort === "storage_status") return row.storage_status;
+    if (sort === "processing_status") return row.processing_status;
+    return row.created_at;
+  };
+  filtered.sort((left, right) => {
+    const leftValue = sortValue(left),
+      rightValue = sortValue(right);
+    if (leftValue === null)
+      return rightValue === null ? left.id.localeCompare(right.id) : 1;
+    if (rightValue === null) return -1;
+    const compared = String(leftValue).localeCompare(String(rightValue));
+    return compared ? compared * direction : left.id.localeCompare(right.id);
+  });
+  const page = Number(params.get("page") ?? 1);
+  const pageSize = Number(params.get("pageSize") ?? 20);
+  return Response.json({
+    items: filtered.slice((page - 1) * pageSize, page * pageSize),
+    page,
+    pageSize,
+    total: filtered.length,
+    totalPages: Math.ceil(filtered.length / pageSize),
+  });
+}
 const expenseFixtures = [
   {
     id: "exp-1",
@@ -396,6 +457,8 @@ beforeEach(() => {
       if (url === "/api/documents" && init?.method !== "POST") {
         return new Response(JSON.stringify(documentFixtures), { status: 200 });
       }
+      if (url.startsWith("/api/documents/search"))
+        return documentSearchResponse(documentFixtures, url);
       if (
         url.startsWith("/api/documents/") &&
         url.endsWith("/process") &&
@@ -983,7 +1046,9 @@ describe("Academic workspace", () => {
     expect(
       await screen.findByRole("option", { name: "de-cuong-thuat-toan.pdf" }),
     ).toBeInTheDocument();
-    expect(listReads).toBe(3);
+    // The Documents panel now reads its paged endpoint; only Assistant's
+    // legacy complete source list is counted here.
+    expect(listReads).toBe(2);
     fireEvent.change(screen.getByLabelText("Chọn tài liệu để tra cứu"), {
       target: { value: "doc-1" },
     });
@@ -1027,7 +1092,7 @@ describe("Academic workspace", () => {
       vi.fn(async (url: string, init?: RequestInit) => {
         if (url === "/api/documents" && init?.method !== "POST") {
           listReads++;
-          if (listReads === 3)
+          if (listReads === 2)
             return Response.json(
               { message: "temporary read failure" },
               { status: 503 },
@@ -1070,7 +1135,7 @@ describe("Academic workspace", () => {
       await screen.findByRole("option", { name: "de-cuong-thuat-toan.pdf" }),
     ).toBeInTheDocument();
     expect(processCalls).toBe(1);
-    expect(listReads).toBe(4);
+    expect(listReads).toBe(3);
   });
   it("reconciles a failed index POST from the server before exposing the source", async () => {
     window.history.replaceState(null, "", "/#documents");
@@ -1117,7 +1182,7 @@ describe("Academic workspace", () => {
   });
   it("syncs an upload and its confirmed index into Assistant in the same session", async () => {
     window.history.replaceState(null, "", "/#documents");
-    const stored = {
+    const stored: StoredDocument = {
       ...documentFixtures[0],
       id: "doc-uploaded",
       name: "fresh-notes.pdf",
@@ -1133,13 +1198,18 @@ describe("Academic workspace", () => {
           serverDocuments = [stored, ...serverDocuments];
           return Response.json(stored, { status: 201 });
         }
+        if (url.startsWith("/api/documents/search"))
+          return documentSearchResponse(serverDocuments, url);
         if (url === "/api/documents" && init?.method !== "POST")
           return Response.json(serverDocuments);
         if (
           url === "/api/documents/doc-uploaded/process" &&
           init?.method === "POST"
         ) {
-          const ready = { ...stored, processing_status: "ready" };
+          const ready: StoredDocument = {
+            ...stored,
+            processing_status: "ready",
+          };
           serverDocuments = serverDocuments.map((item) =>
             item.id === ready.id ? ready : item,
           );
@@ -1182,7 +1252,7 @@ describe("Academic workspace", () => {
   });
   it("refreshes course assignment without resetting draft, then clears a deleted selection", async () => {
     window.history.replaceState(null, "", "/#documents");
-    let serverDocuments = [
+    let serverDocuments: StoredDocument[] = [
       { ...documentFixtures[0], processing_status: "ready" },
       documentFixtures[1],
     ];
@@ -1192,6 +1262,8 @@ describe("Academic workspace", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.startsWith("/api/documents/search"))
+          return documentSearchResponse(serverDocuments, url);
         if (url === "/api/documents" && init?.method !== "POST") {
           listReads++;
           return Response.json(serverDocuments);
@@ -1232,7 +1304,7 @@ describe("Academic workspace", () => {
       { target: { value: "course-3" } },
     );
     await waitFor(() => expect(sourcePicker).toHaveValue("doc-1"));
-    await waitFor(() => expect(listReads).toBe(3));
+    await waitFor(() => expect(listReads).toBe(2));
     expect(draft).toHaveValue("Giữ phần nháp này");
 
     fireEvent.click(
@@ -1241,7 +1313,7 @@ describe("Academic workspace", () => {
       }),
     );
     await waitFor(() => expect(sourcePicker).toHaveValue(""));
-    await waitFor(() => expect(listReads).toBe(4));
+    await waitFor(() => expect(listReads).toBe(3));
     expect(
       screen.queryByRole("option", { name: "de-cuong-thuat-toan.pdf" }),
     ).not.toBeInTheDocument();
@@ -1346,11 +1418,18 @@ describe("Academic workspace", () => {
   it("uploads a PDF through the API and keeps File for retry after failure", async () => {
     window.history.replaceState(null, "", "/#documents");
     let attempts = 0;
+    let storedAfterRetry: StoredDocument | null = null;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init?: RequestInit) => {
         if (url === "/api/documents" && init?.method === "POST") {
           attempts++;
+          if (attempts === 2)
+            storedAfterRetry = {
+              ...documentFixtures[0],
+              id: "document-1",
+              name: "lifecycle.pdf",
+            };
           return Response.json(
             attempts === 1
               ? { message: "Storage unavailable" }
@@ -1364,6 +1443,11 @@ describe("Academic workspace", () => {
             { status: attempts === 1 ? 503 : 201 },
           );
         }
+        if (url.startsWith("/api/documents/search"))
+          return documentSearchResponse(
+            storedAfterRetry ? [storedAfterRetry] : [],
+            url,
+          );
         return Response.json(url === "/api/documents" ? [] : [task]);
       }),
     );
@@ -2043,17 +2127,23 @@ describe("Academic workspace", () => {
     fireEvent.change(screen.getByLabelText(/Filter by course/), {
       target: { value: "course-1" },
     });
-    expect(screen.getByText("de-cuong-thuat-toan.pdf")).toBeInTheDocument();
-    expect(screen.queryByText("ghi-chu-chung.pdf")).not.toBeInTheDocument();
+    expect(
+      await screen.findByText("de-cuong-thuat-toan.pdf"),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByText("ghi-chu-chung.pdf")).not.toBeInTheDocument(),
+    );
 
     // "no course" is its own choice, not the absence of a filter.
     fireEvent.change(screen.getByLabelText(/Filter by course/), {
       target: { value: "none" },
     });
-    expect(screen.getByText("ghi-chu-chung.pdf")).toBeInTheDocument();
-    expect(
-      screen.queryByText("de-cuong-thuat-toan.pdf"),
-    ).not.toBeInTheDocument();
+    expect(await screen.findByText("ghi-chu-chung.pdf")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.queryByText("de-cuong-thuat-toan.pdf"),
+      ).not.toBeInTheDocument(),
+    );
   });
   it("re-files a stored document under another course", async () => {
     window.history.replaceState(null, "", "/#documents");

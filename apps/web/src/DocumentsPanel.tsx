@@ -2,6 +2,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -15,7 +16,12 @@ import {
 } from "@heroicons/react/24/outline";
 import { DocumentCard } from "./DocumentCard";
 import { useCourses } from "./use-courses";
-import { api, ApiError, type StoredDocument } from "./api";
+import {
+  api,
+  ApiError,
+  type DocumentSearchQuery,
+  type StoredDocument,
+} from "./api";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -49,20 +55,73 @@ export function DocumentsPanel({
   // not silently hide every other subject from view.
   const [uploadCourseId, setUploadCourseId] = useState("");
   const [filterCourseId, setFilterCourseId] = useState("all");
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [storageFilter, setStorageFilter] = useState<
+    NonNullable<DocumentSearchQuery["storage_status"]> | ""
+  >("");
+  const [processingFilter, setProcessingFilter] = useState<
+    NonNullable<DocumentSearchQuery["processing_status"]> | ""
+  >("");
+  const [sort, setSort] = useState<DocumentSearchQuery["sort"]>("created_at");
+  const [direction, setDirection] =
+    useState<NonNullable<DocumentSearchQuery["direction"]>>("desc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [refreshVersion, setRefreshVersion] = useState(0);
   const [selected, setSelected] = useState<LocalDocument[]>([]);
   const [documents, setDocuments] = useState<StoredDocument[]>([]);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [loadedKey, setLoadedKey] = useState("");
   const [error, setError] = useState("");
+  const [listError, setListError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [busyIds, setBusyIds] = useState<string[]>([]);
   const busy = useRef(new Set<string>());
   const revision = useRef(0);
+  const readController = useRef<AbortController | null>(null);
+  const notifyAssistantAfterRead = useRef(false);
   const lifetime = useRef(0);
   const identity = `${principal?.userId ?? ""}:${principal?.workspaceId ?? ""}`;
   // Synchronous identity check also covers a response resolving in the batch
   // before an old view's effect cleanup runs. PilotAccess normally remounts it.
   const currentIdentity = useRef(identity);
   currentIdentity.current = identity;
+  const searchArgs = useMemo<DocumentSearchQuery>(
+    () => ({
+      q: searchQuery || undefined,
+      course: filterCourseId === "none" ? "unassigned" : filterCourseId,
+      storage_status: storageFilter || undefined,
+      processing_status: processingFilter || undefined,
+      sort,
+      direction,
+      page,
+      pageSize,
+    }),
+    [
+      direction,
+      filterCourseId,
+      page,
+      pageSize,
+      processingFilter,
+      searchQuery,
+      sort,
+      storageFilter,
+    ],
+  );
+  const queryKey = JSON.stringify(searchArgs);
+  const currentReadKey = `${identity}:${queryKey}`;
+  const currentReadKeyRef = useRef(currentReadKey);
+  currentReadKeyRef.current = currentReadKey;
+  const searchPending = searchInput.trim() !== searchQuery;
+  const readPending = loading || searchPending || loadedKey !== currentReadKey;
+  const onDocumentsChangedRef = useRef(onDocumentsChanged);
+  onDocumentsChangedRef.current = onDocumentsChanged;
+  const visibleDocuments = readPending ? [] : documents;
+  const visibleTotal = readPending ? 0 : total;
+  const visibleTotalPages = readPending ? 0 : totalPages;
   const operations = useRef(new Map<string, number>());
   const unconfirmed = useRef(new Set<string>());
   const [indexReads, setIndexReads] = useState<
@@ -76,31 +135,18 @@ export function DocumentsPanel({
       setNotice("");
     }
   }, [canWrite]);
-  const reload = useCallback(
-    async (notifyAssistant = false) => {
-      if (busy.current.size) return;
-      const current = ++revision.current;
-      const owner = currentIdentity.current;
-      setLoading(true);
-      setError("");
-      try {
-        const result = await api.listDocuments();
-        if (current === revision.current && owner === currentIdentity.current) {
-          setDocuments(result);
-          if (notifyAssistant) onDocumentsChanged?.();
-          // A list read does not reverify a denied session/role. Only the
-          // targeted status read (or a new account view) clears uncertainty.
-        }
-      } catch (caught) {
-        if (current === revision.current && owner === currentIdentity.current)
-          setError(message(caught));
-      } finally {
-        if (current === revision.current && owner === currentIdentity.current)
-          setLoading(false);
-      }
-    },
-    [onDocumentsChanged],
-  );
+  const reload = useCallback((notifyAssistant = false) => {
+    if (notifyAssistant) notifyAssistantAfterRead.current = true;
+    setLoadedKey("");
+    setRefreshVersion((value) => value + 1);
+  }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearchQuery(searchInput.trim());
+      setPage(1);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
   useEffect(() => {
     busy.current.clear();
     operations.current.clear();
@@ -109,12 +155,81 @@ export function DocumentsPanel({
     setIndexReads({});
     setIndexErrors({});
     setDocuments([]);
-    void reload();
+    setTotal(0);
+    setTotalPages(0);
+    setError("");
+    setListError("");
+    setSelected([]);
+    setUploadCourseId("");
+    readController.current?.abort();
     return () => {
       revision.current++;
       lifetime.current++;
+      readController.current?.abort();
     };
-  }, [reload, identity]);
+  }, [identity]);
+  useEffect(() => {
+    const current = ++revision.current;
+    const owner = identity;
+    const key = currentReadKey;
+    const controller = new AbortController();
+    readController.current?.abort();
+    readController.current = controller;
+    setLoading(true);
+    setListError("");
+    void api
+      .searchDocuments(searchArgs, controller.signal)
+      .then((result) => {
+        if (
+          current === revision.current &&
+          owner === currentIdentity.current &&
+          key === currentReadKeyRef.current
+        ) {
+          setDocuments(result.items);
+          setTotal(result.total);
+          setTotalPages(result.totalPages);
+          setLoadedKey(key);
+          if (notifyAssistantAfterRead.current) {
+            notifyAssistantAfterRead.current = false;
+            onDocumentsChangedRef.current?.();
+          }
+        }
+      })
+      .catch((caught: unknown) => {
+        if (
+          !controller.signal.aborted &&
+          current === revision.current &&
+          owner === currentIdentity.current &&
+          key === currentReadKeyRef.current
+        )
+          setListError(message(caught));
+      })
+      .finally(() => {
+        if (
+          current === revision.current &&
+          owner === currentIdentity.current &&
+          key === currentReadKeyRef.current
+        )
+          setLoading(false);
+      });
+    return () => {
+      controller.abort();
+      if (readController.current === controller) readController.current = null;
+      if (current === revision.current) revision.current++;
+    };
+  }, [
+    currentReadKey,
+    direction,
+    filterCourseId,
+    identity,
+    page,
+    pageSize,
+    processingFilter,
+    refreshVersion,
+    searchArgs,
+    sort,
+    storageFilter,
+  ]);
 
   function selectFiles(event: ChangeEvent<HTMLInputElement>) {
     if (!permissions.current.canWrite) {
@@ -161,6 +276,7 @@ export function DocumentsPanel({
     busy.current.add(id);
     operations.current.set(id, (operations.current.get(id) ?? 0) + 1);
     setBusyIds([...busy.current]);
+    readController.current?.abort();
     revision.current++;
     setLoading(false);
     setNotice("");
@@ -188,10 +304,6 @@ export function DocumentsPanel({
         uploadCourseId || undefined,
       );
       if (!isCurrent()) return;
-      setDocuments((current) => [
-        stored,
-        ...current.filter((row) => row.id !== stored.id),
-      ]);
       setSelected((current) => current.filter((row) => row.id !== item.id));
       setNotice(`${stored.name} stored successfully.`);
     } catch (caught) {
@@ -206,17 +318,11 @@ export function DocumentsPanel({
     } finally {
       if (isCurrent()) {
         finish(item.id);
+        reload();
         onDocumentsChanged?.();
       }
     }
   }
-  // "none" is a real choice, not the absence of one: it asks for the documents
-  // that belong to no subject, which is different from asking for all of them.
-  const visibleDocuments = documents.filter((item) => {
-    if (filterCourseId === "all") return true;
-    if (filterCourseId === "none") return item.course_id === null;
-    return item.course_id === filterCourseId;
-  });
 
   async function refile(item: StoredDocument, courseId: string | null) {
     if (!permissions.current.canWrite) return;
@@ -243,6 +349,7 @@ export function DocumentsPanel({
     } finally {
       if (isCurrent()) {
         finish(item.id);
+        reload();
         onDocumentsChanged?.();
       }
     }
@@ -311,6 +418,7 @@ export function DocumentsPanel({
     } finally {
       if (isCurrent()) {
         finish(id);
+        if (processingFilter || sort === "processing_status") reload();
         onDocumentsChanged?.();
       }
     }
@@ -364,6 +472,7 @@ export function DocumentsPanel({
     } finally {
       if (isCurrent()) {
         finish(item.id);
+        if (processingFilter || sort === "processing_status") reload();
         onDocumentsChanged?.();
       }
     }
@@ -379,10 +488,14 @@ export function DocumentsPanel({
       return;
     if (!permissions.current.canDelete) return;
     if (!begin(item.id)) return;
+    const wasOnlyVisibleOnPage = visibleDocuments.length === 1;
+    const pageAtDelete = page;
     const isCurrent = operationToken(item.id);
+    let deleted = false;
     try {
       await api.deleteDocument(item.id);
       if (!isCurrent()) return;
+      deleted = true;
       setDocuments((current) => current.filter((row) => row.id !== item.id));
       setNotice(`${item.name} deleted.`);
     } catch (caught) {
@@ -393,6 +506,9 @@ export function DocumentsPanel({
     } finally {
       if (isCurrent()) {
         finish(item.id);
+        if (deleted && wasOnlyVisibleOnPage && pageAtDelete > 1)
+          setPage(pageAtDelete - 1);
+        else reload();
         onDocumentsChanged?.();
       }
     }
@@ -518,38 +634,153 @@ export function DocumentsPanel({
           <header>
             <h3>Stored documents</h3>
             <span>
-              {loading
-                ? "…"
-                : documents.filter((item) => item.storage_status === "stored")
-                    .length}{" "}
-              stored
+              {readPending || listError ? "…" : `${visibleTotal} results`}
             </span>
             <button
               type="button"
-              disabled={loading || busyIds.length > 0}
+              disabled={
+                loading ||
+                searchPending ||
+                (readPending && !listError) ||
+                busyIds.length > 0
+              }
               onClick={() => void reload(true)}
             >
-              {error ? "Retry list" : "Refresh list"}
+              {listError ? "Retry list" : "Refresh list"}
             </button>
           </header>
-          <label className="filter-label document-filter">
-            Filter by course{" "}
-            <select
-              value={filterCourseId}
-              onChange={(event) => setFilterCourseId(event.target.value)}
+          <div className="document-search-toolbar">
+            <label className="document-search-field">
+              Search documents
+              <input
+                type="search"
+                value={searchInput}
+                maxLength={120}
+                placeholder="Name or course metadata"
+                onChange={(event) => {
+                  setSearchInput(event.target.value);
+                  setPage(1);
+                }}
+              />
+            </label>
+            <label className="document-query-field">
+              Filter by course
+              <select
+                value={filterCourseId}
+                onChange={(event) => {
+                  setFilterCourseId(event.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="all">Tất cả môn</option>
+                <option value="none">Chưa gắn môn nào</option>
+                {courses.courses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.name} ({course.code})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="document-query-field">
+              Filter by storage status
+              <select
+                value={storageFilter}
+                onChange={(event) => {
+                  setStorageFilter(event.target.value as typeof storageFilter);
+                  setPage(1);
+                }}
+              >
+                <option value="">All storage states</option>
+                <option value="stored">Stored</option>
+                <option value="deleting">Deletion pending</option>
+                <option value="legacy">Legacy metadata</option>
+              </select>
+            </label>
+            <label className="document-query-field">
+              Filter by processing status
+              <select
+                value={processingFilter}
+                onChange={(event) => {
+                  setProcessingFilter(
+                    event.target.value as typeof processingFilter,
+                  );
+                  setPage(1);
+                }}
+              >
+                <option value="">All processing states</option>
+                <option value="pending">Pending</option>
+                <option value="processing">Processing</option>
+                <option value="ready">Ready</option>
+                <option value="failed">Failed</option>
+              </select>
+            </label>
+            <label className="document-query-field">
+              Sort documents by
+              <select
+                value={sort}
+                onChange={(event) => {
+                  setSort(event.target.value as NonNullable<typeof sort>);
+                  setPage(1);
+                }}
+              >
+                <option value="created_at">Date added</option>
+                <option value="name">Name</option>
+                <option value="course_name">Course</option>
+                <option value="storage_status">Storage status</option>
+                <option value="processing_status">Processing status</option>
+              </select>
+            </label>
+            <label className="document-query-field">
+              Sort direction
+              <select
+                value={direction}
+                onChange={(event) => {
+                  setDirection(event.target.value as typeof direction);
+                  setPage(1);
+                }}
+              >
+                <option value="desc">Descending</option>
+                <option value="asc">Ascending</option>
+              </select>
+            </label>
+            <label className="document-query-field">
+              Results per page
+              <select
+                value={pageSize}
+                onChange={(event) => {
+                  setPageSize(Number(event.target.value));
+                  setPage(1);
+                }}
+              >
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchInput("");
+                setSearchQuery("");
+                setFilterCourseId("all");
+                setStorageFilter("");
+                setProcessingFilter("");
+                setSort("created_at");
+                setDirection("desc");
+                setPage(1);
+                setPageSize(20);
+              }}
             >
-              <option value="all">Tất cả môn</option>
-              <option value="none">Chưa gắn môn nào</option>
-              {courses.courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.name} ({course.code})
-                </option>
-              ))}
-            </select>
-          </label>
-          {loading ? (
+              Reset filters
+            </button>
+          </div>
+          {listError && (
+            <p className="error-message" role="alert">
+              Chưa tải được danh sách: {listError}
+            </p>
+          )}
+          {readPending && !listError ? (
             <p aria-live="polite">Loading documents…</p>
-          ) : (
+          ) : !listError ? (
             <ul>
               {visibleDocuments.map((item) => (
                 <li key={item.id} data-focus-id={item.id}>
@@ -591,13 +822,39 @@ export function DocumentsPanel({
                 </li>
               ))}
             </ul>
-          )}
-          {!loading && !error && !visibleDocuments.length && (
+          ) : null}
+          {!readPending && !listError && !visibleDocuments.length && (
             <p className="empty-message">
-              {documents.length
-                ? "Không có tài liệu nào thuộc lựa chọn này. Thử chọn môn khác xem sao."
-                : "Chưa có tài liệu nào. Tải một tệp PDF lên để bắt đầu."}
+              {visibleTotal > 0
+                ? "Không có tài liệu nào trên trang này. Quay lại trang trước để tiếp tục."
+                : searchQuery ||
+                    filterCourseId !== "all" ||
+                    storageFilter ||
+                    processingFilter
+                  ? "Không tìm thấy tài liệu phù hợp. Hãy đổi hoặc đặt lại bộ lọc."
+                  : "Chưa có tài liệu nào. Tải một tệp PDF lên để bắt đầu."}
             </p>
+          )}
+          {!readPending && !listError && visibleTotalPages > 0 && (
+            <nav className="document-pagination" aria-label="Document pages">
+              <button
+                type="button"
+                disabled={page <= 1 || busyIds.length > 0}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+              >
+                Previous
+              </button>
+              <span aria-live="polite">
+                Page {page} of {visibleTotalPages} · {visibleTotal} results
+              </span>
+              <button
+                type="button"
+                disabled={page >= visibleTotalPages || busyIds.length > 0}
+                onClick={() => setPage((current) => current + 1)}
+              >
+                Next
+              </button>
+            </nav>
           )}
         </section>
       </section>
