@@ -24,6 +24,7 @@ import {
   requireRecordWrite,
 } from "../auth/principal.js";
 import { log } from "../common/log.js";
+import { foldSearchText, foldedSearchSql } from "../common/search-text.js";
 import { StorageService } from "./storage.service.js";
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -86,31 +87,6 @@ const DOCUMENT_COLUMNS = `d.id,
 
 const DOCUMENT_FROM = `FROM documents d
   LEFT JOIN courses c ON c.id = d.course_id AND c.workspace_id = d.workspace_id`;
-
-const SEARCH_FOLD_SOURCE =
-  "àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ";
-const SEARCH_FOLD_TARGET =
-  "a".repeat(17) +
-  "e".repeat(11) +
-  "i".repeat(5) +
-  "o".repeat(17) +
-  "u".repeat(11) +
-  "y".repeat(5) +
-  "d";
-
-function foldedSearchSql(expression: string) {
-  return `regexp_replace(translate(lower(normalize(${expression}, NFC)), '${SEARCH_FOLD_SOURCE}', '${SEARCH_FOLD_TARGET}'), '[^a-z0-9]+', ' ', 'g')`;
-}
-
-function foldSearchText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/gi, "d")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
 
 const DOCUMENT_SORT_SQL: Record<DocumentSearchSort, (alias: string) => string> =
   {

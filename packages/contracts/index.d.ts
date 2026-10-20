@@ -115,6 +115,40 @@ export interface DocumentSearchPage {
   totalPages: number;
 }
 
+/** Bounded, metadata-only workspace sidebar search. */
+export type WorkspaceSearchKind =
+  | "all"
+  | "course"
+  | "exam"
+  | "plan"
+  | "document"
+  | "expense"
+  | "task";
+export type WorkspaceSearchSort = "kind" | "label";
+export interface WorkspaceSearchQuery {
+  q: string;
+  kind?: WorkspaceSearchKind;
+  sort?: WorkspaceSearchSort;
+  direction?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+}
+export interface WorkspaceSearchItem {
+  id: string;
+  kind: Exclude<WorkspaceSearchKind, "all">;
+  label: string;
+  detail: string;
+  /** Non-null for courses; all other kinds return null. */
+  slug: string | null;
+}
+export interface WorkspaceSearchPage {
+  items: WorkspaceSearchItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
 /** Processing coverage returned for an indexed PDF; extracted text stays server-side. */
 export interface DocumentIndexQuality {
   total_page_count: number;

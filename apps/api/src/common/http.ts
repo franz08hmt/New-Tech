@@ -48,6 +48,7 @@ function safeRequestPath(url: string) {
   if (/^\/api\/courses(\/[a-z0-9-]+)?$/.test(path))
     return path === "/api/courses" ? path : "/api/courses/:slug";
   if (path === "/api/documents/search") return path;
+  if (path === "/api/search") return path;
   return /^\/api\/(health|tasks|documents|assistant\/(status|chat(?:\/stream)?|feedback))(\/[0-9a-f-]{36}(\/status|\/download|\/course|\/process)?)?$/i.test(
     path,
   )

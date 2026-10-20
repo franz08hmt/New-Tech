@@ -38,6 +38,8 @@ import { StudyPlansController } from "./study-plans/study-plans.controller.js";
 import { StudyPlansService } from "./study-plans/study-plans.service.js";
 import { ExpensesController } from "./expenses/expenses.controller.js";
 import { ExpensesService } from "./expenses/expenses.service.js";
+import { WorkspaceSearchController } from "./workspace-search/workspace-search.controller.js";
+import { WorkspaceSearchService } from "./workspace-search/workspace-search.service.js";
 import {
   SpeechController,
   SpeechAdmissionInterceptor,
@@ -65,6 +67,7 @@ import { SPEECH_PROVIDER } from "./speech/speech.types.js";
     ExamsController,
     StudyPlansController,
     ExpensesController,
+    WorkspaceSearchController,
     SpeechController,
   ],
   providers: [
@@ -87,6 +90,7 @@ import { SPEECH_PROVIDER } from "./speech/speech.types.js";
     ExamsService,
     StudyPlansService,
     ExpensesService,
+    WorkspaceSearchService,
     AssistantService,
     AnswerReceiptService,
     GeminiService,
