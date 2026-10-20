@@ -1142,3 +1142,22 @@ F05.3 module code slices have automated local coverage, but whole F05 remains
 partial pending browser acceptance. Cloud rollout, Google live, and Thắng's
 machine remain pending. No cloud writes, external provider calls, migration,
 push, or deployment occurred.
+
+## F05.3.1 — focused-record uniqueness and expense chart scaling
+
+Regression RED on the prior implementation: the scoped focused card duplicated
+an Exams/Expenses row (`data-focus-id` count 2), and the Expenses chart divided
+course totals by the largest individual expense (24,000/10,000 produced 240%).
+GREEN: the shared hook masks/invalidate focused state as soon as the record is
+listed and starts a fresh scoped lookup if it leaves the current page/filter;
+chart percentages use the largest filtered course total while the largest
+single expense summary remains unchanged.
+
+New final-source gates: `npm run typecheck`, `npm test`, `npm run build`,
+`npm run format:check`, and guarded `npm run test:database` all exited 0.
+Application totals: API Vitest 341/341, API Node 855/855, Web 443/443.
+The database runner completed 38 serial test files, exit 0 (no aggregate count
+is emitted). Browser automation was unavailable, so desktop/mobile reproduction,
+focus/overflow/console and visual chart acceptance remain
+`BROWSER_ACCEPTANCE_PENDING`; component tests are not browser evidence. No
+migration, provider, cloud, or deployment action occurred.

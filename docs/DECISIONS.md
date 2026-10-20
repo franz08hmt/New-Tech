@@ -433,3 +433,11 @@ serialized as decimal strings so totals do not lose precision in JavaScript.
 This adds no schema or capability changes. Browser acceptance remains pending;
 the decision records a local API/DB/UI contract, not whole-project F05
 acceptance.
+
+F05.3.1 clarifies two presentation rules without changing the search/API
+contract: a scoped focused card is rendered only while the target is absent
+from the current page, and its old lookup state is synchronously masked when
+the target becomes listed. If the target later leaves the page/filter, lookup
+must be performed again under the current principal. Expense course bars are
+normalized against the largest per-course total in the active filtered result;
+the “largest expense” summary continues to mean the largest individual row.

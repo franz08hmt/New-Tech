@@ -1,7 +1,38 @@
 # ExaMate — context hiện tại cho Tài, Thắng và agent
 
-Cập nhật 20/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
+Cập nhật 21/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
+
+## F05.3.1 checkpoint — focused records and expense chart denominator
+
+Implementation and regression tests: `b826f80`.
+
+`useScopedRecord` now masks a focused lookup synchronously whenever its target
+is already present on the current page. It also invalidates that lookup
+generation; if the target later leaves the page/filter, a fresh scoped lookup
+runs. This keeps a late response or stale lookup error from rendering beside a
+matching row. Tasks, Study Plans, Exams, Expenses, and course lookup consumers
+were reviewed; focused targets remain separate from items, totals, and
+aggregates. Regression tests observed duplicate `data-focus-id` values (2
+instead of 1) for Exams and Expenses before the fix, and verify one row,
+fresh lookup on leaving scope, stale response/error masking, and principal
+change afterward.
+
+The Expenses course chart now scales each course total against the largest
+course total in the active filtered aggregate. For totals 24,000 and 20,000,
+bars are 100% and about 83.33%; the separate largest-single-expense card still
+reports 10,000. Ratios use bounded integer arithmetic; amount totals remain
+decimal strings/BigInt. Paging does not change the chart.
+
+New verification on the final source: `npm run typecheck`, `npm test`,
+`npm run build`, `npm run format:check`, and guarded PG17 `npm run test:database`
+all exited 0. The application run passed API Vitest 341/341, API Node 855/855,
+and Web 443/443 (1,639 total). The database runner completed 38 serial test
+files successfully; it does not emit one aggregate test count. Browser tools
+were not available in this session, so the requested desktop/mobile flows,
+visual focus, overflow, and console checks remain `BROWSER_ACCEPTANCE_PENDING`.
+This is code/test verification for F05.3.1, not browser acceptance or whole-F05
+acceptance. No schema, API, or provider behavior changed.
 
 ## F05.3 checklist — server-side lists for the remaining five modules
 

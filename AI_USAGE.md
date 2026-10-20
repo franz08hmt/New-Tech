@@ -590,3 +590,25 @@ endpoint requires `items` plus `summary`; after correcting that fixture to
 reflect the contract and server-confirmed status mutation, its focused test and
 the complete application suite passed. The shared test correction does not
 change production behavior. No human review or browser acceptance is claimed.
+
+## 2026-10-21 — F05.3.1 focused record and expense chart corrections (Codex)
+
+AI assistance traced the shared scoped-record hook and its Tasks, Study Plans,
+Exams, Expenses, and course consumers. It added regressions for duplicate
+focused cards, stale lookup/error state, a target entering and leaving the
+current page/filter, and principal changes. The observed pre-fix RED was two
+matching `data-focus-id` nodes for Exams and Expenses. The hook now masks the
+focused state synchronously when the target is listed and keys a later lookup
+to a new generation. A separate regression exposed course bars divided by the
+largest single expense; they now use the largest per-course total while the
+single-expense summary remains unchanged. No API/schema/permission behavior
+changed.
+
+Final local verification: typecheck, application tests, build, format check,
+and guarded PostgreSQL 17 database gate all exited 0; the application counts
+were API Vitest 341/341, API Node 855/855, and Web 443/443. The DB runner
+completed 38 serial test files. Browser automation was not available, so no
+desktop/mobile visual acceptance or independent human review is claimed. Only
+the disposable PG17 fixture was used; no cloud, provider, secrets, or external
+data were accessed. These checks do not accept whole F05 or complete pending
+browser/cloud/remote-machine work.
