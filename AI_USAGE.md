@@ -498,10 +498,13 @@ other failures retain the retryable read-error state.
 
 New verification on this source: focused sidebar and Documents search tests
 passed 25/25, the service tests passed 2/2, and Nest/PG17 HTTP search passed
-1/1 with separate Auth/business non-owner LOGIN fixture roles. The complete
+1/1. That HTTP fixture used a real PostgreSQL business LOGIN non-owner with RLS
+and a synthetic Auth/session fixture; it did not use an Auth LOGIN database
+connection for that route test. The full serial database gate separately
+exercised the runtime Auth/business LOGIN capability suite. The complete
 application tests passed API Vitest 341/341, API Node 855/855, and Web 412/412.
-Typecheck, build, formatting and the serial guarded PostgreSQL 17 database gate
-are recorded in the F05.2.1 checklist entry. Browser automation was not exposed
-in this session, so no visual/browser acceptance is claimed. No model/provider,
+Typecheck, build, formatting and the guarded PostgreSQL 17 database gate are
+recorded in the F05.2.1 checklist entry. Browser automation was not exposed in
+this session, so no visual/browser acceptance is claimed. No model/provider,
 cloud, credential or migration change was made; no human review or mutation run
 is claimed.
