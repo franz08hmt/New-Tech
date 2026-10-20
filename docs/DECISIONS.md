@@ -379,6 +379,15 @@ Search/pagination on other module screens is explicitly pending.
 One-statement consistency is per PostgreSQL statement, not a multi-request
 snapshot.
 
+F05.3 begins converting the remaining module screens with additive per-module
+search routes instead of changing the legacy list response shape. The Courses
+page is the second completed list slice and uses `GET /api/courses/search`;
+dashboard tiles and selectors keep the full legacy course list because they
+need a complete choice/summary set. Course detail remains a scoped slug lookup,
+not a search-page lookup. Items and total share one tenant-scoped SQL statement
+snapshot. This decision does not imply that the Exams, Study plans or Expenses
+screens are paginated; those remain pending until their slices are implemented.
+
 ## ADR-006 — Bounded tenant-scoped workspace sidebar search
 
 F05.2 adds read-only `GET /api/search` for course, exam, study plan, document,

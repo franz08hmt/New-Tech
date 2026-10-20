@@ -991,3 +991,38 @@ tests are not represented as browser evidence. No cloud writes, external
 provider calls, migration changes, push or deployment occurred. F05 remains
 PARTIAL because search/filter/sort/pagination for the other module screens is
 still outside this vertical slice.
+
+## F05.3 Courses slice — 20/10/2026
+
+The Courses screen now calls `GET /api/courses/search` instead of loading the
+unpaged `/api/courses` response for its primary list. The typed contract
+supports optional folded metadata search, progress bounds 0–100, allowlisted
+name/code/progress sort, direction and page/pageSize. Items and total come from
+one tenant-scoped SQL statement snapshot, with stable ID ordering and only
+course list metadata. Existing full-list consumers remain explicit: dashboard
+course tiles and the independent selectors on Exams, Study plans and Expenses.
+Course detail continues to load by scoped slug, independent of the current
+search page.
+
+New focused verification on the Courses checkpoint:
+
+- Courses FE search/lookup tests plus the App integration file: 128/128 passed.
+- `npm run typecheck` — exit 0.
+- `npm run build` — exit 0 (API and Web).
+- `npm run format:check` — exit 0.
+- `node --test apps/api/test/course-search-http.database.test.mjs` — exit 0,
+  1/1 passed against the guarded disposable PG17 fixture and Nest HTTP. The
+  fixture checks tenant isolation, 24+ records over multiple pages, filters,
+  stable sort, out-of-range total, role/membership behavior, malformed query
+  rejection, and scoped lookup. Synthetic Auth/session and external services
+  are test boundaries; business SQL uses the real fixture runtime login.
+
+The course API regression was first run before implementation and failed
+because the additive search route returned 404; it passed after the route and
+query were implemented. Courses UI integration verifies it uses the paged
+route, while selector/dashboard consumers retain their existing list calls.
+The browser automation capability was not exposed, so visual, keyboard,
+desktop/mobile viewport and console acceptance remain `BROWSER_ACCEPTANCE_PENDING`.
+Exams, Study plans and Expenses are not implemented by this checkpoint, so this
+does not accept whole F05.3. No cloud/provider calls, migration, push or deploy
+occurred.

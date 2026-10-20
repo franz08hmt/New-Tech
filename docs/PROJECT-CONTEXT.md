@@ -16,13 +16,13 @@ HTTP boundary; a nonblank value folding empty returns
 `SEARCH_QUERY_UNSUPPORTED` before SQL. All pages return items/page/pageSize/
 total/totalPages from one tenant-scoped statement snapshot.
 
-| Slice | List consumer and separate consumers | Route/deep link | Filters and sorts | Acceptance/check |
-|---|---|---|---|---|
-| Tasks | `TasksPanel` full list; dashboard urgent tasks and complete count remain a separate legacy consumer | `#tasks/<id>`; add scoped ID lookup | status, owner/unassigned; title/status/due_date/created_at | API/DB tenant page/count, role controls/status update, focused target, FE stale query/page, focused + full gates |
-| Courses | expanded `CoursesPanel`; dashboard gallery, selectors, Assistant context remain separate | `#courses/<slug>`; use existing scoped slug lookup | progress range; name/code/progress | page beyond two rows, progress filter/sort, route lookup outside page, selector remains complete, focused + full gates |
-| Exams | expanded `ExamsPanel`; dashboard next-exam summary remains separate | `#exams/<id>`; add scoped ID lookup | course, date range; exam date/time/topic/course | valid DATE boundaries, foreign course, stable sort, CRUD refresh, compact dashboard remains aggregate, focused + full gates |
-| Study plans | expanded `StudyPlanPanel`; dashboard/course grouping remains a separate consumer | `#study-plan/<id>`; add scoped ID lookup | course, completed, owner/unassigned, due range; due/title/course/completed | groups retained within page, all-match completion summary, toggle/CRUD refresh, focused + full gates |
-| Expenses | `BudgetPanel` list; course workspace expense section remains separate | `#finances/<id>`; add scoped ID lookup | category, course/unassigned, period date range; spent_on/amount/description | filtered total/count/largest/by-course independent of page, date preservation, CRUD refresh, focused + full gates |
+| Slice       | List consumer and separate consumers                                                                | Route/deep link                                    | Filters and sorts                                                           | Acceptance/check                                                                                                            |
+| ----------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Tasks       | `TasksPanel` full list; dashboard urgent tasks and complete count remain a separate legacy consumer | `#tasks/<id>`; add scoped ID lookup                | status, owner/unassigned; title/status/due_date/created_at                  | API/DB tenant page/count, role controls/status update, focused target, FE stale query/page, focused + full gates            |
+| Courses     | expanded `CoursesPanel`; dashboard gallery, selectors, Assistant context remain separate            | `#courses/<slug>`; use existing scoped slug lookup | progress range; name/code/progress                                          | page beyond two rows, progress filter/sort, route lookup outside page, selector remains complete, focused + full gates      |
+| Exams       | expanded `ExamsPanel`; dashboard next-exam summary remains separate                                 | `#exams/<id>`; add scoped ID lookup                | course, date range; exam date/time/topic/course                             | valid DATE boundaries, foreign course, stable sort, CRUD refresh, compact dashboard remains aggregate, focused + full gates |
+| Study plans | expanded `StudyPlanPanel`; dashboard/course grouping remains a separate consumer                    | `#study-plan/<id>`; add scoped ID lookup           | course, completed, owner/unassigned, due range; due/title/course/completed  | groups retained within page, all-match completion summary, toggle/CRUD refresh, focused + full gates                        |
+| Expenses    | `BudgetPanel` list; course workspace expense section remains separate                               | `#finances/<id>`; add scoped ID lookup             | category, course/unassigned, period date range; spent_on/amount/description | filtered total/count/largest/by-course independent of page, date preservation, CRUD refresh, focused + full gates           |
 
 Selectors, course detail, dashboard summaries and compact course-workspace
 sections have independent complete-data needs. Keep their legacy contracts where
@@ -53,7 +53,36 @@ existing permission suite) pass; the disposable PostgreSQL 17 HTTP/runtime fixtu
 checks >2 pages, filtering, totals, cross-tenant isolation, roles and invalid
 query rejection. Focused typecheck, API build, web build, format and database
 test passed. Whole-F05 browser acceptance is still pending. Courses, Exams,
-Study plans and Expenses remain pending and are not implemented by this slice.
+Study plans and Expenses remain pending after this Tasks slice.
+
+### F05.3 Courses checkpoint
+
+The Courses screen now uses additive `GET /api/courses/search` with optional
+folded metadata `q`, progress minimum/maximum (0–100), sort (`name|code|progress`),
+direction and bounded page/pageSize. A single short workspace-authorized SQL
+statement applies the workspace and progress/search filters before computing
+the total and page rows from the same statement snapshot. Results expose list
+metadata only; the existing `GET /api/courses` array is retained for the
+dashboard and independent course selectors. Course detail links use the
+existing scoped slug lookup, so a target outside the current page remains
+reachable without loading every course page or changing list totals.
+
+`CoursesSearchPanel` has debounced server search, progress filters, sort,
+direction, page size, reset, pagination, and distinct short/loading/error/empty/
+unsupported/range-invalid states. The shared paged-search hook aborts reads and
+checks query/principal identity. The Courses page does not request the legacy
+full list; selectors on Exams, Study plans and Expenses and dashboard summaries
+remain separate consumers. The course detail request is keyed to the verified
+principal and slug and is discarded when either changes.
+
+New focused evidence: Courses FE plus App integration tests passed 128/128;
+the real Nest/PG17 HTTP fixture passed 1/1 with 24+ tenant-A courses, a duplicate
+foreign-tenant name, Vietnamese metadata, pagination, stable sorting, role and
+membership checks, safe malformed-query handling, and scoped slug lookup. On
+this Courses checkpoint `npm run typecheck`, `npm run build`, and
+`npm run format:check` exited 0. Browser acceptance remains pending because no
+approved browser automation capability was exposed. Exams, Study plans and
+Expenses remain pending; whole-F05.3 is not accepted by this checkpoint.
 
 ## F05.2.1 checkpoint — sidebar page reset and unsupported folded queries
 
@@ -497,7 +526,7 @@ chiếu lịch sử. Không chạy lại phần đã có hoặc biến kế ho�
 | F02 | Hoàn tất B2: runtime non-owner/NOBYPASSRLS, grants tối thiểu, tenant RLS toàn app, rollout/rollback cloud                  | F02-A local acceptance đạt qua browser+Nest+PG17 LOGIN business/Auth non-owner; F02-B/cloud runtime provisioning/rollout vẫn pending, không coi B2 toàn app xong |
 | F03 | Prompt tập trung/version; metadata request/provider calls, token, latency, outcome, chi phí ước tính                       | Code và tích hợp HTTP/DB PG17 đã kiểm; nghiệm thu browser desktop/375px sau instrumentation còn pending; chưa nhận F03 đầy đủ                                    |
 | F04 | B3: cap user/ngày, concurrency, fan-out summary/index/OCR; admission nguyên tử và bền vững                                 | Migration 020/contract v20 triển khai local; automated gates pass, browser acceptance pending; không phải monetary budget hay dashboard F06                      |
-| F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Documents and bounded six-kind sidebar search have automated local coverage; browser pending; search/pagination on other module screens remains                 |
+| F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Documents, sidebar, Tasks and Courses have automated local coverage; browser pending; Exams, Study plans and Expenses screens remain                             |
 | F06 | Dashboard AI cho admin đúng workspace: request/provider calls, token/cost/latency/lỗi/từ chối và filters                   | Pending; đây là yêu cầu usage dashboard, không phải Finances hay billing                                                                                         |
 | F07 | N1 lưu bền, mở lại/xóa, retention/quyền; receipt/history/reset/account isolation                                           | Pending persistence; history trong tab/SSE và draft revision đã có, không viết lại                                                                               |
 | F08 | N2 Study Coach: structured quiz/flashcards, nguồn, preview/xác nhận lưu, luyện tập/tiến độ cá nhân                         | Pending                                                                                                                                                          |

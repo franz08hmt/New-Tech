@@ -508,3 +508,16 @@ recorded in the F05.2.1 checklist entry. Browser automation was not exposed in
 this session, so no visual/browser acceptance is claimed. No model/provider,
 cloud, credential or migration change was made; no human review or mutation run
 is claimed.
+
+## 2026-10-20 — F05.3 Courses slice (Codex)
+
+AI assistance inspected the existing course service, route ordering, schema,
+dashboard/selector consumers, route parser and shared paged-search behavior.
+The implementation adds a typed, bounded server-side Courses search route and
+screen, a scoped slug lookup for detail routing, and regressions for the page
+contract, filters, sorting, tenant isolation, role/membership behavior and
+stale frontend reads. No schema or RLS changes were needed. The legacy course
+list remains only for dashboard and independent selectors; the Courses list
+does not use it. A real disposable PostgreSQL 17/Nest HTTP fixture, Web tests,
+typecheck, API/Web build and formatting checks were run; browser automation was
+not exposed, so no browser acceptance or independent human review is claimed.
