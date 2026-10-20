@@ -1,19 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
+import type {
+  WorkspaceSearchItem,
+  WorkspaceSearchKind,
+  WorkspaceSearchSort,
+} from "@examate/contracts";
 import { api } from "./api";
 import { CATEGORY_LABELS } from "./use-expenses";
+import { PilotPrincipalContext } from "./PilotPrincipalContext";
 
-export type HitKind =
-  "course" | "exam" | "plan" | "document" | "expense" | "task";
+export type HitKind = Exclude<WorkspaceSearchKind, "all">;
 
-export interface SearchHit {
+export interface SearchHit extends WorkspaceSearchItem {
   key: string;
-  kind: HitKind;
-  label: string;
-  detail: string;
   href: string;
 }
 
-/** Group captions, in the order the results are shown. */
+/** Captions are also used in the type filter and are never derived from data. */
 export const KIND_LABELS: Record<HitKind, string> = {
   course: "Môn học",
   exam: "Kỳ thi",
@@ -23,7 +25,7 @@ export const KIND_LABELS: Record<HitKind, string> = {
   task: "Công việc",
 };
 
-const KIND_ORDER: HitKind[] = [
+const SEARCH_KINDS: Exclude<WorkspaceSearchKind, "all">[] = [
   "course",
   "exam",
   "plan",
@@ -31,180 +33,195 @@ const KIND_ORDER: HitKind[] = [
   "expense",
   "task",
 ];
-
-const MAX_HITS = 12;
-
-/**
- * Folds text down to something two people typing the same thing will match on.
- *
- * Diacritics go, so "thuat toan" finds "thuật toán" — that is how most people
- * type in a hurry. NFD splits an accented letter into base plus combining
- * mark and the range below drops the marks; đ has no decomposition, so it is
- * mapped by hand.
- *
- * Every run of punctuation then becomes a single space, which is what lets a
- * typed phrase reach a filename: "thuat toan" matches
- * "de-cuong-thuat-toan.pdf", where the words are joined by hyphens rather
- * than spaces.
- */
-function fold(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/đ/g, "d")
-    .replace(/Đ/g, "D")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
+const MIN_QUERY_LENGTH = 2;
+const PAGE_SIZE = 12;
+const DEBOUNCE_MS = 280;
+const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const COURSE_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const money = new Intl.NumberFormat("vi-VN");
 
-interface Loaded {
-  hits: SearchHit[];
+interface SearchState {
+  key: string;
+  loading: boolean;
+  error: string | null;
+  data: {
+    hits: SearchHit[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  } | null;
+}
+
+function hasUsefulQuery(value: string) {
+  const trimmed = value.trim();
+  return trimmed.length >= MIN_QUERY_LENGTH && /[\p{L}\p{N}]/u.test(trimmed);
+}
+
+function resultHref(item: WorkspaceSearchItem) {
+  if (item.kind === "course")
+    return item.slug && COURSE_SLUG.test(item.slug)
+      ? `#courses/${encodeURIComponent(item.slug)}`
+      : undefined;
+  if (!UUID.test(item.id)) return undefined;
+  switch (item.kind) {
+    case "exam":
+      return `#exams/${encodeURIComponent(item.id)}`;
+    case "plan":
+      return `#study-plan/${encodeURIComponent(item.id)}`;
+    case "document":
+      return `#documents/${encodeURIComponent(item.id)}`;
+    case "expense":
+      return `#finances/${encodeURIComponent(item.id)}`;
+    case "task":
+      return `#tasks/${encodeURIComponent(item.id)}`;
+  }
+}
+
+function displayDetail(item: WorkspaceSearchItem) {
+  if (item.kind !== "expense") return item.detail;
+  // The public search payload contains only its label/detail. For older rows
+  // the server formats the amount/category as part of detail; keep this
+  // fallback only for a deliberately empty detail, never infer a route.
+  return item.detail || CATEGORY_LABELS.other;
 }
 
 /**
- * Searches everything in the workspace from the sidebar.
- *
- * The lists are fetched once, the first time something is actually typed, and
- * kept for the rest of the session. Fetching on mount would make every page
- * load six requests for a box most visits never touch; fetching on each
- * keystroke would be worse still.
+ * Searches the verified workspace through one bounded API page. The key is
+ * principal + normalized query controls, so a late response from another
+ * query or account cannot be rendered even before its effect cleanup runs.
  */
 export function useWorkspaceSearch(query: string) {
-  const [loaded, setLoaded] = useState<Loaded | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const wanted = query.trim().length >= 2;
+  const principal = useContext(PilotPrincipalContext);
+  const identity = principal
+    ? `${principal.userId}:${principal.workspaceId}:${principal.role}`
+    : "";
+  const trimmedQuery = query.trim();
+  const ready = hasUsefulQuery(query);
+  const [kind, setKindValue] = useState<WorkspaceSearchKind>("all");
+  const [sort, setSortValue] = useState<WorkspaceSearchSort>("kind");
+  const [direction, setDirectionValue] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
+  const [retryRevision, setRetryRevision] = useState(0);
+  const [state, setState] = useState<SearchState | null>(null);
+  const revision = useRef(0);
 
-  // Whether the one fetch has been started, and whether the component is still
-  // around to receive it.
-  //
-  // Both are refs rather than state, and the effect depends only on `wanted`.
-  // An earlier version guarded on `loading` and listed it as a dependency: the
-  // effect set loading, React tore that same effect down to re-run it, the
-  // cleanup marked the in-flight request as abandoned, and the results never
-  // arrived — the panel sat on "Đang tải" for good.
-  const started = useRef(false);
-  const mounted = useRef(true);
+  const key = JSON.stringify([
+    identity,
+    trimmedQuery,
+    kind,
+    sort,
+    direction,
+    page,
+  ]);
+
   useEffect(() => {
-    // Set on the way in, not only cleared on the way out. StrictMode mounts,
-    // unmounts and mounts again in development: with the flag only cleared by
-    // the cleanup, it stayed false after that second mount and every result
-    // was discarded on arrival — the panel sat on "Đang tìm…" forever.
-    mounted.current = true;
+    const currentRevision = ++revision.current;
+    if (!ready || !identity) return;
+
+    const controller = new AbortController();
+    setState({ key, loading: true, error: null, data: null });
+    const timer = setTimeout(() => {
+      void api
+        .searchWorkspace(
+          { q: trimmedQuery, kind, sort, direction, page, pageSize: PAGE_SIZE },
+          controller.signal,
+        )
+        .then((result) => {
+          if (controller.signal.aborted || revision.current !== currentRevision)
+            return;
+          const hits = result.items.flatMap((item) => {
+            const href = resultHref(item);
+            return href
+              ? [
+                  {
+                    ...item,
+                    detail: displayDetail(item),
+                    href,
+                    key: `${item.kind}-${item.id}`,
+                  },
+                ]
+              : [];
+          });
+          setState({
+            key,
+            loading: false,
+            error: null,
+            data: {
+              hits,
+              total: result.total,
+              page: result.page,
+              pageSize: result.pageSize,
+              totalPages: result.totalPages,
+            },
+          });
+        })
+        .catch(() => {
+          if (controller.signal.aborted || revision.current !== currentRevision)
+            return;
+          setState({
+            key,
+            loading: false,
+            error: "Chưa tìm được lúc này. Kiểm tra kết nối rồi thử lại nhé.",
+            data: null,
+          });
+        });
+    }, DEBOUNCE_MS);
+
     return () => {
-      mounted.current = false;
+      clearTimeout(timer);
+      controller.abort();
+      if (revision.current === currentRevision) revision.current++;
     };
-  }, []);
+  }, [
+    direction,
+    identity,
+    kind,
+    key,
+    page,
+    ready,
+    retryRevision,
+    sort,
+    trimmedQuery,
+  ]);
 
-  useEffect(() => {
-    if (!wanted || started.current) return;
-    started.current = true;
-    setLoading(true);
-    setError(null);
-    void Promise.all([
-      api.listCourses(),
-      api.listExams(),
-      api.listStudyPlans(),
-      api.listDocuments(),
-      api.listExpenses(),
-      api.listTasks(),
-    ])
-      .then(([courses, exams, plans, documents, expenses, tasks]) => {
-        if (!mounted.current) return;
-        const hits: SearchHit[] = [
-          ...courses.map((course) => ({
-            key: `course-${course.id}`,
-            kind: "course" as const,
-            label: course.name,
-            detail: `${course.code} · ${course.detail}`,
-            href: `#courses/${course.slug}`,
-          })),
-          ...exams.map((exam) => ({
-            key: `exam-${exam.id}`,
-            kind: "exam" as const,
-            label: exam.topic,
-            detail: `${exam.course_name} · ${exam.exam_date} · ${exam.room}`,
-            href: `#exams/${exam.id}`,
-          })),
-          ...plans.map((plan) => ({
-            key: `plan-${plan.id}`,
-            kind: "plan" as const,
-            label: plan.title,
-            detail: plan.course_name,
-            href: `#study-plan/${plan.id}`,
-          })),
-          ...documents.map((document) => ({
-            key: `document-${document.id}`,
-            kind: "document" as const,
-            label: document.name,
-            detail: document.course_name ?? "Chưa gắn môn nào",
-            href: `#documents/${document.id}`,
-          })),
-          ...expenses.map((expense) => ({
-            key: `expense-${expense.id}`,
-            kind: "expense" as const,
-            label: expense.description,
-            detail: `${money.format(expense.amount)} ₫ · ${
-              CATEGORY_LABELS[expense.category]
-            }${expense.course_code ? ` · ${expense.course_code}` : ""}`,
-            href: `#finances/${expense.id}`,
-          })),
-          ...tasks.map((task) => ({
-            key: `task-${task.id}`,
-            kind: "task" as const,
-            label: task.title,
-            detail: task.owner_name ?? "Chưa giao cho ai",
-            href: `#tasks/${task.id}`,
-          })),
-        ];
-        setLoaded({ hits });
-      })
-      .catch(() => {
-        // Cleared so the next keystroke tries again rather than leaving the
-        // box permanently unable to search.
-        started.current = false;
-        if (mounted.current)
-          setError("Chưa tìm được lúc này. Kiểm tra kết nối rồi thử lại nhé.");
-      })
-      .finally(() => {
-        if (mounted.current) setLoading(false);
-      });
-  }, [wanted]);
+  const current = state?.key === key ? state : null;
+  const hits = current?.data?.hits ?? [];
 
-  const results = useMemo(() => {
-    if (!wanted || !loaded) return [];
-    const needle = fold(query.trim());
-    // Matches on the name and on the supporting line, so "CS 201" finds every
-    // exam of that course, not only things whose title contains the code.
-    const matched = loaded.hits.filter(
-      (hit) =>
-        fold(hit.label).includes(needle) || fold(hit.detail).includes(needle),
-    );
-    matched.sort(
-      (a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind),
-    );
-    return matched.slice(0, MAX_HITS);
-  }, [wanted, loaded, query]);
-
-  const groups = useMemo(() => {
-    const byKind = new Map<HitKind, SearchHit[]>();
-    for (const hit of results) {
-      const list = byKind.get(hit.kind);
-      if (list) list.push(hit);
-      else byKind.set(hit.kind, [hit]);
-    }
-    return [...byKind.entries()];
-  }, [results]);
-
+  const resetPage = () => setPage(1);
   return {
-    groups,
-    total: results.length,
-    searching: wanted,
-    loading,
-    error,
-    truncated: Boolean(loaded) && results.length === MAX_HITS,
+    hits,
+    total: current?.data?.total ?? 0,
+    totalPages: current?.data?.totalPages ?? 0,
+    page,
+    pageSize: current?.data?.pageSize ?? PAGE_SIZE,
+    searching: trimmedQuery.length > 0,
+    tooShort: trimmedQuery.length > 0 && !ready,
+    loading: ready && Boolean(identity) && (current?.loading ?? true),
+    error: current?.error ?? null,
+    kind,
+    sort,
+    direction,
+    setKind: (next: WorkspaceSearchKind) => {
+      setKindValue(next);
+      resetPage();
+    },
+    setSort: (next: WorkspaceSearchSort) => {
+      setSortValue(next);
+      resetPage();
+    },
+    setDirection: (next: "asc" | "desc") => {
+      setDirectionValue(next);
+      resetPage();
+    },
+    previousPage: () => setPage((value) => Math.max(1, value - 1)),
+    nextPage: () =>
+      setPage((value) =>
+        Math.min(current?.data?.totalPages ?? value, value + 1),
+      ),
+    retry: () => setRetryRevision((value) => value + 1),
   };
 }
+
+export const workspaceSearchKinds = SEARCH_KINDS;

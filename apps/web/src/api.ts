@@ -29,6 +29,11 @@ export type {
   StudyPlan,
   Task,
   TaskStatus,
+  WorkspaceSearchItem,
+  WorkspaceSearchKind,
+  WorkspaceSearchPage,
+  WorkspaceSearchQuery,
+  WorkspaceSearchSort,
 } from "@examate/contracts";
 import { parseAssistantSse } from "./assistant-stream";
 
@@ -79,6 +84,11 @@ import type {
   StudyPlan,
   Task,
   TaskStatus,
+  WorkspaceSearchItem,
+  WorkspaceSearchKind,
+  WorkspaceSearchPage,
+  WorkspaceSearchQuery,
+  WorkspaceSearchSort,
 } from "@examate/contracts";
 export async function request<T>(
   path: string,
@@ -438,6 +448,17 @@ export const api = {
       if (value !== undefined && value !== null) params.set(key, String(value));
     const suffix = params.size ? `?${params.toString()}` : "";
     return request<DocumentSearchPage>(`/api/documents/search${suffix}`, {
+      signal,
+    });
+  },
+  searchWorkspace: (
+    query: WorkspaceSearchQuery,
+    signal?: AbortSignal,
+  ): Promise<WorkspaceSearchPage> => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query))
+      if (value !== undefined && value !== null) params.set(key, String(value));
+    return request<WorkspaceSearchPage>(`/api/search?${params.toString()}`, {
       signal,
     });
   },

@@ -9,7 +9,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceApp } from "./App";
-import type { StoredDocument } from "./api";
+import type { StoredDocument, WorkspaceSearchItem } from "./api";
 import { configurePilotClient } from "./pilot-client";
 import { NotesStorageContext } from "./NotesStorageContext";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
@@ -379,6 +379,98 @@ const expenseFixtures = [
     updated_at: "2026-09-05T00:00:00.000Z",
   },
 ];
+const workspaceSearchIds = {
+  exam: "10000000-0000-4000-8000-000000000001",
+  plan: "10000000-0000-4000-8000-000000000002",
+  document: "10000000-0000-4000-8000-000000000003",
+  expense: "10000000-0000-4000-8000-000000000004",
+  task: "10000000-0000-4000-8000-000000000005",
+};
+const workspaceSearchFixtures: WorkspaceSearchItem[] = [
+  {
+    kind: "course",
+    id: "course-1",
+    slug: "cs-201",
+    label: course.name,
+    detail: course.code,
+  },
+  {
+    kind: "exam",
+    id: workspaceSearchIds.exam,
+    slug: null,
+    label: examFixtures[0].topic,
+    detail: examFixtures[0].course_name,
+  },
+  {
+    kind: "plan",
+    id: workspaceSearchIds.plan,
+    slug: null,
+    label: planFixtures[0].title,
+    detail: planFixtures[0].course_name,
+  },
+  {
+    kind: "document",
+    id: workspaceSearchIds.document,
+    slug: null,
+    label: documentFixtures[0].name,
+    detail: documentFixtures[0].course_name ?? "",
+  },
+  {
+    kind: "expense",
+    id: workspaceSearchIds.expense,
+    slug: null,
+    label: expenseFixtures[0].description,
+    detail: "35.000 ₫ · Sách & tài liệu",
+  },
+  {
+    kind: "task",
+    id: workspaceSearchIds.task,
+    slug: null,
+    label: task.title,
+    detail: task.owner_name,
+  },
+];
+function foldWorkspaceSearch(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/gi, "d")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+function workspaceSearchResponse(url: string) {
+  const params = new URL(url, "http://127.0.0.1").searchParams;
+  const query = foldWorkspaceSearch(params.get("q") ?? "");
+  const kind = params.get("kind") ?? "all";
+  const sort = params.get("sort") ?? "kind";
+  const direction = params.get("direction") === "desc" ? -1 : 1;
+  const kindOrder = ["course", "exam", "plan", "document", "expense", "task"];
+  const matching = workspaceSearchFixtures
+    .filter(
+      (item) =>
+        (kind === "all" || item.kind === kind) &&
+        foldWorkspaceSearch(`${item.label} ${item.detail}`).includes(query),
+    )
+    .sort((left, right) => {
+      const compared =
+        sort === "label"
+          ? foldWorkspaceSearch(left.label).localeCompare(
+              foldWorkspaceSearch(right.label),
+            )
+          : kindOrder.indexOf(left.kind) - kindOrder.indexOf(right.kind);
+      return compared ? compared * direction : left.id.localeCompare(right.id);
+    });
+  const page = Number(params.get("page") ?? 1);
+  const pageSize = Number(params.get("pageSize") ?? 12);
+  return Response.json({
+    items: matching.slice((page - 1) * pageSize, page * pageSize),
+    page,
+    pageSize,
+    total: matching.length,
+    totalPages: Math.ceil(matching.length / pageSize),
+  });
+}
 /**
  * Builds the row a create endpoint returns: the submitted body, resolved
  * against the course fixtures, plus timestamps.
@@ -468,6 +560,7 @@ beforeEach(() => {
       if (url === "/api/documents" && init?.method !== "POST") {
         return new Response(JSON.stringify(documentFixtures), { status: 200 });
       }
+      if (url.startsWith("/api/search?")) return workspaceSearchResponse(url);
       if (url.startsWith("/api/documents/search"))
         return documentSearchResponse(documentFixtures, url);
       if (
@@ -1200,14 +1293,31 @@ describe("Academic workspace", () => {
     const records = manyDocuments();
     const target = records[0];
     let targetReads = 0;
-    const searchReads: string[] = [];
+    const workspaceSearchReads: string[] = [];
     const existingFetch = globalThis.fetch;
     window.history.replaceState(null, "", "/#dashboard");
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.startsWith("/api/search?")) {
+          workspaceSearchReads.push(url);
+          return Response.json({
+            items: [
+              {
+                id: target.id,
+                kind: "document",
+                label: target.name,
+                detail: target.course_name ?? "",
+                slug: null,
+              },
+            ],
+            page: 1,
+            pageSize: 12,
+            total: 1,
+            totalPages: 1,
+          });
+        }
         if (url.startsWith("/api/documents/search")) {
-          searchReads.push(url);
           return documentSearchResponse(records, url);
         }
         if (url === "/api/documents" && init?.method !== "POST")
@@ -1227,7 +1337,7 @@ describe("Academic workspace", () => {
     const results = await screen.findByRole("region", {
       name: "Search results",
     });
-    const resultLink = within(results).getByRole("link", {
+    const resultLink = await within(results).findByRole("link", {
       name: /Special target outside page one/,
     });
     expect(resultLink).toHaveAttribute("href", `#documents/${target.id}`);
@@ -1238,7 +1348,7 @@ describe("Academic workspace", () => {
     ).toBeVisible();
     expect(await screen.findByText(target.name)).toBeVisible();
     expect(targetReads).toBe(1);
-    expect(searchReads).toHaveLength(1);
+    expect(workspaceSearchReads).toHaveLength(1);
   });
 
   it("reconciles a failed index POST from the server before exposing the source", async () => {
@@ -2431,18 +2541,20 @@ describe("Academic workspace", () => {
     // One phrase, three different kinds of object. Each link names the
     // object itself, not just its page, so the destination can scroll to it.
     expect(
-      within(results).getByRole("link", {
+      await within(results).findByRole("link", {
         name: /Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n/,
       }),
-    ).toHaveAttribute("href", "#exams/exam-1");
+    ).toHaveAttribute("href", `#exams/${workspaceSearchIds.exam}`);
     expect(
-      within(results).getByRole("link", {
+      await within(results).findByRole("link", {
         name: /\u00d4n l\u1ea1i \u0111\u1ed9 ph\u1ee9c t\u1ea1p thu\u1eadt to\u00e1n/,
       }),
-    ).toHaveAttribute("href", "#study-plan/plan-1");
+    ).toHaveAttribute("href", `#study-plan/${workspaceSearchIds.plan}`);
     expect(
-      within(results).getByRole("link", { name: /de-cuong-thuat-toan\.pdf/ }),
-    ).toHaveAttribute("href", "#documents/doc-1");
+      await within(results).findByRole("link", {
+        name: /de-cuong-thuat-toan\.pdf/,
+      }),
+    ).toHaveAttribute("href", `#documents/${workspaceSearchIds.document}`);
   });
   it("finds a course and links straight to its own page", async () => {
     render(<App />);
@@ -2454,16 +2566,11 @@ describe("Academic workspace", () => {
     const results = await screen.findByRole("region", {
       name: "Search results",
     });
-    // The phrase also appears on every exam, revision item and document
-    // belonging to that course, which is the point of matching the
-    // supporting line too. Scoped to the course group to be unambiguous.
-    const courseGroup =
-      within(results).getByText("M\u00f4n h\u1ecdc").parentElement!;
-    expect(
-      within(courseGroup).getByRole("link", {
-        name: /C\u00f4ng ngh\u1ec7 ph\u1ea7n m\u1ec1m/,
-      }),
-    ).toHaveAttribute("href", "#courses/cs-201");
+    // The phrase also appears in supporting metadata, but course links use
+    // the stable slug route rather than an object ID.
+    await waitFor(() =>
+      expect(results.querySelector('a[href="#courses/cs-201"]')).toBeTruthy(),
+    );
   });
   it("matches Vietnamese text typed without tone marks", async () => {
     render(<App />);
@@ -2478,7 +2585,7 @@ describe("Academic workspace", () => {
       name: "Search results",
     });
     expect(
-      within(results).getByRole("link", {
+      await within(results).findByRole("link", {
         name: /Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n/,
       }),
     ).toBeInTheDocument();

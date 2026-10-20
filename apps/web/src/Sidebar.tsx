@@ -4,7 +4,12 @@ import {
   MagnifyingGlassIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
-import { KIND_LABELS, useWorkspaceSearch } from "./use-search";
+import {
+  KIND_LABELS,
+  useWorkspaceSearch,
+  workspaceSearchKinds,
+} from "./use-search";
+import type { WorkspaceSearchKind } from "@examate/contracts";
 
 export type NavPage = {
   id: string;
@@ -103,36 +108,122 @@ export function Sidebar({
 
       {results.searching && (
         <section className="sidebar-results" aria-label="Search results">
+          {results.tooShort && (
+            <p role="status" className="search-empty">
+              Nhập ít nhất 2 ký tự có chữ hoặc số.
+            </p>
+          )}
+          {!results.tooShort && (
+            <div className="sidebar-search-controls">
+              <label>
+                Loại
+                <select
+                  aria-label="Filter search results by type"
+                  value={results.kind}
+                  onChange={(event) =>
+                    results.setKind(event.target.value as WorkspaceSearchKind)
+                  }
+                >
+                  <option value="all">Tất cả loại</option>
+                  {workspaceSearchKinds.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {KIND_LABELS[kind]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Sắp xếp
+                <select
+                  aria-label="Sort search results"
+                  value={results.sort}
+                  onChange={(event) =>
+                    results.setSort(event.target.value as "kind" | "label")
+                  }
+                >
+                  <option value="kind">Loại</option>
+                  <option value="label">Tên</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                aria-label={
+                  results.direction === "asc"
+                    ? "Change to descending order"
+                    : "Change to ascending order"
+                }
+                onClick={() =>
+                  results.setDirection(
+                    results.direction === "asc" ? "desc" : "asc",
+                  )
+                }
+              >
+                {results.direction === "asc" ? "↑ Tăng dần" : "↓ Giảm dần"}
+              </button>
+            </div>
+          )}
           {results.loading && (
             <p role="status" className="search-empty">
               Đang tìm…
             </p>
           )}
           {results.error && (
-            <p role="alert" className="search-empty">
-              {results.error}
+            <div role="alert" className="search-empty">
+              <p>{results.error}</p>
+              <button type="button" onClick={results.retry}>
+                Thử tìm lại
+              </button>
+            </div>
+          )}
+          {!results.tooShort &&
+            !results.loading &&
+            !results.error &&
+            !results.total && (
+              <p className="search-empty">Không tìm thấy gì khớp.</p>
+            )}
+          {!results.tooShort && !results.loading && !results.error && (
+            <p className="search-count" role="status">
+              {results.total} kết quả
             </p>
           )}
-          {!results.loading && !results.error && !results.total && (
-            <p className="search-empty">Không tìm thấy gì khớp.</p>
+          {results.hits.length > 0 && (
+            <ul>
+              {results.hits.map((hit) => (
+                <li key={hit.key}>
+                  <a href={hit.href} onClick={() => onSearch("")}>
+                    <strong>{hit.label}</strong>
+                    <small>
+                      {KIND_LABELS[hit.kind]}
+                      {hit.detail ? ` · ${hit.detail}` : ""}
+                    </small>
+                  </a>
+                </li>
+              ))}
+            </ul>
           )}
-          {results.groups.map(([kind, hits]) => (
-            <div key={kind}>
-              <p className="result-kind">{KIND_LABELS[kind]}</p>
-              <ul>
-                {hits.map((hit) => (
-                  <li key={hit.key}>
-                    <a href={hit.href} onClick={() => onSearch("")}>
-                      <strong>{hit.label}</strong>
-                      <small>{hit.detail}</small>
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-          {results.truncated && (
-            <p className="search-empty">Còn nữa — gõ thêm cho hẹp bớt nhé.</p>
+          {results.totalPages > 1 && !results.loading && !results.error && (
+            <nav
+              className="sidebar-search-pagination"
+              aria-label="Search result pages"
+            >
+              <button
+                type="button"
+                disabled={results.page <= 1}
+                onClick={results.previousPage}
+              >
+                Trước
+              </button>
+              <span>
+                {results.page} / {results.totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={results.page >= results.totalPages}
+                onClick={results.nextPage}
+              >
+                Sau
+              </button>
+            </nav>
           )}
         </section>
       )}

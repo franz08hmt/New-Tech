@@ -748,13 +748,58 @@
     max-height: 46vh;
     overflow-y: auto;
   }
-  .result-kind {
-    margin: 8px 0 3px;
+  .sidebar-search-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
+    padding: 0 8px 6px;
     font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #7b8578;
+  }
+  .sidebar-search-controls label {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+  .sidebar-search-controls select,
+  .sidebar-search-controls button,
+  .sidebar-search-pagination button,
+  .search-empty button {
+    min-width: 0;
+    max-width: 100%;
+    border: 1px solid #dfe2db;
+    border-radius: 5px;
+    padding: 5px;
+    background: #fff;
+    color: inherit;
+    font: inherit;
+  }
+  .sidebar-search-controls select {
+    width: 100%;
+  }
+  .sidebar-search-controls button {
+    grid-column: 1 / -1;
+    justify-self: start;
+    cursor: pointer;
+  }
+  .sidebar-search-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 5px;
+    padding: 4px 8px;
+    font-size: 9px;
+  }
+  .sidebar-search-pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .search-count {
+    margin: 2px 8px 6px;
+    color: var(--color-muted);
+    font-size: 9px;
+  }
+  .search-empty {
+    overflow-wrap: anywhere;
   }
   .sidebar-results ul {
     display: grid;
