@@ -9,7 +9,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceApp } from "./App";
-import type { StoredDocument, Task, WorkspaceSearchItem } from "./api";
+import type { Exam, StoredDocument, Task, WorkspaceSearchItem } from "./api";
 import { configurePilotClient } from "./pilot-client";
 import { NotesStorageContext } from "./NotesStorageContext";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
@@ -380,6 +380,7 @@ const expenseFixtures = [
     updated_at: "2026-09-05T00:00:00.000Z",
   },
 ];
+let appExams: Exam[];
 const workspaceSearchIds = {
   exam: "10000000-0000-4000-8000-000000000001",
   plan: "10000000-0000-4000-8000-000000000002",
@@ -492,6 +493,7 @@ function createdRow(
   };
 }
 beforeEach(() => {
+  appExams = [...examFixtures];
   appTasks = [
     task,
     {
@@ -717,49 +719,105 @@ beforeEach(() => {
           { status: 200 },
         );
       }
+      if (url.startsWith("/api/exams/search")) {
+        const params = new URL(url, "http://127.0.0.1").searchParams;
+        const q = params.get("q")?.trim().toLowerCase() ?? "";
+        const courseId = params.get("courseId");
+        const fromDate = params.get("fromDate");
+        const toDate = params.get("toDate");
+        const sort = params.get("sort") ?? "exam_date";
+        const direction = params.get("direction") === "desc" ? -1 : 1;
+        const page = Number(params.get("page") ?? 1);
+        const pageSize = Number(params.get("pageSize") ?? 20);
+        const matching = appExams
+          .filter(
+            (exam) =>
+              (!q ||
+                `${exam.topic} ${exam.course_name} ${exam.course_code} ${exam.room}`
+                  .toLowerCase()
+                  .includes(q)) &&
+              (!courseId || exam.course_id === courseId) &&
+              (!fromDate || exam.exam_date >= fromDate) &&
+              (!toDate || exam.exam_date <= toDate),
+          )
+          .sort((left, right) => {
+            const leftKey =
+              sort === "topic"
+                ? left.topic.toLowerCase()
+                : sort === "course"
+                  ? `${left.course_name.toLowerCase()} ${left.course_code.toLowerCase()}`
+                  : `${left.exam_date} ${left.exam_time}`;
+            const rightKey =
+              sort === "topic"
+                ? right.topic.toLowerCase()
+                : sort === "course"
+                  ? `${right.course_name.toLowerCase()} ${right.course_code.toLowerCase()}`
+                  : `${right.exam_date} ${right.exam_time}`;
+            return (
+              leftKey.localeCompare(rightKey) * direction ||
+              left.id.localeCompare(right.id)
+            );
+          });
+        return Response.json({
+          items: matching.slice((page - 1) * pageSize, page * pageSize),
+          page,
+          pageSize,
+          total: matching.length,
+          totalPages: matching.length
+            ? Math.ceil(matching.length / pageSize)
+            : 0,
+        });
+      }
       if (url === "/api/exams") {
         if (init?.method === "DELETE") {
           return new Response(null, { status: 204 });
         }
         if (init?.method === "POST") {
-          return new Response(
-            JSON.stringify(
-              createdRow(init, (body, course) => ({
-                id: "exam-new",
-                course_id: body.courseId,
-                course_slug: course!.slug,
-                course_name: course!.name,
-                course_code: course!.code,
-                topic: body.topic,
-                exam_date: body.examDate,
-                exam_time: body.examTime,
-                room: body.room,
-                revision_note: body.revisionNote ?? null,
-              })),
-            ),
-            { status: 201 },
-          );
-        }
-        return new Response(JSON.stringify(examFixtures), { status: 200 });
-      }
-      if (url.startsWith("/api/exams/") && init?.method === "DELETE") {
-        return new Response(null, { status: 204 });
-      }
-      if (url.startsWith("/api/exams/") && init?.method === "PATCH") {
-        const body = JSON.parse(String(init?.body ?? "{}")) as Record<
-          string,
-          string
-        >;
-        return new Response(
-          JSON.stringify({
-            ...examFixtures[0],
+          const created = createdRow(init, (body, course) => ({
+            id: "exam-new",
+            course_id: body.courseId,
+            course_slug: course!.slug,
+            course_name: course!.name,
+            course_code: course!.code,
             topic: body.topic,
             exam_date: body.examDate,
             exam_time: body.examTime,
             room: body.room,
-          }),
-          { status: 200 },
-        );
+            revision_note: body.revisionNote ?? null,
+          })) as Exam;
+          appExams = [...appExams, created];
+          return Response.json(created, { status: 201 });
+        }
+        return new Response(JSON.stringify(appExams), { status: 200 });
+      }
+      if (url.startsWith("/api/exams/") && !init?.method) {
+        const id = decodeURIComponent(url.slice("/api/exams/".length));
+        const found = appExams.find((exam) => exam.id === id);
+        return found
+          ? Response.json(found)
+          : Response.json({ code: "EXAM_NOT_FOUND" }, { status: 404 });
+      }
+      if (url.startsWith("/api/exams/") && init?.method === "DELETE") {
+        const id = decodeURIComponent(url.slice("/api/exams/".length));
+        appExams = appExams.filter((exam) => exam.id !== id);
+        return new Response(null, { status: 204 });
+      }
+      if (url.startsWith("/api/exams/") && init?.method === "PATCH") {
+        const id = decodeURIComponent(url.slice("/api/exams/".length));
+        const body = JSON.parse(String(init?.body ?? "{}")) as Record<
+          string,
+          string
+        >;
+        const updated = {
+          ...appExams.find((exam) => exam.id === id)!,
+          topic: body.topic,
+          exam_date: body.examDate,
+          exam_time: body.examTime,
+          room: body.room,
+          revision_note: body.revisionNote ?? null,
+        };
+        appExams = appExams.map((exam) => (exam.id === id ? updated : exam));
+        return Response.json(updated);
       }
       if (url === "/api/courses") {
         return new Response(JSON.stringify(courseFixtures), { status: 200 });
@@ -1838,28 +1896,12 @@ describe("Academic workspace", () => {
     );
     expect(screen.getByRole("button", { name: /Gửi câu hỏi/ })).toBeDisabled();
   });
-  it("keeps a past exam out of the upcoming list", async () => {
-    window.history.replaceState(null, "", "/#exams");
+  it("keeps past exams out of the upcoming dashboard", async () => {
+    window.history.replaceState(null, "", "/#dashboard");
     render(<App />);
 
-    // The fixtures straddle the pinned date: 21 Sep is ahead, 8 Sep is behind.
-    // The soonest upcoming exam is the one featured at the top.
-    expect(
-      await screen.findByRole("heading", {
-        level: 3,
-        name: "Kiểm tra giữa kỳ phần thuật toán",
-      }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Còn 6 ngày")).toBeInTheDocument();
-
-    // The past exam must appear once, and only under "Đã qua". Listing it in
-    // both places would still satisfy a test that merely looked for it there.
-    expect(screen.getAllByText("Bài kiểm tra chương tế bào")).toHaveLength(1);
-    const pastGroup = screen.getByRole("heading", { level: 3, name: "Đã qua" });
-    expect(
-      within(pastGroup.parentElement!).getByText("Bài kiểm tra chương tế bào"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("7 ngày trước")).toBeInTheDocument();
+    expect(await screen.findByText(examFixtures[0].topic)).toBeInTheDocument();
+    expect(screen.queryByText(examFixtures[2].topic)).not.toBeInTheDocument();
   });
   it("reveals the exam list even though its container mounts after loading", async () => {
     // jsdom ships no matchMedia, so useReveal treats every test as
@@ -1875,7 +1917,7 @@ describe("Academic workspace", () => {
       removeListener: () => {},
       dispatchEvent: () => false,
     }));
-    window.history.replaceState(null, "", "/#exams");
+    window.history.replaceState(null, "", "/#dashboard");
     render(<App />);
 
     const heading = await screen.findByRole("heading", {
@@ -1985,23 +2027,20 @@ describe("Academic workspace", () => {
 
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "Delete exam: Kiểm tra giữa kỳ phần thuật toán",
+        name: `Delete exam: ${examFixtures[0].topic}`,
       }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Xoá" }));
+    fireEvent.click(screen.getByRole("button", { name: /Xo/ }));
 
-    // The deleted exam was the featured one, so another exam takes its place.
-    // That new card must start closed: inheriting the open confirmation would
-    // put a one-click delete under the pointer that just clicked there.
+    await waitFor(() =>
+      expect(screen.queryByText(examFixtures[0].topic)).not.toBeInTheDocument(),
+    );
     await waitFor(() =>
       expect(
-        screen.queryByRole("heading", {
-          level: 3,
-          name: "Kiểm tra giữa kỳ phần thuật toán",
-        }),
-      ).not.toBeInTheDocument(),
+        screen.getAllByRole("button", { name: /Delete exam:/ }),
+      ).toHaveLength(2),
     );
-    expect(screen.queryByText("Xoá kỳ thi này?")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Xo.*thi/)).not.toBeInTheDocument();
   });
   it("keeps the exam when the confirmation is dismissed", async () => {
     window.history.replaceState(null, "", "/#exams");
@@ -2009,10 +2048,10 @@ describe("Academic workspace", () => {
 
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "Delete exam: Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
+        name: `Delete exam: ${examFixtures[0].topic}`,
       }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Gi\u1eef l\u1ea1i" }));
+    fireEvent.click(screen.getByRole("button", { name: /Gi/ }));
 
     expect(
       vi
@@ -2021,19 +2060,14 @@ describe("Academic workspace", () => {
           ([, init]) => (init as RequestInit)?.method === "DELETE",
         ),
     ).toBe(false);
-    expect(
-      screen.getByRole("heading", {
-        level: 3,
-        name: "Ki\u1ec3m tra gi\u1eefa k\u1ef3 ph\u1ea7n thu\u1eadt to\u00e1n",
-      }),
-    ).toBeInTheDocument();
+    expect(screen.getByText(examFixtures[0].topic)).toBeInTheDocument();
   });
-  it("shows a readable message when the exam list cannot be loaded", async () => {
+  it("shows a readable message when the exam search cannot be loaded", async () => {
     window.history.replaceState(null, "", "/#exams");
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string) => {
-        if (url === "/api/exams") throw new Error("Offline");
+        if (url.startsWith("/api/exams/search")) throw new Error("Offline");
         if (url === "/api/courses") return Response.json(courseFixtures);
         return Response.json(url === "/api/documents" ? [] : [task]);
       }),
@@ -2042,7 +2076,7 @@ describe("Academic workspace", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(
-      "Ch\u01b0a xem \u0111\u01b0\u1ee3c l\u1ecbch thi",
+      "Could not load this list. Check your connection and retry.",
     );
     expect(
       within(alert).getByRole("button", { name: /Retry exams/ }),

@@ -23,6 +23,9 @@ export type {
   DocumentSearchSort,
   DocumentProcessingResult,
   Exam,
+  ExamSearchPage,
+  ExamSearchQuery,
+  ExamSearchSort,
   Expense,
   ExpenseCategory,
   HealthStatus,
@@ -79,6 +82,8 @@ import type {
   Course,
   CourseSearchPage,
   CourseSearchQuery,
+  ExamSearchPage,
+  ExamSearchQuery,
   DocumentSearchPage,
   DocumentSearchQuery,
   DocumentProcessingResult,
@@ -407,6 +412,20 @@ export const api = {
   getCourse: (slug: string, signal?: AbortSignal) =>
     request<Course>(`/api/courses/${encodeURIComponent(slug)}`, { signal }),
   listExams: () => request<Exam[]>("/api/exams"),
+  searchExams: (query: ExamSearchQuery, signal?: AbortSignal) => {
+    const params = new URLSearchParams();
+    if (query.q?.trim()) params.set("q", query.q.trim());
+    if (query.courseId) params.set("courseId", query.courseId);
+    if (query.fromDate) params.set("fromDate", query.fromDate);
+    if (query.toDate) params.set("toDate", query.toDate);
+    params.set("sort", query.sort ?? "exam_date");
+    params.set("direction", query.direction ?? "asc");
+    params.set("page", String(query.page ?? 1));
+    params.set("pageSize", String(query.pageSize ?? 20));
+    return request<ExamSearchPage>(`/api/exams/search?${params}`, { signal });
+  },
+  getExam: (id: string, signal?: AbortSignal) =>
+    request<Exam>(`/api/exams/${encodeURIComponent(id)}`, { signal }),
   createExam: (input: {
     courseId: string;
     topic: string;

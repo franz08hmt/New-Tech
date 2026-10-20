@@ -22,7 +22,7 @@ function formatDate(date: string) {
 }
 
 /** Shared by the featured card and each row, so the wording never diverges. */
-function ExamFacts({ exam }: { exam: Exam }) {
+export function ExamFacts({ exam }: { exam: Exam }) {
   return (
     <p className="exam-facts">
       <span>
@@ -39,7 +39,7 @@ function ExamFacts({ exam }: { exam: Exam }) {
   );
 }
 
-function DeleteExam({
+export function DeleteExam({
   exam,
   busy,
   onDelete,
@@ -95,7 +95,7 @@ function DeleteExam({
  * which replaces an exam's details rather than patching them: with a form this
  * small, "left blank" would be ambiguous between "unchanged" and "cleared".
  */
-function EditButton({
+export function EditButton({
   exam,
   busy,
   onEdit,
@@ -117,7 +117,7 @@ function EditButton({
   );
 }
 
-function EditExam({
+export function EditExam({
   exam,
   busy,
   onSave,

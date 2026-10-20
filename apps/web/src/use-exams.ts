@@ -28,7 +28,9 @@ export interface ExamsState {
   remove: (id: string) => Promise<boolean>;
 }
 
-export function useExams(): ExamsState {
+export function useExams({
+  loadList = true,
+}: { loadList?: boolean } = {}): ExamsState {
   const [exams, setExams] = useState<Exam[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -38,6 +40,10 @@ export function useExams(): ExamsState {
   const reload = useCallback(() => setRequestNumber((value) => value + 1), []);
 
   useEffect(() => {
+    if (!loadList) {
+      setLoading(false);
+      return;
+    }
     let active = true;
     setLoading(true);
     setError(null);
@@ -60,7 +66,7 @@ export function useExams(): ExamsState {
     return () => {
       active = false;
     };
-  }, [requestNumber]);
+  }, [loadList, requestNumber]);
 
   const create = useCallback<ExamsState["create"]>(async (input) => {
     setBusy(true);

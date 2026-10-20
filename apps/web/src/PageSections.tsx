@@ -12,6 +12,7 @@ import {
 } from "./AcademicPanels";
 import { TasksPanel } from "./TasksPanel";
 import { ExamsPanel } from "./ExamsPanel";
+import { ExamsSearchPanel } from "./ExamsSearchPanel";
 import { StudyPlanPanel } from "./StudyPlanPanel";
 import { BudgetPanel } from "./BudgetPanel";
 import { CourseDetail } from "./CourseDetail";
@@ -104,7 +105,7 @@ export function PageSections({
   if (pageId === "exams") {
     return (
       <>
-        <ExamsPanel />
+        <ExamsSearchPanel focusId={focusId} />
         <p className="page-note">
           Lịch thi được lưu trong cơ sở dữ liệu của workspace. Các kỳ thi có sẵn
           là dữ liệu minh hoạ để bạn thử. Thành viên và người quản lý có thể

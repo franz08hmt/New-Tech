@@ -280,6 +280,25 @@ export interface Exam {
   updated_at: string;
 }
 
+export type ExamSearchSort = "exam_date" | "topic" | "course";
+export interface ExamSearchQuery {
+  q?: string;
+  courseId?: string;
+  fromDate?: string;
+  toDate?: string;
+  sort?: ExamSearchSort;
+  direction?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+}
+export interface ExamSearchPage {
+  items: Exam[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
 /**
  * One thing to revise for a course, as `GET /api/study-plans` returns it.
  *
