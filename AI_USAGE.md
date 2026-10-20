@@ -682,3 +682,18 @@ The database runner passed 470/470 across 39 serial files; failed, skipped and
 cancelled counts were all zero. Focused API query and web dashboard suites
 passed 43/43 and 11/11. This is code/automated verification only; browser
 acceptance remains pending.
+
+## 2026-10-21 — F06.2 dashboard refresh lifecycle (Codex)
+
+AI assistance added a dashboard regression that measured displayed KPI and cost
+values across refresh, then changed request lifecycle keys so a shared refresh
+generation invalidates overview, cost and open provider-call detail together.
+The active filters and currency/pricing-version page are preserved; per-cost
+retry and operation pagination remain independent. The initial regression run
+confirmed the finding: the toolbar caused a second overview call while cost
+still had only one request. After correction, focused dashboard tests passed
+18/18. They cover changed totals, pricing-version page 2, stale cost response,
+partial failure, principal switch, local retry, open detail, and operation
+pagination. Full typecheck, application test, build and format gates passed;
+F06.2 made no API/database/auth changes, so the DB gate was not rerun. No
+browser tool was exposed and no visual acceptance or human review is claimed.

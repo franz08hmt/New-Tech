@@ -101,6 +101,21 @@ BROWSER_ACCEPTANCE_PENDING`, not full acceptance. Cloud rollout, Google live,
 F05 browser acceptance, and the Thắng machine remain pending. No migration,
 cloud write, paid provider call, push, or deployment occurred.
 
+### F06.2 — synchronized dashboard refresh
+
+Manual refresh now advances a shared read generation used independently in
+overview, cost-breakdown, and open provider-detail request keys. Old keyed
+results become non-current immediately; effects abort prior requests and guard
+late responses even if the query is unchanged. The currently selected
+currency/pricing-version page and filters stay in place. Cost-only retry still
+reloads only that breakdown, and changing the operations page still does not
+reload cost. Refresh regression coverage is in
+`apps/web/src/AiUsageDashboard.test.tsx` (18/18 focused tests); full application
+tests passed API Vitest 384/384, API Node 855/855, Web 461/461 (1,700 total).
+Typecheck, build and format passed. Browser is unavailable, so visual/manual
+acceptance remains pending. No API, database or migration behavior changed;
+the database gate was not rerun for this frontend-only correction.
+
 ## F05.3.1 checkpoint — focused records and expense chart denominator
 
 Implementation and regression tests: `b826f80`.

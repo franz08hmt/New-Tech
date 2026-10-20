@@ -189,6 +189,29 @@ npm run format:check
 npm run test:database
 ```
 
+## F06.2 — synchronized dashboard refresh
+
+The toolbar refresh uses one generation across overview, the selected cost
+breakdown page and an open provider-call detail. It preserves the active
+filters and cost view, hides previous-generation data while reads are pending,
+and ignores responses that settle late. Breakdown retry remains local to cost;
+moving between operations pages does not fetch cost again.
+
+The dashboard regression was red on the previous implementation: after
+clicking refresh, overview was requested twice but the cost breakdown only
+once; both the new 23-call KPI and the stale 22-call/USD 22 row were asserted.
+The fixed suite passes 18/18. It also checks refreshed pricing-version page 2,
+late-response rejection, cost-only retry, partial-read error state, principal
+switch, open detail refresh and no cost request on ordinary operation-page
+navigation.
+
+Fresh gates: `npm run typecheck`, `npm test`, `npm run build`, and
+`npm run format:check` exited 0. Application tests passed API Vitest 384/384,
+API Node 855/855, Web 461/461 (1,700 total). No database gate was rerun because
+this correction changes only frontend request lifecycle, not API/SQL/schema or
+permissions. Browser tooling was unavailable; desktop/mobile acceptance stays
+`BROWSER_ACCEPTANCE_PENDING`. No browser pass is inferred from component tests.
+
 ## F06.1 — dashboard aggregation and boundary corrections
 
 F06.1 begins at `084c308` and leaves migrations 019–021 and all runtime
