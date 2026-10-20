@@ -81,6 +81,101 @@ let fixture,
   appModule,
   createdRoles = [];
 
+const aiUsageInsertColumns = {
+  ai_usage_operations: [
+    "operation_id",
+    "request_id",
+    "workspace_id",
+    "user_id",
+    "operation",
+    "mode",
+    "prompt_id",
+    "prompt_version",
+    "outcome",
+    "provider_call_count",
+    "started_at",
+    "completed_at",
+    "duration_ms",
+  ],
+  ai_usage_provider_calls: [
+    "call_id",
+    "operation_id",
+    "workspace_id",
+    "user_id",
+    "provider",
+    "model",
+    "call_type",
+    "prompt_id",
+    "prompt_version",
+    "outcome",
+    "usage_status",
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "cost_status",
+    "estimated_cost",
+    "pricing_version",
+    "currency",
+    "duration_ms",
+    "started_at",
+    "completed_at",
+  ],
+};
+
+async function snapshotAiUsageAcl() {
+  const result = await fixture.admin.query(
+    `
+    SELECT c.relname, c.relacl::text AS table_acl,
+      (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+        'column',a.attname,'acl',a.attacl::text
+      ) ORDER BY a.attnum),'[]'::jsonb)
+       FROM pg_attribute a
+       WHERE a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped) AS column_acl
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='public' AND c.relname=ANY($1::text[])
+    ORDER BY c.relname`,
+    [Object.keys(aiUsageInsertColumns)],
+  );
+  assert.equal(result.rowCount, Object.keys(aiUsageInsertColumns).length);
+  return result.rows;
+}
+
+async function snapshotDatabaseAcl() {
+  const result = await fixture.admin.query(
+    "SELECT datacl::text AS acl FROM pg_database WHERE datname=current_database()",
+  );
+  assert.equal(result.rowCount, 1);
+  return result.rows[0].acl;
+}
+
+async function publicDatabaseConnectGranted() {
+  const result = await fixture.admin.query(`
+    SELECT EXISTS (
+      SELECT 1 FROM pg_database d
+      CROSS JOIN LATERAL aclexplode(COALESCE(d.datacl,acldefault('d',d.datdba))) acl
+      WHERE d.datname=current_database() AND acl.grantee=0
+        AND acl.privilege_type='CONNECT'
+    ) AS granted`);
+  return result.rows[0].granted;
+}
+
+async function restoreAiUsageInsertColumns() {
+  for (const [table, columns] of Object.entries(aiUsageInsertColumns)) {
+    const names = columns.map((column) => `"${column}"`).join(",");
+    await fixture.admin.query(
+      `GRANT INSERT (${names}) ON public.${table} TO examate_business`,
+    );
+  }
+}
+
+async function assertCapabilityFailure(operation) {
+  await assert.rejects(operation, (error) => {
+    assert.equal(error?.code, "RUNTIME_CAPABILITY_INVALID");
+    return true;
+  });
+}
+
 function connectionFor(role, password) {
   const url = new URL(fixture.admin.options.connectionString);
   url.username = role;
@@ -655,54 +750,126 @@ test("business workspaces require a valid active membership context", async () =
 });
 
 test("business capability rejects excess inherited TRUNCATE on documents", async () => {
+  await business.assertBusinessCapability();
   await fixture.admin.query("GRANT TRUNCATE ON documents TO examate_business");
   try {
-    await assert.rejects(business.assertBusinessCapability());
+    assert.equal(
+      (
+        await fixture.admin.query(
+          "SELECT has_table_privilege('examate_business','public.documents','TRUNCATE') AS granted",
+        )
+      ).rows[0].granted,
+      true,
+    );
+    await assertCapabilityFailure(() => business.assertBusinessCapability());
   } finally {
     await fixture.admin.query(
       "REVOKE TRUNCATE ON documents FROM examate_business",
     );
+    assert.equal(
+      (
+        await fixture.admin.query(
+          "SELECT has_table_privilege('examate_business','public.documents','TRUNCATE') AS granted",
+        )
+      ).rows[0].granted,
+      false,
+    );
+    await business.assertBusinessCapability();
   }
 });
 
 test("business capability rejects a PUBLIC database CONNECT grant", async () => {
+  await business.assertBusinessCapability();
+  const databaseAclBefore = await snapshotDatabaseAcl();
+  assert.equal(await publicDatabaseConnectGranted(), false);
   await fixture.admin.query(`DO $$ BEGIN
     EXECUTE format('GRANT CONNECT ON DATABASE %I TO PUBLIC',current_database());
   END $$`);
   try {
-    await assert.rejects(business.assertBusinessCapability());
+    assert.equal(await publicDatabaseConnectGranted(), true);
+    await assertCapabilityFailure(() => business.assertBusinessCapability());
   } finally {
     await fixture.admin.query(`DO $$ BEGIN
       EXECUTE format('REVOKE CONNECT ON DATABASE %I FROM PUBLIC',current_database());
     END $$`);
+    assert.equal(await snapshotDatabaseAcl(), databaseAclBefore);
+    assert.equal(await publicDatabaseConnectGranted(), false);
+    await business.assertBusinessCapability();
   }
 });
 
 test("business capability rejects disabled RLS on a managed table", async () => {
+  await business.assertBusinessCapability();
   await fixture.admin.query("ALTER TABLE documents DISABLE ROW LEVEL SECURITY");
   try {
-    await assert.rejects(business.assertBusinessCapability());
+    assert.equal(
+      (
+        await fixture.admin.query(
+          "SELECT relrowsecurity FROM pg_class WHERE oid='public.documents'::regclass",
+        )
+      ).rows[0].relrowsecurity,
+      false,
+    );
+    await assertCapabilityFailure(() => business.assertBusinessCapability());
   } finally {
     await fixture.admin.query(
       "ALTER TABLE documents ENABLE ROW LEVEL SECURITY",
     );
+    assert.equal(
+      (
+        await fixture.admin.query(
+          "SELECT relrowsecurity FROM pg_class WHERE oid='public.documents'::regclass",
+        )
+      ).rows[0].relrowsecurity,
+      true,
+    );
+    await business.assertBusinessCapability();
   }
 });
 
 test("Auth capability rejects excess business data access", async () => {
+  await authDb.assertCapability("examate_auth");
+  assert.equal(
+    (
+      await fixture.admin.query(
+        "SELECT has_table_privilege('examate_auth','public.courses','SELECT') AS granted",
+      )
+    ).rows[0].granted,
+    false,
+  );
   await assert.rejects(
     authDb.query("SELECT operation_id FROM ai_usage_operations"),
     { code: "42501" },
   );
   await fixture.admin.query("GRANT SELECT ON courses TO examate_auth");
   try {
-    await assert.rejects(authDb.assertCapability("examate_auth"));
+    assert.equal(
+      (
+        await fixture.admin.query(
+          "SELECT has_table_privilege('examate_auth','public.courses','SELECT') AS granted",
+        )
+      ).rows[0].granted,
+      true,
+    );
+    await assertCapabilityFailure(() =>
+      authDb.assertCapability("examate_auth"),
+    );
   } finally {
     await fixture.admin.query("REVOKE SELECT ON courses FROM examate_auth");
+    assert.equal(
+      (
+        await fixture.admin.query(
+          "SELECT has_table_privilege('examate_auth','public.courses','SELECT') AS granted",
+        )
+      ).rows[0].granted,
+      false,
+    );
+    await authDb.assertCapability("examate_auth");
   }
 });
 
 test("business startup rejects a permissive PUBLIC documents policy", async () => {
+  await business.assertBusinessCapability();
   await fixture.admin.query(
     "CREATE POLICY reviewer_public_documents ON documents FOR SELECT TO PUBLIC USING (true)",
   );
@@ -712,11 +879,12 @@ test("business startup rejects a permissive PUBLIC documents policy", async () =
       leaked.rowCount > 0,
       "the target mutation exposes synthetic rows",
     );
-    await assert.rejects(business.assertBusinessCapability());
+    await assertCapabilityFailure(() => business.assertBusinessCapability());
   } finally {
     await fixture.admin.query(
       "DROP POLICY reviewer_public_documents ON documents",
     );
+    await business.assertBusinessCapability();
   }
 });
 
@@ -1985,11 +2153,29 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
     )
   ).rows[0].n;
   const providerCallsBeforeTelemetryFault = sdkCalls.generation.length;
-  await fixture.admin.query(
-    "REVOKE INSERT ON ai_usage_operations,ai_usage_provider_calls FROM examate_business",
-  );
+  await business.assertBusinessCapability();
+  await authDb.assertCapability("examate_auth");
+  const usageAclBeforeTelemetryFault = await snapshotAiUsageAcl();
   let telemetryFault;
   try {
+    for (const [table, columns] of Object.entries(aiUsageInsertColumns)) {
+      const columnNames = columns.map((column) => `"${column}"`).join(",");
+      const privilege = await fixture.admin.query(
+        `SELECT bool_and(has_column_privilege('examate_business',$1::regclass,attnum,'INSERT')) AS granted
+       FROM pg_attribute WHERE attrelid=$1::regclass AND attname=ANY($2::text[]) AND attnum>0 AND NOT attisdropped`,
+        [`public.${table}`, columns],
+      );
+      assert.equal(privilege.rows[0].granted, true);
+      await fixture.admin.query(
+        `REVOKE INSERT (${columnNames}) ON public.${table} FROM examate_business`,
+      );
+      const revoked = await fixture.admin.query(
+        `SELECT bool_or(has_column_privilege('examate_business',$1::regclass,attnum,'INSERT')) AS granted
+       FROM pg_attribute WHERE attrelid=$1::regclass AND attname=ANY($2::text[]) AND attnum>0 AND NOT attisdropped`,
+        [`public.${table}`, columns],
+      );
+      assert.equal(revoked.rows[0].granted, false);
+    }
     telemetryFault = await postChat({
       mode: "general",
       message: "F031_TELEMETRY_FAILURE_SENTINEL: preserve the answer.",
@@ -2000,9 +2186,14 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
       "Synthetic general answer.",
     );
   } finally {
-    await fixture.admin.query(
-      "GRANT INSERT ON ai_usage_operations,ai_usage_provider_calls TO examate_business",
+    await restoreAiUsageInsertColumns();
+    assert.deepEqual(
+      await snapshotAiUsageAcl(),
+      usageAclBeforeTelemetryFault,
+      "telemetry fault cleanup must restore the original table and column ACLs",
     );
+    await business.assertBusinessCapability();
+    await authDb.assertCapability("examate_auth");
   }
   assert.equal(
     sdkCalls.generation.length - providerCallsBeforeTelemetryFault,
