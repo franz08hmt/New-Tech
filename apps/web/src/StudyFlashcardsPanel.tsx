@@ -33,6 +33,36 @@ const errorText = (error: unknown) =>
 const isUnknownWrite = (error: unknown) =>
   !(error instanceof ApiError) || error.status === 408 || error.status >= 500;
 
+function draftWriteError(error: unknown, operation: "confirm" | "cancel") {
+  const action =
+    operation === "confirm"
+      ? "Không thể xác nhận lưu bộ thẻ."
+      : "Không thể hủy bản xem trước.";
+  if (isUnknownWrite(error))
+    return `${action} Kết quả thao tác chưa rõ. Hãy đối chiếu trạng thái trước khi thực hiện thao tác ghi tiếp theo.`;
+  const failure = error as ApiError;
+  if (failure.code === "STUDY_FLASHCARDS_ALREADY_CONFIRMED")
+    return `${action} Bản xem trước đã được lưu, có thể từ tab khác. Hãy đối chiếu để nhận bộ thẻ đã lưu.`;
+  if (failure.status === 401 || failure.status === 403)
+    return `${action} Phiên hoặc quyền truy cập hiện tại không cho phép thao tác. Hãy kiểm tra đăng nhập và quyền truy cập.`;
+  if (
+    [
+      "STUDY_FLASHCARDS_SOURCE_CHANGED",
+      "DOCUMENT_NOT_READY",
+      "DOCUMENT_NOT_AVAILABLE",
+    ].includes(failure.code)
+  )
+    return `${action} Tài liệu nguồn đã thay đổi hoặc không còn sẵn sàng. Hãy kiểm tra tài liệu; nếu cần, chủ động tạo bản xem trước mới.`;
+  if (
+    failure.status === 404 ||
+    ["STUDY_FLASHCARDS_DRAFT_UNAVAILABLE", "STUDY_FLASHCARDS_DELETED"].includes(
+      failure.code,
+    )
+  )
+    return `${action} Bản xem trước đã hết hạn hoặc không còn khả dụng. Hãy đối chiếu trạng thái; không gửi lại thao tác ghi khi chưa xác nhận.`;
+  return `${action} Yêu cầu bị từ chối. Hãy đối chiếu trạng thái bản xem trước trước khi quyết định thao tác tiếp theo.`;
+}
+
 export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
   const principal = useContext(PilotPrincipalContext);
   const identity = identityOf(principal);
@@ -117,6 +147,7 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
   const visibleSelectedDocument =
     selectedDocumentIdentity === identity ? selectedDocumentState : undefined;
   const liveDraft = draftIdentity === identity ? draftState : undefined;
+  const visibleSaveError = draftIdentity === identity ? saveError : "";
   const visibleDocumentError =
     documentErrorIdentity === identity ? documentErrorState : "";
   const visibleListError = listErrorIdentity === identity ? listErrorState : "";
@@ -426,7 +457,7 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
       unresolvedReview ||
       saveState === "unknown" ||
       saveState === "reconciling" ||
-      (saveState !== "preview" && saveState !== "error")
+      saveState !== "preview"
     )
       return;
     const token = acquire("confirm");
@@ -435,6 +466,7 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
     const capturedEpoch = epoch.current;
     setSaveState("saving");
     setSaveError("");
+    setNotice("");
     try {
       const saved = await api.confirmStudyFlashcards(liveDraft.draftId, {
         draftToken: liveDraft.draftToken,
@@ -455,7 +487,7 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
         actionRef.current !== token
       )
         return;
-      setSaveError(errorText(error));
+      setSaveError(draftWriteError(error, "confirm"));
       setSaveState(isUnknownWrite(error) ? "unknown" : "error");
     } finally {
       release(token);
@@ -463,13 +495,20 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
   }
 
   async function reconcileDraft() {
-    if (!liveDraft || actionRef.current || saveState !== "unknown") return;
+    if (
+      !liveDraft ||
+      actionRef.current ||
+      unresolvedReview ||
+      (saveState !== "unknown" && saveState !== "error")
+    )
+      return;
     const token = acquire("reconcile");
     if (!token) return;
     const capturedIdentity = identityRef.current;
     const capturedEpoch = epoch.current;
     setSaveState("reconciling");
     setSaveError("");
+    setNotice("");
     try {
       const result = await api.reconcileStudyFlashcardsDraft(
         liveDraft.draftId,
@@ -499,12 +538,12 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
       } else {
         setDraft(undefined);
         setSaveState("terminal");
-        setNotice(
+        setSaveError(
           result.status === "expired"
-            ? "Bản xem trước đã hết hạn."
+            ? "Bản xem trước đã hết hạn. Không thể tiếp tục lưu bản này."
             : result.status === "deleted"
-              ? "Bộ thẻ đã bị xóa."
-              : "Bản xem trước đã bị hủy.",
+              ? "Bộ thẻ đã bị xóa. Không thể khôi phục bằng xác nhận cũ."
+              : "Bản xem trước đã bị hủy. Không thể tiếp tục lưu bản này.",
         );
       }
     } catch (error) {
@@ -513,7 +552,9 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
         actionRef.current === token
       ) {
         setSaveState("unknown");
-        setSaveError(`Chưa đối chiếu được trạng thái lưu. ${errorText(error)}`);
+        setSaveError(
+          "Chưa đối chiếu được trạng thái lưu. Chỉ thử đọc đối chiếu lại; thao tác ghi vẫn bị khóa.",
+        );
       }
     } finally {
       release(token);
@@ -526,7 +567,7 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
       actionRef.current ||
       unresolvedReview ||
       unresolvedSave ||
-      (saveState !== "preview" && saveState !== "error")
+      saveState !== "preview"
     )
       return;
     const token = acquire("cancel");
@@ -535,6 +576,7 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
     const capturedEpoch = epoch.current;
     setSaveState("saving");
     setSaveError("");
+    setNotice("");
     try {
       const result = await api.cancelStudyFlashcardsDraft(liveDraft.draftId, {
         draftToken: liveDraft.draftToken,
@@ -557,7 +599,7 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
         actionRef.current !== token
       )
         return;
-      setSaveError(errorText(error));
+      setSaveError(draftWriteError(error, "cancel"));
       setSaveState(isUnknownWrite(error) ? "unknown" : "error");
     } finally {
       release(token);
@@ -973,26 +1015,35 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
                   Hủy bản xem trước
                 </button>
               </div>
-              {saveError && <p role="alert">{saveError}</p>}
-              {saveState === "unknown" && (
-                <>
-                  <p role="status">
-                    Kết quả lưu chưa rõ. Chỉ đọc đối chiếu mới được dùng để mở
-                    khóa thao tác.
-                  </p>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void reconcileDraft()}
-                  >
-                    Đối chiếu trạng thái lưu
-                  </button>
-                </>
-              )}
-              {saveState === "reconciling" && (
-                <p role="status">Đang đối chiếu bản xem trước…</p>
-              )}
             </div>
+          )}
+        {visibleSaveError && <p role="alert">{visibleSaveError}</p>}
+        {liveDraft && (saveState === "unknown" || saveState === "error") && (
+          <>
+            {saveState === "unknown" && (
+              <p role="status">
+                Kết quả lưu chưa rõ. Chỉ đọc đối chiếu mới được dùng để mở khóa
+                thao tác.
+              </p>
+            )}
+            <button
+              type="button"
+              disabled={busy || unresolvedReview}
+              onClick={() => void reconcileDraft()}
+            >
+              Đối chiếu trạng thái lưu
+            </button>
+          </>
+        )}
+        {liveDraft && saveState === "reconciling" && (
+          <p role="status">Đang đối chiếu bản xem trước…</p>
+        )}
+        {(saveState === "error" || saveState === "terminal") &&
+          draftIdentity === identity && (
+            <p>
+              Chỉ tạo bản xem trước mới khi bạn chủ động chấp nhận có thể phát
+              sinh một lượt AI mới.
+            </p>
           )}
         {notice && <p role="status">{notice}</p>}
       </section>

@@ -10,6 +10,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   api,
+  ApiError,
   type DocumentSearchPage,
   type StudyFlashcardsDetail,
   type StudyFlashcardsGeneratedDraft,
@@ -126,6 +127,399 @@ function renderPanel(who = principal) {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+});
+
+describe("Flashcard draft rejection recovery", () => {
+  function setup() {
+    vi.spyOn(api, "searchDocuments").mockResolvedValue(documentPage);
+    vi.spyOn(api, "listStudyFlashcards").mockResolvedValue(list);
+    const generate = vi
+      .spyOn(api, "generateStudyFlashcards")
+      .mockResolvedValue(generated);
+    const confirm = vi
+      .spyOn(api, "confirmStudyFlashcards")
+      .mockResolvedValue(summary);
+    const cancel = vi
+      .spyOn(api, "cancelStudyFlashcardsDraft")
+      .mockResolvedValue({ status: "cancelled" });
+    const reconcile = vi
+      .spyOn(api, "reconcileStudyFlashcardsDraft")
+      .mockResolvedValue({ status: "confirmed", deck: summary });
+    return { generate, confirm, cancel, reconcile };
+  }
+
+  async function preview() {
+    await screen.findByLabelText("Tài liệu");
+    fireEvent.change(screen.getByLabelText("Tài liệu"), {
+      target: { value: docId },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo bản xem trước" }));
+    await screen.findByText("Bản xem trước · chưa được lưu");
+  }
+
+  const writeButton = (operation: "confirm" | "cancel") =>
+    screen.getByRole("button", {
+      name:
+        operation === "confirm" ? "Xác nhận lưu bộ thẻ" : "Hủy bản xem trước",
+    });
+
+  it.each(["confirm", "cancel"] as const)(
+    "keeps an actionable alert after definite %s rejection",
+    async (operation) => {
+      const calls = setup();
+      calls[operation].mockRejectedValue(
+        new ApiError(
+          "Draft unavailable",
+          "STUDY_FLASHCARDS_DRAFT_UNAVAILABLE",
+          409,
+        ),
+      );
+      renderPanel();
+      await preview();
+      fireEvent.click(writeButton(operation));
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toContain(
+        operation === "confirm" ? "Không thể xác nhận lưu" : "Không thể hủy",
+      );
+      expect(alert.textContent).toContain("không còn khả dụng");
+      expect(
+        screen.getByRole("button", { name: "Đối chiếu trạng thái lưu" }),
+      ).toBeTruthy();
+      expect(calls[operation]).toHaveBeenCalledTimes(1);
+      expect(calls.generate).toHaveBeenCalledTimes(1);
+      expect(calls.reconcile).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    [400, "STUDY_FLASHCARDS_REQUEST_INVALID", "Yêu cầu bị từ chối"],
+    [401, "AUTH_REQUIRED", "đăng nhập và quyền truy cập"],
+    [403, "WORKSPACE_ACCESS_DENIED", "đăng nhập và quyền truy cập"],
+    [404, "STUDY_FLASHCARDS_DRAFT_NOT_FOUND", "không còn khả dụng"],
+    [422, "STUDY_FLASHCARDS_DRAFT_INVALID", "Yêu cầu bị từ chối"],
+    [409, "STUDY_FLASHCARDS_SOURCE_CHANGED", "Tài liệu nguồn đã thay đổi"],
+    [409, "DOCUMENT_NOT_READY", "không còn sẵn sàng"],
+    [404, "DOCUMENT_NOT_AVAILABLE", "Tài liệu nguồn đã thay đổi"],
+  ] as const)(
+    "explains %s/%s safely and requires a read before retrying writes",
+    async (status, code, message) => {
+      const calls = setup();
+      calls.confirm.mockRejectedValue(
+        new ApiError("Private raw error sentinel", code, status),
+      );
+      renderPanel();
+      await preview();
+      fireEvent.click(writeButton("confirm"));
+      expect((await screen.findByRole("alert")).textContent).toContain(message);
+      expect(screen.queryByText(/Private raw error sentinel/)).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Xác nhận lưu bộ thẻ" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Hủy bản xem trước" }),
+      ).toBeNull();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Đối chiếu trạng thái lưu" }),
+      );
+      await screen.findByText(/Đã xác nhận bộ thẻ/);
+      expect(calls.reconcile).toHaveBeenCalledWith(
+        generated.draftId,
+        generated.draftToken,
+      );
+      expect(calls.generate).toHaveBeenCalledTimes(1);
+      expect(calls.confirm).toHaveBeenCalledTimes(1);
+      expect(calls.cancel).not.toHaveBeenCalled();
+    },
+  );
+
+  it("reconciles a cancel conflict from another tab to the saved deck without another write", async () => {
+    const calls = setup();
+    calls.cancel.mockRejectedValue(
+      new ApiError("Already saved", "STUDY_FLASHCARDS_ALREADY_CONFIRMED", 409),
+    );
+    renderPanel();
+    await preview();
+    fireEvent.click(writeButton("cancel"));
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "có thể từ tab khác",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Đối chiếu trạng thái lưu" }),
+    );
+    await screen.findByText(/Đã xác nhận bộ thẻ/);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(calls.confirm).not.toHaveBeenCalled();
+    expect(calls.cancel).toHaveBeenCalledTimes(1);
+    expect(calls.generate).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["expired", "cancelled", "deleted"] as const)(
+    "keeps %s reconciliation visible outside the removed preview",
+    async (status) => {
+      const calls = setup();
+      calls.confirm.mockRejectedValue(
+        new ApiError(
+          "Not available",
+          "STUDY_FLASHCARDS_DRAFT_UNAVAILABLE",
+          409,
+        ),
+      );
+      calls.reconcile.mockResolvedValue({ status });
+      renderPanel();
+      await preview();
+      fireEvent.click(writeButton("confirm"));
+      await screen.findByRole("alert");
+      fireEvent.click(
+        screen.getByRole("button", { name: "Đối chiếu trạng thái lưu" }),
+      );
+      const expected =
+        status === "expired"
+          ? "đã hết hạn"
+          : status === "cancelled"
+            ? "đã bị hủy"
+            : "đã bị xóa";
+      await waitFor(() =>
+        expect(screen.getByRole("alert").textContent).toContain(expected),
+      );
+      expect(screen.queryByText("Bản xem trước · chưa được lưu")).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Đối chiếu trạng thái lưu" }),
+      ).toBeNull();
+      expect(
+        screen
+          .getByRole("button", { name: "Tạo bản xem trước" })
+          .hasAttribute("disabled"),
+      ).toBe(false);
+      expect(screen.getByText(/có thể phát sinh một lượt AI mới/)).toBeTruthy();
+      expect(calls.generate).toHaveBeenCalledTimes(1);
+      expect(calls.confirm).toHaveBeenCalledTimes(1);
+      expect(calls.cancel).not.toHaveBeenCalled();
+    },
+  );
+
+  it("a reconciled draft enables a separate explicit write and clears its old notice on the next rejection", async () => {
+    const calls = setup();
+    calls.confirm.mockRejectedValue(
+      new ApiError("Invalid", "STUDY_FLASHCARDS_REQUEST_INVALID", 400),
+    );
+    calls.cancel.mockRejectedValue(
+      new ApiError("Expired", "STUDY_FLASHCARDS_DRAFT_UNAVAILABLE", 409),
+    );
+    const { draftToken: _token, ...draft } = generated;
+    calls.reconcile.mockResolvedValue({ status: "draft", draft });
+    renderPanel();
+    await preview();
+    fireEvent.click(writeButton("confirm"));
+    await screen.findByRole("alert");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Đối chiếu trạng thái lưu" }),
+    );
+    await screen.findByText(/Bạn có thể xác nhận riêng/);
+    expect(writeButton("confirm").hasAttribute("disabled")).toBe(false);
+    expect(calls.confirm).toHaveBeenCalledTimes(1);
+    expect(calls.cancel).not.toHaveBeenCalled();
+    fireEvent.click(writeButton("cancel"));
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Không thể hủy",
+    );
+    expect(screen.queryByText(/Bạn có thể xác nhận riêng/)).toBeNull();
+    expect(calls.generate).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["confirm", "cancel"] as const)(
+    "preserves unknown %s identity for network/408/5xx and retries only GET after a failed read",
+    async (operation) => {
+      const calls = setup();
+      // Exercise all transport classes using separate explicit previews in the same mounted session.
+      calls[operation]
+        .mockRejectedValueOnce(new Error("network lost"))
+        .mockRejectedValueOnce(new ApiError("Timeout", "TIMEOUT", 408))
+        .mockRejectedValueOnce(new ApiError("Unavailable", "UNAVAILABLE", 503));
+      const { draftToken: _token, ...draft } = generated;
+      calls.reconcile
+        .mockRejectedValueOnce(
+          new ApiError("DB unavailable", "UNAVAILABLE", 503),
+        )
+        .mockResolvedValue({ status: "draft", draft });
+      renderPanel();
+      await preview();
+      for (let index = 0; index < 3; index++) {
+        fireEvent.click(writeButton(operation));
+        await screen.findByText(/Kết quả thao tác chưa rõ/);
+        expect(writeButton("confirm").hasAttribute("disabled")).toBe(true);
+        expect(writeButton("cancel").hasAttribute("disabled")).toBe(true);
+        expect(
+          screen
+            .getByRole("button", { name: "Tạo bản xem trước" })
+            .hasAttribute("disabled"),
+        ).toBe(true);
+        if (index === 0) {
+          fireEvent.click(
+            screen.getByRole("button", { name: "Đối chiếu trạng thái lưu" }),
+          );
+          await screen.findByText(/Chưa đối chiếu được trạng thái lưu/);
+          expect(writeButton("confirm").hasAttribute("disabled")).toBe(true);
+          expect(writeButton("cancel").hasAttribute("disabled")).toBe(true);
+        }
+        fireEvent.click(
+          screen.getByRole("button", { name: "Đối chiếu trạng thái lưu" }),
+        );
+        await screen.findByText(/Bạn có thể xác nhận riêng/);
+        expect(calls[operation]).toHaveBeenCalledTimes(index + 1);
+      }
+      expect(calls.reconcile).toHaveBeenCalledTimes(4);
+      for (const args of calls.reconcile.mock.calls)
+        expect(args).toEqual([generated.draftId, generated.draftToken]);
+      expect(calls.generate).toHaveBeenCalledTimes(1);
+      expect(
+        calls[operation === "confirm" ? "cancel" : "confirm"],
+      ).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["confirm", "confirmed"],
+    ["cancel", "confirmed"],
+    ["confirm", "expired"],
+    ["cancel", "expired"],
+    ["confirm", "cancelled"],
+    ["cancel", "cancelled"],
+    ["confirm", "deleted"],
+    ["cancel", "deleted"],
+  ] as const)(
+    "resolves unknown %s to %s through GET without replay or regeneration",
+    async (operation, status) => {
+      const calls = setup();
+      calls[operation].mockRejectedValue(
+        new ApiError("Lost response", "UNAVAILABLE", 503),
+      );
+      calls.reconcile.mockResolvedValue(
+        status === "confirmed" ? { status, deck: summary } : { status },
+      );
+      renderPanel();
+      await preview();
+      fireEvent.click(writeButton(operation));
+      await screen.findByText(/Kết quả thao tác chưa rõ/);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Đối chiếu trạng thái lưu" }),
+      );
+      if (status === "confirmed") await screen.findByText(/Đã xác nhận bộ thẻ/);
+      else
+        await waitFor(() =>
+          expect(screen.getByRole("alert").textContent).toContain(
+            status === "expired"
+              ? "đã hết hạn"
+              : status === "cancelled"
+                ? "đã bị hủy"
+                : "đã bị xóa",
+          ),
+        );
+      expect(screen.queryByText("Bản xem trước · chưa được lưu")).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Đối chiếu trạng thái lưu" }),
+      ).toBeNull();
+      expect(calls.reconcile).toHaveBeenCalledWith(
+        generated.draftId,
+        generated.draftToken,
+      );
+      expect(calls.generate).toHaveBeenCalledTimes(1);
+      expect(calls[operation]).toHaveBeenCalledTimes(1);
+      expect(
+        calls[operation === "confirm" ? "cancel" : "confirm"],
+      ).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["principal", "unmount"] as const)(
+    "ignores a delayed rejection after %s change",
+    async (change) => {
+      const calls = setup();
+      let reject!: (error: unknown) => void;
+      calls.confirm.mockImplementationOnce(
+        () =>
+          new Promise((_resolve, fail) => {
+            reject = fail;
+          }),
+      );
+      const view = renderPanel();
+      await preview();
+      fireEvent.click(writeButton("confirm"));
+      if (change === "unmount") view.unmount();
+      else
+        view.rerender(
+          <PilotPrincipalContext.Provider
+            value={{
+              ...principal,
+              workspaceId: "99999999-9999-4999-8999-999999999999",
+            }}
+          >
+            <StudyFlashcardsPanel />
+          </PilotPrincipalContext.Provider>,
+        );
+      await act(async () =>
+        reject(
+          new ApiError(
+            "Old private failure",
+            "STUDY_FLASHCARDS_DRAFT_UNAVAILABLE",
+            409,
+          ),
+        ),
+      );
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.queryByText("Bản xem trước · chưa được lưu")).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Đối chiếu trạng thái lưu" }),
+      ).toBeNull();
+      expect(calls.reconcile).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["principal", "unmount"] as const)(
+    "ignores delayed reconciliation and cannot restore a preview after %s change",
+    async (change) => {
+      const calls = setup();
+      calls.cancel.mockRejectedValue(
+        new ApiError("Conflict", "STUDY_FLASHCARDS_ALREADY_CONFIRMED", 409),
+      );
+      let resolve!: (
+        value: Awaited<ReturnType<typeof api.reconcileStudyFlashcardsDraft>>,
+      ) => void;
+      calls.reconcile.mockImplementationOnce(
+        () =>
+          new Promise((done) => {
+            resolve = done;
+          }),
+      );
+      const view = renderPanel();
+      await preview();
+      fireEvent.click(writeButton("cancel"));
+      await screen.findByRole("alert");
+      fireEvent.click(
+        screen.getByRole("button", { name: "Đối chiếu trạng thái lưu" }),
+      );
+      await screen.findByText("Đang đối chiếu bản xem trước…");
+      if (change === "unmount") view.unmount();
+      else
+        view.rerender(
+          <PilotPrincipalContext.Provider
+            value={{
+              ...principal,
+              userId: "99999999-9999-4999-8999-999999999999",
+            }}
+          >
+            <StudyFlashcardsPanel />
+          </PilotPrincipalContext.Provider>,
+        );
+      const { draftToken: _token, ...draft } = generated;
+      await act(async () => resolve({ status: "draft", draft }));
+      expect(screen.queryByText("Bản xem trước · chưa được lưu")).toBeNull();
+      expect(screen.queryByText(/Bạn có thể xác nhận riêng/)).toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(calls.confirm).not.toHaveBeenCalled();
+      expect(calls.cancel).toHaveBeenCalledTimes(1);
+      expect(calls.generate).toHaveBeenCalledTimes(1);
+    },
+  );
 });
 
 describe("Study Flashcards flow", () => {
