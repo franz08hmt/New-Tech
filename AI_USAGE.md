@@ -697,3 +697,32 @@ partial failure, principal switch, local retry, open detail, and operation
 pagination. Full typecheck, application test, build and format gates passed;
 F06.2 made no API/database/auth changes, so the DB gate was not rerun. No
 browser tool was exposed and no visual acceptance or human review is claimed.
+
+## 2026-10-21 — F07 persisted Assistant conversations
+
+AI assistance reviewed the current F07 implementation and added owner-scoped
+create-key reconciliation plus frontend regressions for lost create/save
+acknowledgements. When create may have committed, the client first reads the
+create-key state; when a completed turn save is `unknown`, it checks bounded
+message pages for the server receipt before enabling a deliberate save-only
+retry. Errors or principal/conversation changes leave the result unknown or
+discard the stale response. The AI transport is never repeated for either
+reconciliation path.
+
+The added React tests were mutated to remove both GET reconciliation branches:
+the uncertain-create test failed because a second POST was attempted, and the
+unknown-save tests failed because a save POST ran before reconciliation. With
+the implementation restored, the focused Assistant suite passed 20/20. Nest
+HTTP and PostgreSQL 17 disposable tests passed 14/14 for runtime/RLS and cover
+create reconciliation states `found`, `absent`, and `deleted`; database and
+Auth connections were separate LOGIN roles, and the AI upstream remained
+synthetic. Full gates are recorded in the F07 checklist after the source-final
+run. The final run passed typecheck, build, and format with exit 0; `npm test`
+passed API Vitest 384/384, API Node 856/856, and Web Vitest 469/469; the guarded
+PG17 `test:database` passed 472/472 with no fail/skip/cancelled cases. Full
+suite execution exposed legacy database fixtures that still assumed 21 source
+migrations or unintentionally applied 022 while verifying the exact 021
+rollback chain. Those tests were corrected to use the intended versioned
+fixture boundary; migrations and their checksums were not changed. No browser
+tool was exposed, so visual browser acceptance remains pending; these tests do
+not claim browser or cloud acceptance.

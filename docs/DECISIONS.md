@@ -498,3 +498,55 @@ exclusive upper bound from the PostgreSQL date (`to + 1 day`) only after API
 validation; `9999-12-31` is therefore representable as the boundary without
 attempting year 10000. Invalid dates fail before workspace/report SQL. This
 does not change F03 telemetry, migration 021, RLS/grants, or F04 admission.
+
+## ADR-008 — Private persisted Assistant conversations
+
+F07, 21/10/2026. Persist each completed visible turn in a workspace-and-user
+owned conversation, with the canonical feedback snapshot and a foreign key to
+the server-issued answer receipt. A single short transaction issues the
+receipt and appends the turn, so no client-authored transcript can become
+trusted history. When a persistent conversation ID is supplied, the server
+rejects a parallel client history and derives follow-up context from the latest
+six turns only after validating snapshot shape, receipt owner/workspace/mode,
+and canonical hash. Legacy callers without a conversation ID retain existing
+receipt verification. Workspace mode may store its displayed exchange but
+still does not send prior exchanges to the workspace records query.
+
+Migration 022 gives the business LOGIN capability only the column/table
+operations needed for per-owner CRUD; conversation and turn rows require current transaction
+workspace/user context and active membership RLS. Auth receives no transcript
+grant. The API rechecks membership in each short workspace transaction and
+never holds one during AI or other external work. Conversation scope is
+immutable. Version compare-and-increment permits only one append from a given
+version; a concurrent loser is not persisted and does not trigger a second AI
+request. Delete hard-removes transcript rows but leaves receipts and feedback
+untouched. A minimal per-user create-key tombstone remains, so a retry after an
+ambiguous create or delete cannot recreate the transcript. Retention also
+keeps those tombstones. Rolling back migration 022 removes the transcript and
+tombstone tables, and the dry-run reports both affected row counts; it does
+not remove receipts or feedback.
+
+The client reconciles an uncertain conversation create with an owner-scoped
+GET by create key before issuing another create POST. An uncertain turn append
+is checked through bounded, paginated message GETs by receipt ID; an explicit
+save retry is offered only after the receipt is absent. A failed reconciliation
+stays unknown, and neither action repeats the provider request. Switching
+principal, opening another conversation, reset, or unmount aborts or invalidates
+the reconciliation response.
+
+Content is bounded to 100 turns and 4 MiB of canonical snapshots per
+conversation. Expiry is fixed at 90 days after creation in database time and
+is not renewed by reads or appends. Expired rows are hidden from runtime even
+before cleanup; a bounded, dry-run-first local maintenance command purges them.
+Rollback 022 necessarily removes F07 conversation content and therefore needs
+an operator-owned disposable target/backup decision; it must not drop or
+modify receipts, feedback, documents, Auth or F04/F03 data.
+
+Rejected alternatives: trust client-supplied transcript snapshots; copy the
+receipt table into a second mutable history source without hash checks; hold a
+row lock over provider work; soft-delete while leaving transcript readable;
+or extend expiry on every GET. These weaken the existing receipt boundary,
+create a write race, or make deletion/retention semantics ambiguous. Database
+RLS protects against missing or incorrect tenant predicates but does not
+authenticate custom GUC values against a fully compromised application
+process. Disposable PG17 evidence does not imply cloud migration/readiness.

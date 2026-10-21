@@ -3,6 +3,55 @@
 Cập nhật 21/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
+## F07 contract and local implementation
+
+Assistant conversations are private to the verified `(workspace_id,user_id)`.
+Migration 022 adds a conversation header, receipt-linked canonical turns, and
+minimal create-key tombstones that prevent a delayed create retry from
+recreating a deleted transcript;
+only a fully completed answer with a matching server-issued receipt may append.
+Clients send a conversation ID and optimistic version, never a transcript to
+append. The server loads and verifies at most the latest six receipts for a
+follow-up. Legacy requests without a conversation ID retain the current
+receipt/history contract. Workspace mode may persist its visible turns but
+does not send prior turns to the workspace query service.
+
+The additive API is `POST/GET /api/assistant/conversations`,
+`GET /api/assistant/conversations/:id/messages`,
+`POST /api/assistant/conversations/:id/turns` for receipt-verified save retry,
+`GET /api/assistant/conversations/create-keys/:createKey` for create outcome
+reconciliation, and `DELETE /api/assistant/conversations/:id`; chat accepts optional
+`conversationId`/`conversationVersion`. Lists and messages default to 20 and
+cap at 50. A conversation is limited to 100 completed turns and 4 MiB of
+canonical snapshots. Its expiry is fixed at creation + 90 days using database
+time; reads do not extend it. Delete is a hard delete of conversation text and
+turn rows, while receipt/feedback records remain independent. Expired content
+is immediately unavailable to runtime queries and is physically purged only
+through a bounded, dry-run-first maintenance command. Concurrent appends use an
+expected version; a losing answer stays visible as unsaved and is never
+replayed. A lost create acknowledgement is reconciled by its owner-scoped
+create-key GET before any later create POST. A lost turn-save acknowledgement
+is reconciled by paginated message GET using the receipt ID; only a confirmed
+absence enables an explicit receipt-verified save POST. Neither path repeats
+the AI request.
+
+F07 local implementation and automated verification are complete in
+`cc366bf` (schema/API) and `2d05453` (web UI). Browser acceptance was not
+available in this session and remains pending. Migration 022 rollback is
+dry-run-first and drops all three F07 tables with `RESTRICT`; it reports
+transcript and idempotency-key rows
+lost while preserving receipts, feedback, Auth, business data and F03/F04
+state. Retention purges only expired transcript/header rows in bounded batches
+and never removes receipts, feedback or create-key tombstones. Re-run against a
+guarded PostgreSQL 17 disposable target: `npm run typecheck`, `npm test`,
+`npm run build`, `npm run format:check`, and `npm run test:database`. Automated
+success does not imply browser, Google live, cloud rollout or Thang's machine
+acceptance. The final new gate run passed: API Vitest 384/384, API Node
+856/856, Web Vitest 469/469, and PG17 database tests 472/472; all five gates
+exited 0 with no failed, skipped, or cancelled tests. The database harness
+distinguishes its historical 021-only fixtures from the current 022 contract;
+no migration checksum or runtime grant changed for this fixture correction.
+
 ## F06 local checkpoint — code verified, browser pending (21/10/2026)
 
 Implemented in `6fca9e3` (API/DB/contract) and `341776f` (web UI); starting
@@ -160,13 +209,13 @@ HTTP boundary; a nonblank value folding empty returns
 `SEARCH_QUERY_UNSUPPORTED` before SQL. All pages return items/page/pageSize/
 total/totalPages from one tenant-scoped statement snapshot.
 
-| Slice       | List consumer and separate consumers                                                                | Route/deep link                                    | Filters and sorts                                                           | Acceptance/check                                                                                                            |
-| ----------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Tasks       | `TasksPanel` full list; dashboard urgent tasks and complete count remain a separate legacy consumer | `#tasks/<id>`; add scoped ID lookup                | status, owner/unassigned; title/status/due_date/created_at                  | API/DB tenant page/count, role controls/status update, focused target, FE stale query/page, focused + full gates            |
-| Courses     | expanded `CoursesPanel`; dashboard gallery, selectors, Assistant context remain separate            | `#courses/<slug>`; use existing scoped slug lookup | progress range; name/code/progress                                          | page beyond two rows, progress filter/sort, route lookup outside page, selector remains complete, focused + full gates      |
-| Exams       | paged `ExamsSearchPanel`; dashboard next-exam summary and course selector remain separate            | `#exams/<id>`; scoped `GET /api/exams/:id`          | course, date range; exam date/time/topic/course                             | valid DATE boundaries, foreign course, stable sort, CRUD refresh, compact dashboard remains aggregate, focused + full gates |
-| Study plans | `StudyPlansSearchPanel`; dashboard/course grouping and course selector remain separate consumers           | `#study-plan/<id>`; scoped `GET /api/study-plans/:id` | course, completed, owner/unassigned, due range; due/title/course/completed | groups retained within page, all-match completion summary, toggle/CRUD refresh, focused + full gates                        |
-| Expenses    | `ExpensesSearchPanel` paged list; course-workspace expense section remains separate                | `#finances/<id>`; scoped ID lookup                 | category, course/unassigned, period date range; spent_on/amount/description | filtered total/count/largest/by-course independent of page, date preservation, CRUD refresh, focused + full gates           |
+| Slice       | List consumer and separate consumers                                                                | Route/deep link                                       | Filters and sorts                                                           | Acceptance/check                                                                                                            |
+| ----------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Tasks       | `TasksPanel` full list; dashboard urgent tasks and complete count remain a separate legacy consumer | `#tasks/<id>`; add scoped ID lookup                   | status, owner/unassigned; title/status/due_date/created_at                  | API/DB tenant page/count, role controls/status update, focused target, FE stale query/page, focused + full gates            |
+| Courses     | expanded `CoursesPanel`; dashboard gallery, selectors, Assistant context remain separate            | `#courses/<slug>`; use existing scoped slug lookup    | progress range; name/code/progress                                          | page beyond two rows, progress filter/sort, route lookup outside page, selector remains complete, focused + full gates      |
+| Exams       | paged `ExamsSearchPanel`; dashboard next-exam summary and course selector remain separate           | `#exams/<id>`; scoped `GET /api/exams/:id`            | course, date range; exam date/time/topic/course                             | valid DATE boundaries, foreign course, stable sort, CRUD refresh, compact dashboard remains aggregate, focused + full gates |
+| Study plans | `StudyPlansSearchPanel`; dashboard/course grouping and course selector remain separate consumers    | `#study-plan/<id>`; scoped `GET /api/study-plans/:id` | course, completed, owner/unassigned, due range; due/title/course/completed  | groups retained within page, all-match completion summary, toggle/CRUD refresh, focused + full gates                        |
+| Expenses    | `ExpensesSearchPanel` paged list; course-workspace expense section remains separate                 | `#finances/<id>`; scoped ID lookup                    | category, course/unassigned, period date range; spent_on/amount/description | filtered total/count/largest/by-course independent of page, date preservation, CRUD refresh, focused + full gates           |
 
 Selectors, course detail, dashboard summaries and compact course-workspace
 sections have independent complete-data needs. Keep their legacy contracts where
@@ -749,9 +798,9 @@ chiếu lịch sử. Không chạy lại phần đã có hoặc biến kế ho�
 | F02 | Hoàn tất B2: runtime non-owner/NOBYPASSRLS, grants tối thiểu, tenant RLS toàn app, rollout/rollback cloud                  | F02-A local acceptance đạt qua browser+Nest+PG17 LOGIN business/Auth non-owner; F02-B/cloud runtime provisioning/rollout vẫn pending, không coi B2 toàn app xong |
 | F03 | Prompt tập trung/version; metadata request/provider calls, token, latency, outcome, chi phí ước tính                       | Code và tích hợp HTTP/DB PG17 đã kiểm; nghiệm thu browser desktop/375px sau instrumentation còn pending; chưa nhận F03 đầy đủ                                    |
 | F04 | B3: cap user/ngày, concurrency, fan-out summary/index/OCR; admission nguyên tử và bền vững                                 | Migration 020/contract v20 triển khai local; automated gates pass, browser acceptance pending; không phải monetary budget hay dashboard F06                      |
-| F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Documents, sidebar and all five F05.3 module screens have local automated coverage; browser acceptance pending, so whole F05 remains partial                      |
-| F06 | Dashboard AI cho admin đúng workspace: request/provider calls, token/cost/latency/lỗi/từ chối và filters                   | Local code/API/PG17 implementation and automated verification in this checkpoint; browser acceptance pending; not billing or F04 quota ledger                          |
-| F07 | N1 lưu bền, mở lại/xóa, retention/quyền; receipt/history/reset/account isolation                                           | Pending persistence; history trong tab/SSE và draft revision đã có, không viết lại                                                                               |
+| F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Documents, sidebar and all five F05.3 module screens have local automated coverage; browser acceptance pending, so whole F05 remains partial                     |
+| F06 | Dashboard AI cho admin đúng workspace: request/provider calls, token/cost/latency/lỗi/từ chối và filters                   | Local code/API/PG17 implementation and automated verification in this checkpoint; browser acceptance pending; not billing or F04 quota ledger                    |
+| F07 | N1 lưu bền, mở lại/xóa, retention/quyền; receipt/history/reset/account isolation                                           | Local implementation and automated verification complete; browser acceptance pending. No F08 work is included                                                    |
 | F08 | N2 Study Coach: structured quiz/flashcards, nguồn, preview/xác nhận lưu, luyện tập/tiến độ cá nhân                         | Pending                                                                                                                                                          |
 | F09 | B4: ít nhất 20 case thực thi có expected, cùng corpus/gold trước/sau, human review/guardrails/fallback/latency/cost        | Chưa nghiệm thu semantic/live; live runner còn BLOCKED, principal CLI hay HTTP chưa chốt                                                                         |
 | F10 | Chỉ STT của Thắng: hoàn thiện lỗi, bảo mật/dependency, accuracy/latency và nghiệm thu thực tế khi cần                      | Thu hẹp theo Tài ngày 19/10/2026; giữ implementation STT hiện có, không phát triển TTS, không chuyển ownership                                                   |

@@ -3,6 +3,34 @@
 Đọc [README](../README.md), [hướng dẫn học](FINAL-STUDY-GUIDE-VI.md) và
 [context](PROJECT-CONTEXT.md). Checklist này là kế hoạch; ô trống không phải PASS.
 
+## F07 — hội thoại riêng đã lưu (local automated evidence)
+
+- [x] Hội thoại thuộc `(workspace_id,user_id)` đã xác minh; Manager không mặc
+      nhiên đọc transcript cá nhân khác. Business/Auth dùng LOGIN riêng và
+      non-owner; Auth không có quyền SELECT transcript.
+- [x] Chỉ lượt hoàn tất có receipt/hash/scope hợp lệ được lưu; client không
+      gửi transcript đáng tin để làm history. JSON và SSE hoàn tất được kiểm;
+      cancel không lưu câu trả lời dở.
+- [x] Reload/open, tiếp tục, version conflict, delete khi append đang chờ,
+      expiry trước cleanup, list/messages pagination, rollback/reapply và
+      retention dry-run/apply được kiểm trên PostgreSQL 17 disposable.
+- [x] Regression kiểm tạo hội thoại khi mất ACK bằng GET create-key; lượt lưu
+      `unknown` đối chiếu GET theo receipt trước, không phát lại AI/POST. Chỉ
+      sau khi GET xác nhận chưa lưu mới có thể chọn thử POST lưu receipt.
+- [x] Lần chạy cuối trên source F07 ở `cc366bf` + `2d05453`: `npm run typecheck` exit 0;
+      `npm test` exit 0 (API Vitest 384/384, API Node 856/856, Web Vitest
+      469/469); `npm run build` exit 0; `npm run format:check` exit 0;
+      `npm run test:database` trên PG17 disposable exit 0 (472/472, fail 0,
+      skip 0, cancelled 0). Fixture migration cũ được giữ ở đúng version;
+      migration 001–021 không bị sửa.
+- [ ] Browser desktop 1440px/mobile 375px: tạo, reload, mở lại, tiếp tục, xóa,
+      đổi tài khoản và cancel khi đổi hội thoại. Browser automation không được
+      cấp trong lượt kiểm này; React/HTTP tests không thay bằng chứng browser.
+
+Giới hạn: nội dung hết hạn sau 90 ngày kể từ tạo theo DB clock; GET không gia
+hạn. Retention không xóa receipt/feedback. Đây là kiểm local synthetic, không
+phải nghiệm thu Google live, cloud rollout hay máy Thắng.
+
 ## Chuẩn bị trước buổi báo cáo
 
 - [ ] Chốt revision/nhánh và phân công Tài–Thắng; bảo toàn WIP trước pull.
@@ -1158,7 +1186,7 @@ New focused verification on this checkpoint:
   sorting, all-filter summary, out-of-range totals, viewer/member/manager and
   inactive/no-membership denials, malformed queries and scoped lookup.
 - FE/App selection: `npm test --workspace @examate/web -- --run
-  src/App.test.tsx src/StudyPlansSearch.test.tsx` — 127/127 passed.
+src/App.test.tsx src/StudyPlansSearch.test.tsx` — 127/127 passed.
 - `npm run typecheck`, `npm run build`, and `npm run format:check` — exit 0 on
   this module checkpoint. Focused database test — 1/1 passed.
 
@@ -1194,7 +1222,7 @@ RED/GREEN and focused evidence:
   out-of-range page totals, role/membership denial, malformed queries, no SQL
   on invalid input, and scoped foreign-ID denial.
 - Focused Expenses/App selection, `npm test --workspace @examate/web -- --run
-  src/ExpensesSearch.test.tsx src/App.test.tsx`: 127/127 passed. The full app
+src/ExpensesSearch.test.tsx src/App.test.tsx`: 127/127 passed. The full app
   suite includes the regression and passed API Vitest 341/341, API Node 855/855
   and Web 434/434 (1,630 total).
 - An initial full Web run found an existing Tasks integration fixture omitted
