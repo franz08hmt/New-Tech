@@ -86,7 +86,9 @@ export function summarizeMeasurements(results) {
       (c) => /^\d+$/.test(c[field] ?? "") && c.usage_status !== "invalid",
     );
     return {
-      known: known.reduce((sum, c) => sum + BigInt(c[field]), 0n).toString(),
+      known: known.length
+        ? known.reduce((sum, c) => sum + BigInt(c[field]), 0n).toString()
+        : null,
       knownCalls: known.length,
       totalCalls: dispatchedCalls,
     };

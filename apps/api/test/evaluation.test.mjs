@@ -998,6 +998,7 @@ test("F09-A telemetry missing after SDK dispatch stays explicitly unknown rather
   assert.equal(totals.cost.estimatedCalls, 0);
   assert.equal(totals.cost.unknownCalls, 2);
   assert.equal(totals.tokens.total.knownCalls, 0);
+  assert.equal(totals.tokens.total.known, null);
   assert.equal(totals.tokens.total.totalCalls, 2);
 });
 test("F09-A unsafe target blocks before importing the runtime fixture", () => {
