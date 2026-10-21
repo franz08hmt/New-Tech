@@ -12,12 +12,26 @@ import {
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
 
 const PAGE_SIZE = 20;
+type QuizAttemptState =
+  "idle" | "prepared" | "sending" | "unknown" | "confirmed" | "failed";
+type QuizSaveState =
+  | "idle"
+  | "preview"
+  | "saving"
+  | "unknown"
+  | "reconciling"
+  | "reconciled-draft"
+  | "confirmed"
+  | "failed"
+  | "expired"
+  | "cancelled"
+  | "deleted";
 const errorText = (error: unknown) =>
   error instanceof Error
     ? error.message
     : "Không thể hoàn tất thao tác. Hãy thử lại.";
 const isUnknownWrite = (error: unknown) =>
-  !(error instanceof ApiError) || error.status >= 500;
+  !(error instanceof ApiError) || error.status === 408 || error.status >= 500;
 
 export function StudyCoachPanel({ focusId }: { focusId?: string }) {
   const principal = useContext(PilotPrincipalContext);
@@ -32,6 +46,11 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
   const selectedRevision = useRef(0);
   const selectedDocumentRef = useRef<StoredDocument | undefined>(undefined);
   const actionLock = useRef(false);
+  const attemptActionLock = useRef(false);
+  const searchPrincipalRef = useRef(identity);
+  const [searchPrincipalIdentity, setSearchPrincipalIdentity] =
+    useState(identity);
+  const searchPrincipalChanged = searchPrincipalIdentity !== identity;
 
   const [documentInput, setDocumentInput] = useState("");
   const [documentQuery, setDocumentQuery] = useState("");
@@ -48,9 +67,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
     "idle" | "generating" | "preview" | "unknown"
   >("idle");
   const [generationError, setGenerationError] = useState("");
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "unknown">(
-    "idle",
-  );
+  const [saveState, setSaveState] = useState<QuizSaveState>("idle");
   const [saveError, setSaveError] = useState("");
   const [savedNotice, setSavedNotice] = useState("");
   const [quizPage, setQuizPage] = useState(1);
@@ -66,7 +83,9 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [attempt, setAttempt] = useState<StudyQuizAttemptResult>();
   const [attemptError, setAttemptError] = useState("");
+  const [attemptState, setAttemptState] = useState<QuizAttemptState>("idle");
   const [attemptPending, setAttemptPending] = useState<{
+    quizId: string;
     key: string;
     payload: {
       attemptKey: string;
@@ -74,18 +93,33 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
     };
   }>();
   const [quizBusy, setQuizBusy] = useState(false);
-  const documentRequestKey = `${identity}:${documentQuery}:${documentPage}:${documentRefresh}`;
+  const documentRequestKey = `${identity}:${documentInput.trim()}:${documentQuery}:${documentPage}:${documentRefresh}`;
   const documentRequestKeyRef = useRef(documentRequestKey);
   documentRequestKeyRef.current = documentRequestKey;
-  const documentSearchPending = documentInput.trim() !== documentQuery;
+  const documentSearchPending =
+    documentInput.trim().length !== 1 && documentInput.trim() !== documentQuery;
+  const visibleDocumentResults = searchPrincipalChanged
+    ? undefined
+    : documentResults;
+  const visibleSelectedDocument = searchPrincipalChanged
+    ? undefined
+    : selectedDocument;
 
   useEffect(() => {
+    const principalChanged = searchPrincipalRef.current !== identity;
+    searchPrincipalRef.current = identity;
+    setSearchPrincipalIdentity(identity);
     const epoch = ++lifecycle.current;
     docController.current?.abort();
     listController.current?.abort();
     detailController.current?.abort();
     detailRevision.current++;
     setDocumentResults(undefined);
+    if (principalChanged) {
+      setDocumentInput("");
+      setDocumentQuery("");
+      setDocumentPage(1);
+    }
     setSelectedDocument(undefined);
     selectedDocumentRef.current = undefined;
     selectedRevision.current++;
@@ -103,6 +137,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
     setDetailError("");
     setAnswers({});
     setAttempt(undefined);
+    setAttemptState("idle");
     setAttemptPending(undefined);
     setAttemptError("");
     setDocumentError("");
@@ -147,8 +182,34 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
   }, [identity, focusId]);
 
   useEffect(() => {
-    if (!principal || focusId) return;
-    if (documentInput.trim().length === 1) {
+    if (!principal || focusId || searchPrincipalChanged) return;
+    const query = documentInput.trim();
+    if (query === documentQuery) return;
+    const timer = window.setTimeout(() => {
+      setDocumentPage(1);
+      setDocumentQuery(query);
+    }, 275);
+    return () => window.clearTimeout(timer);
+  }, [
+    documentInput,
+    documentQuery,
+    focusId,
+    identity,
+    principal,
+    searchPrincipalChanged,
+  ]);
+
+  useEffect(() => {
+    if (!principal || focusId || searchPrincipalChanged) return;
+    const query = documentInput.trim();
+    if (query !== documentQuery) {
+      docController.current?.abort();
+      setDocumentResults(undefined);
+      setDocumentLoading(false);
+      setDocumentError("");
+      return;
+    }
+    if (query.length === 1) {
       docController.current?.abort();
       setDocumentResults(undefined);
       setDocumentLoading(false);
@@ -156,57 +217,52 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
     }
     const epoch = lifecycle.current;
     const key = documentRequestKey;
-    const timer = window.setTimeout(
-      () => {
-        const controller = new AbortController();
-        docController.current?.abort();
-        docController.current = controller;
-        setDocumentLoading(true);
-        setDocumentError("");
-        setDocumentResults(undefined);
-        const query = documentQuery.trim();
-        void api
-          .searchDocuments(
-            {
-              q: query || undefined,
-              storage_status: "stored",
-              processing_status: "ready",
-              sort: "created_at",
-              direction: "desc",
-              page: documentPage,
-              pageSize: PAGE_SIZE,
-            },
-            controller.signal,
-          )
-          .then((value) => {
-            if (
-              key === documentRequestKeyRef.current &&
-              epoch === lifecycle.current &&
-              identity === identityRef.current
-            )
-              setDocumentResults(value);
-          })
-          .catch((error: unknown) => {
-            if (
-              !controller.signal.aborted &&
-              key === documentRequestKeyRef.current &&
-              epoch === lifecycle.current
-            )
-              setDocumentError(errorText(error));
-          })
-          .finally(() => {
-            if (
-              key === documentRequestKeyRef.current &&
-              epoch === lifecycle.current
-            )
-              setDocumentLoading(false);
-          });
-      },
-      documentInput.trim() === documentQuery ? 0 : 275,
-    );
-    return () => window.clearTimeout(timer);
+    const controller = new AbortController();
+    docController.current?.abort();
+    docController.current = controller;
+    setDocumentLoading(true);
+    setDocumentError("");
+    setDocumentResults(undefined);
+    void api
+      .searchDocuments(
+        {
+          q: query || undefined,
+          storage_status: "stored",
+          processing_status: "ready",
+          sort: "created_at",
+          direction: "desc",
+          page: documentPage,
+          pageSize: PAGE_SIZE,
+        },
+        controller.signal,
+      )
+      .then((value) => {
+        if (
+          key === documentRequestKeyRef.current &&
+          epoch === lifecycle.current &&
+          identity === identityRef.current
+        )
+          setDocumentResults(value);
+      })
+      .catch((error: unknown) => {
+        if (
+          !controller.signal.aborted &&
+          key === documentRequestKeyRef.current &&
+          epoch === lifecycle.current &&
+          identity === identityRef.current
+        )
+          setDocumentError(errorText(error));
+      })
+      .finally(() => {
+        if (
+          key === documentRequestKeyRef.current &&
+          epoch === lifecycle.current &&
+          identity === identityRef.current
+        )
+          setDocumentLoading(false);
+      });
+    return () => controller.abort();
   }, [
-    documentInput,
     documentQuery,
     documentPage,
     documentRefresh,
@@ -214,6 +270,8 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
     focusId,
     identity,
     principal,
+    searchPrincipalChanged,
+    documentInput,
   ]);
 
   useEffect(() => {
@@ -242,6 +300,19 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
 
   function selectDocument(document: StoredDocument) {
     if (
+      searchPrincipalChanged ||
+      saveState === "saving" ||
+      saveState === "unknown" ||
+      saveState === "reconciling"
+    )
+      return;
+    if (
+      attemptState === "unknown" ||
+      attemptState === "sending" ||
+      attemptActionLock.current
+    )
+      return;
+    if (
       document.storage_status !== "stored" ||
       document.processing_status !== "ready"
     )
@@ -263,13 +334,23 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
     setDetailError("");
     setAnswers({});
     setAttempt(undefined);
+    setAttemptState("idle");
     setAttemptPending(undefined);
     setAttemptError("");
     setQuizBusy(false);
   }
 
   async function generate() {
-    if (!selectedDocument || actionLock.current || !principal) return;
+    if (
+      !selectedDocument ||
+      actionLock.current ||
+      !principal ||
+      searchPrincipalChanged ||
+      saveState === "unknown" ||
+      saveState === "saving" ||
+      saveState === "reconciling"
+    )
+      return;
     actionLock.current = true;
     const epoch = lifecycle.current;
     const sourceEpoch = selectedRevision.current;
@@ -278,6 +359,8 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
     setGenerationState("generating");
     setGenerationError("");
     setDraft(undefined);
+    setSaveState("idle");
+    setSaveError("");
     setSavedNotice("");
     try {
       const value = await api.generateStudyQuiz({
@@ -300,6 +383,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
         throw new Error("Bản nháp không khớp tài liệu đang chọn.");
       setDraft(value);
       setGenerationState("preview");
+      setSaveState("preview");
     } catch (error) {
       if (epoch !== lifecycle.current || owner !== identityRef.current) return;
       setGenerationError(errorText(error));
@@ -310,7 +394,14 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
   }
 
   async function confirmDraft() {
-    if (!draft || actionLock.current || !principal) return;
+    if (
+      !draft ||
+      actionLock.current ||
+      !principal ||
+      searchPrincipalChanged ||
+      (saveState !== "preview" && saveState !== "reconciled-draft")
+    )
+      return;
     actionLock.current = true;
     const epoch = lifecycle.current;
     const sourceEpoch = selectedRevision.current;
@@ -328,7 +419,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
       )
         return;
       setDraft(undefined);
-      setSaveState("idle");
+      setSaveState("confirmed");
       setSavedNotice(`Đã lưu quiz “${saved.title}”.`);
       setQuizPage(1);
       setDetail(undefined);
@@ -341,16 +432,22 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
       )
         return;
       setSaveError(errorText(error));
-      setSaveState(isUnknownWrite(error) ? "unknown" : "idle");
+      setSaveState(isUnknownWrite(error) ? "unknown" : "failed");
     } finally {
       actionLock.current = false;
     }
   }
 
   async function reconcileDraft() {
-    if (!draft || actionLock.current || identity !== identityRef.current)
+    if (
+      !draft ||
+      actionLock.current ||
+      identity !== identityRef.current ||
+      saveState !== "unknown"
+    )
       return;
     actionLock.current = true;
+    setSaveState("reconciling");
     const epoch = lifecycle.current;
     const sourceEpoch = selectedRevision.current;
     try {
@@ -366,7 +463,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
         return;
       if (result.status === "confirmed") {
         setDraft(undefined);
-        setSaveState("idle");
+        setSaveState("confirmed");
         setSaveError("");
         setSavedNotice(`Đã lưu quiz “${result.quiz.title}”.`);
         setQuizPage(1);
@@ -377,14 +474,14 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
             ? { ...current, ...result.draft }
             : current,
         );
-        setSaveState("idle");
+        setSaveState("reconciled-draft");
         setSaveError(
           "Máy chủ xác nhận quiz vẫn là bản nháp. Bạn có thể xác nhận lưu lại bằng thao tác riêng.",
         );
       } else {
         setDraft(undefined);
         setGenerationState("idle");
-        setSaveState("idle");
+        setSaveState(result.status);
         setSaveError(
           result.status === "expired"
             ? "Bản nháp đã hết hạn. Hãy chủ động tạo bản xem trước mới."
@@ -396,15 +493,24 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
         epoch === lifecycle.current &&
         sourceEpoch === selectedRevision.current &&
         identity === identityRef.current
-      )
+      ) {
         setSaveError(errorText(error));
+        setSaveState("unknown");
+      }
     } finally {
       actionLock.current = false;
     }
   }
 
   async function cancelDraft() {
-    if (!draft || actionLock.current) return;
+    if (
+      !draft ||
+      actionLock.current ||
+      (saveState !== "preview" &&
+        saveState !== "reconciled-draft" &&
+        saveState !== "failed")
+    )
+      return;
     actionLock.current = true;
     const epoch = lifecycle.current;
     const sourceEpoch = selectedRevision.current;
@@ -435,6 +541,13 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
   }
 
   async function openQuiz(id: string) {
+    if (
+      searchPrincipalChanged ||
+      attemptActionLock.current ||
+      attemptState === "unknown" ||
+      attemptState === "sending"
+    )
+      return;
     const revision = ++detailRevision.current;
     const epoch = lifecycle.current;
     const owner = identity;
@@ -445,6 +558,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
     setDetailTarget(id);
     setAnswers({});
     setAttempt(undefined);
+    setAttemptState("idle");
     setAttemptPending(undefined);
     setAttemptError("");
     setQuizBusy(false);
@@ -474,6 +588,12 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
 
   async function deleteQuiz(quiz: StudyQuizSummary) {
     if (
+      attemptActionLock.current ||
+      attemptState === "unknown" ||
+      attemptState === "sending"
+    )
+      return;
+    if (
       !window.confirm(
         `Xóa quiz “${quiz.title}” và lịch sử làm bài của riêng bạn?`,
       )
@@ -493,6 +613,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
         setDetailError("");
         setAnswers({});
         setAttempt(undefined);
+        setAttemptState("idle");
         setAttemptPending(undefined);
         setAttemptError("");
       }
@@ -510,7 +631,15 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
   }
 
   function buildAttempt() {
-    if (!detail) return;
+    if (
+      !detail ||
+      !!attemptPending ||
+      searchPrincipalChanged ||
+      attemptActionLock.current ||
+      attemptState === "unknown" ||
+      attemptState === "sending"
+    )
+      return;
     const payload = {
       attemptKey: crypto.randomUUID(),
       answers: detail.questions.map((question) => ({
@@ -518,18 +647,38 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
         selectedIndex: answers[question.id],
       })),
     };
-    setAttemptPending({ key: payload.attemptKey, payload });
+    setAttemptPending({
+      quizId: detail.quiz.id,
+      key: payload.attemptKey,
+      payload,
+    });
+    setAttemptState("prepared");
   }
 
   async function submitAttempt() {
-    if (!detail || !attemptPending || quizBusy) return;
+    if (
+      !detail ||
+      !attemptPending ||
+      quizBusy ||
+      attemptActionLock.current ||
+      searchPrincipalChanged ||
+      attemptPending.quizId !== detail.quiz.id ||
+      attemptPending.key !== attemptPending.payload.attemptKey ||
+      (attemptState !== "prepared" && attemptState !== "unknown")
+    )
+      return;
+    attemptActionLock.current = true;
     const epoch = lifecycle.current;
     const revision = detailRevision.current;
     const quizId = detail.quiz.id;
     setQuizBusy(true);
+    setAttemptState("sending");
     setAttemptError("");
     try {
-      const result = await api.submitStudyQuiz(quizId, attemptPending.payload);
+      const result = await api.submitStudyQuiz(
+        attemptPending.quizId,
+        attemptPending.payload,
+      );
       if (
         epoch !== lifecycle.current ||
         revision !== detailRevision.current ||
@@ -537,19 +686,42 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
       )
         return;
       setAttempt(result);
+      setAttemptState("confirmed");
       setAttemptPending(undefined);
+      setDetail((current) =>
+        current?.quiz.id === quizId
+          ? {
+              ...current,
+              quiz: { ...current.quiz, progress: result.progress },
+            }
+          : current,
+      );
       setQuizRefresh((value) => value + 1);
     } catch (error) {
       if (
         epoch === lifecycle.current &&
         revision === detailRevision.current &&
         identity === identityRef.current
-      )
+      ) {
         setAttemptError(errorText(error));
+        setAttemptState(isUnknownWrite(error) ? "unknown" : "failed");
+      }
     } finally {
+      attemptActionLock.current = false;
       if (epoch === lifecycle.current && revision === detailRevision.current)
         setQuizBusy(false);
     }
+  }
+
+  function returnToQuestions() {
+    if (
+      attemptActionLock.current ||
+      (attemptState !== "prepared" && attemptState !== "failed")
+    )
+      return;
+    setAttemptPending(undefined);
+    setAttemptError("");
+    setAttemptState("idle");
   }
 
   return (
@@ -600,16 +772,23 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                   <label htmlFor="study-quiz-document">Tài liệu</label>
                   <select
                     id="study-quiz-document"
-                    value={selectedDocument?.id ?? ""}
+                    value={visibleSelectedDocument?.id ?? ""}
+                    disabled={
+                      saveState === "unknown" ||
+                      saveState === "saving" ||
+                      saveState === "reconciling" ||
+                      attemptState === "unknown" ||
+                      attemptState === "sending"
+                    }
                     onChange={(event) => {
-                      const item = documentResults?.items.find(
+                      const item = visibleDocumentResults?.items.find(
                         (document) => document.id === event.target.value,
                       );
                       if (item) selectDocument(item);
                     }}
                   >
                     <option value="">Chọn tài liệu đã lập chỉ mục</option>
-                    {documentResults?.items
+                    {visibleDocumentResults?.items
                       .filter(
                         (item) =>
                           item.storage_status === "stored" &&
@@ -621,9 +800,11 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                         </option>
                       ))}
                   </select>
-                  {documentResults && (
+                  {visibleDocumentResults && (
                     <div className="study-coach-pagination">
-                      <span>{documentResults.total} tài liệu sẵn sàng</span>
+                      <span>
+                        {visibleDocumentResults.total} tài liệu sẵn sàng
+                      </span>
                       <button
                         type="button"
                         disabled={documentLoading || documentPage <= 1}
@@ -634,13 +815,14 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                         Trước
                       </button>
                       <span>
-                        Trang {documentPage} / {documentResults.totalPages || 1}
+                        Trang {documentPage} /{" "}
+                        {visibleDocumentResults.totalPages || 1}
                       </span>
                       <button
                         type="button"
                         disabled={
                           documentLoading ||
-                          documentPage >= documentResults.totalPages
+                          documentPage >= visibleDocumentResults.totalPages
                         }
                         onClick={() => setDocumentPage((page) => page + 1)}
                       >
@@ -659,17 +841,17 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
               "Đang kiểm tra tài liệu…"
             ) : documentError ? (
               <span role="alert">{documentError}</span>
-            ) : selectedDocument ? (
-              `Tài liệu: ${selectedDocument.name}`
+            ) : visibleSelectedDocument ? (
+              `Tài liệu: ${visibleSelectedDocument.name}`
             ) : (
               "Chọn một tài liệu đã lập chỉ mục từ Documents."
             )}
           </p>
         )}
-        {selectedDocument && (
+        {visibleSelectedDocument && (
           <p className="study-coach-selected-source">
-            Nguồn: {selectedDocument.name} · Chỉ tài liệu stored/ready được
-            dùng.
+            Nguồn: {visibleSelectedDocument.name} · Chỉ tài liệu stored/ready
+            được dùng.
           </p>
         )}
         {documentError && !focusId && (
@@ -715,9 +897,12 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
             type="button"
             className="primary-button"
             disabled={
-              !selectedDocument ||
+              !visibleSelectedDocument ||
               documentLoading ||
-              generationState === "generating"
+              generationState === "generating" ||
+              saveState === "saving" ||
+              saveState === "unknown" ||
+              saveState === "reconciling"
             }
             onClick={() => void generate()}
           >
@@ -797,14 +982,22 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
               <button
                 type="button"
                 className="primary-button"
-                disabled={saveState === "saving"}
+                disabled={
+                  saveState !== "preview" && saveState !== "reconciled-draft"
+                }
                 onClick={() => void confirmDraft()}
               >
-                {saveState === "saving" ? "Đang lưu…" : "Xác nhận lưu quiz"}
+                {saveState === "saving" || saveState === "reconciling"
+                  ? "Đang kiểm tra/lưu…"
+                  : "Xác nhận lưu quiz"}
               </button>
               <button
                 type="button"
-                disabled={saveState === "saving"}
+                disabled={
+                  saveState !== "preview" &&
+                  saveState !== "reconciled-draft" &&
+                  saveState !== "failed"
+                }
                 onClick={() => void cancelDraft()}
               >
                 Hủy bản xem trước
@@ -816,13 +1009,12 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                 Kiểm tra trạng thái lưu
               </button>
             )}
-            {saveState === "idle" && saveError.includes("vẫn là bản nháp") && (
-              <button type="button" onClick={() => void confirmDraft()}>
-                Xác nhận lưu lại
-              </button>
+            {saveState === "reconciling" && (
+              <p role="status">Đang đối chiếu trạng thái bản nháp…</p>
             )}
           </div>
         )}
+        {saveError && !draft && <p role="alert">{saveError}</p>}
         {savedNotice && <p role="status">{savedNotice}</p>}
       </section>
 
@@ -877,13 +1069,22 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                   <div className="study-coach-controls">
                     <button
                       type="button"
+                      disabled={
+                        attemptState === "unknown" ||
+                        attemptState === "sending" ||
+                        attemptActionLock.current
+                      }
                       onClick={() => void openQuiz(quiz.id)}
                     >
                       Mở và luyện tập
                     </button>
                     <button
                       type="button"
-                      disabled={quizBusy}
+                      disabled={
+                        quizBusy ||
+                        attemptState === "unknown" ||
+                        attemptState === "sending"
+                      }
                       onClick={() => void deleteQuiz(quiz)}
                     >
                       Xóa quiz
@@ -944,7 +1145,8 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                 <h4>{detail.quiz.title}</h4>
                 <p>
                   {detail.quiz.questionCount} câu ·{" "}
-                  {detail.quiz.progress.attempts} lượt · điểm cao nhất{" "}
+                  {detail.quiz.progress.attempts} lượt · gần nhất{" "}
+                  {detail.quiz.progress.latestScore ?? "—"}% · cao nhất{" "}
                   {detail.quiz.progress.bestScore ?? "—"}%
                 </p>
                 {!detail.quiz.sourceAvailable && (
@@ -979,7 +1181,9 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                                     [question.id]: optionIndex,
                                   }))
                                 }
-                                disabled={!!attempt || quizBusy}
+                                disabled={
+                                  !!attempt || !!attemptPending || quizBusy
+                                }
                               />{" "}
                               {option}
                             </label>
@@ -1026,34 +1230,41 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                 </form>
                 {attemptPending && !attempt && (
                   <div role="group" aria-label="Xác nhận nộp bài">
-                    <p>Kiểm tra câu trả lời trước khi nộp.</p>
-                    <button
-                      type="button"
-                      className="primary-button"
-                      disabled={quizBusy}
-                      onClick={() => void submitAttempt()}
-                    >
-                      {quizBusy ? "Đang chấm…" : "Nộp bài"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAttemptPending(undefined)}
-                      disabled={quizBusy}
-                    >
-                      Quay lại câu hỏi
-                    </button>
-                  </div>
-                )}
-                {attemptError && (
-                  <div role="alert">
-                    <p>{attemptError}</p>
-                    <button
-                      type="button"
-                      disabled={quizBusy}
-                      onClick={() => void submitAttempt()}
-                    >
-                      Thử lưu cùng lượt làm
-                    </button>
+                    {attemptState === "prepared" && (
+                      <p>Kiểm tra câu trả lời trước khi nộp.</p>
+                    )}
+                    {attemptState === "unknown" && (
+                      <p role="status">
+                        Kết quả lượt này chưa rõ. Quiz, mã lượt và câu trả lời
+                        được giữ nguyên; gửi lại chỉ đối chiếu cùng lượt.
+                      </p>
+                    )}
+                    {attemptError && <p role="alert">{attemptError}</p>}
+                    {(attemptState === "prepared" ||
+                      attemptState === "unknown") && (
+                      <button
+                        type="button"
+                        className="primary-button"
+                        disabled={quizBusy}
+                        onClick={() => void submitAttempt()}
+                      >
+                        {quizBusy
+                          ? "Đang chấm…"
+                          : attemptState === "unknown"
+                            ? "Gửi lại cùng lượt"
+                            : "Nộp bài"}
+                      </button>
+                    )}
+                    {(attemptState === "prepared" ||
+                      attemptState === "failed") && (
+                      <button
+                        type="button"
+                        onClick={returnToQuestions}
+                        disabled={quizBusy}
+                      >
+                        Quay lại câu hỏi
+                      </button>
+                    )}
                   </div>
                 )}
                 {attempt && (
@@ -1089,6 +1300,8 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                       onClick={() => {
                         setAttempt(undefined);
                         setAttemptPending(undefined);
+                        setAttemptState("idle");
+                        setAttemptError("");
                         setAnswers({});
                       }}
                     >
