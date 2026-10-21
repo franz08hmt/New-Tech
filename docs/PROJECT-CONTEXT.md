@@ -77,6 +77,45 @@ provider SDK transports are synthetic. No browser capability was available,
 so these automated results are not browser acceptance. No cloud or live AI
 provider was used.
 
+## F08-A.1 — Recovery and progress correction checkpoint (21/10/2026)
+
+The frontend now preserves one attempt identity and its exact answer payload
+after an unknown submission outcome. The retry is the same idempotent POST;
+the user cannot abandon an unknown attempt, switch quiz, or edit answers to
+create a new key until the outcome is resolved. Save-confirmation unknowns
+block confirm/cancel handlers and controls until the owner-scoped draft GET
+reconciles them. A confirmed result is accepted without another write; a draft
+enables a separate explicit confirm; failed GET keeps writes locked; expired,
+cancelled, or deleted drafts show an accessible recovery message without
+regeneration.
+
+Quiz detail now selects its title and owner-scoped attempt aggregate in SQL.
+List, detail, and progress use the same server values, including valid zero
+scores. A submitted result carries current progress so the open practice view
+updates from the server; the UI also reloads the quiz list. Document search
+uses the debounced query, resets to page 1, exposes one-character guidance and
+read errors, and aborts/ignores stale query, principal, and unmounted-view
+responses. Search and recovery are reads and do not generate a quiz.
+
+RED evidence on the pre-fix code: the focused UI regressions failed for the
+unknown attempt/confirm states and the document query never reached the API;
+the PG17 HTTP detail regression received an undefined title. GREEN on the final
+source: StudyCoachPanel focused tests 11/11 and Study Coach Nest/PG17 database
+integration 1/1. The database test uses the real API with separate business and
+Auth LOGIN roles (non-owner, NOBYPASSRLS); Auth upstream and provider SDK
+transports are synthetic. Its lost-ACK case commits through real Nest/PG17,
+discards the acknowledgement in the harness, retries the same key/payload,
+and asserts exactly one attempt row. Save, read, retry, grading, and progress
+do not add provider calls.
+
+New final gates on 21/10/2026: typecheck, build, and format exit 0; `npm test`
+passes API Vitest 393, API Node 857, and Web Vitest 500 (1,750 total), with no
+failures, skips, or cancellations; guarded PostgreSQL 17 `npm run
+test:database` passes 474/474 with no failures, skips, or cancellations. No
+browser automation is exposed in this session, so F08-A.1 browser acceptance
+remains pending. Semantic question quality, F08-B flashcards, F09, and all
+cloud/live acceptance remain separate and pending.
+
 Assistant conversations are private to the verified `(workspace_id,user_id)`.
 Migration 022 adds a conversation header, receipt-linked canonical turns, and
 minimal create-key tombstones that prevent a delayed create retry from

@@ -798,3 +798,24 @@ validity and citation provenance do not prove question correctness; human review
 and F09 evaluation are pending. F08-A is code-verified locally, not full F08;
 flashcards remain unimplemented. Existing F05 browser, cloud rollout, Google
 live and the remote-machine pending status is unchanged.
+
+## 2026-10-21 — F08-A.1 reliability fixes
+
+Codex assisted with reproductions, scoped frontend state changes, the Study Coach
+detail/progress SQL mapping, regression tests, and updates to the existing
+checkpoint/traceability documents. The owner remains responsible for reviewing
+the code and quiz semantics. The test work does not replace human assessment of
+question correctness.
+
+RED was observed before implementation: focused UI assertions exposed the
+unknown-attempt/unknown-confirm controls and the document query not reaching the
+search API; the real Nest/PG17 detail response lacked the title. GREEN on final
+source: StudyCoachPanel focused tests 11/11; Study Coach Nest/PG17 database
+integration 1/1; typecheck/build/format passed; `npm test` passed API Vitest
+393/393, API Node 857/857, Web 500/500 (1,750 total); guarded PG17
+`test:database` passed 474/474. DB tests used separate non-owner,
+NOBYPASSRLS business/Auth LOGIN roles and synthetic fixture identities. Auth
+upstream and Gemini/embedding SDK transports were fakes; tests executed through
+real Nest endpoints and the disposable database. No paid provider, cloud,
+browser, or STT weights were used. Browser acceptance and human semantic review
+remain pending; this is not full F08, F09, or cloud acceptance.

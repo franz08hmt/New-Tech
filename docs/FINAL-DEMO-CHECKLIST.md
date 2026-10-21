@@ -298,6 +298,28 @@ npm run format:check
 npm run test:database
 ```
 
+## F08-A.1 — recovery/search/progress regressions (21/10/2026)
+
+- [x] Attempt submit keeps the original quiz ID, attempt key and answer payload
+      after a 503/unknown response; retry does not create another attempt.
+- [x] Unknown confirm keeps confirm/cancel writes locked until owner-scoped GET
+      reconciliation; confirmed does not POST again, draft enables a separate
+      confirm, failed GET remains locked, terminal states show recovery feedback.
+- [x] Quiz detail selects title and attempt aggregate; list/detail/progress
+      match for no attempts, 100%, zero, and multiple attempts. The open practice
+      panel updates from the returned server progress, and list refresh is read-only.
+- [x] Debounced document search sends q, resets to page 1, restores the default
+      list on clear, retries only GET, and drops old query/principal/unmounted results.
+- [x] RED: pre-fix UI regressions exposed missing query wiring and unsafe unknown
+      write controls; PG17 Nest detail returned title undefined. GREEN: focused
+      StudyCoachPanel 11/11 and real Nest/PG17 Study Coach DB test 1/1.
+- [x] New gates: typecheck/build/format exit 0; `npm test` API Vitest 393/393,
+      API Node 857/857, Web Vitest 500/500 (1,750 total); guarded PG17
+      `npm run test:database` 474/474. No failures/skips/cancellations.
+- [ ] Browser acceptance remains pending: this session exposes no browser
+      automation tool. These React/API/DB tests are not browser evidence.
+- [ ] Human semantic quiz quality review, F08-B flashcards, and F09 remain pending.
+
 ## F06.2 — synchronized dashboard refresh
 
 The toolbar refresh uses one generation across overview, the selected cost

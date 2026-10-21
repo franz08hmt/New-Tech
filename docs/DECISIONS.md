@@ -609,3 +609,17 @@ tests (1,741), build, format and guarded PG17 database tests (474 tests across
 that are non-owner and NOBYPASSRLS; only Auth upstream and provider SDK
 transports are synthetic. Browser acceptance and semantic-quality review remain
 pending; these local results do not establish cloud readiness or F09 quality.
+
+F08-A.1 verification note (21/10/2026): no schema or migration change was
+needed. The web holds an unknown attempt's quiz ID, key, and immutable payload;
+only a definite failure followed by an explicit return permits a new attempt.
+An unknown draft confirmation keeps confirm/cancel disabled until the owner GET
+reconciles it. The GET result is represented as typed state, not inferred from
+localized text. Confirmed, draft, and terminal reconciliation outcomes have
+distinct UI transitions; terminal recovery remains visible after the preview is
+removed. The server detail query now selects title and a tenant/user-scoped
+attempt aggregate. Attempt responses include server progress so the open quiz
+updates without resubmitting; list refresh remains a separate read. Document
+search uses the same bounded server endpoint and rejects stale principal/query
+responses. No change was made to quiz ownership, retention, migration 023,
+admission, or provider-call accounting.
