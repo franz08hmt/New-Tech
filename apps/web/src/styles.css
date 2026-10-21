@@ -3533,6 +3533,42 @@
   gap: 1rem;
   min-width: 0;
 }
+.study-coach-workspace {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.study-coach-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.study-coach-views button[aria-pressed="true"] {
+  border-color: var(--color-ai-accent);
+  box-shadow: inset 0 -2px 0 var(--color-ai-accent);
+}
+.study-coach-view-panel[hidden] {
+  display: none;
+}
+.study-flashcard {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--line, #d9deeb);
+  border-radius: 0.8rem;
+  overflow-wrap: anywhere;
+}
+.study-flashcard-preview-list {
+  display: grid;
+  gap: 1rem;
+  padding-inline-start: 1.5rem;
+}
+.study-flashcard-preview-list li {
+  min-width: 0;
+  padding: 0.8rem;
+  border: 1px solid var(--line, #d9deeb);
+  border-radius: 0.8rem;
+  overflow-wrap: anywhere;
+}
 .study-coach-header,
 .study-quiz-preview,
 .study-quiz-practice {

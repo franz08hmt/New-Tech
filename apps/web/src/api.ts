@@ -34,6 +34,22 @@ export type {
   StudyQuizListResponse,
   StudyQuizProgressResponse,
   StudyQuizSummary,
+  StudyFlashcardLanguage,
+  StudyFlashcardRating,
+  StudyFlashcardSource,
+  StudyFlashcardPreviewItem,
+  StudyFlashcardsGenerateRequest,
+  StudyFlashcardsGeneratedDraft,
+  StudyFlashcardsDraftReconciliation,
+  StudyFlashcardsConfirmRequest,
+  StudyFlashcardsSummary,
+  StudyFlashcardsListResponse,
+  StudyFlashcardsDetail,
+  StudyFlashcardsReviewRequest,
+  StudyFlashcardsReviewResult,
+  StudyFlashcardsProgress,
+  StudyFlashcardsProgressResponse,
+  StudyFlashcardsPreview,
   AssistantConversationMessagesResponse,
   AssistantConversationSaveMetadata,
   AssistantStreamStage,
@@ -140,6 +156,22 @@ import type {
   StudyQuizListResponse,
   StudyQuizProgressResponse,
   StudyQuizSummary,
+  StudyFlashcardLanguage,
+  StudyFlashcardRating,
+  StudyFlashcardSource,
+  StudyFlashcardPreviewItem,
+  StudyFlashcardsGenerateRequest,
+  StudyFlashcardsGeneratedDraft,
+  StudyFlashcardsDraftReconciliation,
+  StudyFlashcardsConfirmRequest,
+  StudyFlashcardsSummary,
+  StudyFlashcardsListResponse,
+  StudyFlashcardsDetail,
+  StudyFlashcardsReviewRequest,
+  StudyFlashcardsReviewResult,
+  StudyFlashcardsProgress,
+  StudyFlashcardsProgressResponse,
+  StudyFlashcardsPreview,
   AssistantStreamStage,
   Course,
   CourseSearchPage,
@@ -268,6 +300,64 @@ export async function request<T>(
 }
 
 export const api = {
+  generateStudyFlashcards: (input: StudyFlashcardsGenerateRequest) =>
+    request<StudyFlashcardsGeneratedDraft>(
+      "/api/study-coach/flashcards/generate",
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  confirmStudyFlashcards: (
+    draftId: string,
+    input: StudyFlashcardsConfirmRequest,
+  ) =>
+    request<StudyFlashcardsSummary>(
+      `/api/study-coach/flashcards/drafts/${encodeURIComponent(draftId)}/confirm`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  reconcileStudyFlashcardsDraft: (
+    draftId: string,
+    draftToken: string,
+    signal?: AbortSignal,
+  ) =>
+    request<StudyFlashcardsDraftReconciliation>(
+      `/api/study-coach/flashcards/drafts/${encodeURIComponent(draftId)}`,
+      { signal, headers: { "x-study-flashcard-draft-token": draftToken } },
+    ),
+  cancelStudyFlashcardsDraft: (
+    draftId: string,
+    input: StudyFlashcardsConfirmRequest,
+  ) =>
+    request<{ status: "cancelled" | "expired" }>(
+      `/api/study-coach/flashcards/drafts/${encodeURIComponent(draftId)}`,
+      { method: "DELETE", body: JSON.stringify(input) },
+    ),
+  listStudyFlashcards: (page = 1, pageSize = 20, signal?: AbortSignal) =>
+    request<StudyFlashcardsListResponse>(
+      `/api/study-coach/flashcards?page=${page}&pageSize=${pageSize}`,
+      { signal },
+    ),
+  getStudyFlashcards: (id: string, signal?: AbortSignal) =>
+    request<StudyFlashcardsDetail>(
+      `/api/study-coach/flashcards/${encodeURIComponent(id)}`,
+      { signal },
+    ),
+  deleteStudyFlashcards: (id: string) =>
+    request<{ status: "deleted" }>(
+      `/api/study-coach/flashcards/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    ),
+  submitStudyFlashcardsReview: (
+    id: string,
+    input: StudyFlashcardsReviewRequest,
+  ) =>
+    request<StudyFlashcardsReviewResult>(
+      `/api/study-coach/flashcards/${encodeURIComponent(id)}/reviews`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  getStudyFlashcardsProgress: (id: string, signal?: AbortSignal) =>
+    request<StudyFlashcardsProgressResponse>(
+      `/api/study-coach/flashcards/${encodeURIComponent(id)}/progress`,
+      { signal },
+    ),
   generateStudyQuiz: (input: StudyQuizGenerateRequest) =>
     request<StudyQuizGeneratedDraft>("/api/study-coach/quizzes/generate", {
       method: "POST",
