@@ -170,6 +170,8 @@ export function AssistantPanel({
   } | null>(null);
   const [selectionError, setSelectionError] = useState("");
   const [documentId, setDocumentId] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [aiSourceMode, setAiSourceMode] = useState<"general" | "documents">(
     assistant.mode === "general" ? "general" : "documents",
   );
@@ -208,6 +210,12 @@ export function AssistantPanel({
     (item) => item.id === documentId,
   );
   const documentsUnavailable = Boolean(documentsError);
+  const activeScopeMatches =
+    !assistant.activeConversation ||
+    (assistant.activeConversation.mode === assistant.mode &&
+      assistant.activeConversation.courseId === (courseId ?? null) &&
+      assistant.activeConversation.documentId ===
+        (assistant.mode === "documents" ? documentId || null : null));
   const prompts =
     assistant.mode === "workspace"
       ? workspacePrompts(workspaceCourse)
@@ -234,11 +242,27 @@ export function AssistantPanel({
   }, [assistant.draft, expanded, open, sourceScreen]);
 
   useEffect(() => {
+    const active = assistant.activeConversation;
+    const scopeMatches =
+      active &&
+      active.mode === assistant.mode &&
+      active.courseId === (courseId ?? null) &&
+      active.documentId ===
+        (assistant.mode === "documents" ? documentId || null : null);
+    // A saved transcript can be opened read-only from another page. Do not
+    // discard it just because the current source scope differs.
+    if (active && !scopeMatches) return;
     assistant.syncContext({
       courseId,
       ...(assistant.mode === "documents" && documentId ? { documentId } : {}),
     });
-  }, [assistant.syncContext, assistant.mode, courseId, documentId]);
+  }, [
+    assistant.activeConversation,
+    assistant.syncContext,
+    assistant.mode,
+    courseId,
+    documentId,
+  ]);
 
   useEffect(() => {
     // A reset removes the source opener along with its answer; do not leave a
@@ -465,6 +489,149 @@ export function AssistantPanel({
             >
               Cuộc trò chuyện mới
             </button>
+            <button
+              type="button"
+              aria-expanded={historyOpen}
+              onClick={() => {
+                const opening = !historyOpen;
+                setHistoryOpen(opening);
+                if (opening) void assistant.loadConversationHistory(false);
+              }}
+            >
+              {historyOpen ? "Đóng lịch sử" : "Lịch sử đã lưu"}
+            </button>
+            {assistant.conversationSaveState && (
+              <p role="status" className="assistant-save-status">
+                {assistant.conversationSaveState === "saved"
+                  ? "Đã lưu cuộc trò chuyện"
+                  : assistant.conversationSaveState === "saving"
+                    ? "Đang lưu câu trả lời…"
+                    : assistant.conversationSaveState === "unknown"
+                      ? "Chưa xác định được trạng thái lưu. Hãy đối chiếu lịch sử trước khi thử lưu tiếp."
+                      : "Câu trả lời chưa được lưu vào hội thoại."}
+                {assistant.conversationSaveState !== "saved" &&
+                  assistant.activeConversation &&
+                  assistant.messages.some((message) => message.feedback) && (
+                    <button
+                      type="button"
+                      onClick={() => void assistant.retryConversationSave()}
+                    >
+                      {assistant.conversationSaveState === "unknown"
+                        ? "Đối chiếu trạng thái lưu"
+                        : "Thử lưu lại (không gửi lại AI)"}
+                    </button>
+                  )}
+                {assistant.conversationSaveError && (
+                  <span role="alert"> {assistant.conversationSaveError}</span>
+                )}
+              </p>
+            )}
+            {assistant.activeConversation && !activeScopeMatches && (
+              <p role="status">
+                Cuộc trò chuyện thuộc ngữ cảnh khác. Bạn có thể đọc lại; hãy bắt
+                đầu cuộc trò chuyện mới để hỏi trong ngữ cảnh hiện tại.
+              </p>
+            )}
+            {historyOpen && (
+              <section
+                className="assistant-saved-history"
+                aria-label="Lịch sử hội thoại đã lưu"
+              >
+                <div className="assistant-history-heading">
+                  <strong>Lịch sử của bạn</strong>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void assistant.loadConversationHistory(false)
+                    }
+                  >
+                    Làm mới
+                  </button>
+                </div>
+                {assistant.historyLoading && (
+                  <p role="status">Đang tải lịch sử…</p>
+                )}
+                {assistant.historyError && (
+                  <p role="alert">
+                    {assistant.historyError}{" "}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void assistant.loadConversationHistory(false)
+                      }
+                    >
+                      Thử đọc lại
+                    </button>
+                  </p>
+                )}
+                {!assistant.historyLoading &&
+                  !assistant.historyError &&
+                  assistant.savedConversations.length === 0 && (
+                    <p>Chưa có cuộc trò chuyện đã lưu.</p>
+                  )}
+                {assistant.savedConversations.map((item) => (
+                  <div className="assistant-history-row" key={item.id}>
+                    <button
+                      type="button"
+                      className="assistant-history-open"
+                      onClick={() => {
+                        setHistoryOpen(false);
+                        void assistant
+                          .openConversation(item.id)
+                          .then((opened) => {
+                            if (opened)
+                              setDocumentId(
+                                opened.mode === "documents"
+                                  ? (opened.documentId ?? "")
+                                  : "",
+                              );
+                          });
+                      }}
+                    >
+                      <span>{item.title}</span>
+                      <small>{new Date(item.updatedAt).toLocaleString()}</small>
+                    </button>
+                    {confirmDeleteId === item.id ? (
+                      <span>
+                        <span>Xóa hẳn nội dung?</span>{" "}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setConfirmDeleteId(null);
+                            void assistant.deleteConversation(item.id);
+                          }}
+                        >
+                          Xóa
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteId(null)}
+                        >
+                          Hủy
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        aria-label={`Xóa ${item.title}`}
+                        onClick={() => setConfirmDeleteId(item.id)}
+                      >
+                        Xóa
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {assistant.historyHasMore && (
+                  <button
+                    type="button"
+                    disabled={assistant.historyLoading}
+                    onClick={() => void assistant.loadConversationHistory(true)}
+                  >
+                    Xem hội thoại cũ hơn
+                  </button>
+                )}
+              </section>
+            )}
             {assistant.contextNotice && (
               <p role="status">{assistant.contextNotice}</p>
             )}
@@ -824,6 +991,12 @@ export function AssistantPanel({
         hidden={sourceScreen}
         onSubmit={(event) => {
           event.preventDefault();
+          if (!activeScopeMatches) {
+            setSelectionError(
+              "Hãy bắt đầu cuộc trò chuyện mới trong phạm vi hiện tại.",
+            );
+            return;
+          }
           if (assistant.mode === "documents" && documentsUnavailable) return;
           const mentionsPdf =
             assistant.mode === "documents" && /\.pdf\b/iu.test(assistant.draft);
@@ -902,6 +1075,7 @@ export function AssistantPanel({
           type="submit"
           disabled={
             !assistant.canSend ||
+            !activeScopeMatches ||
             (assistant.mode === "documents" && documentsUnavailable)
           }
         >

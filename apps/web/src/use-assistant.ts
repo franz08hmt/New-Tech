@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type {
   AssistantMetadataSource,
   AssistantMode,
@@ -8,7 +14,10 @@ import type {
   AssistantFeedbackSnapshot,
   AssistantHistoryTurn,
   AssistantStreamStage,
+  AssistantConversationSummary,
+  AssistantConversationSaveMetadata,
 } from "@examate/contracts";
+import { api } from "./api";
 
 /*
  * The conversation behind the ExaMate AI panel.
@@ -74,6 +83,8 @@ export type AskTransport = (
   operation: AssistantOperation,
   options?: {
     history?: AssistantHistoryTurn[];
+    conversationId?: string;
+    conversationVersion?: number;
     signal?: AbortSignal;
     onDelta?: (text: string) => void;
     onStatus?: (stage: AssistantStreamStage) => void;
@@ -86,6 +97,7 @@ export type AskTransport = (
   response?: AssistantChatResponse;
   /** UUID issued by the server; never generated from client randomness. */
   answerId?: string;
+  conversationSave?: AssistantConversationSaveMetadata;
 }>;
 
 export type AssistantStatus = "unavailable" | "idle" | "sending" | "error";
@@ -102,6 +114,19 @@ export interface AssistantState {
   setMode: (mode: AssistantMode) => void;
   contextNotice: string;
   conversationVersion: number;
+  activeConversation: AssistantConversationSummary | null;
+  conversationSaveState: "saved" | "saving" | "not_saved" | "unknown" | null;
+  savedConversations: AssistantConversationSummary[];
+  historyLoading: boolean;
+  historyError: string;
+  historyHasMore: boolean;
+  conversationSaveError: string;
+  retryConversationSave: () => Promise<void>;
+  loadConversationHistory: (append?: boolean) => Promise<void>;
+  openConversation: (
+    id: string,
+  ) => Promise<AssistantConversationSummary | null>;
+  deleteConversation: (id: string) => Promise<void>;
   resetConversation: (note?: string) => void;
   syncContext: (
     context: Pick<AssistantContext, "courseId" | "documentId">,
@@ -113,7 +138,11 @@ export interface AssistantState {
   cancel: () => void;
 }
 
-export function useAssistant(transport?: AskTransport): AssistantState {
+export function useAssistant(
+  transport?: AskTransport,
+  persistConversations = false,
+  principalKey = "",
+): AssistantState {
   const [draft, setDraftState] = useState("");
   const draftRevision = useRef(0);
   const setDraft = useCallback((value: string) => {
@@ -145,6 +174,43 @@ export function useAssistant(transport?: AskTransport): AssistantState {
   const scope = useRef<string | undefined>(undefined);
   const [contextNotice, setContextNotice] = useState("");
   const [conversationVersion, setConversationVersion] = useState(0);
+  const [activeConversation, setActiveConversation] =
+    useState<AssistantConversationSummary | null>(null);
+  const activeConversationRef = useRef<AssistantConversationSummary | null>(
+    null,
+  );
+  const [conversationSaveState, setConversationSaveState] =
+    useState<AssistantState["conversationSaveState"]>(null);
+  const [conversationSaveError, setConversationSaveError] = useState("");
+  const pendingSave = useRef<{
+    conversationId: string;
+    receiptId: string;
+    expectedVersion: number;
+    snapshot: AssistantFeedbackSnapshot;
+  } | null>(null);
+  const [savedConversations, setSavedConversations] = useState<
+    AssistantConversationSummary[]
+  >([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [historyHasMore, setHistoryHasMore] = useState(false);
+  const historyPage = useRef(0);
+  const historyEpoch = useRef(0);
+  const historyAbort = useRef<AbortController | null>(null);
+  const saveResolutionAbort = useRef<AbortController | null>(null);
+  const saveResolutionEpoch = useRef(0);
+  const pendingCreateKey = useRef<string | null>(null);
+  const principalKeyRef = useRef(principalKey);
+  principalKeyRef.current = principalKey;
+  const committedPrincipalKey = useRef(principalKey);
+
+  const setActive = useCallback(
+    (conversation: AssistantConversationSummary | null) => {
+      activeConversationRef.current = conversation;
+      setActiveConversation(conversation);
+    },
+    [],
+  );
 
   const resetConversation = useCallback(
     (note = "Đã mở cuộc hội thoại mới. Ngữ cảnh cũ không được gửi tiếp.") => {
@@ -152,17 +218,40 @@ export function useAssistant(transport?: AskTransport): AssistantState {
       setConversationVersion((value) => value + 1);
       pending.current?.abort();
       pending.current = null;
+      historyAbort.current?.abort();
+      historyEpoch.current++;
+      saveResolutionAbort.current?.abort();
+      saveResolutionAbort.current = null;
+      saveResolutionEpoch.current++;
+      setHistoryLoading(false);
       activeStreamMessage.current = null;
       inFlight.current = false;
       history.current = [];
+      setActive(null);
+      pendingCreateKey.current = null;
+      setConversationSaveState(null);
+      setConversationSaveError("");
+      pendingSave.current = null;
       setMessages([]);
       setStatus(transport ? "idle" : "unavailable");
       setStreamStage(null);
       setErrorMessage("");
       setContextNotice(note);
     },
-    [transport],
+    [setActive, transport],
   );
+
+  useLayoutEffect(() => {
+    if (committedPrincipalKey.current === principalKey) return;
+    committedPrincipalKey.current = principalKey;
+    resetConversation(
+      "Phiên hoặc workspace đã đổi. Dữ liệu hội thoại cũ đã được xóa khỏi màn hình.",
+    );
+    historyPage.current = 0;
+    setSavedConversations([]);
+    setHistoryError("");
+    setHistoryHasMore(false);
+  }, [principalKey, resetConversation]);
 
   const syncContext = useCallback(
     (context: Pick<AssistantContext, "courseId" | "documentId">) => {
@@ -183,12 +272,18 @@ export function useAssistant(transport?: AskTransport): AssistantState {
     () => () => {
       epoch.current++;
       pending.current?.abort();
+      saveResolutionAbort.current?.abort();
     },
     [],
   );
 
   const canSend =
-    Boolean(transport) && draft.trim().length > 0 && status !== "sending";
+    Boolean(transport) &&
+    draft.trim().length > 0 &&
+    !historyLoading &&
+    status !== "sending" &&
+    conversationSaveState !== "not_saved" &&
+    conversationSaveState !== "unknown";
 
   const send = useCallback(
     async (
@@ -275,7 +370,46 @@ export function useAssistant(transport?: AskTransport): AssistantState {
       setStatus("sending");
       setStreamStage(null);
       setErrorMessage("");
+      let persistent = activeConversationRef.current;
       try {
+        if (persistConversations && !persistent) {
+          const retryingCreate = pendingCreateKey.current !== null;
+          pendingCreateKey.current ??= crypto.randomUUID();
+          let createKey = pendingCreateKey.current;
+          if (retryingCreate && createKey) {
+            const reconciliation =
+              await api.reconcileAssistantConversationCreate(
+                createKey,
+                controller.signal,
+              );
+            if (requestEpoch !== epoch.current || controller.signal.aborted)
+              return;
+            if (reconciliation.state === "found") {
+              persistent = reconciliation.conversation;
+              pendingCreateKey.current = null;
+            } else if (reconciliation.state === "deleted") {
+              createKey = crypto.randomUUID();
+              pendingCreateKey.current = createKey;
+            }
+          }
+          if (!persistent) {
+            persistent = await api.createAssistantConversation(
+              {
+                createKey: pendingCreateKey.current!,
+                mode: requestMode,
+                courseId: requestContext.courseId ?? null,
+                documentId: requestContext.documentId ?? null,
+                firstQuestion: question,
+              },
+              controller.signal,
+            );
+          }
+          if (requestEpoch !== epoch.current || controller.signal.aborted)
+            return;
+          pendingCreateKey.current = null;
+          setActive(persistent);
+        }
+        setConversationSaveState("saving");
         const reply = await transport(
           question,
           requestContext,
@@ -283,13 +417,28 @@ export function useAssistant(transport?: AskTransport): AssistantState {
           requestOperation,
           {
             signal: controller.signal,
-            ...(requestMode !== "workspace" && requestOperation === "question"
-              ? { history: prior }
-              : {}),
+            ...(persistent
+              ? {
+                  conversationId: persistent.id,
+                  conversationVersion: persistent.version,
+                }
+              : requestMode !== "workspace" && requestOperation === "question"
+                ? { history: prior }
+                : {}),
             ...(requestOperation === "question" ? { onDelta, onStatus } : {}),
           },
         );
         if (requestEpoch !== epoch.current || controller.signal.aborted) return;
+        if (reply.conversationSave) {
+          setConversationSaveState(reply.conversationSave.state);
+          if (reply.conversationSave.version !== undefined && persistent) {
+            persistent = {
+              ...persistent,
+              version: reply.conversationSave.version,
+            };
+            setActive(persistent);
+          }
+        } else if (persistent) setConversationSaveState("unknown");
         const answerId =
           reply.answerId &&
           /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -320,7 +469,21 @@ export function useAssistant(transport?: AskTransport): AssistantState {
                 ) as AssistantFeedbackSnapshot,
               }
             : undefined;
-        if (feedback && requestMode !== "workspace")
+        if (persistent && feedback && reply.conversationSave) {
+          if (reply.conversationSave.state === "saved") {
+            pendingSave.current = null;
+            setConversationSaveError("");
+          } else {
+            pendingSave.current = {
+              conversationId: persistent.id,
+              receiptId: feedback.answerId,
+              expectedVersion:
+                reply.conversationSave.version ?? persistent.version,
+              snapshot: feedback.snapshot,
+            };
+          }
+        }
+        if (feedback && requestMode !== "workspace" && !persistent)
           history.current = [
             ...history.current,
             { receiptId: feedback.answerId, snapshot: feedback.snapshot },
@@ -390,6 +553,7 @@ export function useAssistant(transport?: AskTransport): AssistantState {
             : "Chưa gửi được câu hỏi. Bản nháp vẫn còn nguyên, thử lại nhé.",
         );
         setStatus("error");
+        if (persistent) setConversationSaveState(null);
         setStreamStage(null);
       } finally {
         if (requestEpoch === epoch.current && pending.current === controller) {
@@ -399,8 +563,281 @@ export function useAssistant(transport?: AskTransport): AssistantState {
         }
       }
     },
-    [draft, mode, transport, syncContext],
+    [draft, mode, persistConversations, setActive, transport, syncContext],
   );
+
+  const loadConversationHistory = useCallback(
+    async (append = false) => {
+      if (historyLoading) return;
+      const requestedPage = append ? historyPage.current + 1 : 1;
+      historyAbort.current?.abort();
+      const controller = new AbortController();
+      historyAbort.current = controller;
+      const requestEpoch = ++historyEpoch.current;
+      setHistoryLoading(true);
+      setHistoryError("");
+      try {
+        const response = await api.listAssistantConversations(
+          requestedPage,
+          20,
+          controller.signal,
+        );
+        if (requestEpoch !== historyEpoch.current || controller.signal.aborted)
+          return;
+        setSavedConversations((current) =>
+          requestedPage === 1
+            ? response.items
+            : [...current, ...response.items],
+        );
+        historyPage.current = requestedPage;
+        setHistoryHasMore(requestedPage < response.totalPages);
+      } catch (error) {
+        if (requestEpoch !== historyEpoch.current || controller.signal.aborted)
+          return;
+        setHistoryError(
+          error instanceof Error
+            ? error.message
+            : "Chưa tải được lịch sử. Hãy thử đọc lại.",
+        );
+      } finally {
+        if (requestEpoch === historyEpoch.current) setHistoryLoading(false);
+      }
+    },
+    [historyLoading],
+  );
+
+  const openConversation = useCallback(
+    async (id: string) => {
+      historyAbort.current?.abort();
+      saveResolutionAbort.current?.abort();
+      saveResolutionAbort.current = null;
+      saveResolutionEpoch.current++;
+      const controller = new AbortController();
+      historyAbort.current = controller;
+      const requestEpoch = ++historyEpoch.current;
+      epoch.current++;
+      pending.current?.abort();
+      pending.current = null;
+      inFlight.current = false;
+      setActive(null);
+      setMessages([]);
+      history.current = [];
+      pendingCreateKey.current = null;
+      setConversationSaveState(null);
+      setConversationSaveError("");
+      pendingSave.current = null;
+      activeStreamMessage.current = null;
+      setStatus(transport ? "idle" : "unavailable");
+      setErrorMessage("");
+      setHistoryLoading(true);
+      setHistoryError("");
+      try {
+        const first = await api.getAssistantConversationMessages(
+          id,
+          1,
+          50,
+          controller.signal,
+        );
+        let turns = first.items;
+        for (let page = 2; page <= first.totalPages; page++) {
+          const next = await api.getAssistantConversationMessages(
+            id,
+            page,
+            50,
+            controller.signal,
+          );
+          turns = [...turns, ...next.items];
+        }
+        if (requestEpoch !== historyEpoch.current || controller.signal.aborted)
+          return null;
+        const conversation = first.conversation;
+        const loaded = turns.flatMap((turn) => {
+          const snapshot = turn.snapshot;
+          const citations = snapshot.response.citations.map((item) => ({
+            id: item.sourceId,
+            title: item.title,
+            locator:
+              item.page === null
+                ? `đoạn ${item.chunkIndex + 1}`
+                : `tr. ${item.page}`,
+            documentId: item.documentId,
+            page: item.page,
+          }));
+          return [
+            {
+              id: `${turn.id}-q`,
+              role: "user" as const,
+              text: snapshot.request.question,
+              citations: [],
+            },
+            {
+              id: `${turn.id}-a`,
+              role: "assistant" as const,
+              text: snapshot.response.answer,
+              citations,
+              feedback: { answerId: turn.receiptId, snapshot },
+              ...(snapshot.response.mode === "workspace"
+                ? { workspaceSources: snapshot.response.workspaceSources }
+                : {}),
+              ...(snapshot.response.mode === "documents" &&
+              snapshot.response.reasonCode === "DOCUMENT_METADATA"
+                ? { metadataSource: snapshot.response.metadataSource }
+                : {}),
+            },
+          ];
+        });
+        epoch.current++;
+        history.current = turns
+          .filter((turn) => turn.snapshot.request.mode !== "workspace")
+          .slice(-6)
+          .map((turn) => ({
+            receiptId: turn.receiptId,
+            snapshot: turn.snapshot,
+          }));
+        scope.current = JSON.stringify([
+          conversation.courseId,
+          conversation.documentId,
+        ]);
+        setModeState(conversation.mode);
+        setActive(conversation);
+        setConversationVersion(conversation.version);
+        setConversationSaveState("saved");
+        setMessages(loaded);
+        setStreamStage(null);
+        return conversation;
+      } catch (error) {
+        if (requestEpoch !== historyEpoch.current || controller.signal.aborted)
+          return null;
+        setHistoryError(
+          error instanceof Error
+            ? error.message
+            : "Không mở được cuộc trò chuyện này.",
+        );
+        return null;
+      } finally {
+        if (requestEpoch === historyEpoch.current) setHistoryLoading(false);
+      }
+    },
+    [setActive, transport],
+  );
+
+  const deleteConversation = useCallback(
+    async (id: string) => {
+      const requestPrincipal = principalKeyRef.current;
+      setHistoryError("");
+      try {
+        await api.deleteAssistantConversation(id);
+        if (principalKeyRef.current !== requestPrincipal) return;
+        setSavedConversations((items) =>
+          items.filter((item) => item.id !== id),
+        );
+        if (activeConversationRef.current?.id === id) resetConversation();
+      } catch (error) {
+        if (principalKeyRef.current !== requestPrincipal) return;
+        setHistoryError(
+          error instanceof Error
+            ? `${error.message} Lịch sử đang được đối chiếu lại.`
+            : "Chưa xác nhận được thao tác xóa. Lịch sử đang được đối chiếu lại.",
+        );
+        void loadConversationHistory(false);
+      }
+    },
+    [loadConversationHistory, resetConversation],
+  );
+
+  const retryConversationSave = useCallback(async () => {
+    const pendingTurn = pendingSave.current;
+    if (!pendingTurn || saveResolutionAbort.current) return;
+    const requestPrincipal = principalKeyRef.current;
+    const requestConversationId = pendingTurn.conversationId;
+    const requestEpoch = ++saveResolutionEpoch.current;
+    const controller = new AbortController();
+    saveResolutionAbort.current = controller;
+    const isCurrent = () =>
+      requestEpoch === saveResolutionEpoch.current &&
+      !controller.signal.aborted &&
+      principalKeyRef.current === requestPrincipal &&
+      activeConversationRef.current?.id === requestConversationId;
+    setConversationSaveError("");
+    setConversationSaveState("saving");
+    try {
+      if (conversationSaveState === "unknown") {
+        let response = await api.getAssistantConversationMessages(
+          pendingTurn.conversationId,
+          1,
+          50,
+          controller.signal,
+        );
+        if (!isCurrent()) return;
+        if (response.totalPages > 2) {
+          setConversationSaveState("unknown");
+          setConversationSaveError(
+            "Chưa đối chiếu được lượt lưu trong giới hạn an toàn. Hãy tải lại hội thoại từ danh sách lịch sử.",
+          );
+          return;
+        }
+        let turns = response.items;
+        for (let page = 2; page <= response.totalPages; page++) {
+          const next = await api.getAssistantConversationMessages(
+            pendingTurn.conversationId,
+            page,
+            50,
+            controller.signal,
+          );
+          if (!isCurrent()) return;
+          turns = [...turns, ...next.items];
+          response = next;
+        }
+        if (!isCurrent()) return;
+        setActive(response.conversation);
+        if (turns.some((turn) => turn.receiptId === pendingTurn.receiptId)) {
+          pendingSave.current = null;
+          setConversationSaveState("saved");
+          setConversationSaveError("");
+        } else {
+          pendingTurn.expectedVersion = response.conversation.version;
+          setConversationSaveState("not_saved");
+          setConversationSaveError(
+            "Lượt này chưa có trong hội thoại. Bạn có thể chủ động thử lưu lại; ExaMate sẽ không gửi lại câu hỏi cho AI.",
+          );
+        }
+        return;
+      }
+      const result = await api.retrySaveAssistantTurn(
+        pendingTurn.conversationId,
+        {
+          receiptId: pendingTurn.receiptId,
+          expectedVersion: pendingTurn.expectedVersion,
+          snapshot: pendingTurn.snapshot,
+        },
+        controller.signal,
+      );
+      if (!isCurrent()) return;
+      setConversationSaveState(result.state);
+      if (result.version !== undefined) {
+        const updated = {
+          ...activeConversationRef.current,
+          version: result.version,
+        };
+        if (updated.id) setActive(updated as AssistantConversationSummary);
+        pendingTurn.expectedVersion = result.version;
+      }
+      if (result.state === "saved") pendingSave.current = null;
+      else if (result.state === "unknown")
+        setConversationSaveError(
+          "Chưa xác định được kết quả lưu. Hãy mở lịch sử để đối chiếu trước khi thử lại.",
+        );
+    } catch {
+      if (!isCurrent()) return;
+      setConversationSaveState("unknown");
+      setConversationSaveError(
+        "Chưa xác định được kết quả ghi. Hãy đối chiếu lịch sử trước khi thử lưu tiếp.",
+      );
+    } finally {
+      if (saveResolutionAbort.current === controller)
+        saveResolutionAbort.current = null;
+    }
+  }, [conversationSaveState, setActive]);
 
   const cancel = useCallback(() => {
     const controller = pending.current;
@@ -434,6 +871,14 @@ export function useAssistant(transport?: AskTransport): AssistantState {
     [mode, resetConversation],
   );
 
+  useEffect(
+    () => () => {
+      historyAbort.current?.abort();
+      historyEpoch.current++;
+    },
+    [],
+  );
+
   return {
     draft,
     setDraft,
@@ -446,6 +891,17 @@ export function useAssistant(transport?: AskTransport): AssistantState {
     setMode,
     contextNotice,
     conversationVersion,
+    activeConversation,
+    conversationSaveState,
+    savedConversations,
+    historyLoading,
+    historyError,
+    historyHasMore,
+    conversationSaveError,
+    retryConversationSave,
+    loadConversationHistory,
+    openConversation,
+    deleteConversation,
     resetConversation,
     syncContext,
     send,

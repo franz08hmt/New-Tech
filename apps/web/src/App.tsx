@@ -240,6 +240,13 @@ export function WorkspaceApp() {
       const { courseId, documentId, ...screenContext } = pageContext;
       try {
         let answerId: string | undefined;
+        let conversationSave:
+          | {
+              state: "saved" | "not_saved" | "unknown";
+              version?: number;
+              answerId?: string;
+            }
+          | undefined;
         const request = {
           message: question,
           mode,
@@ -247,6 +254,12 @@ export function WorkspaceApp() {
           pageContext: screenContext,
           ...(courseId ? { courseId } : {}),
           ...(documentId ? { documentId } : {}),
+          ...(options?.conversationId
+            ? {
+                conversationId: options.conversationId,
+                conversationVersion: options.conversationVersion,
+              }
+            : {}),
           ...(options?.history ? { history: options.history } : {}),
         };
         const response =
@@ -260,6 +273,7 @@ export function WorkspaceApp() {
                 )
                 .then((stream) => {
                   answerId = stream.answerId;
+                  conversationSave = stream.conversationSave;
                   return stream.response;
                 })
             : await api.askAssistant(
@@ -268,6 +282,9 @@ export function WorkspaceApp() {
                   answerId = id;
                 },
                 options?.signal,
+                (metadata) => {
+                  conversationSave = metadata;
+                },
               );
         // Workspace answers come from records, not a model: shown as sent,
         // with their record links instead of PDF citations.
@@ -275,6 +292,7 @@ export function WorkspaceApp() {
           return {
             answerId,
             response,
+            ...(conversationSave ? { conversationSave } : {}),
             text: response.answer,
             citations: [],
             workspaceSources: response.workspaceSources,
@@ -287,6 +305,7 @@ export function WorkspaceApp() {
         return {
           answerId,
           response,
+          ...(conversationSave ? { conversationSave } : {}),
           text: [translated ?? response.answer, coverageWarning]
             .filter(Boolean)
             .join("\n\n"),
@@ -319,6 +338,8 @@ export function WorkspaceApp() {
         throw new Error(assistantErrorMessage(error));
       }
     },
+    true,
+    `${principal?.workspaceId ?? ""}:${principal?.userId ?? ""}`,
   );
   // Compact or expanded is App's too, beside open/closed: resizing restyles
   // the one panel and never remounts it, so nothing in it is reset.

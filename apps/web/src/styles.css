@@ -31,6 +31,42 @@
   font-size: 12px;
   line-height: 1.5;
 }
+.assistant-saved-history {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-paper);
+}
+.assistant-history-heading,
+.assistant-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.assistant-history-row {
+  border-top: 1px solid var(--color-line);
+  padding-top: 8px;
+}
+.assistant-history-open {
+  display: grid;
+  min-width: 0;
+  text-align: left;
+}
+.assistant-history-open span {
+  overflow-wrap: anywhere;
+}
+.assistant-history-open small {
+  color: var(--color-muted);
+}
+.assistant-save-status {
+  display: grid;
+  gap: 6px;
+}
 .assistant-feedback button[aria-pressed="true"] {
   border-color: var(--color-ai-accent);
   background: var(--color-ai-accent-soft);

@@ -3,13 +3,19 @@ import {
   fireEvent,
   render,
   screen,
+  within,
   waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { AssistantPanel } from "./AssistantPanel";
 import { useAssistant, type AskTransport } from "./use-assistant";
-import type { StoredDocument } from "./api";
+import { api, type StoredDocument } from "./api";
+import type {
+  AssistantChatResponse,
+  AssistantConversationSummary,
+  AssistantFeedbackSnapshot,
+} from "@examate/contracts";
 
 /**
  * These drive the panel with a fixture transport. They prove the seam Thắng
@@ -19,11 +25,15 @@ import type { StoredDocument } from "./api";
 function Harness({
   transport,
   documents,
+  persist = false,
+  identityKey = "fixture-user-a",
 }: {
   transport?: AskTransport;
   documents?: StoredDocument[];
+  persist?: boolean;
+  identityKey?: string;
 }) {
-  const assistant = useAssistant(transport);
+  const assistant = useAssistant(transport, persist, identityKey);
   return (
     <AssistantPanel
       open
@@ -40,9 +50,528 @@ function Harness({
   );
 }
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe("ExaMate AI seam", () => {
+  it("persists completed turns by server conversation ID and version without sending client history", async () => {
+    const conversation: AssistantConversationSummary = {
+      id: "66666666-6666-4666-8666-666666666666",
+      mode: "documents",
+      courseId: null,
+      documentId: null,
+      title: "First question",
+      version: 0,
+      turnCount: 0,
+      createdAt: "2026-09-15T08:00:00.000Z",
+      updatedAt: "2026-09-15T08:00:00.000Z",
+      expiresAt: "2026-12-14T08:00:00.000Z",
+    };
+    const create = vi
+      .spyOn(api, "createAssistantConversation")
+      .mockResolvedValue(conversation);
+    const transport = vi.fn<AskTransport>(
+      async (_question, _context, _mode, _operation, options) => ({
+        text: "Saved answer.",
+        citations: [],
+        conversationSave: {
+          state: "saved",
+          version: (options?.conversationVersion ?? 0) + 1,
+        },
+      }),
+    );
+    render(<Harness transport={transport} persist />);
+    const composer = screen.getByRole("textbox");
+
+    fireEvent.change(composer, { target: { value: "First question" } });
+    fireEvent.submit(composer.closest("form")!);
+    await screen.findByText("Saved answer.");
+    expect(create).toHaveBeenCalledOnce();
+    expect(transport.mock.calls[0][4]).toEqual(
+      expect.objectContaining({
+        conversationId: conversation.id,
+        conversationVersion: 0,
+      }),
+    );
+    expect(transport.mock.calls[0][4]).not.toHaveProperty("history");
+
+    fireEvent.change(composer, { target: { value: "Follow-up question" } });
+    fireEvent.submit(composer.closest("form")!);
+    await waitFor(() =>
+      expect(
+        document.querySelectorAll(".assistant-messages > .is-assistant"),
+      ).toHaveLength(2),
+    );
+    expect(transport).toHaveBeenCalledTimes(2);
+    expect(transport.mock.calls[1][4]).toEqual(
+      expect.objectContaining({
+        conversationId: conversation.id,
+        conversationVersion: 1,
+      }),
+    );
+    expect(transport.mock.calls[1][4]).not.toHaveProperty("history");
+  });
+
+  it("reconciles an uncertain create before posting another conversation", async () => {
+    const conversation: AssistantConversationSummary = {
+      id: "66666666-6666-4666-8666-666666666666",
+      mode: "general",
+      courseId: null,
+      documentId: null,
+      title: "First question",
+      version: 0,
+      turnCount: 0,
+      createdAt: "2026-09-15T08:00:00.000Z",
+      updatedAt: "2026-09-15T08:00:00.000Z",
+      expiresAt: "2026-12-14T08:00:00.000Z",
+    };
+    const create = vi
+      .spyOn(api, "createAssistantConversation")
+      .mockRejectedValueOnce(new Error("response lost"));
+    const reconcile = vi
+      .spyOn(api, "reconcileAssistantConversationCreate")
+      .mockResolvedValue({ state: "found", conversation });
+    const transport = vi.fn<AskTransport>(async () => ({
+      text: "Answer",
+      citations: [],
+      conversationSave: { state: "saved", version: 1 },
+    }));
+    render(<Harness transport={transport} persist />);
+    fireEvent.click(screen.getByRole("radio", { name: "Kiến thức chung" }));
+    const composer = screen.getByLabelText("Câu hỏi cho ExaMate");
+    fireEvent.change(composer, { target: { value: "First question" } });
+    fireEvent.submit(composer.closest("form")!);
+    expect(await screen.findByRole("alert")).toHaveTextContent("response lost");
+
+    fireEvent.submit(composer.closest("form")!);
+    expect(await screen.findByText("Answer")).toBeInTheDocument();
+    expect(create).toHaveBeenCalledOnce();
+    expect(reconcile).toHaveBeenCalledOnce();
+    expect(reconcile.mock.calls[0][0]).toBe(create.mock.calls[0][0].createKey);
+    expect(transport.mock.calls[0][4]).toEqual(
+      expect.objectContaining({ conversationId: conversation.id }),
+    );
+  });
+
+  it("uses GET to reconcile an unknown save and never reposts a found turn", async () => {
+    const conversation: AssistantConversationSummary = {
+      id: "66666666-6666-4666-8666-666666666666",
+      mode: "general",
+      courseId: null,
+      documentId: null,
+      title: "First question",
+      version: 1,
+      turnCount: 1,
+      createdAt: "2026-09-15T08:00:00.000Z",
+      updatedAt: "2026-09-15T08:00:00.000Z",
+      expiresAt: "2026-12-14T08:00:00.000Z",
+    };
+    const answerId = "88888888-8888-4888-8888-888888888888";
+    const response: AssistantChatResponse = {
+      mode: "general",
+      answer: "Saved answer",
+      answerable: true,
+      promptVersion: "general-v1",
+      reasonCode: "ANSWER_GENERATED",
+      citations: [],
+      provider: "google",
+      model: "gemini-fixture",
+      ragEnabled: false,
+    };
+    const snapshot: AssistantFeedbackSnapshot = {
+      schemaVersion: 1,
+      request: { mode: "general", operation: "question", question: "Q" },
+      response,
+    };
+    const transport = vi.fn<AskTransport>(async () => ({
+      text: "Saved answer",
+      citations: [],
+      response,
+      answerId,
+      conversationSave: { state: "unknown", answerId },
+    }));
+    const create = vi
+      .spyOn(api, "createAssistantConversation")
+      .mockResolvedValue(conversation);
+    const messages = vi
+      .spyOn(api, "getAssistantConversationMessages")
+      .mockResolvedValue({
+        conversation,
+        items: [
+          {
+            id: "77777777-7777-4777-8777-777777777777",
+            sequence: 1,
+            receiptId: answerId,
+            snapshot,
+            createdAt: conversation.createdAt,
+          },
+        ],
+        page: 1,
+        pageSize: 50,
+        total: 1,
+        totalPages: 1,
+      });
+    const retry = vi.spyOn(api, "retrySaveAssistantTurn");
+    render(<Harness transport={transport} persist />);
+    fireEvent.click(screen.getByRole("radio", { name: "Kiến thức chung" }));
+    const composer = screen.getByLabelText("Câu hỏi cho ExaMate");
+    fireEvent.change(composer, { target: { value: "Q" } });
+    fireEvent.submit(composer.closest("form")!);
+    await screen.findByText("Saved answer");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Đối chiếu trạng thái lưu" }),
+    );
+
+    await waitFor(() =>
+      expect(
+        document.querySelector(".assistant-save-status"),
+      ).toHaveTextContent("Đã lưu cuộc trò chuyện"),
+    );
+    expect(create).toHaveBeenCalledOnce();
+    expect(messages).toHaveBeenCalledWith(
+      conversation.id,
+      1,
+      50,
+      expect.any(AbortSignal),
+    );
+    expect(retry).not.toHaveBeenCalled();
+    expect(transport).toHaveBeenCalledOnce();
+  });
+
+  it("drops a pending save reconciliation when the principal changes", async () => {
+    const conversation: AssistantConversationSummary = {
+      id: "66666666-6666-4666-8666-666666666666",
+      mode: "general",
+      courseId: null,
+      documentId: null,
+      title: "First question",
+      version: 0,
+      turnCount: 0,
+      createdAt: "2026-09-15T08:00:00.000Z",
+      updatedAt: "2026-09-15T08:00:00.000Z",
+      expiresAt: "2026-12-14T08:00:00.000Z",
+    };
+    const response: AssistantChatResponse = {
+      mode: "general",
+      answer: "Old account answer",
+      answerable: true,
+      promptVersion: "general-v1",
+      reasonCode: "ANSWER_GENERATED",
+      citations: [],
+      provider: "google",
+      model: "gemini-fixture",
+      ragEnabled: false,
+    };
+    const transport = vi.fn<AskTransport>(async () => ({
+      text: "Old account answer",
+      citations: [],
+      response,
+      answerId: "88888888-8888-4888-8888-888888888888",
+      conversationSave: {
+        state: "unknown",
+        answerId: "88888888-8888-4888-8888-888888888888",
+      },
+    }));
+    vi.spyOn(api, "createAssistantConversation").mockResolvedValue(
+      conversation,
+    );
+    let resolveMessages:
+      | ((value: {
+          conversation: AssistantConversationSummary;
+          items: [];
+          page: number;
+          pageSize: number;
+          total: number;
+          totalPages: number;
+        }) => void)
+      | undefined;
+    const messages = vi
+      .spyOn(api, "getAssistantConversationMessages")
+      .mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveMessages = resolve;
+          }),
+      );
+    const retry = vi.spyOn(api, "retrySaveAssistantTurn");
+    const view = render(
+      <Harness
+        transport={transport}
+        persist
+        identityKey="account-a-workspace-a"
+      />,
+    );
+    fireEvent.click(screen.getByRole("radio", { name: "Kiến thức chung" }));
+    const composer = screen.getByLabelText("Câu hỏi cho ExaMate");
+    fireEvent.change(composer, { target: { value: "Question" } });
+    fireEvent.submit(composer.closest("form")!);
+    expect(await screen.findByText("Old account answer")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Đối chiếu trạng thái lưu" }),
+    );
+    await waitFor(() => expect(messages).toHaveBeenCalledOnce());
+
+    view.rerender(
+      <Harness
+        transport={transport}
+        persist
+        identityKey="account-b-workspace-b"
+      />,
+    );
+    expect(screen.queryByText("Old account answer")).not.toBeInTheDocument();
+    await act(async () =>
+      resolveMessages?.({
+        conversation,
+        items: [],
+        page: 1,
+        pageSize: 50,
+        total: 0,
+        totalPages: 0,
+      }),
+    );
+    expect(screen.queryByText("Old account answer")).not.toBeInTheDocument();
+    expect(retry).not.toHaveBeenCalled();
+  });
+
+  it("requires confirmed absence before exposing the explicit save retry", async () => {
+    const conversation: AssistantConversationSummary = {
+      id: "66666666-6666-4666-8666-666666666666",
+      mode: "general",
+      courseId: null,
+      documentId: null,
+      title: "First question",
+      version: 0,
+      turnCount: 0,
+      createdAt: "2026-09-15T08:00:00.000Z",
+      updatedAt: "2026-09-15T08:00:00.000Z",
+      expiresAt: "2026-12-14T08:00:00.000Z",
+    };
+    const answerId = "88888888-8888-4888-8888-888888888888";
+    const response: AssistantChatResponse = {
+      mode: "general",
+      answer: "Saved answer",
+      answerable: true,
+      promptVersion: "general-v1",
+      reasonCode: "ANSWER_GENERATED",
+      citations: [],
+      provider: "google",
+      model: "gemini-fixture",
+      ragEnabled: false,
+    };
+    const transport = vi.fn<AskTransport>(async () => ({
+      text: "Saved answer",
+      citations: [],
+      response,
+      answerId,
+      conversationSave: { state: "unknown", answerId },
+    }));
+    vi.spyOn(api, "createAssistantConversation").mockResolvedValue(
+      conversation,
+    );
+    const messages = vi
+      .spyOn(api, "getAssistantConversationMessages")
+      .mockResolvedValue({
+        conversation,
+        items: [],
+        page: 1,
+        pageSize: 50,
+        total: 0,
+        totalPages: 0,
+      });
+    const retry = vi
+      .spyOn(api, "retrySaveAssistantTurn")
+      .mockResolvedValue({ state: "saved", version: 1 });
+    render(<Harness transport={transport} persist />);
+    fireEvent.click(screen.getByRole("radio", { name: "Kiến thức chung" }));
+    const composer = screen.getByLabelText("Câu hỏi cho ExaMate");
+    fireEvent.change(composer, { target: { value: "Q" } });
+    fireEvent.submit(composer.closest("form")!);
+    await screen.findByText("Saved answer");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Đối chiếu trạng thái lưu" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", {
+          name: "Thử lưu lại (không gửi lại AI)",
+        }),
+      ).toBeInTheDocument(),
+    );
+    expect(retry).not.toHaveBeenCalled();
+    expect(messages).toHaveBeenCalledOnce();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Thử lưu lại (không gửi lại AI)",
+      }),
+    );
+    await waitFor(() => expect(retry).toHaveBeenCalledOnce());
+    expect(transport).toHaveBeenCalledOnce();
+  });
+
+  it("loads a saved transcript without sending AI and deletes only after confirmation", async () => {
+    const conversation: AssistantConversationSummary = {
+      id: "66666666-6666-4666-8666-666666666666",
+      mode: "general",
+      courseId: null,
+      documentId: null,
+      title: "Persisted test title",
+      version: 1,
+      turnCount: 1,
+      createdAt: "2026-09-15T08:00:00.000Z",
+      updatedAt: "2026-09-15T08:00:00.000Z",
+      expiresAt: "2026-12-14T08:00:00.000Z",
+    };
+    const snapshot = {
+      schemaVersion: 1,
+      request: {
+        mode: "general",
+        operation: "question",
+        question: "Persisted question",
+      },
+      response: {
+        mode: "general",
+        answer: "Persisted answer",
+        answerable: true,
+        reasonCode: "ANSWER_GENERATED",
+        citations: [],
+        ragEnabled: false,
+        provider: "google",
+        model: "gemini-test",
+        promptVersion: "general-v1",
+      },
+    } as AssistantFeedbackSnapshot;
+    const list = vi.spyOn(api, "listAssistantConversations").mockResolvedValue({
+      items: [conversation],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    });
+    const messages = vi
+      .spyOn(api, "getAssistantConversationMessages")
+      .mockResolvedValue({
+        conversation,
+        items: [
+          {
+            id: "77777777-7777-4777-8777-777777777777",
+            sequence: 1,
+            receiptId: "88888888-8888-4888-8888-888888888888",
+            snapshot,
+            createdAt: conversation.createdAt,
+          },
+        ],
+        page: 1,
+        pageSize: 50,
+        total: 1,
+        totalPages: 1,
+      });
+    const remove = vi
+      .spyOn(api, "deleteAssistantConversation")
+      .mockResolvedValue({ status: "deleted" });
+    const transport = vi.fn<AskTransport>();
+    render(<Harness transport={transport} persist />);
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    const history = document.querySelector(
+      ".assistant-saved-history",
+    ) as HTMLElement;
+    const savedItem = await waitFor(() => {
+      const button = history.querySelector(".assistant-history-open");
+      expect(button).not.toBeNull();
+      return button as HTMLButtonElement;
+    });
+    expect(list).toHaveBeenCalledOnce();
+    fireEvent.click(savedItem);
+    expect(await screen.findByText("Persisted answer")).toBeInTheDocument();
+    expect(messages).toHaveBeenCalledWith(
+      conversation.id,
+      1,
+      50,
+      expect.any(AbortSignal),
+    );
+    expect(transport).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    const reopenedHistory = document.querySelector(
+      ".assistant-saved-history",
+    ) as HTMLElement;
+    await waitFor(() =>
+      expect(
+        reopenedHistory.querySelector(".assistant-history-row"),
+      ).not.toBeNull(),
+    );
+    const row = reopenedHistory.querySelector(
+      ".assistant-history-row",
+    ) as HTMLElement;
+    fireEvent.click(within(row).getAllByRole("button")[1]);
+    fireEvent.click(within(row).getAllByRole("button")[1]);
+    await waitFor(() => expect(remove).toHaveBeenCalledWith(conversation.id));
+    expect(reopenedHistory.querySelector(".assistant-history-row")).toBeNull();
+  });
+
+  it("drops a pending history response immediately when the principal changes", async () => {
+    const conversation: AssistantConversationSummary = {
+      id: "66666666-6666-4666-8666-666666666666",
+      mode: "general",
+      courseId: null,
+      documentId: null,
+      title: "Old account transcript",
+      version: 1,
+      turnCount: 1,
+      createdAt: "2026-09-15T08:00:00.000Z",
+      updatedAt: "2026-09-15T08:00:00.000Z",
+      expiresAt: "2026-12-14T08:00:00.000Z",
+    };
+    let finish:
+      | ((value: {
+          items: AssistantConversationSummary[];
+          page: number;
+          pageSize: number;
+          total: number;
+          totalPages: number;
+        }) => void)
+      | undefined;
+    vi.spyOn(api, "listAssistantConversations").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const view = render(
+      <Harness
+        transport={async () => ({ text: "", citations: [] })}
+        persist
+        identityKey="account-a"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    await waitFor(() => expect(finish).toBeDefined());
+    view.rerender(
+      <Harness
+        transport={async () => ({ text: "", citations: [] })}
+        persist
+        identityKey="account-b"
+      />,
+    );
+    expect(
+      screen.queryByText("Old account transcript"),
+    ).not.toBeInTheDocument();
+    await act(async () => {
+      finish?.({
+        items: [conversation],
+        page: 1,
+        pageSize: 20,
+        total: 1,
+        totalPages: 1,
+      });
+    });
+    expect(
+      screen.queryByText("Old account transcript"),
+    ).not.toBeInTheDocument();
+  });
+
   it("uses the CSS textarea minimum and recalculates it after viewport resize", () => {
     const getStyle = window.getComputedStyle.bind(window);
     let minHeight = "56px";

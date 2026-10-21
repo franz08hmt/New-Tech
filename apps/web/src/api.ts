@@ -18,6 +18,14 @@ export type {
   AiUsageProviderCallsResponse,
   AssistantChatRequest,
   AssistantChatResponse,
+  AssistantConversationCreateRequest,
+  AssistantConversationCreateReconciliation,
+  AssistantConversationListResponse,
+  AssistantConversationSummary,
+  AssistantConversationMessage,
+  AssistantConversationSaveRetryRequest,
+  AssistantConversationMessagesResponse,
+  AssistantConversationSaveMetadata,
   AssistantStreamStage,
   AssistantStreamEvent,
   AssistantMode,
@@ -103,6 +111,14 @@ import type {
   AssistantAnswerIdHeader,
   AssistantChatRequest,
   AssistantChatResponse,
+  AssistantConversationCreateRequest,
+  AssistantConversationCreateReconciliation,
+  AssistantConversationListResponse,
+  AssistantConversationMessagesResponse,
+  AssistantConversationSaveMetadata,
+  AssistantConversationSummary,
+  AssistantConversationMessage,
+  AssistantConversationSaveRetryRequest,
   AssistantStreamStage,
   Course,
   CourseSearchPage,
@@ -325,10 +341,57 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  createAssistantConversation: (
+    input: AssistantConversationCreateRequest,
+    signal?: AbortSignal,
+  ) =>
+    request<AssistantConversationSummary>("/api/assistant/conversations", {
+      method: "POST",
+      body: JSON.stringify(input),
+      signal,
+    }),
+  reconcileAssistantConversationCreate: (
+    createKey: string,
+    signal?: AbortSignal,
+  ) =>
+    request<AssistantConversationCreateReconciliation>(
+      `/api/assistant/conversations/create-keys/${encodeURIComponent(createKey)}`,
+      { signal },
+    ),
+  listAssistantConversations: (page = 1, pageSize = 20, signal?: AbortSignal) =>
+    request<AssistantConversationListResponse>(
+      `/api/assistant/conversations?page=${page}&pageSize=${pageSize}`,
+      { signal },
+    ),
+  getAssistantConversationMessages: (
+    id: string,
+    page = 1,
+    pageSize = 50,
+    signal?: AbortSignal,
+  ) =>
+    request<AssistantConversationMessagesResponse>(
+      `/api/assistant/conversations/${encodeURIComponent(id)}/messages?page=${page}&pageSize=${pageSize}`,
+      { signal },
+    ),
+  deleteAssistantConversation: (id: string) =>
+    request<{ status: "deleted" }>(
+      `/api/assistant/conversations/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    ),
+  retrySaveAssistantTurn: (
+    id: string,
+    input: AssistantConversationSaveRetryRequest,
+    signal?: AbortSignal,
+  ) =>
+    request<AssistantConversationSaveMetadata>(
+      `/api/assistant/conversations/${encodeURIComponent(id)}/turns`,
+      { method: "POST", body: JSON.stringify(input), signal },
+    ),
   askAssistant: (
     input: AssistantChatRequest,
     onAnswerId?: (id: string | undefined) => void,
     signal?: AbortSignal,
+    onConversationSave?: (metadata: AssistantConversationSaveMetadata) => void,
   ) =>
     request<AssistantChatResponse>(
       "/api/assistant/chat",
@@ -340,6 +403,21 @@ export const api = {
       (headers) => {
         const header: AssistantAnswerIdHeader = "X-Assistant-Answer-ID";
         const id = headers.get(header);
+        const saveState = headers.get("X-Assistant-Conversation-Save");
+        if (
+          saveState === "saved" ||
+          saveState === "not_saved" ||
+          saveState === "unknown"
+        ) {
+          const versionHeader = headers.get("X-Assistant-Conversation-Version");
+          onConversationSave?.({
+            state: saveState,
+            ...(versionHeader && /^\d+$/.test(versionHeader)
+              ? { version: Number(versionHeader) }
+              : {}),
+            ...(id ? { answerId: id } : {}),
+          });
+        }
         onAnswerId?.(
           id &&
             /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -355,7 +433,11 @@ export const api = {
     onDelta: (text: string) => void,
     signal?: AbortSignal,
     onStatus?: (stage: AssistantStreamStage) => void,
-  ): Promise<{ response: AssistantChatResponse; answerId?: string }> => {
+  ): Promise<{
+    response: AssistantChatResponse;
+    answerId?: string;
+    conversationSave?: AssistantConversationSaveMetadata;
+  }> => {
     const path = "/api/assistant/chat/stream";
     const authHeaders = pilotHeaders(path, "POST");
     const controller = new AbortController();
@@ -416,7 +498,12 @@ export const api = {
 
       let started = false;
       let result:
-        { response: AssistantChatResponse; answerId?: string } | undefined;
+        | {
+            response: AssistantChatResponse;
+            answerId?: string;
+            conversationSave?: AssistantConversationSaveMetadata;
+          }
+        | undefined;
       for await (const event of parseAssistantSse(response.body)) {
         if (signal?.aborted)
           throw new DOMException("Request cancelled", "AbortError");
@@ -446,6 +533,9 @@ export const api = {
           result = {
             response: event.response,
             ...(event.answerId ? { answerId: event.answerId } : {}),
+            ...(event.conversationSave
+              ? { conversationSave: event.conversationSave }
+              : {}),
           };
         }
       }

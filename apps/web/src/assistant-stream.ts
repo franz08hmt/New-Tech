@@ -1,5 +1,6 @@
 import type {
   AssistantChatResponse,
+  AssistantConversationSaveMetadata,
   AssistantStreamEvent,
 } from "@examate/contracts";
 
@@ -75,10 +76,47 @@ function decodeFrame(frame: string): AssistantStreamEvent | undefined {
       )
         ? event.answerId
         : undefined;
+    const rawSave = event.conversationSave;
+    let conversationSave: AssistantConversationSaveMetadata | undefined;
+    if (rawSave !== undefined) {
+      if (!rawSave || typeof rawSave !== "object" || Array.isArray(rawSave)) {
+        conversationSave = {
+          state: "unknown",
+          ...(answerId ? { answerId } : {}),
+        };
+      } else {
+        const save = rawSave as Record<string, unknown>;
+        const state =
+          save.state === "saved" ||
+          save.state === "not_saved" ||
+          save.state === "unknown"
+            ? save.state
+            : "unknown";
+        const version =
+          Number.isInteger(save.version) &&
+          (save.version as number) >= 0 &&
+          (save.version as number) <= 100
+            ? (save.version as number)
+            : undefined;
+        const saveAnswerId =
+          typeof save.answerId === "string" &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+            save.answerId,
+          )
+            ? save.answerId
+            : answerId;
+        conversationSave = {
+          state: state === "saved" && version === undefined ? "unknown" : state,
+          ...(version !== undefined ? { version } : {}),
+          ...(saveAnswerId ? { answerId: saveAnswerId } : {}),
+        };
+      }
+    }
     return {
       type: "done",
       response,
       ...(answerId ? { answerId } : {}),
+      ...(conversationSave ? { conversationSave } : {}),
     };
   }
   throw new Error("Máy chủ gửi loại dữ liệu streaming không được hỗ trợ.");

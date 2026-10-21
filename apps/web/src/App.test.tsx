@@ -48,6 +48,7 @@ function assistantSseResponse(
         type: "done",
         response,
         answerId: "77777777-7777-4777-8777-777777777777",
+        conversationSave: { state: "saved", version: 1 },
       },
     ]
       .map((event) => `data: ${JSON.stringify(event)}\n\n`)
@@ -629,6 +630,29 @@ beforeEach(() => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "/api/assistant/conversations" && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as {
+          mode: string;
+          courseId: string | null;
+          documentId: string | null;
+          firstQuestion: string;
+        };
+        return Response.json(
+          {
+            id: "66666666-6666-4666-8666-666666666666",
+            mode: body.mode,
+            courseId: body.courseId,
+            documentId: body.documentId,
+            title: body.firstQuestion.slice(0, 120),
+            version: 0,
+            turnCount: 0,
+            createdAt: "2026-09-15T08:00:00.000Z",
+            updatedAt: "2026-09-15T08:00:00.000Z",
+            expiresAt: "2026-12-14T08:00:00.000Z",
+          },
+          { status: 201 },
+        );
+      }
       if (url === "/api/assistant/chat" && init?.method === "POST") {
         return new Response(
           JSON.stringify({
@@ -643,7 +667,14 @@ beforeEach(() => {
             ragEnabled: true,
             promptVersion: "rag-v1",
           }),
-          { status: 200 },
+          {
+            status: 200,
+            headers: {
+              "X-Assistant-Answer-ID": "77777777-7777-4777-8777-777777777777",
+              "X-Assistant-Conversation-Save": "saved",
+              "X-Assistant-Conversation-Version": "1",
+            },
+          },
         );
       }
       if (url === "/api/assistant/chat/stream" && init?.method === "POST") {
@@ -3220,7 +3251,8 @@ describe("Academic workspace", () => {
           mode: "documents",
           operation: "question",
           pageContext: { pageId: "dashboard", pageName: "Dashboard" },
-          history: [],
+          conversationId: "66666666-6666-4666-8666-666666666666",
+          conversationVersion: 0,
         }),
       }),
     );
@@ -3720,6 +3752,8 @@ describe("Academic workspace", () => {
         mode: "workspace",
         operation: "question",
         pageContext: { pageId: "dashboard", pageName: "Dashboard" },
+        conversationId: "66666666-6666-4666-8666-666666666666",
+        conversationVersion: 0,
       });
       expect(
         await screen.findByText(/Có 1 task chưa xong trong danh sách chung/),
@@ -4148,7 +4182,7 @@ describe("Academic workspace", () => {
       );
     });
 
-    it("keeps the document scope and verified history when expanded", async () => {
+    it("continues a saved document conversation with a server history version", async () => {
       answerWithCitation();
       render(<App />);
       await openWithDocument();
@@ -4159,23 +4193,34 @@ describe("Academic workspace", () => {
       await ask("Chương 2 nói gì?");
 
       const [compact, expanded] = chatBodies();
-      const { history: compactHistory, ...compactRequest } = compact;
-      const { history: expandedHistory, ...expandedRequest } = expanded;
-      expect(expandedRequest).toEqual(compactRequest);
-      expect(compactHistory).toEqual([]);
-      expect(expandedHistory).toHaveLength(1);
-      expect(expandedHistory[0]).toMatchObject({
-        receiptId: "77777777-7777-4777-8777-777777777777",
-      });
-      expect(expanded).toMatchObject({
+      expect(compact).toMatchObject({
+        conversationId: "66666666-6666-4666-8666-666666666666",
+        conversationVersion: 0,
         mode: "documents",
         documentId: "doc-2",
       });
+      expect(expanded).toMatchObject({
+        conversationId: compact.conversationId,
+        conversationVersion: 1,
+        mode: "documents",
+        documentId: "doc-2",
+      });
+      expect(compact).not.toHaveProperty("history");
+      expect(expanded).not.toHaveProperty("history");
 
       const sources = screen.getAllByRole("button", {
         name: "Mở nguồn ghi-chu-chung.pdf, tr. 3",
       });
       fireEvent.click(sources[sources.length - 1]);
+      await waitFor(() =>
+        expect(
+          vi
+            .mocked(fetch)
+            .mock.calls.some(([url]) =>
+              String(url).includes("/download?disposition=inline"),
+            ),
+        ).toBe(true),
+      );
       expect(
         await screen.findByTitle("ghi-chu-chung.pdf, trang 3"),
       ).toHaveAttribute(

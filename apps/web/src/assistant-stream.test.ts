@@ -56,6 +56,41 @@ describe("assistant SSE parser", () => {
     });
   });
 
+  it("preserves validated conversation-save metadata from a completed SSE turn", async () => {
+    const conversationSave = {
+      state: "saved",
+      version: 4,
+      answerId: "77777777-7777-4777-8777-777777777777",
+    };
+    const bytes = new TextEncoder().encode(
+      [
+        { type: "start" },
+        {
+          type: "done",
+          answerId: conversationSave.answerId,
+          conversationSave,
+          response: {
+            answer: "A completed answer.",
+            answerable: true,
+            reasonCode: "ANSWER_GENERATED",
+            citations: [],
+            provider: "google",
+            model: "gemini-test",
+            mode: "general",
+            ragEnabled: false,
+            promptVersion: "general-v1",
+          },
+        },
+      ]
+        .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+        .join(""),
+    );
+    const parsed = [];
+    for await (const event of parseAssistantSse(readable([bytes])))
+      parsed.push(event);
+    expect(parsed[1]).toMatchObject({ type: "done", conversationSave });
+  });
+
   it("supports a frame delimiter and JSON payload split across arbitrary network chunks", async () => {
     const bytes = new TextEncoder().encode(
       'data: {"type":"start"}\n\ndata: {"type":"delta","text":"first"}\n\n',
