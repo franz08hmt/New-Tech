@@ -819,3 +819,20 @@ upstream and Gemini/embedding SDK transports were fakes; tests executed through
 real Nest endpoints and the disposable database. No paid provider, cloud,
 browser, or STT weights were used. Browser acceptance and human semantic review
 remain pending; this is not full F08, F09, or cloud acceptance.
+
+## 2026-10-21 — F08-A.2 quiz lifecycle coordination
+
+AI assistance reviewed the independent cross-flow reproduction, added tracked
+RED regressions, and implemented a shared tokenized lock for quiz generation,
+save/reconciliation/cancel, delete, and attempt submission. The tests cover
+attempt recovery with an existing preview, duplicate clicks, delayed lifecycle
+responses, stale principal/unmount responses, and retry identity/progress. The
+owner should review the UI copy and lifecycle behavior; no quiz content or
+semantic-quality claim was evaluated here.
+
+On the pre-fix source, the valid focused run had 4 failing and 11 passing tests.
+After the fix, StudyCoachPanel passed 18/18; `npm test` passed API Vitest 393,
+API Node 857, and Web Vitest 507 (1,757 total), plus typecheck, build, and
+format. No backend/DB source changed and the database gate was not rerun.
+Browser tooling was not exposed; desktop/mobile browser acceptance and semantic
+review remain pending. No provider, cloud, STT weights, or migration was used.

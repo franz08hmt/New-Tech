@@ -298,6 +298,34 @@ npm run format:check
 npm run test:database
 ```
 
+## F08-A.2 — quiz creation/attempt lifecycle coordination (21/10/2026)
+
+The create/save flow and a prepared, sending, or unresolved practice attempt are
+now mutually exclusive. A shared tokenized lifecycle lock guards generate,
+confirm/reconcile/cancel, delete, and submit handlers; controls expose the same
+blocked state. The lock's identity token prevents a stale completion from
+releasing a newer principal's operation. Confirm success preserves an open
+practice detail, and attempt retry preserves the original quiz/key/payload and
+applies server-returned progress.
+
+The tracked RED run on the pre-fix implementation had 4 failures and 11 passes:
+generation and preview confirmation remained enabled during an unknown attempt,
+and practice checking remained enabled during pending generation/confirmation.
+An initial test setup omitted selecting its source document; it was fixed before
+the valid RED result was recorded. Final focused Web verification passed
+18/18 StudyCoachPanel tests, covering pre-existing preview plus unknown attempt,
+same-key/payload retry, delayed attempts, generation/confirmation races,
+duplicate clicks, stale principal response, and unmount cleanup.
+
+New final gates: typecheck, build, and format exit 0; `npm test` passed API
+Vitest 393/393, API Node 857/857, and Web Vitest 507/507 (1,757 total), with no
+failures, skips, or cancellations. This change is frontend-only; no database
+gate or migration was needed. Browser automation was not exposed in the session,
+so desktop 1440px/mobile 375px acceptance is `BROWSER_ACCEPTANCE_PENDING`;
+React tests are not browser evidence. F08-A browser acceptance and semantic
+review, flashcards/F08-B, F09, cloud rollout, Google live, and remote-machine
+acceptance remain pending.
+
 ## F08-A.1 — recovery/search/progress regressions (21/10/2026)
 
 - [x] Attempt submit keeps the original quiz ID, attempt key and answer payload

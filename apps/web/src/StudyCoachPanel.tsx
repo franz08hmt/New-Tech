@@ -26,6 +26,12 @@ type QuizSaveState =
   | "expired"
   | "cancelled"
   | "deleted";
+type QuizLifecycleActionKind =
+  "generate" | "confirm" | "reconcile" | "cancel" | "attempt" | "delete";
+type QuizLifecycleAction = {
+  kind: QuizLifecycleActionKind;
+  token: symbol;
+};
 const errorText = (error: unknown) =>
   error instanceof Error
     ? error.message
@@ -45,8 +51,9 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
   const detailRevision = useRef(0);
   const selectedRevision = useRef(0);
   const selectedDocumentRef = useRef<StoredDocument | undefined>(undefined);
-  const actionLock = useRef(false);
-  const attemptActionLock = useRef(false);
+  const quizLifecycleActionRef = useRef<QuizLifecycleAction | undefined>(
+    undefined,
+  );
   const searchPrincipalRef = useRef(identity);
   const [searchPrincipalIdentity, setSearchPrincipalIdentity] =
     useState(identity);
@@ -93,6 +100,29 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
     };
   }>();
   const [quizBusy, setQuizBusy] = useState(false);
+  const [quizLifecycleAction, setQuizLifecycleAction] =
+    useState<QuizLifecycleAction>();
+  const attemptContextPending =
+    !!attemptPending ||
+    attemptState === "sending" ||
+    attemptState === "unknown";
+  const quizWritePending = quizLifecycleAction !== undefined;
+
+  function beginQuizLifecycleAction(
+    kind: QuizLifecycleActionKind,
+  ): QuizLifecycleAction | undefined {
+    if (quizLifecycleActionRef.current) return undefined;
+    const action = { kind, token: Symbol(kind) };
+    quizLifecycleActionRef.current = action;
+    setQuizLifecycleAction(action);
+    return action;
+  }
+
+  function finishQuizLifecycleAction(action: QuizLifecycleAction) {
+    if (quizLifecycleActionRef.current !== action) return;
+    quizLifecycleActionRef.current = undefined;
+    setQuizLifecycleAction(undefined);
+  }
   const documentRequestKey = `${identity}:${documentInput.trim()}:${documentQuery}:${documentPage}:${documentRefresh}`;
   const documentRequestKeyRef = useRef(documentRequestKey);
   documentRequestKeyRef.current = documentRequestKey;
@@ -106,6 +136,8 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
     : selectedDocument;
 
   useEffect(() => {
+    quizLifecycleActionRef.current = undefined;
+    setQuizLifecycleAction(undefined);
     const principalChanged = searchPrincipalRef.current !== identity;
     searchPrincipalRef.current = identity;
     setSearchPrincipalIdentity(identity);
@@ -140,6 +172,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
     setAttemptState("idle");
     setAttemptPending(undefined);
     setAttemptError("");
+    setQuizBusy(false);
     setDocumentError("");
     if (!principal) {
       setQuizListLoading(false);
@@ -175,6 +208,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
     }
     return () => {
       lifecycle.current++;
+      quizLifecycleActionRef.current = undefined;
       docController.current?.abort();
       listController.current?.abort();
       detailController.current?.abort();
@@ -301,15 +335,12 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
   function selectDocument(document: StoredDocument) {
     if (
       searchPrincipalChanged ||
+      attemptContextPending ||
+      (quizLifecycleActionRef.current !== undefined &&
+        quizLifecycleActionRef.current.kind !== "generate") ||
       saveState === "saving" ||
       saveState === "unknown" ||
       saveState === "reconciling"
-    )
-      return;
-    if (
-      attemptState === "unknown" ||
-      attemptState === "sending" ||
-      attemptActionLock.current
     )
       return;
     if (
@@ -343,7 +374,8 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
   async function generate() {
     if (
       !selectedDocument ||
-      actionLock.current ||
+      quizLifecycleActionRef.current ||
+      attemptContextPending ||
       !principal ||
       searchPrincipalChanged ||
       saveState === "unknown" ||
@@ -351,7 +383,8 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
       saveState === "reconciling"
     )
       return;
-    actionLock.current = true;
+    const action = beginQuizLifecycleAction("generate");
+    if (!action) return;
     const epoch = lifecycle.current;
     const sourceEpoch = selectedRevision.current;
     const sourceId = selectedDocument.id;
@@ -389,20 +422,22 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
       setGenerationError(errorText(error));
       setGenerationState(isUnknownWrite(error) ? "unknown" : "idle");
     } finally {
-      actionLock.current = false;
+      finishQuizLifecycleAction(action);
     }
   }
 
   async function confirmDraft() {
     if (
       !draft ||
-      actionLock.current ||
+      quizLifecycleActionRef.current ||
+      attemptContextPending ||
       !principal ||
       searchPrincipalChanged ||
       (saveState !== "preview" && saveState !== "reconciled-draft")
     )
       return;
-    actionLock.current = true;
+    const action = beginQuizLifecycleAction("confirm");
+    if (!action) return;
     const epoch = lifecycle.current;
     const sourceEpoch = selectedRevision.current;
     const owner = identity;
@@ -422,7 +457,6 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
       setSaveState("confirmed");
       setSavedNotice(`Đã lưu quiz “${saved.title}”.`);
       setQuizPage(1);
-      setDetail(undefined);
       setQuizRefresh((value) => value + 1);
     } catch (error) {
       if (
@@ -434,19 +468,21 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
       setSaveError(errorText(error));
       setSaveState(isUnknownWrite(error) ? "unknown" : "failed");
     } finally {
-      actionLock.current = false;
+      finishQuizLifecycleAction(action);
     }
   }
 
   async function reconcileDraft() {
     if (
       !draft ||
-      actionLock.current ||
+      quizLifecycleActionRef.current ||
+      attemptContextPending ||
       identity !== identityRef.current ||
       saveState !== "unknown"
     )
       return;
-    actionLock.current = true;
+    const action = beginQuizLifecycleAction("reconcile");
+    if (!action) return;
     setSaveState("reconciling");
     const epoch = lifecycle.current;
     const sourceEpoch = selectedRevision.current;
@@ -498,20 +534,22 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
         setSaveState("unknown");
       }
     } finally {
-      actionLock.current = false;
+      finishQuizLifecycleAction(action);
     }
   }
 
   async function cancelDraft() {
     if (
       !draft ||
-      actionLock.current ||
+      quizLifecycleActionRef.current ||
+      attemptContextPending ||
       (saveState !== "preview" &&
         saveState !== "reconciled-draft" &&
         saveState !== "failed")
     )
       return;
-    actionLock.current = true;
+    const action = beginQuizLifecycleAction("cancel");
+    if (!action) return;
     const epoch = lifecycle.current;
     const sourceEpoch = selectedRevision.current;
     try {
@@ -536,14 +574,14 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
         if (isUnknownWrite(error)) setSaveState("unknown");
       }
     } finally {
-      actionLock.current = false;
+      finishQuizLifecycleAction(action);
     }
   }
 
   async function openQuiz(id: string) {
     if (
       searchPrincipalChanged ||
-      attemptActionLock.current ||
+      quizLifecycleActionRef.current?.kind === "attempt" ||
       attemptState === "unknown" ||
       attemptState === "sending"
     )
@@ -587,18 +625,15 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
   }
 
   async function deleteQuiz(quiz: StudyQuizSummary) {
-    if (
-      attemptActionLock.current ||
-      attemptState === "unknown" ||
-      attemptState === "sending"
-    )
-      return;
+    if (quizLifecycleActionRef.current || attemptContextPending) return;
     if (
       !window.confirm(
         `Xóa quiz “${quiz.title}” và lịch sử làm bài của riêng bạn?`,
       )
     )
       return;
+    const action = beginQuizLifecycleAction("delete");
+    if (!action) return;
     const epoch = lifecycle.current;
     setQuizBusy(true);
     try {
@@ -626,6 +661,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
     } catch (error) {
       if (epoch === lifecycle.current) setQuizListError(errorText(error));
     } finally {
+      finishQuizLifecycleAction(action);
       if (epoch === lifecycle.current) setQuizBusy(false);
     }
   }
@@ -635,7 +671,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
       !detail ||
       !!attemptPending ||
       searchPrincipalChanged ||
-      attemptActionLock.current ||
+      quizLifecycleActionRef.current ||
       attemptState === "unknown" ||
       attemptState === "sending"
     )
@@ -660,14 +696,15 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
       !detail ||
       !attemptPending ||
       quizBusy ||
-      attemptActionLock.current ||
+      quizLifecycleActionRef.current ||
       searchPrincipalChanged ||
       attemptPending.quizId !== detail.quiz.id ||
       attemptPending.key !== attemptPending.payload.attemptKey ||
       (attemptState !== "prepared" && attemptState !== "unknown")
     )
       return;
-    attemptActionLock.current = true;
+    const action = beginQuizLifecycleAction("attempt");
+    if (!action) return;
     const epoch = lifecycle.current;
     const revision = detailRevision.current;
     const quizId = detail.quiz.id;
@@ -707,7 +744,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
         setAttemptState(isUnknownWrite(error) ? "unknown" : "failed");
       }
     } finally {
-      attemptActionLock.current = false;
+      finishQuizLifecycleAction(action);
       if (epoch === lifecycle.current && revision === detailRevision.current)
         setQuizBusy(false);
     }
@@ -715,7 +752,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
 
   function returnToQuestions() {
     if (
-      attemptActionLock.current ||
+      quizLifecycleActionRef.current ||
       (attemptState !== "prepared" && attemptState !== "failed")
     )
       return;
@@ -774,11 +811,10 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                     id="study-quiz-document"
                     value={visibleSelectedDocument?.id ?? ""}
                     disabled={
+                      attemptContextPending ||
                       saveState === "unknown" ||
                       saveState === "saving" ||
-                      saveState === "reconciling" ||
-                      attemptState === "unknown" ||
-                      attemptState === "sending"
+                      saveState === "reconciling"
                     }
                     onChange={(event) => {
                       const item = visibleDocumentResults?.items.find(
@@ -899,6 +935,8 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
             disabled={
               !visibleSelectedDocument ||
               documentLoading ||
+              attemptContextPending ||
+              quizWritePending ||
               generationState === "generating" ||
               saveState === "saving" ||
               saveState === "unknown" ||
@@ -923,6 +961,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
         {generationState === "unknown" && (
           <button
             type="button"
+            disabled={attemptContextPending || quizWritePending}
             onClick={() => {
               setGenerationState("idle");
               setGenerationError("");
@@ -931,6 +970,20 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
             Đã hiểu — chủ động tạo yêu cầu mới
           </button>
         )}
+        {attemptContextPending && (
+          <p role="status">
+            Lượt luyện tập hiện tại cần được hoàn tất hoặc gửi lại cùng lượt
+            trước khi tạo hay lưu quiz khác.
+          </p>
+        )}
+        {detail &&
+          quizWritePending &&
+          quizLifecycleAction?.kind !== "attempt" && (
+            <p role="status">
+              Đang xử lý thao tác quiz. Kiểm tra và nộp bài sẽ khả dụng sau khi
+              thao tác này kết thúc.
+            </p>
+          )}
         {draft && generationState === "preview" && (
           <div
             className="study-quiz-preview"
@@ -983,7 +1036,9 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                 type="button"
                 className="primary-button"
                 disabled={
-                  saveState !== "preview" && saveState !== "reconciled-draft"
+                  attemptContextPending ||
+                  quizWritePending ||
+                  (saveState !== "preview" && saveState !== "reconciled-draft")
                 }
                 onClick={() => void confirmDraft()}
               >
@@ -994,9 +1049,11 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
               <button
                 type="button"
                 disabled={
-                  saveState !== "preview" &&
-                  saveState !== "reconciled-draft" &&
-                  saveState !== "failed"
+                  attemptContextPending ||
+                  quizWritePending ||
+                  (saveState !== "preview" &&
+                    saveState !== "reconciled-draft" &&
+                    saveState !== "failed")
                 }
                 onClick={() => void cancelDraft()}
               >
@@ -1005,7 +1062,11 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
             </div>
             {saveError && <p role="alert">{saveError}</p>}
             {saveState === "unknown" && (
-              <button type="button" onClick={() => void reconcileDraft()}>
+              <button
+                type="button"
+                disabled={attemptContextPending || quizWritePending}
+                onClick={() => void reconcileDraft()}
+              >
                 Kiểm tra trạng thái lưu
               </button>
             )}
@@ -1072,7 +1133,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                       disabled={
                         attemptState === "unknown" ||
                         attemptState === "sending" ||
-                        attemptActionLock.current
+                        quizLifecycleAction?.kind === "attempt"
                       }
                       onClick={() => void openQuiz(quiz.id)}
                     >
@@ -1081,9 +1142,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                     <button
                       type="button"
                       disabled={
-                        quizBusy ||
-                        attemptState === "unknown" ||
-                        attemptState === "sending"
+                        quizBusy || attemptContextPending || quizWritePending
                       }
                       onClick={() => void deleteQuiz(quiz)}
                     >
@@ -1218,6 +1277,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                       className="primary-button"
                       disabled={
                         quizBusy ||
+                        quizWritePending ||
                         !!attemptPending ||
                         detail.questions.some(
                           (question) => answers[question.id] === undefined,
@@ -1245,7 +1305,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                       <button
                         type="button"
                         className="primary-button"
-                        disabled={quizBusy}
+                        disabled={quizBusy || quizWritePending}
                         onClick={() => void submitAttempt()}
                       >
                         {quizBusy

@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -90,6 +91,45 @@ const generated: StudyQuizGeneratedDraft = {
       ({ available: _available, ...source }) => source,
     ),
   },
+};
+const readyDocument = {
+  id: documentId,
+  name: "Indexed notes.pdf",
+  size_bytes: 512,
+  media_type: "application/pdf" as const,
+  storage_status: "stored" as const,
+  processing_status: "ready" as const,
+  index_quality: null,
+  course_id: null,
+  course_slug: null,
+  course_name: null,
+  course_code: null,
+  created_at: "2026-10-20T00:00:00.000Z",
+  updated_at: "2026-10-20T00:00:00.000Z",
+};
+const readyDocumentPage: DocumentSearchPage = {
+  items: [readyDocument],
+  page: 1,
+  pageSize: 20,
+  total: 1,
+  totalPages: 1,
+};
+const successfulAttempt: Awaited<ReturnType<typeof api.submitStudyQuiz>> = {
+  id: "77777777-7777-4777-8777-777777777777",
+  attemptKey: "88888888-8888-4888-8888-888888888888",
+  correctCount: 3,
+  questionCount: 3,
+  scorePercent: 100,
+  submittedAt: "2026-10-21T00:00:00.000Z",
+  progress: { attempts: 1, latestScore: 100, bestScore: 100 },
+  answers: questionIds.map((questionId) => ({
+    questionId,
+    selectedIndex: 1,
+    correctIndex: 1,
+    correct: true,
+    explanation: "Fixture explanation",
+    sourceIds: ["S1"],
+  })),
 };
 
 afterEach(() => {
@@ -240,14 +280,24 @@ describe("Study Coach quiz flow", () => {
     fireEvent.change(screen.getByLabelText("Tài liệu"), {
       target: { value: documentId },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Tạo bản xem trước" }));
+    act(() => {
+      const create = screen.getByRole("button", { name: "Tạo bản xem trước" });
+      fireEvent.click(create);
+      fireEvent.click(create);
+    });
     expect(
       await screen.findByText("Bản xem trước · chưa được lưu"),
     ).toBeTruthy();
     expect(generate).toHaveBeenCalledOnce();
     expect(confirm).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Xác nhận lưu quiz" }));
+    act(() => {
+      const confirmButton = screen.getByRole("button", {
+        name: "Xác nhận lưu quiz",
+      });
+      fireEvent.click(confirmButton);
+      fireEvent.click(confirmButton);
+    });
     expect(await screen.findByText(/Đã lưu quiz/)).toBeTruthy();
     await screen.findByRole("button", { name: "Mở và luyện tập" });
     fireEvent.click(screen.getByRole("button", { name: "Mở và luyện tập" }));
@@ -417,7 +467,11 @@ describe("Study Coach quiz flow", () => {
     fireEvent.click(radios[5]);
     fireEvent.click(radios[9]);
     fireEvent.click(screen.getByRole("button", { name: "Kiểm tra đáp án" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Nộp bài" }));
+    const submitButton = await screen.findByRole("button", { name: "Nộp bài" });
+    act(() => {
+      fireEvent.click(submitButton);
+      fireEvent.click(submitButton);
+    });
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Temporary failure",
     );
@@ -430,6 +484,368 @@ describe("Study Coach quiz flow", () => {
     expect(submit).toHaveBeenCalledTimes(2);
     expect(submitted[1].key).toBe(submitted[0].key);
     expect(submitted[1].payload).toEqual(submitted[0].payload);
+  });
+
+  it("keeps attempt recovery and its exact retry when a pre-existing preview is present", async () => {
+    vi.spyOn(api, "searchDocuments").mockResolvedValue(readyDocumentPage);
+    vi.spyOn(api, "listStudyQuizzes").mockResolvedValue(page);
+    vi.spyOn(api, "getStudyQuiz").mockResolvedValue(detail);
+    const generate = vi
+      .spyOn(api, "generateStudyQuiz")
+      .mockResolvedValue(generated);
+    const confirm = vi
+      .spyOn(api, "confirmStudyQuiz")
+      .mockResolvedValue(summary);
+    const submit = vi
+      .spyOn(api, "submitStudyQuiz")
+      .mockRejectedValueOnce(
+        new ApiError("Temporary failure", "INTERNAL_ERROR", 503),
+      )
+      .mockResolvedValue(successfulAttempt);
+
+    mount();
+    await screen.findByRole("option", { name: "Indexed notes.pdf" });
+    fireEvent.change(screen.getByLabelText("Tài liệu"), {
+      target: { value: documentId },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo bản xem trước" }));
+    await screen.findByText("Bản xem trước · chưa được lưu");
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mở và luyện tập" }),
+    );
+    await screen.findByText(/Question 1\?/);
+    const radios = screen.getAllByRole("radio");
+    fireEvent.click(radios[1]);
+    fireEvent.click(radios[5]);
+    fireEvent.click(radios[9]);
+    fireEvent.click(screen.getByRole("button", { name: "Kiểm tra đáp án" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Nộp bài" }));
+    await screen.findByText("Temporary failure");
+
+    const createButton = screen.getByRole("button", {
+      name: "Tạo bản xem trước mới",
+    });
+    const confirmButton = screen.getByRole("button", {
+      name: "Xác nhận lưu quiz",
+    });
+    expect(createButton).toBeDisabled();
+    expect(confirmButton).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Gửi lại cùng lượt" }),
+    ).toBeInTheDocument();
+    fireEvent.click(createButton);
+    expect(generate).toHaveBeenCalledOnce();
+    expect(confirm).not.toHaveBeenCalled();
+    expect(submit).toHaveBeenCalledOnce();
+
+    const originalCall = submit.mock.calls[0];
+    fireEvent.click(screen.getByRole("button", { name: "Gửi lại cùng lượt" }));
+    await screen.findByText("Kết quả: 3/3 · 100%");
+    expect(submit).toHaveBeenCalledTimes(2);
+    expect(submit.mock.calls[1]).toEqual(originalCall);
+    expect(
+      within(screen.getByRole("region", { name: "Luyện tập" })).getByText(
+        /3 câu · 1 lượt/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("does not confirm a pre-existing preview while attempt recovery is unresolved", async () => {
+    vi.spyOn(api, "searchDocuments").mockResolvedValue(readyDocumentPage);
+    vi.spyOn(api, "listStudyQuizzes").mockResolvedValue(page);
+    vi.spyOn(api, "getStudyQuiz").mockResolvedValue(detail);
+    vi.spyOn(api, "generateStudyQuiz").mockResolvedValue(generated);
+    const confirm = vi
+      .spyOn(api, "confirmStudyQuiz")
+      .mockResolvedValue(summary);
+    const submit = vi
+      .spyOn(api, "submitStudyQuiz")
+      .mockRejectedValueOnce(
+        new ApiError("Temporary failure", "INTERNAL_ERROR", 503),
+      )
+      .mockResolvedValue(successfulAttempt);
+
+    mount();
+    await screen.findByRole("option", { name: "Indexed notes.pdf" });
+    fireEvent.change(screen.getByLabelText("Tài liệu"), {
+      target: { value: documentId },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo bản xem trước" }));
+    await screen.findByText("Bản xem trước · chưa được lưu");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mở và luyện tập" }),
+    );
+    await screen.findByText(/Question 1\?/);
+    const radios = screen.getAllByRole("radio");
+    fireEvent.click(radios[1]);
+    fireEvent.click(radios[5]);
+    fireEvent.click(radios[9]);
+    fireEvent.click(screen.getByRole("button", { name: "Kiểm tra đáp án" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Nộp bài" }));
+    await screen.findByText("Temporary failure");
+
+    const confirmButton = screen.getByRole("button", {
+      name: "Xác nhận lưu quiz",
+    });
+    expect(confirmButton).toBeDisabled();
+    fireEvent.click(confirmButton);
+    expect(confirm).not.toHaveBeenCalled();
+    expect(submit).toHaveBeenCalledOnce();
+    expect(
+      screen.getByRole("button", { name: "Gửi lại cùng lượt" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps create and confirm disabled while an attempt submission is in flight", async () => {
+    let resolveSubmit!: (
+      value: Awaited<ReturnType<typeof api.submitStudyQuiz>>,
+    ) => void;
+    vi.spyOn(api, "searchDocuments").mockResolvedValue(readyDocumentPage);
+    vi.spyOn(api, "listStudyQuizzes").mockResolvedValue(page);
+    vi.spyOn(api, "getStudyQuiz").mockResolvedValue(detail);
+    const generate = vi
+      .spyOn(api, "generateStudyQuiz")
+      .mockResolvedValue(generated);
+    const confirm = vi
+      .spyOn(api, "confirmStudyQuiz")
+      .mockResolvedValue(summary);
+    const submit = vi.spyOn(api, "submitStudyQuiz").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSubmit = resolve;
+        }),
+    );
+
+    mount();
+    await screen.findByRole("option", { name: "Indexed notes.pdf" });
+    fireEvent.change(screen.getByLabelText("Tài liệu"), {
+      target: { value: documentId },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo bản xem trước" }));
+    await screen.findByText("Bản xem trước · chưa được lưu");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mở và luyện tập" }),
+    );
+    await screen.findByText(/Question 1\?/);
+    const radios = screen.getAllByRole("radio");
+    fireEvent.click(radios[1]);
+    fireEvent.click(radios[5]);
+    fireEvent.click(radios[9]);
+    fireEvent.click(screen.getByRole("button", { name: "Kiểm tra đáp án" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Nộp bài" }));
+    await waitFor(() => expect(submit).toHaveBeenCalledOnce());
+
+    const createButton = screen.getByRole("button", {
+      name: "Tạo bản xem trước mới",
+    });
+    const confirmButton = screen.getByRole("button", {
+      name: "Xác nhận lưu quiz",
+    });
+    expect(createButton).toBeDisabled();
+    expect(confirmButton).toBeDisabled();
+    fireEvent.click(createButton);
+    fireEvent.click(confirmButton);
+    expect(generate).toHaveBeenCalledOnce();
+    expect(confirm).not.toHaveBeenCalled();
+
+    resolveSubmit(successfulAttempt);
+    await screen.findByText("Kết quả: 3/3 · 100%");
+  });
+
+  it("does not submit practice while quiz generation is pending, then allows it after generation settles", async () => {
+    let resolveGeneration!: (value: StudyQuizGeneratedDraft) => void;
+    vi.spyOn(api, "searchDocuments").mockResolvedValue(readyDocumentPage);
+    vi.spyOn(api, "listStudyQuizzes").mockResolvedValue(page);
+    vi.spyOn(api, "getStudyQuiz").mockResolvedValue(detail);
+    const generate = vi.spyOn(api, "generateStudyQuiz").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveGeneration = resolve;
+        }),
+    );
+    const submit = vi
+      .spyOn(api, "submitStudyQuiz")
+      .mockResolvedValue(successfulAttempt);
+
+    mount();
+    await screen.findByRole("option", { name: "Indexed notes.pdf" });
+    fireEvent.change(screen.getByLabelText("Tài liệu"), {
+      target: { value: documentId },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo bản xem trước" }));
+    expect(generate).toHaveBeenCalledOnce();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mở và luyện tập" }),
+    );
+    await screen.findByText(/Question 1\?/);
+    const radios = screen.getAllByRole("radio");
+    fireEvent.click(radios[1]);
+    fireEvent.click(radios[5]);
+    fireEvent.click(radios[9]);
+    const checkButton = screen.getByRole("button", { name: "Kiểm tra đáp án" });
+    expect(checkButton).toBeDisabled();
+    fireEvent.submit(checkButton.closest("form")!);
+    fireEvent.click(checkButton);
+    expect(screen.queryByRole("button", { name: "Nộp bài" })).toBeNull();
+    expect(submit).not.toHaveBeenCalled();
+
+    resolveGeneration(generated);
+    await screen.findByText("Bản xem trước · chưa được lưu");
+    expect(
+      screen.getByRole("region", { name: "Luyện tập" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Kiểm tra đáp án" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Nộp bài" }));
+    await screen.findByText("Kết quả: 3/3 · 100%");
+    expect(submit).toHaveBeenCalledOnce();
+  });
+
+  it("does not submit while save confirmation is pending and keeps practice after its response", async () => {
+    let resolveConfirm!: (value: StudyQuizSummary) => void;
+    vi.spyOn(api, "searchDocuments").mockResolvedValue(readyDocumentPage);
+    vi.spyOn(api, "listStudyQuizzes").mockResolvedValue(page);
+    vi.spyOn(api, "getStudyQuiz").mockResolvedValue(detail);
+    vi.spyOn(api, "generateStudyQuiz").mockResolvedValue(generated);
+    const confirm = vi.spyOn(api, "confirmStudyQuiz").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveConfirm = resolve;
+        }),
+    );
+    const submit = vi
+      .spyOn(api, "submitStudyQuiz")
+      .mockResolvedValue(successfulAttempt);
+
+    mount();
+    await screen.findByRole("option", { name: "Indexed notes.pdf" });
+    fireEvent.change(screen.getByLabelText("Tài liệu"), {
+      target: { value: documentId },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo bản xem trước" }));
+    await screen.findByText("Bản xem trước · chưa được lưu");
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận lưu quiz" }));
+    expect(confirm).toHaveBeenCalledOnce();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mở và luyện tập" }),
+    );
+    await screen.findByText(/Question 1\?/);
+    const radios = screen.getAllByRole("radio");
+    fireEvent.click(radios[1]);
+    fireEvent.click(radios[5]);
+    fireEvent.click(radios[9]);
+    const checkButton = screen.getByRole("button", { name: "Kiểm tra đáp án" });
+    expect(checkButton).toBeDisabled();
+    fireEvent.submit(checkButton.closest("form")!);
+    fireEvent.click(checkButton);
+    expect(screen.queryByRole("button", { name: "Nộp bài" })).toBeNull();
+    expect(submit).not.toHaveBeenCalled();
+
+    resolveConfirm({ ...summary, id: "77777777-7777-4777-8777-777777777777" });
+    await screen.findByText(/Đã lưu quiz/);
+    expect(
+      screen.getByRole("region", { name: "Luyện tập" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Kiểm tra đáp án" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Nộp bài" }));
+    await screen.findByText("Kết quả: 3/3 · 100%");
+    expect(submit).toHaveBeenCalledOnce();
+  });
+
+  it("does not let late work from a previous principal release or overwrite the current lifecycle", async () => {
+    let resolveFirst!: (value: StudyQuizGeneratedDraft) => void;
+    let resolveSecond!: (value: StudyQuizGeneratedDraft) => void;
+    let generationCount = 0;
+    const firstDraft = {
+      ...generated,
+      draftId: "66666666-6666-4666-8666-666666666667",
+      quiz: { ...generated.quiz, title: "Previous principal draft" },
+    };
+    const secondDraft = {
+      ...generated,
+      draftId: "66666666-6666-4666-8666-666666666668",
+      quiz: { ...generated.quiz, title: "Current principal draft" },
+    };
+    vi.spyOn(api, "searchDocuments").mockResolvedValue(readyDocumentPage);
+    vi.spyOn(api, "listStudyQuizzes").mockResolvedValue(page);
+    const generate = vi.spyOn(api, "generateStudyQuiz").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          generationCount += 1;
+          if (generationCount === 1) resolveFirst = resolve;
+          else resolveSecond = resolve;
+        }),
+    );
+    const otherPrincipal = {
+      ...principal,
+      userId: "99999999-9999-4999-8999-999999999999",
+      workspaceId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    };
+    const tree = (current: typeof principal) => (
+      <PilotPrincipalContext.Provider value={current}>
+        <StudyCoachPanel />
+      </PilotPrincipalContext.Provider>
+    );
+    const view = render(tree(principal));
+    await screen.findByRole("option", { name: "Indexed notes.pdf" });
+    fireEvent.change(screen.getByLabelText("Tài liệu"), {
+      target: { value: documentId },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo bản xem trước" }));
+    expect(generate).toHaveBeenCalledOnce();
+
+    view.rerender(tree(otherPrincipal));
+    await screen.findByRole("option", { name: "Indexed notes.pdf" });
+    fireEvent.change(screen.getByLabelText("Tài liệu"), {
+      target: { value: documentId },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo bản xem trước" }));
+    expect(generate).toHaveBeenCalledTimes(2);
+
+    resolveFirst(firstDraft);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(
+      screen.getByRole("button", { name: "Đang tạo bản xem trước…" }),
+    ).toBeDisabled();
+    expect(screen.queryByText("Previous principal draft")).toBeNull();
+
+    resolveSecond(secondDraft);
+    await screen.findByText(/Current principal draft/);
+    expect(screen.queryByText(/Previous principal draft/)).toBeNull();
+  });
+
+  it("discards a pending generation response after unmount", async () => {
+    let resolveGeneration!: (value: StudyQuizGeneratedDraft) => void;
+    vi.spyOn(api, "searchDocuments").mockResolvedValue(readyDocumentPage);
+    vi.spyOn(api, "listStudyQuizzes").mockResolvedValue(page);
+    const generate = vi.spyOn(api, "generateStudyQuiz").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveGeneration = resolve;
+        }),
+    );
+    const confirm = vi.spyOn(api, "confirmStudyQuiz");
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    const view = mount();
+    await screen.findByRole("option", { name: "Indexed notes.pdf" });
+    fireEvent.change(screen.getByLabelText("Tài liệu"), {
+      target: { value: documentId },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo bản xem trước" }));
+    expect(generate).toHaveBeenCalledOnce();
+
+    view.unmount();
+    await act(async () => {
+      resolveGeneration(generated);
+      await Promise.resolve();
+    });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(consoleError).not.toHaveBeenCalled();
   });
 
   it("requires draft reconciliation before confirming or cancelling an unknown save", async () => {

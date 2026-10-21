@@ -116,6 +116,37 @@ browser automation is exposed in this session, so F08-A.1 browser acceptance
 remains pending. Semantic question quality, F08-B flashcards, F09, and all
 cloud/live acceptance remain separate and pending.
 
+## F08-A.2 — creation/practice lifecycle coordination (21/10/2026)
+
+Quiz generation, confirmation/reconciliation/cancellation, deletion, and attempt
+submission now share one tokenized lifecycle lock. Both handlers and controls
+block quiz creation/save while an attempt is prepared, sending, or unresolved;
+practice submission is also blocked while another lifecycle operation is in
+flight. Keeping the prepared attempt in this guard prevents a pre-existing
+preview from replacing its quiz/key/answer payload. A late completion can
+release only the exact lock token it acquired. Principal/reset/unmount cleanup
+invalidates old tokens and the existing epoch guards discard stale responses.
+Successful quiz confirmation no longer clears an already open practice detail.
+Successful attempt retry still uses the same quiz ID, attempt key and payload,
+then applies the server's progress to the open detail and list.
+
+RED on the pre-fix source: the valid focused regression run had 4 failures and
+11 passes. The create button and preview-confirm button were still enabled with
+an unknown attempt; the practice check action also remained enabled during
+pending generation and confirmation. The first draft of these tests omitted
+selecting the document; that fixture error was corrected before recording RED.
+GREEN on final source: the focused StudyCoachPanel suite passes 18/18, including
+existing-preview/unknown-attempt recovery, same-key retry and progress, delayed
+generation/confirmation/attempt, duplicate clicks, principal switch and unmount.
+
+Final web-only verification: `npm run typecheck`, `npm test`, `npm run build`,
+and `npm run format:check` exit 0. `npm test` passed API Vitest 393, API Node
+857, and Web Vitest 507 (1,757 total), with zero failures, skips, or cancellations.
+No API/SQL/permission source changed, so the DB gate was not rerun. Browser
+automation is not exposed in this session; desktop/mobile F08-A.2 acceptance
+remains pending and is not inferred from React tests. F08-A browser acceptance,
+semantic review, F08-B, F09, and cloud/live acceptance remain pending.
+
 Assistant conversations are private to the verified `(workspace_id,user_id)`.
 Migration 022 adds a conversation header, receipt-linked canonical turns, and
 minimal create-key tombstones that prevent a delayed create retry from
@@ -946,7 +977,7 @@ chiếu lịch sử. Không chạy lại phần đã có hoặc biến kế ho�
 | F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Documents, sidebar and all five F05.3 module screens have local automated coverage; browser acceptance pending, so whole F05 remains partial                     |
 | F06 | Dashboard AI cho admin đúng workspace: request/provider calls, token/cost/latency/lỗi/từ chối và filters                   | Local code/API/PG17 implementation and automated verification in this checkpoint; browser acceptance pending; not billing or F04 quota ledger                    |
 | F07 | N1 lưu bền, mở lại/xóa, retention/quyền; receipt/history/reset/account isolation                                           | Local implementation and automated verification complete; browser acceptance pending. F08-A is a separate partial feature, not part of F07 acceptance             |
-| F08 | N2 Study Coach: structured quiz/flashcards, nguồn, preview/xác nhận lưu, luyện tập/tiến độ cá nhân                         | F08-A quiz code and automated local verification complete; browser and semantic review pending; flashcards/F09 remain pending, so F08 is partial |
+| F08 | N2 Study Coach: structured quiz/flashcards, nguồn, preview/xác nhận lưu, luyện tập/tiến độ cá nhân                         | F08-A code and automated local verification include F08-A.2 lifecycle guards; browser and semantic review pending; flashcards/F09 remain pending, so F08 is partial |
 | F09 | B4: ít nhất 20 case thực thi có expected, cùng corpus/gold trước/sau, human review/guardrails/fallback/latency/cost        | Chưa nghiệm thu semantic/live; live runner còn BLOCKED, principal CLI hay HTTP chưa chốt                                                                         |
 | F10 | Chỉ STT của Thắng: hoàn thiện lỗi, bảo mật/dependency, accuracy/latency và nghiệm thu thực tế khi cần                      | Thu hẹp theo Tài ngày 19/10/2026; giữ implementation STT hiện có, không phát triển TTS, không chuyển ownership                                                   |
 | F11 | PWA/mobile thật: manifest/install/update/offline shell, Android và giới hạn iOS                                            | Pending; không cache dữ liệu riêng hoặc tự queue write                                                                                                           |
