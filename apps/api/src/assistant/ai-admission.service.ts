@@ -115,7 +115,8 @@ function providerLimit(
 function initiallyPlannedProviderCalls(descriptor: AiOperationDescriptor) {
   if (
     descriptor.operation !== "assistant_question" &&
-    descriptor.operation !== "study_quiz"
+    descriptor.operation !== "study_quiz" &&
+    descriptor.operation !== "study_flashcards"
   )
     return 0;
   if (descriptor.mode === "workspace") return 0;

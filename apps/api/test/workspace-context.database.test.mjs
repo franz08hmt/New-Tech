@@ -6,7 +6,7 @@ import pg from "pg";
 import { DatabaseService } from "../dist/database/database.service.js";
 import { TasksService } from "../dist/tasks/tasks.service.js";
 import { CoursesService } from "../dist/courses/courses.service.js";
-import { migrate } from "../scripts/migrate.mjs";
+import { loadMigrations, migrate } from "../scripts/migrate.mjs";
 import { assertTestDatabaseTarget } from "../scripts/test-database-target.mjs";
 import { prepareAuthFixture } from "./disposable-auth-fixture.mjs";
 import { authFixture } from "./auth-fixture.mjs";
@@ -103,7 +103,7 @@ before(async () => {
   assert.equal(
     (await admin.query("SELECT count(*)::int AS n FROM schema_migrations"))
       .rows[0].n,
-    23,
+    (await loadMigrations()).length,
   );
   await admin.query(
     "INSERT INTO workspaces(id,active) VALUES($1,true),($2,false)",

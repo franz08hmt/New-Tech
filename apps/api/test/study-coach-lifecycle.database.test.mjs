@@ -18,7 +18,9 @@ import {
 let fixture;
 
 before(async () => {
-  fixture = await openDocumentsTenantFixture();
+  // Keep this rollback scenario on the exact historical 001-023 chain. The
+  // F08-B migration 024 lifecycle is exercised by its own separate suite.
+  fixture = await openDocumentsTenantFixture({ migrationLimit: 23 });
 });
 
 after(async () => {
@@ -272,8 +274,13 @@ test("quiz retention is bounded and migration 023 rolls back/reapplies without c
     0,
   );
 
-  await migrate(admin.options.connectionString);
-  await migrate(admin.options.connectionString);
+  const quizMigrationSource = await loadMigrations();
+  const reapplyQuizChain = () =>
+    migrate(admin.options.connectionString, {
+      loadSource: async () => quizMigrationSource.slice(0, 23),
+    });
+  await reapplyQuizChain();
+  await reapplyQuizChain();
   const migrations = await loadMigrations();
   const migration = migrations.find(
     (item) => item.name === "023_study_coach_quizzes.sql",

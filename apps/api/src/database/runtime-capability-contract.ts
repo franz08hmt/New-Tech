@@ -21,7 +21,7 @@ export function runtimeCapabilityError(message?: string) {
   return new RuntimeCapabilityContractError(message);
 }
 
-export const RUNTIME_CAPABILITY_CONTRACT_VERSION = 23;
+export const RUNTIME_CAPABILITY_CONTRACT_VERSION = 24;
 
 const baseManagedRelations = [
   "workspaces",
@@ -64,11 +64,17 @@ const studyCoachQuizRelations = [
   "study_coach_quizzes",
   "study_coach_quiz_attempts",
 ];
+const studyCoachFlashcardRelations = [
+  "study_coach_flashcard_drafts",
+  "study_coach_flashcard_decks",
+  "study_coach_flashcard_reviews",
+];
 const managedRelationsFor = (version: number) => [
   ...baseManagedRelations,
   ...(version >= 22 ? conversationRelations : []),
   ...(version >= 20 ? admissionRelations : []),
   ...(version >= 23 ? studyCoachQuizRelations : []),
+  ...(version >= 24 ? studyCoachFlashcardRelations : []),
 ];
 
 const roleGroups = ["examate_business", "examate_auth", "examate_policy_owner"];
@@ -92,6 +98,8 @@ const expectedCatalogDigests: Readonly<Record<number, string>> = {
   22: "befdd28ceed598d7b6009c24e42b116f2264c47e886319100512563538f409fa",
   // Generated from a pristine PG17 database by applying source migrations 001-023.
   23: "81a06e44c4a79d02f2ce6ed1bd09cd34dbe2e6acd50b26543b8eea400a3f23e1",
+  // Generated from a pristine PG17 database by applying source migrations 001-024.
+  24: "43348bba96719e0efb18026dee0361c6662d4ed69ee5bd202fdf7e669dd3beca",
 };
 
 async function readContractCatalog(query: Query, version: number) {
@@ -368,6 +376,7 @@ const managedPolicyRelations = [
   "assistant_conversation_turns",
   "assistant_conversation_create_keys",
   ...studyCoachQuizRelations,
+  ...studyCoachFlashcardRelations,
   "assistant_feedback",
   "pilot_sessions",
   "pilot_auth_limits",
@@ -526,4 +535,16 @@ export const EXPECTED_023_RUNTIME_POLICIES = [
   "f08_quizzes_owner_delete",
   "f08_quiz_attempts_owner_select",
   "f08_quiz_attempts_owner_insert",
+];
+
+export const EXPECTED_024_RUNTIME_POLICIES = [
+  ...EXPECTED_023_RUNTIME_POLICIES,
+  "f08_flashcard_drafts_owner_select",
+  "f08_flashcard_drafts_owner_insert",
+  "f08_flashcard_drafts_owner_update",
+  "f08_flashcard_decks_owner_select",
+  "f08_flashcard_decks_owner_insert",
+  "f08_flashcard_decks_owner_delete",
+  "f08_flashcard_reviews_owner_select",
+  "f08_flashcard_reviews_owner_insert",
 ];

@@ -35,6 +35,7 @@ const expectedMigrationNames = [
   "021_ai_usage_dashboard.sql",
   "022_assistant_conversations.sql",
   "023_study_coach_quizzes.sql",
+  "024_study_coach_flashcards.sql",
 ];
 
 const saved = { ...process.env };
@@ -145,8 +146,8 @@ test("022 stores only bounded receipt-linked personal conversations under owner 
     /f07_create_keys_owner_select/,
     /f07_create_keys_owner_insert/,
     /examate_workspace_role\(workspace_id\) IS NOT NULL/,
-    /GRANT SELECT \(/,
-    /GRANT INSERT \(/,
+    /GRANT SELECT\s*\(/,
+    /(?:GRANT INSERT|,\s*INSERT)\s*\(/,
   ])
     assert.match(migration.sql, pattern);
   assert.doesNotMatch(
@@ -156,6 +157,40 @@ test("022 stores only bounded receipt-linked personal conversations under owner 
   assert.doesNotMatch(
     migration.sql,
     /^\s*(?:access_token|refresh_token|cookie|signed_url|storage_key|provider_payload)\s+(?:TEXT|VARCHAR|BYTEA)\b/im,
+  );
+});
+
+test("024 adds private, bounded flashcard drafts/decks/reviews and F03/F04 operation identity", async () => {
+  const migration = (await loadMigrations()).find(
+    (file) => file.name === "024_study_coach_flashcards.sql",
+  );
+  assert.ok(migration);
+  for (const pattern of [
+    /'study_flashcards'/,
+    /CREATE TABLE public\.study_coach_flashcard_drafts/,
+    /CREATE TABLE public\.study_coach_flashcard_decks/,
+    /CREATE TABLE public\.study_coach_flashcard_reviews/,
+    /token_hash CHAR\(64\)/,
+    /expires_at TIMESTAMPTZ NOT NULL DEFAULT \(clock_timestamp\(\) \+ INTERVAL '15 minutes'\)/,
+    /expires_at TIMESTAMPTZ NOT NULL DEFAULT \(clock_timestamp\(\) \+ INTERVAL '90 days'\)/,
+    /ON DELETE RESTRICT/,
+    /ON DELETE CASCADE/,
+    /UNIQUE\(deck_id,user_id,review_key\)/,
+    /ENABLE ROW LEVEL SECURITY/,
+    /f08_flashcard_drafts_owner_select/,
+    /f08_flashcard_decks_owner_select/,
+    /f08_flashcard_reviews_owner_select/,
+    /GRANT SELECT\s*\(/,
+    /(?:GRANT INSERT|,\s*INSERT)\s*\(/,
+  ])
+    assert.match(migration.sql, pattern);
+  assert.doesNotMatch(
+    migration.sql,
+    /GRANT ALL|BYPASSRLS|SECURITY DEFINER|ON DELETE CASCADE.*assistant_answer_receipts/i,
+  );
+  assert.doesNotMatch(
+    migration.sql,
+    /^\s*(?:draft_token|access_token|cookie|signed_url|storage_key|provider_payload)\s+(?:TEXT|VARCHAR|BYTEA)\b/im,
   );
 });
 afterEach(() => {

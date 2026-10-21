@@ -44,6 +44,8 @@ import { WorkspaceSearchController } from "./workspace-search/workspace-search.c
 import { WorkspaceSearchService } from "./workspace-search/workspace-search.service.js";
 import { StudyCoachController } from "./study-coach/study-coach.controller.js";
 import { StudyCoachService } from "./study-coach/study-coach.service.js";
+import { StudyFlashcardsController } from "./study-coach/study-flashcards.controller.js";
+import { StudyFlashcardsService } from "./study-coach/study-flashcards.service.js";
 import {
   SpeechController,
   SpeechAdmissionInterceptor,
@@ -78,6 +80,7 @@ import { SPEECH_PROVIDER } from "./speech/speech.types.js";
     AiUsageDashboardController,
     SpeechController,
     StudyCoachController,
+    StudyFlashcardsController,
   ],
   providers: [
     AuthService,
@@ -112,6 +115,7 @@ import { SPEECH_PROVIDER } from "./speech/speech.types.js";
     AiUsageDashboardService,
     AiAdmissionService,
     StudyCoachService,
+    StudyFlashcardsService,
     SpeechService,
     SpeechAdmissionInterceptor,
     AudioInspector,

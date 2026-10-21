@@ -24,6 +24,7 @@ const operations: readonly AiUsageOperationName[] = [
   "assistant_course_info",
   "document_index",
   "study_quiz",
+  "study_flashcards",
 ];
 const modes: readonly AiUsageOperationMode[] = [
   "general",

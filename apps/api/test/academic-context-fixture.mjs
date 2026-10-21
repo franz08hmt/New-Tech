@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { randomUUID, randomBytes } from "node:crypto";
 import pg from "pg";
 import { DatabaseService } from "../dist/database/database.service.js";
-import { migrate } from "../scripts/migrate.mjs";
+import { loadMigrations, migrate } from "../scripts/migrate.mjs";
 import { assertTestDatabaseTarget } from "../scripts/test-database-target.mjs";
 import { prepareAuthFixture } from "./disposable-auth-fixture.mjs";
 
@@ -176,7 +176,7 @@ export async function openAcademicFixture({ metadata = false } = {}) {
     assert.equal(
       (await admin.query("SELECT count(*)::int AS n FROM schema_migrations"))
         .rows[0].n,
-      23,
+      (await loadMigrations()).length,
     );
     for (const user of Object.values(users))
       await admin.query("INSERT INTO auth.users(id) VALUES($1)", [user]);

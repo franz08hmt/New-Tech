@@ -74,6 +74,14 @@ describe("F06 AI usage query contract", () => {
     });
   });
 
+  it("recognizes the versioned Study Coach flashcards generation operation", () => {
+    expect(
+      parseAiUsageDashboardQuery({ operation: "study_flashcards" }),
+    ).toMatchObject({
+      operation: "study_flashcards",
+    });
+  });
+
   it("accepts the supported date boundaries and exact 90-day range", () => {
     expect(() =>
       parseAiUsageDashboardQuery({ from: "0001-01-01", to: "0001-01-01" }),

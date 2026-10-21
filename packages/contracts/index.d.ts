@@ -761,7 +761,8 @@ export type AiUsageOperationName =
   | "assistant_summary"
   | "assistant_course_info"
   | "document_index"
-  | "study_quiz";
+  | "study_quiz"
+  | "study_flashcards";
 export type AiUsageOperationMode = "general" | "documents" | "workspace";
 export type AiUsageOperationOutcome =
   "success" | "error" | "timeout" | "cancelled" | "rejected" | "unknown";
@@ -1043,4 +1044,99 @@ export interface StudyQuizProgressResponse {
   latestScore: number | null;
   bestScore: number | null;
   latestSubmittedAt: string | null;
+}
+
+/** F08-B private evidence-grounded flashcards and learner self-assessment. */
+export type StudyFlashcardLanguage = "vi" | "en";
+export type StudyFlashcardRating = "remembered" | "needs_review";
+export interface StudyFlashcardsGenerateRequest {
+  documentId: string;
+  language: StudyFlashcardLanguage;
+  cardCount?: number;
+}
+export interface StudyFlashcardSource {
+  sourceId: string;
+  documentId: string;
+  title: string;
+  page: number | null;
+  chunkIndex: number;
+  available?: boolean;
+}
+export interface StudyFlashcardPreviewItem {
+  id: string;
+  front: string;
+  back: string;
+  sourceIds: string[];
+}
+export interface StudyFlashcardsPreview {
+  schemaVersion: "study-flashcards-v1";
+  title: string;
+  language: StudyFlashcardLanguage;
+  cards: StudyFlashcardPreviewItem[];
+  sources: StudyFlashcardSource[];
+}
+export interface StudyFlashcardsGeneratedDraft {
+  draftId: string;
+  draftToken: string;
+  expiresAt: string;
+  documentId: string;
+  documentTitle: string;
+  flashcards: StudyFlashcardsPreview;
+}
+export type StudyFlashcardsDraftReconciliation =
+  | {
+      status: "draft";
+      draft: Omit<StudyFlashcardsGeneratedDraft, "draftToken">;
+    }
+  | { status: "confirmed"; deck: StudyFlashcardsSummary }
+  | { status: "cancelled" | "expired" | "deleted" };
+export interface StudyFlashcardsConfirmRequest {
+  draftToken: string;
+}
+export interface StudyFlashcardsProgress {
+  reviews: number;
+  latestAt: string | null;
+  latestRemembered: number | null;
+  latestNeedsReview: number | null;
+}
+export interface StudyFlashcardsSummary {
+  id: string;
+  title: string;
+  language: StudyFlashcardLanguage;
+  documentId: string;
+  documentTitle: string;
+  sourceAvailable: boolean;
+  cardCount: number;
+  createdAt: string;
+  expiresAt: string;
+  progress: StudyFlashcardsProgress;
+}
+export interface StudyFlashcardsListResponse {
+  items: StudyFlashcardsSummary[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+export interface StudyFlashcardsDetail {
+  deck: StudyFlashcardsSummary;
+  schemaVersion: "study-flashcards-v1";
+  cards: StudyFlashcardPreviewItem[];
+  sources: StudyFlashcardSource[];
+}
+export interface StudyFlashcardsReviewRequest {
+  reviewKey: string;
+  ratings: Array<{ cardId: string; rating: StudyFlashcardRating }>;
+}
+export interface StudyFlashcardsReviewResult {
+  id: string;
+  reviewKey: string;
+  completedAt: string;
+  rememberedCount: number;
+  needsReviewCount: number;
+  progress: StudyFlashcardsProgress;
+}
+export interface StudyFlashcardsProgressResponse {
+  deckId: string;
+  progress: StudyFlashcardsProgress;
 }

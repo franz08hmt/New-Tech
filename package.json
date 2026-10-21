@@ -25,6 +25,8 @@
     "f06:rollback-021": "npm run build --workspace @examate/api && node apps/api/scripts/pilot-rollback-021.mjs",
     "f07:rollback-022": "npm run build --workspace @examate/api && node apps/api/scripts/pilot-rollback-022.mjs",
     "f07:retention": "npm run build --workspace @examate/api && node apps/api/scripts/assistant-conversation-retention.mjs",
+    "f08b:rollback-024": "npm run build --workspace @examate/api && node apps/api/scripts/pilot-rollback-024.mjs",
+    "f08b:retention": "npm run build --workspace @examate/api && node apps/api/scripts/study-flashcards-retention.mjs",
     "dev:web": "npm run dev --workspace @examate/web",
     "dev:api": "npm run dev --workspace @examate/api",
     "build": "npm run build --workspaces --if-present",

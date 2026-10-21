@@ -25,7 +25,8 @@ export type AiOperationName =
   | "assistant_summary"
   | "assistant_course_info"
   | "document_index"
-  | "study_quiz";
+  | "study_quiz"
+  | "study_flashcards";
 export type AiOperationMode = "general" | "documents" | "workspace";
 export type AiOperationOutcome =
   "success" | "error" | "timeout" | "cancelled" | "rejected" | "unknown";
