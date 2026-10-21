@@ -964,6 +964,32 @@ test("F09-A v2 explicitly binds its predecessor and changes no semantic gold", (
   );
   assert.equal(next.corpusSha256, localDefinition.corpusSha256);
 });
+
+test("F09-A source hash tolerates only Git LF/CRLF checkout differences", () => {
+  const next = JSON.parse(
+    readFileSync(
+      new URL("../../../docs/evaluation-cases-f09a-v2.json", import.meta.url),
+    ),
+  );
+  const base = readFileSync(
+    new URL("../../../docs/evaluation-cases.json", import.meta.url),
+  );
+  const lf = Buffer.from(base.toString("utf8").replace(/\r\n/g, "\n"));
+  const crlfPredecessor = Buffer.from(
+    localManifestBytes
+      .toString("utf8")
+      .replace(/\r\n/g, "\n")
+      .replace(/\n/g, "\r\n"),
+  );
+  validateLocalDefinition(next, lf, crlfPredecessor);
+  assert.throws(() =>
+    validateLocalDefinition(
+      next,
+      Buffer.concat([lf, Buffer.from(" ")]),
+      crlfPredecessor,
+    ),
+  );
+});
 test("F09-A telemetry missing after SDK dispatch stays explicitly unknown rather than free", () => {
   const totals = summarizeMeasurements([
     { providerCalls: 2, telemetry: { calls: [], operations: [] } },

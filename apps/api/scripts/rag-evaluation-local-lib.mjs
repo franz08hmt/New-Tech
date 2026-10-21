@@ -26,11 +26,19 @@ export function localGitSnapshot(root) {
   }
 }
 
+function sourceHashMatches(bytes, expected) {
+  // Git may materialize unchanged JSON as LF or CRLF. No other byte changes
+  // (including whitespace) are accepted; per-run report hashes remain raw-byte exact.
+  const lf = bytes.toString("utf8").replace(/\r\n/g, "\n");
+  return (
+    expected === sha256(lf) || expected === sha256(lf.replace(/\n/g, "\r\n"))
+  );
+}
 export function validateLocalDefinition(definition, baseBytes, previousBytes) {
   if (
     definition.schemaVersion !== 4 ||
     !["f09a-local-v1", "f09a-local-v2"].includes(definition.revision) ||
-    definition.baseManifestSha256 !== sha256(baseBytes) ||
+    !sourceHashMatches(baseBytes, definition.baseManifestSha256) ||
     definition.corpusSha256 !== sha256(JSON.stringify(corpusManifest())) ||
     definition.corpusRevision !== corpusManifest().corpusRevision ||
     !Array.isArray(definition.cases) ||
@@ -40,7 +48,8 @@ export function validateLocalDefinition(definition, baseBytes, previousBytes) {
     throw new Error("LOCAL_EVALUATION_PROVENANCE_INVALID");
   if (
     definition.revision === "f09a-local-v2" &&
-    (!previousBytes || definition.predecessorSha256 !== sha256(previousBytes))
+    (!previousBytes ||
+      !sourceHashMatches(previousBytes, definition.predecessorSha256))
   )
     throw new Error("LOCAL_EVALUATION_PROVENANCE_INVALID");
   const ids = new Set();
