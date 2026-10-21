@@ -320,6 +320,10 @@ export function applyHumanReviews(previous, reviews, definition) {
   });
 }
 export async function main(values = process.argv.slice(2)) {
+  if (values.includes("--local-integration")) {
+    const { runLocalEvaluation } = await import("./rag-evaluation-local.mjs");
+    return runLocalEvaluation(values);
+  }
   const options = parseArguments(values),
     bytes = await readFile(jsonPath(root, options.cases)),
     definition = JSON.parse(bytes);

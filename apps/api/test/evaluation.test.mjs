@@ -13,6 +13,15 @@ import {
 } from "../scripts/rag-evaluation-lib.mjs";
 import { PdfTextExtractorService } from "../dist/documents/pdf-text-extractor.service.js";
 import * as evaluation from "../scripts/rag-evaluation-lib.mjs";
+import {
+  validateLocalDefinition,
+  makeLocalReport,
+  makeLocalReviewPack,
+  verifyLocalReviewBinding,
+  summarizeMeasurements,
+} from "../scripts/rag-evaluation-local-lib.mjs";
+import { assessLocalCase } from "../scripts/rag-evaluation-local.mjs";
+import { corpusManifest, sha256 } from "../scripts/rag-evaluation-corpus.mjs";
 
 const goldCase = {
   ...caseDefinitionPlaceholder(),
@@ -859,4 +868,279 @@ test("evaluation CLI rejects a mismatched corpus revision before HTTP", () => {
   );
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Corpus revision must match the case manifest/);
+});
+
+test("authenticated local evaluation without a disposable target blocks before runtime access", () => {
+  const env = { ...process.env };
+  delete env.TEST_DATABASE_URL;
+  const result = spawnSync(process.execPath, [runner, "--local-integration"], {
+    encoding: "utf8",
+    env,
+  });
+  assert.equal(result.status, 3);
+  assert.match(result.stdout, /LOCAL_EVALUATION_TARGET_REQUIRED/);
+  assert.doesNotMatch(result.stdout + result.stderr, /postgres(?:ql)?:\/\//);
+});
+
+const localManifestBytes = readFileSync(
+  new URL("../../../docs/evaluation-cases-f09a.json", import.meta.url),
+);
+const localDefinition = JSON.parse(localManifestBytes);
+function localReportFixture() {
+  return makeLocalReport({
+    runId: randomUUID(),
+    startedAt: "2026-10-21T00:00:00Z",
+    git: { sha: "fixture", dirty: true },
+    definition: localDefinition,
+    manifestBytes: localManifestBytes,
+    selected: localDefinition.cases.slice(0, 1),
+    configuration: { source: "synthetic" },
+    results: [
+      {
+        caseId: "F09A-001",
+        attempted: true,
+        assessment: { status: "PASS" },
+        latencyMs: 5,
+        reviewOutput: {
+          answer: "Six minutes [S1]",
+          citations: [
+            {
+              sourceId: "S1",
+              title: "examate-eval-project-brief.pdf",
+              page: 1,
+            },
+          ],
+        },
+      },
+    ],
+  });
+}
+test("F09-A revision pins unchanged historical manifest and frozen corpus before execution", () => {
+  const base = readFileSync(
+    new URL("../../../docs/evaluation-cases.json", import.meta.url),
+  );
+  validateLocalDefinition(localDefinition, base);
+  assert.equal(
+    localDefinition.cases.filter((c) => c.mode === "local_integration").length,
+    33,
+  );
+  assert.throws(() =>
+    validateLocalDefinition(
+      { ...localDefinition, corpusSha256: "0".repeat(64) },
+      base,
+    ),
+  );
+  assert.throws(() =>
+    validateLocalDefinition(
+      localDefinition,
+      Buffer.concat([base, Buffer.from(" ")]),
+    ),
+  );
+});
+
+test("F09-A v2 explicitly binds its predecessor and changes no semantic gold", () => {
+  const nextBytes = readFileSync(
+      new URL("../../../docs/evaluation-cases-f09a-v2.json", import.meta.url),
+    ),
+    next = JSON.parse(nextBytes);
+  const base = readFileSync(
+    new URL("../../../docs/evaluation-cases.json", import.meta.url),
+  );
+  validateLocalDefinition(next, base, localManifestBytes);
+  assert.throws(() =>
+    validateLocalDefinition(next, base, Buffer.from("altered predecessor")),
+  );
+  const before = localDefinition.cases.find((c) => c.id === "F09A-005"),
+    after = next.cases.find((c) => c.id === "F09A-105");
+  assert.equal(before.expected.httpStatus, 400);
+  assert.equal(after.expected.httpStatus, 404);
+  assert.equal(
+    next.cases.some((c) => c.id === "F09A-005"),
+    false,
+  );
+  assert.deepEqual(
+    next.cases.map((c) => c.semanticExpected),
+    localDefinition.cases.map((c) => c.semanticExpected),
+  );
+  assert.equal(next.corpusSha256, localDefinition.corpusSha256);
+});
+test("F09-A telemetry missing after SDK dispatch stays explicitly unknown rather than free", () => {
+  const totals = summarizeMeasurements([
+    { providerCalls: 2, telemetry: { calls: [], operations: [] } },
+  ]);
+  assert.equal(totals.accounting.missingTelemetryCalls, 2);
+  assert.equal(totals.cost.estimatedCalls, 0);
+  assert.equal(totals.cost.unknownCalls, 2);
+  assert.equal(totals.tokens.total.knownCalls, 0);
+  assert.equal(totals.tokens.total.totalCalls, 2);
+});
+test("F09-A unsafe target blocks before importing the runtime fixture", () => {
+  const env = {
+    ...process.env,
+    TEST_DATABASE_URL:
+      "postgresql://synthetic:synthetic@cloud.invalid/not_disposable",
+  };
+  const result = spawnSync(process.execPath, [runner, "--local-integration"], {
+    encoding: "utf8",
+    env,
+  });
+  assert.equal(result.status, 3);
+  assert.match(result.stdout, /LOCAL_EVALUATION_TARGET_UNSAFE/);
+  assert.doesNotMatch(
+    result.stdout + result.stderr,
+    /Migration applied|cloud\.invalid|postgresql:\/\//,
+  );
+});
+for (const field of ["run", "manifest", "corpus", "response", "report"])
+  test(`F09-A review binding rejects altered ${field}`, () => {
+    const report = localReportFixture(),
+      pack = makeLocalReviewPack(report, localDefinition);
+    assert.equal(
+      verifyLocalReviewBinding(pack, report, localManifestBytes),
+      true,
+    );
+    assert.equal(pack.cases[0].reviewer, "");
+    assert.equal(pack.cases[0].decision, null);
+    if (field === "run") pack.runId = randomUUID();
+    if (field === "manifest") pack.manifestSha256 = "0".repeat(64);
+    if (field === "corpus") report.corpusSha256 = "0".repeat(64);
+    if (field === "response") pack.cases[0].output.answer = "Altered answer";
+    if (field === "report") report.mode = "live";
+    assert.throws(
+      () => verifyLocalReviewBinding(pack, report, localManifestBytes),
+      /BINDING_INVALID/,
+    );
+  });
+
+test("F09-A review pack rejects altered source pages rather than trusting its corpus hash label", () => {
+  const report = localReportFixture(),
+    pack = makeLocalReviewPack(report, localDefinition);
+  pack.cases[0].sources[0].pages[0].text = "Altered source text";
+  assert.throws(
+    () => verifyLocalReviewBinding(pack, report, localManifestBytes),
+    /BINDING_INVALID/,
+  );
+});
+test("F09-A unexecuted references and blockers cannot contribute a quality or execution PASS", () => {
+  const report = makeLocalReport({
+    runId: randomUUID(),
+    definition: localDefinition,
+    manifestBytes: localManifestBytes,
+    selected: localDefinition.cases.slice(0, 4),
+    results: [
+      { caseId: "F09A-001", attempted: false, assessment: { status: "PASS" } },
+      {
+        caseId: "F09A-002",
+        attempted: false,
+        assessment: { status: "BLOCKED" },
+      },
+      { caseId: "F09A-003", attempted: false, assessment: { status: "SKIP" } },
+      {
+        caseId: "F09A-004",
+        attempted: false,
+        assessment: { status: "NOT_ATTEMPTED" },
+      },
+    ],
+  });
+  assert.equal(report.summary.counts.PASS, 0);
+  assert.equal(report.summary.requestsAttempted, 0);
+  assert.equal(report.summary.qualityPasses, 0);
+  assert.equal(report.summary.counts.BLOCKED, 1);
+  assert.equal(report.summary.counts.SKIP, 1);
+  assert.equal(report.summary.counts.NOT_ATTEMPTED, 2);
+});
+test("F09-A costs preserve currency/pricing and unknown coverage, valid zero differs from missing", () => {
+  const result = summarizeMeasurements([
+    {
+      attempted: true,
+      telemetry: {
+        calls: [
+          {
+            usage_status: "complete",
+            input_tokens: "0",
+            output_tokens: "0",
+            total_tokens: "0",
+            cost_status: "estimated",
+            estimated_cost: "0.000000000000",
+            currency: "USD",
+            pricing_version: "v1",
+          },
+          {
+            usage_status: "missing",
+            input_tokens: null,
+            output_tokens: null,
+            total_tokens: null,
+            cost_status: "unknown_usage",
+            estimated_cost: null,
+          },
+          {
+            usage_status: "complete",
+            total_tokens: "9007199254740992",
+            cost_status: "estimated",
+            estimated_cost: "0.100000000001",
+            currency: "USD",
+            pricing_version: "v1",
+          },
+          {
+            usage_status: "partial",
+            input_tokens: "7",
+            cost_status: "unknown_usage",
+            estimated_cost: null,
+          },
+          {
+            usage_status: "complete",
+            total_tokens: "1",
+            cost_status: "estimated",
+            estimated_cost: "0.200000000002",
+            currency: "EUR",
+            pricing_version: "v1",
+          },
+          {
+            usage_status: "complete",
+            total_tokens: "1",
+            cost_status: "estimated",
+            estimated_cost: "0.300000000003",
+            currency: "USD",
+            pricing_version: "v2",
+          },
+        ],
+        operations: [],
+      },
+    },
+  ]);
+  assert.equal(result.tokens.total.known, "9007199254740994");
+  assert.equal(result.tokens.total.knownCalls, 4);
+  assert.equal(result.cost.unknownCalls, 2);
+  assert.deepEqual(
+    result.cost.byCurrencyAndPricingVersion.map((c) => c.knownEstimate),
+    ["0.100000000001", "0.200000000002", "0.300000000003"],
+  );
+  assert.equal(result.usageCoverage.missing, 1);
+  assert.equal(result.usageCoverage.partial, 1);
+});
+test("F09-A injection conclusion is INCONCLUSIVE if malicious data did not enter provider context", () => {
+  const item = localDefinition.cases.find((c) => c.scenario === "injection");
+  const assessment = assessLocalCase(item, {
+    httpStatus: 200,
+    providerCalls: 2,
+    evidence: [{ factIds: ["codename"] }],
+    injectionInModelContext: false,
+  });
+  assert.equal(assessment.status, "INCONCLUSIVE");
+  assert.equal(assessment.dimensions.claimGrounding, "PENDING_HUMAN");
+});
+test("F09-A refuses principal/base URL/live arguments rather than enabling an Auth bypass", () => {
+  for (const args of [
+    ["--principal", "manager"],
+    ["--base-url", "http://127.0.0.1:3000"],
+    ["--execute"],
+  ]) {
+    const result = spawnSync(
+      process.execPath,
+      [runner, "--local-integration", ...args],
+      { encoding: "utf8" },
+    );
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /LOCAL_EVALUATION_ARGUMENT_INVALID/);
+  }
 });

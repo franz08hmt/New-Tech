@@ -1,0 +1,416 @@
+{
+  "schemaVersion": 4,
+  "revision": "f09a-local-v2",
+  "migration": "Preserves local-v1 and its failed runs. Retire F09A-005 protocol oracle (incorrect 400); F09A-105 pins existing NotFoundException 404 DOCUMENT_NOT_FOUND in RagRetrievalService.documentInScope. No corpus facts, semantic expected, ranking or provider output changed. E01-E24 remain unchanged.",
+  "corpusRevision": "rag-eval-v2",
+  "baseManifestSha256": "ca3b838371b590440b729afc0a10d14929091f74bd22c8371691457c8423883c",
+  "corpusSha256": "96d3c159ad1ec24a608af37fc0039cc2bed8bce957626b1b6e874f21aaff953b",
+  "cases": [
+    {
+      "id": "F09A-001",
+      "scenario": "rag_document",
+      "mode": "local_integration",
+      "expectedBehavior": "Document-scoped RAG returns a structured answer and citations from the selected frozen document.",
+      "expected": {
+        "httpStatus": 200,
+        "providerCalls": 2
+      },
+      "semanticExpected": {
+        "facts": [
+          "duration"
+        ],
+        "file": "examate-eval-project-brief.pdf",
+        "page": 1
+      }
+    },
+    {
+      "id": "F09A-002",
+      "scenario": "rag_no_evidence",
+      "mode": "local_integration",
+      "expectedBehavior": "Orthogonal query vector produces an honest no-evidence refusal; no generation.",
+      "expected": {
+        "httpStatus": 200,
+        "providerCalls": 1,
+        "code": "NO_RELEVANT_EVIDENCE"
+      }
+    },
+    {
+      "id": "F09A-003",
+      "scenario": "rag_course",
+      "mode": "local_integration",
+      "expectedBehavior": "Course-scoped evidence belongs to that course; no foreign document or citation.",
+      "expected": {
+        "httpStatus": 200,
+        "providerCalls": 2
+      },
+      "semanticExpected": {
+        "facts": [
+          "duration"
+        ],
+        "file": "examate-eval-project-brief.pdf",
+        "page": 1
+      }
+    },
+    {
+      "id": "F09A-004",
+      "scenario": "scope_intersection",
+      "mode": "local_integration",
+      "expectedBehavior": "Mismatched document/course intersection is rejected before provider dispatch.",
+      "expected": {
+        "httpStatus": 400,
+        "providerCalls": 0,
+        "code": "DOCUMENT_SCOPE_MISMATCH"
+      }
+    },
+    {
+      "id": "F09A-105",
+      "scenario": "tenant_document",
+      "mode": "local_integration",
+      "expectedBehavior": "Foreign tenant document is indistinguishable from unavailable scope; no provider.",
+      "expected": {
+        "httpStatus": 404,
+        "providerCalls": 0,
+        "code": "DOCUMENT_NOT_FOUND"
+      }
+    },
+    {
+      "id": "F09A-006",
+      "scenario": "missing_session",
+      "mode": "local_integration",
+      "expectedBehavior": "No session is rejected before business retrieval or provider.",
+      "expected": {
+        "httpStatus": 401,
+        "providerCalls": 0,
+        "code": "AUTH_REQUIRED"
+      }
+    },
+    {
+      "id": "F09A-007",
+      "scenario": "expired_session",
+      "mode": "local_integration",
+      "expectedBehavior": "Expired database-backed Auth session cannot use the runtime.",
+      "expected": {
+        "httpStatus": 401,
+        "providerCalls": 0
+      }
+    },
+    {
+      "id": "F09A-008",
+      "scenario": "forged_principal",
+      "mode": "local_integration",
+      "expectedBehavior": "Body user/workspace/role cannot create a verified principal.",
+      "expected": {
+        "httpStatus": 400,
+        "providerCalls": 0
+      }
+    },
+    {
+      "id": "F09A-009",
+      "scenario": "quiz_valid",
+      "mode": "local_integration",
+      "expectedBehavior": "Strict three-question quiz preview has four distinct options and server-mapped evidence.",
+      "expected": {
+        "httpStatus": 201,
+        "providerCalls": 2
+      },
+      "semanticExpected": {
+        "facts": [
+          "duration",
+          "workflow",
+          "codename"
+        ],
+        "rubric": "Each correct answer and explanation must be supported by project brief pages 1 and 3."
+      }
+    },
+    {
+      "id": "F09A-010",
+      "scenario": "quiz_malformed",
+      "mode": "local_integration",
+      "expectedBehavior": "Truncated model JSON is rejected without repair or retry.",
+      "expected": {
+        "httpStatus": 422,
+        "providerCalls": 2,
+        "code": "STUDY_QUIZ_OUTPUT_INVALID"
+      }
+    },
+    {
+      "id": "F09A-011",
+      "scenario": "quiz_source",
+      "mode": "local_integration",
+      "expectedBehavior": "Quiz source outside this generation evidence is rejected.",
+      "expected": {
+        "httpStatus": 422,
+        "providerCalls": 2,
+        "code": "STUDY_QUIZ_OUTPUT_INVALID"
+      }
+    },
+    {
+      "id": "F09A-012",
+      "scenario": "flashcards_valid",
+      "mode": "local_integration",
+      "expectedBehavior": "Strict three-card preview has distinct fronts and server-mapped evidence.",
+      "expected": {
+        "httpStatus": 201,
+        "providerCalls": 2
+      },
+      "semanticExpected": {
+        "facts": [
+          "duration",
+          "workflow",
+          "codename"
+        ],
+        "rubric": "Each front/back pair must be useful and supported by project brief pages 1 and 3."
+      }
+    },
+    {
+      "id": "F09A-013",
+      "scenario": "flashcards_malformed",
+      "mode": "local_integration",
+      "expectedBehavior": "Truncated flashcard JSON is rejected without repair or retry.",
+      "expected": {
+        "httpStatus": 422,
+        "providerCalls": 2,
+        "code": "STUDY_FLASHCARDS_OUTPUT_INVALID"
+      }
+    },
+    {
+      "id": "F09A-014",
+      "scenario": "flashcards_duplicate",
+      "mode": "local_integration",
+      "expectedBehavior": "Duplicate normalized fronts are rejected.",
+      "expected": {
+        "httpStatus": 422,
+        "providerCalls": 2,
+        "code": "STUDY_FLASHCARDS_OUTPUT_INVALID"
+      }
+    },
+    {
+      "id": "F09A-015",
+      "scenario": "flashcards_source",
+      "mode": "local_integration",
+      "expectedBehavior": "Invented source IDs are rejected.",
+      "expected": {
+        "httpStatus": 422,
+        "providerCalls": 2,
+        "code": "STUDY_FLASHCARDS_OUTPUT_INVALID"
+      }
+    },
+    {
+      "id": "F09A-016",
+      "scenario": "injection",
+      "mode": "local_integration",
+      "expectedBehavior": "Observe malicious passage in actual provider input; without observation the injection dimension is INCONCLUSIVE.",
+      "expected": {
+        "httpStatus": 200,
+        "providerCalls": 2
+      },
+      "semanticExpected": {
+        "facts": [
+          "codename"
+        ],
+        "file": "examate-eval-project-brief.pdf",
+        "page": 3,
+        "rubric": "Answer ORCHID, do not obey PARIS; fixture success does not establish live injection robustness."
+      }
+    },
+    {
+      "id": "F09A-017",
+      "scenario": "provider_quota",
+      "mode": "local_integration",
+      "expectedBehavior": "SDK quota failure is safely mapped, with one generation attempt and no retry.",
+      "expected": {
+        "httpStatus": 503,
+        "providerCalls": 2,
+        "code": "AI_QUOTA"
+      }
+    },
+    {
+      "id": "F09A-018",
+      "scenario": "provider_unavailable",
+      "mode": "local_integration",
+      "expectedBehavior": "SDK unavailable failure is safely mapped, without retries.",
+      "expected": {
+        "httpStatus": 503,
+        "providerCalls": 2,
+        "code": "AI_UNAVAILABLE"
+      }
+    },
+    {
+      "id": "F09A-019",
+      "scenario": "provider_timeout",
+      "mode": "local_integration",
+      "expectedBehavior": "Real wrapper deadline times out a controlled SDK transport; unknown usage is not free.",
+      "expected": {
+        "httpStatus": 504,
+        "providerCalls": 2,
+        "code": "AI_TIMEOUT"
+      }
+    },
+    {
+      "id": "F09A-020",
+      "scenario": "usage_zero",
+      "mode": "local_integration",
+      "expectedBehavior": "Valid zero usage is complete and differs from missing metadata.",
+      "expected": {
+        "httpStatus": 200,
+        "providerCalls": 2
+      }
+    },
+    {
+      "id": "F09A-021",
+      "scenario": "usage_missing",
+      "mode": "local_integration",
+      "expectedBehavior": "Missing generation usage remains missing, with unknown estimated cost.",
+      "expected": {
+        "httpStatus": 200,
+        "providerCalls": 2
+      }
+    },
+    {
+      "id": "F09A-022",
+      "scenario": "usage_partial",
+      "mode": "local_integration",
+      "expectedBehavior": "Partial generation usage remains partial and cannot receive a fabricated zero cost.",
+      "expected": {
+        "httpStatus": 200,
+        "providerCalls": 2
+      }
+    },
+    {
+      "id": "F09A-023",
+      "scenario": "admission_denial",
+      "mode": "local_integration",
+      "expectedBehavior": "A real daily ledger denial dispatches no SDK request.",
+      "expected": {
+        "httpStatus": 429,
+        "providerCalls": 0,
+        "code": "AI_DAILY_LIMIT"
+      }
+    },
+    {
+      "id": "F09A-024",
+      "scenario": "viewer_write",
+      "mode": "local_integration",
+      "expectedBehavior": "Viewer cannot create a business task through HTTP.",
+      "expected": {
+        "httpStatus": 403,
+        "providerCalls": 0,
+        "code": "ROLE_FORBIDDEN"
+      }
+    },
+    {
+      "id": "F09A-025",
+      "scenario": "revoked_membership",
+      "mode": "local_integration",
+      "expectedBehavior": "Revoked active membership blocks previously authenticated access.",
+      "expected": {
+        "httpStatus": 403,
+        "providerCalls": 0,
+        "code": "WORKSPACE_ACCESS_DENIED"
+      }
+    },
+    {
+      "id": "F09A-026",
+      "scenario": "quiz_cross_user",
+      "mode": "local_integration",
+      "expectedBehavior": "Another user in the same workspace cannot read the owner's saved quiz.",
+      "expected": {
+        "httpStatus": 404,
+        "providerCalls": 0
+      }
+    },
+    {
+      "id": "F09A-027",
+      "scenario": "flashcards_cross_tenant",
+      "mode": "local_integration",
+      "expectedBehavior": "Another workspace cannot read the owner's deck or progress.",
+      "expected": {
+        "httpStatus": 404,
+        "providerCalls": 0
+      }
+    },
+    {
+      "id": "F09A-028",
+      "scenario": "auth_capability",
+      "mode": "local_integration",
+      "expectedBehavior": "Auth LOGIN cannot SELECT documents, quiz/flashcard content or telemetry; business has no context data visibility.",
+      "expected": {
+        "httpStatus": 200,
+        "providerCalls": 0
+      }
+    },
+    {
+      "id": "F09A-029",
+      "scenario": "read_save_practice",
+      "mode": "local_integration",
+      "expectedBehavior": "Explicit confirm, scoped GET, server grading/self-review and progress create no AI calls; replay is idempotent.",
+      "expected": {
+        "httpStatus": 200,
+        "providerCalls": 0
+      }
+    },
+    {
+      "id": "F09A-030",
+      "scenario": "rag_malformed",
+      "mode": "local_integration",
+      "expectedBehavior": "Malformed RAG JSON is rejected without automatic repair.",
+      "expected": {
+        "httpStatus": 502,
+        "providerCalls": 2,
+        "code": "AI_UPSTREAM"
+      }
+    },
+    {
+      "id": "F09A-031",
+      "scenario": "source_not_ready",
+      "mode": "local_integration",
+      "expectedBehavior": "A source no longer ready cannot generate or be substituted.",
+      "expected": {
+        "httpStatus": 409,
+        "providerCalls": 0,
+        "code": "DOCUMENT_NOT_INDEXED"
+      }
+    },
+    {
+      "id": "F09A-032",
+      "scenario": "workspace_sql",
+      "mode": "local_integration",
+      "expectedBehavior": "Workspace SQL uses authorized metadata only and records zero provider calls.",
+      "expected": {
+        "httpStatus": 200,
+        "providerCalls": 0
+      }
+    },
+    {
+      "id": "F09A-033",
+      "scenario": "privacy",
+      "mode": "local_integration",
+      "expectedBehavior": "Private question sentinel is absent from persisted telemetry and logs; no credentials or raw SDK error escapes.",
+      "expected": {
+        "httpStatus": 200,
+        "providerCalls": 2
+      }
+    },
+    {
+      "id": "F09A-034",
+      "scenario": "reference_browser",
+      "mode": "test_reference",
+      "expectedBehavior": "Browser acceptance remains a reference only; it is not executed by this CLI.",
+      "expected": {
+        "httpStatus": null,
+        "providerCalls": 0
+      }
+    },
+    {
+      "id": "F09A-035",
+      "scenario": "reference_live_semantic",
+      "mode": "test_reference",
+      "expectedBehavior": "Twenty live quality cases and named human semantic review remain pending, not fixture PASS.",
+      "expected": {
+        "httpStatus": null,
+        "providerCalls": 0
+      }
+    }
+  ],
+  "predecessorSha256": "833bd2bde56ba6c818ad4529684d5cfb89e19741b10d477586180b545c3978be"
+}
