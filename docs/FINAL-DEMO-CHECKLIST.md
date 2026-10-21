@@ -27,6 +27,28 @@
       đổi tài khoản và cancel khi đổi hội thoại. Browser automation không được
       cấp trong lượt kiểm này; React/HTTP tests không thay bằng chứng browser.
 
+### F07.1 — lỗi mở hội thoại đã lưu
+
+- [x] RED trên baseline: mở một mục sau khi nội dung không còn khả dụng không
+      tìm thấy `role="alert"` vì panel đóng danh sách trước khi lỗi được render.
+- [x] GREEN: trạng thái mở và lỗi nằm ngoài danh sách có thể đóng; lỗi tạm thời
+      có nút GET-only “Thử mở lại”; 404/410 và 401/403 có thông báo an toàn,
+      làm mới danh sách hoặc mở cuộc trò chuyện mới. Lỗi đọc danh sách có retry
+      riêng; open/retry không gọi chat, create, save hay provider.
+- [x] Regression che phủ retry thành công, 404/403/400, lỗi tải danh sách,
+      response A đến muộn sau B, reset/principal change, giữ draft và không có
+      AI/write side effect. Focused `assistant.test.tsx`: 27/27.
+- [ ] Browser desktop 1440px/mobile 375px chưa kiểm được trong lượt này vì
+      không có browser automation capability được cấp; không coi React tests
+      là browser acceptance.
+- [x] Source-final gates cho F07.1: `npm run typecheck` exit 0; `npm test`
+      exit 0 (API Vitest 384/384, API Node 856/856, Web Vitest 476/476; fail,
+      skip, cancelled đều 0); `npm run build` exit 0; `npm run format:check`
+      exit 0. Focused `npm run test --workspace @examate/web --
+      src/assistant.test.tsx` exit 0 (27/27). DB gate không chạy vì diff chỉ
+      thay đổi web/hook/test/docs, không thay API hay quyền; số DB ở phần F07
+      phía trên là kết quả lịch sử, không phải lần chạy F07.1.
+
 Giới hạn: nội dung hết hạn sau 90 ngày kể từ tạo theo DB clock; GET không gia
 hạn. Retention không xóa receipt/feedback. Đây là kiểm local synthetic, không
 phải nghiệm thu Google live, cloud rollout hay máy Thắng.

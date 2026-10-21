@@ -532,6 +532,39 @@ export function AssistantPanel({
                 đầu cuộc trò chuyện mới để hỏi trong ngữ cảnh hiện tại.
               </p>
             )}
+            {assistant.conversationOpenState?.status === "loading" && (
+              <p role="status" aria-live="polite">
+                Đang mở cuộc trò chuyện đã lưu…
+              </p>
+            )}
+            {assistant.conversationOpenState?.status === "error" && (
+              <div className="assistant-conversation-open-error">
+                <p role="alert">{assistant.conversationOpenState.message}</p>
+                {assistant.conversationOpenState.retryable && (
+                  <button
+                    type="button"
+                    onClick={() => void assistant.retryOpenConversation()}
+                  >
+                    Thử mở lại
+                  </button>
+                )}{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHistoryOpen(true);
+                    void assistant.loadConversationHistory(false);
+                  }}
+                >
+                  Làm mới lịch sử
+                </button>{" "}
+                <button
+                  type="button"
+                  onClick={() => assistant.resetConversation()}
+                >
+                  Cuộc trò chuyện mới
+                </button>
+              </div>
+            )}
             {historyOpen && (
               <section
                 className="assistant-saved-history"
@@ -997,6 +1030,7 @@ export function AssistantPanel({
             );
             return;
           }
+          if (assistant.conversationOpenState) return;
           if (assistant.mode === "documents" && documentsUnavailable) return;
           const mentionsPdf =
             assistant.mode === "documents" && /\.pdf\b/iu.test(assistant.draft);
@@ -1075,6 +1109,7 @@ export function AssistantPanel({
           type="submit"
           disabled={
             !assistant.canSend ||
+            assistant.conversationOpenState !== null ||
             !activeScopeMatches ||
             (assistant.mode === "documents" && documentsUnavailable)
           }

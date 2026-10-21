@@ -17,7 +17,7 @@ import type {
   AssistantConversationSummary,
   AssistantConversationSaveMetadata,
 } from "@examate/contracts";
-import { api } from "./api";
+import { ApiError, api } from "./api";
 
 /*
  * The conversation behind the ExaMate AI panel.
@@ -102,6 +102,15 @@ export type AskTransport = (
 
 export type AssistantStatus = "unavailable" | "idle" | "sending" | "error";
 
+export type AssistantConversationOpenState =
+  | { status: "loading" }
+  | {
+      status: "error";
+      message: string;
+      retryable: boolean;
+    }
+  | null;
+
 export interface AssistantState {
   draft: string;
   setDraft: (value: string) => void;
@@ -120,12 +129,14 @@ export interface AssistantState {
   historyLoading: boolean;
   historyError: string;
   historyHasMore: boolean;
+  conversationOpenState: AssistantConversationOpenState;
   conversationSaveError: string;
   retryConversationSave: () => Promise<void>;
   loadConversationHistory: (append?: boolean) => Promise<void>;
   openConversation: (
     id: string,
   ) => Promise<AssistantConversationSummary | null>;
+  retryOpenConversation: () => Promise<AssistantConversationSummary | null>;
   deleteConversation: (id: string) => Promise<void>;
   resetConversation: (note?: string) => void;
   syncContext: (
@@ -194,9 +205,15 @@ export function useAssistant(
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
   const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [conversationOpenState, setConversationOpenState] =
+    useState<AssistantConversationOpenState>(null);
   const historyPage = useRef(0);
   const historyEpoch = useRef(0);
   const historyAbort = useRef<AbortController | null>(null);
+  const conversationOpenTarget = useRef<{
+    id: string;
+    principalKey: string;
+  } | null>(null);
   const saveResolutionAbort = useRef<AbortController | null>(null);
   const saveResolutionEpoch = useRef(0);
   const pendingCreateKey = useRef<string | null>(null);
@@ -220,10 +237,13 @@ export function useAssistant(
       pending.current = null;
       historyAbort.current?.abort();
       historyEpoch.current++;
+      conversationOpenTarget.current = null;
+      setConversationOpenState(null);
+      setHistoryError("");
+      setHistoryLoading(false);
       saveResolutionAbort.current?.abort();
       saveResolutionAbort.current = null;
       saveResolutionEpoch.current++;
-      setHistoryLoading(false);
       activeStreamMessage.current = null;
       inFlight.current = false;
       history.current = [];
@@ -249,7 +269,6 @@ export function useAssistant(
     );
     historyPage.current = 0;
     setSavedConversations([]);
-    setHistoryError("");
     setHistoryHasMore(false);
   }, [principalKey, resetConversation]);
 
@@ -569,6 +588,10 @@ export function useAssistant(
   const loadConversationHistory = useCallback(
     async (append = false) => {
       if (historyLoading) return;
+      if (conversationOpenState?.status === "loading") {
+        conversationOpenTarget.current = null;
+        setConversationOpenState(null);
+      }
       const requestedPage = append ? historyPage.current + 1 : 1;
       historyAbort.current?.abort();
       const controller = new AbortController();
@@ -603,7 +626,7 @@ export function useAssistant(
         if (requestEpoch === historyEpoch.current) setHistoryLoading(false);
       }
     },
-    [historyLoading],
+    [conversationOpenState, historyLoading],
   );
 
   const openConversation = useCallback(
@@ -616,6 +639,7 @@ export function useAssistant(
       historyAbort.current = controller;
       const requestEpoch = ++historyEpoch.current;
       epoch.current++;
+      const requestPrincipal = principalKeyRef.current;
       pending.current?.abort();
       pending.current = null;
       inFlight.current = false;
@@ -629,8 +653,13 @@ export function useAssistant(
       activeStreamMessage.current = null;
       setStatus(transport ? "idle" : "unavailable");
       setErrorMessage("");
-      setHistoryLoading(true);
+      setHistoryLoading(false);
       setHistoryError("");
+      conversationOpenTarget.current = {
+        id,
+        principalKey: requestPrincipal,
+      };
+      setConversationOpenState({ status: "loading" });
       try {
         const first = await api.getAssistantConversationMessages(
           id,
@@ -648,7 +677,11 @@ export function useAssistant(
           );
           turns = [...turns, ...next.items];
         }
-        if (requestEpoch !== historyEpoch.current || controller.signal.aborted)
+        if (
+          requestEpoch !== historyEpoch.current ||
+          controller.signal.aborted ||
+          principalKeyRef.current !== requestPrincipal
+        )
           return null;
         const conversation = first.conversation;
         const loaded = turns.flatMap((turn) => {
@@ -704,15 +737,40 @@ export function useAssistant(
         setConversationSaveState("saved");
         setMessages(loaded);
         setStreamStage(null);
+        conversationOpenTarget.current = null;
+        setConversationOpenState(null);
         return conversation;
       } catch (error) {
-        if (requestEpoch !== historyEpoch.current || controller.signal.aborted)
+        if (
+          requestEpoch !== historyEpoch.current ||
+          controller.signal.aborted ||
+          principalKeyRef.current !== requestPrincipal
+        )
           return null;
-        setHistoryError(
-          error instanceof Error
-            ? error.message
-            : "Không mở được cuộc trò chuyện này.",
-        );
+        const unavailable =
+          error instanceof ApiError &&
+          (error.status === 404 || error.status === 410);
+        const authorizationFailure =
+          error instanceof ApiError &&
+          (error.status === 401 || error.status === 403);
+        const retryable =
+          !(error instanceof ApiError) ||
+          error.status === 408 ||
+          error.status === 429 ||
+          error.status >= 500;
+        setConversationOpenState({
+          status: "error",
+          message: unavailable
+            ? "Cuộc trò chuyện này không còn khả dụng hoặc đã hết hạn. Hãy làm mới lịch sử hoặc bắt đầu cuộc trò chuyện mới."
+            : authorizationFailure
+              ? "Không thể mở cuộc trò chuyện. Hãy kiểm tra phiên đăng nhập hoặc quyền truy cập rồi làm mới lịch sử."
+              : retryable
+                ? "Chưa tải được nội dung cuộc trò chuyện. Bạn có thể thử mở lại hoặc làm mới lịch sử."
+                : "Không thể mở nội dung cuộc trò chuyện. Hãy làm mới lịch sử hoặc bắt đầu cuộc trò chuyện mới.",
+          retryable,
+        });
+        if (unavailable || authorizationFailure)
+          conversationOpenTarget.current = null;
         return null;
       } finally {
         if (requestEpoch === historyEpoch.current) setHistoryLoading(false);
@@ -721,6 +779,13 @@ export function useAssistant(
     [setActive, transport],
   );
 
+  const retryOpenConversation = useCallback(() => {
+    const target = conversationOpenTarget.current;
+    if (!target || target.principalKey !== principalKeyRef.current)
+      return Promise.resolve(null);
+    return openConversation(target.id);
+  }, [openConversation]);
+
   const deleteConversation = useCallback(
     async (id: string) => {
       const requestPrincipal = principalKeyRef.current;
@@ -728,6 +793,12 @@ export function useAssistant(
       try {
         await api.deleteAssistantConversation(id);
         if (principalKeyRef.current !== requestPrincipal) return;
+        if (conversationOpenTarget.current?.id === id) {
+          historyAbort.current?.abort();
+          historyEpoch.current++;
+          conversationOpenTarget.current = null;
+          setConversationOpenState(null);
+        }
         setSavedConversations((items) =>
           items.filter((item) => item.id !== id),
         );
@@ -897,10 +968,12 @@ export function useAssistant(
     historyLoading,
     historyError,
     historyHasMore,
+    conversationOpenState,
     conversationSaveError,
     retryConversationSave,
     loadConversationHistory,
     openConversation,
+    retryOpenConversation,
     deleteConversation,
     resetConversation,
     syncContext,

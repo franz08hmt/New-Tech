@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { AssistantPanel } from "./AssistantPanel";
 import { useAssistant, type AskTransport } from "./use-assistant";
-import { api, type StoredDocument } from "./api";
+import { ApiError, api, type StoredDocument } from "./api";
 import type {
   AssistantChatResponse,
   AssistantConversationSummary,
@@ -509,6 +509,492 @@ describe("ExaMate AI seam", () => {
     fireEvent.click(within(row).getAllByRole("button")[1]);
     await waitFor(() => expect(remove).toHaveBeenCalledWith(conversation.id));
     expect(reopenedHistory.querySelector(".assistant-history-row")).toBeNull();
+  });
+
+  it("shows an open failure after closing history and retries only that transcript read", async () => {
+    const conversation: AssistantConversationSummary = {
+      id: "66666666-6666-4666-8666-666666666666",
+      mode: "general",
+      courseId: null,
+      documentId: null,
+      title: "Saved conversation",
+      version: 1,
+      turnCount: 1,
+      createdAt: "2026-09-15T08:00:00.000Z",
+      updatedAt: "2026-09-15T08:00:00.000Z",
+      expiresAt: "2026-12-14T08:00:00.000Z",
+    };
+    const snapshot = {
+      schemaVersion: 1,
+      request: {
+        mode: "general",
+        operation: "question",
+        question: "Persisted question",
+      },
+      response: {
+        mode: "general",
+        answer: "Persisted answer after retry",
+        answerable: true,
+        reasonCode: "ANSWER_GENERATED",
+        citations: [],
+        ragEnabled: false,
+        provider: "google",
+        model: "gemini-test",
+        promptVersion: "general-v1",
+      },
+    } as AssistantFeedbackSnapshot;
+    vi.spyOn(api, "listAssistantConversations").mockResolvedValue({
+      items: [conversation],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    });
+    const messages = vi
+      .spyOn(api, "getAssistantConversationMessages")
+      .mockRejectedValueOnce(
+        new ApiError("Temporary service error", "INTERNAL_ERROR", 503),
+      )
+      .mockResolvedValueOnce({
+        conversation,
+        items: [
+          {
+            id: "77777777-7777-4777-8777-777777777777",
+            sequence: 1,
+            receiptId: "88888888-8888-4888-8888-888888888888",
+            snapshot,
+            createdAt: conversation.createdAt,
+          },
+        ],
+        page: 1,
+        pageSize: 50,
+        total: 1,
+        totalPages: 1,
+      });
+    const transport = vi.fn<AskTransport>();
+    const create = vi.spyOn(api, "createAssistantConversation");
+    const save = vi.spyOn(api, "retrySaveAssistantTurn");
+    render(<Harness transport={transport} persist />);
+
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    const history = document.querySelector(
+      ".assistant-saved-history",
+    ) as HTMLElement;
+    const savedItem = await waitFor(() => {
+      const button = history.querySelector(".assistant-history-open");
+      expect(button).not.toBeNull();
+      return button as HTMLButtonElement;
+    });
+    fireEvent.click(savedItem);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /không mở được|thử mở lại|không tải được/i,
+    );
+    expect(
+      screen.queryByRole("region", { name: "Lịch sử hội thoại đã lưu" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Thử mở lại" }));
+
+    expect(
+      await screen.findByText("Persisted answer after retry"),
+    ).toBeInTheDocument();
+    expect(messages).toHaveBeenCalledTimes(2);
+    expect(messages).toHaveBeenNthCalledWith(
+      2,
+      conversation.id,
+      1,
+      50,
+      expect.any(AbortSignal),
+    );
+    expect(transport).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("does not expose an expired transcript and offers list refresh or a new conversation", async () => {
+    const conversation: AssistantConversationSummary = {
+      id: "66666666-6666-4666-8666-666666666666",
+      mode: "general",
+      courseId: null,
+      documentId: null,
+      title: "Expired saved conversation",
+      version: 1,
+      turnCount: 1,
+      createdAt: "2026-09-15T08:00:00.000Z",
+      updatedAt: "2026-09-15T08:00:00.000Z",
+      expiresAt: "2026-12-14T08:00:00.000Z",
+    };
+    const list = vi.spyOn(api, "listAssistantConversations").mockResolvedValue({
+      items: [conversation],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    });
+    const messages = vi
+      .spyOn(api, "getAssistantConversationMessages")
+      .mockRejectedValue(
+        new ApiError("Private server detail", "CONVERSATION_NOT_FOUND", 404),
+      );
+    const transport = vi.fn<AskTransport>();
+    render(<Harness transport={transport} persist />);
+    fireEvent.change(screen.getByLabelText("Câu hỏi cho ExaMate"), {
+      target: { value: "Bản nháp vẫn cần được giữ" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    const row = await waitFor(() => {
+      const found = document.querySelector(".assistant-history-open");
+      expect(found).not.toBeNull();
+      return found as HTMLButtonElement;
+    });
+    fireEvent.click(row);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Cuộc trò chuyện này không còn khả dụng hoặc đã hết hạn",
+    );
+    expect(screen.queryByText("Private server detail")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Thử mở lại" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Câu hỏi cho ExaMate")).toHaveValue(
+      "Bản nháp vẫn cần được giữ",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Làm mới lịch sử" }));
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+    expect(messages).toHaveBeenCalledOnce();
+    expect(transport).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      within(
+        document.querySelector(".assistant-conversation-tools") as HTMLElement,
+      ).getAllByRole("button", { name: "Cuộc trò chuyện mới" })[0],
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Câu hỏi cho ExaMate")).toHaveValue(
+      "Bản nháp vẫn cần được giữ",
+    );
+  });
+
+  it("keeps authorization failures generic and does not offer an open retry", async () => {
+    const conversation: AssistantConversationSummary = {
+      id: "66666666-6666-4666-8666-666666666666",
+      mode: "general",
+      courseId: null,
+      documentId: null,
+      title: "Saved conversation",
+      version: 1,
+      turnCount: 1,
+      createdAt: "2026-09-15T08:00:00.000Z",
+      updatedAt: "2026-09-15T08:00:00.000Z",
+      expiresAt: "2026-12-14T08:00:00.000Z",
+    };
+    const list = vi.spyOn(api, "listAssistantConversations").mockResolvedValue({
+      items: [conversation],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    });
+    const messages = vi
+      .spyOn(api, "getAssistantConversationMessages")
+      .mockRejectedValue(
+        new ApiError("Private account detail", "ROLE_FORBIDDEN", 403),
+      );
+    const transport = vi.fn<AskTransport>();
+    render(<Harness transport={transport} persist />);
+
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    const savedItem = await waitFor(() => {
+      const found = document.querySelector(
+        ".assistant-history-open",
+      ) as HTMLButtonElement | null;
+      expect(found).not.toBeNull();
+      return found as HTMLButtonElement;
+    });
+    fireEvent.click(savedItem);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Không thể mở cuộc trò chuyện. Hãy kiểm tra phiên đăng nhập hoặc quyền truy cập",
+    );
+    expect(
+      screen.queryByText("Private account detail"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Thử mở lại" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Làm mới lịch sử" }));
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+    expect(messages).toHaveBeenCalledOnce();
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it("does not offer an open retry for a non-transient client error", async () => {
+    const conversation: AssistantConversationSummary = {
+      id: "66666666-6666-4666-8666-666666666666",
+      mode: "general",
+      courseId: null,
+      documentId: null,
+      title: "Saved conversation",
+      version: 1,
+      turnCount: 1,
+      createdAt: "2026-09-15T08:00:00.000Z",
+      updatedAt: "2026-09-15T08:00:00.000Z",
+      expiresAt: "2026-12-14T08:00:00.000Z",
+    };
+    vi.spyOn(api, "listAssistantConversations").mockResolvedValue({
+      items: [conversation],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    });
+    vi.spyOn(api, "getAssistantConversationMessages").mockRejectedValue(
+      new ApiError("Private validation detail", "INVALID_CONVERSATION", 400),
+    );
+
+    render(
+      <Harness transport={async () => ({ text: "", citations: [] })} persist />,
+    );
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    const savedItem = await waitFor(() => {
+      const found = document.querySelector(
+        ".assistant-history-open",
+      ) as HTMLButtonElement | null;
+      expect(found).not.toBeNull();
+      return found as HTMLButtonElement;
+    });
+    fireEvent.click(savedItem);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Không thể mở nội dung cuộc trò chuyện. Hãy làm mới lịch sử",
+    );
+    expect(screen.queryByRole("button", { name: "Thử mở lại" })).toBeNull();
+    expect(
+      screen.queryByText("Private validation detail"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps list-load retry separate from opening a transcript", async () => {
+    const list = vi
+      .spyOn(api, "listAssistantConversations")
+      .mockRejectedValueOnce(new Error("network unavailable"))
+      .mockResolvedValueOnce({
+        items: [],
+        page: 1,
+        pageSize: 20,
+        total: 0,
+        totalPages: 0,
+      });
+    const messages = vi.spyOn(api, "getAssistantConversationMessages");
+    render(
+      <Harness transport={async () => ({ text: "", citations: [] })} persist />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "network unavailable",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Thử đọc lại" }));
+
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+    expect(
+      screen.getByText("Chưa có cuộc trò chuyện đã lưu."),
+    ).toBeInTheDocument();
+    expect(messages).not.toHaveBeenCalled();
+  });
+
+  it("ignores a late open failure after another conversation has opened", async () => {
+    const first: AssistantConversationSummary = {
+      id: "66666666-6666-4666-8666-666666666666",
+      mode: "general",
+      courseId: null,
+      documentId: null,
+      title: "Conversation A",
+      version: 1,
+      turnCount: 1,
+      createdAt: "2026-09-15T08:00:00.000Z",
+      updatedAt: "2026-09-15T08:00:00.000Z",
+      expiresAt: "2026-12-14T08:00:00.000Z",
+    };
+    const second = {
+      ...first,
+      id: "77777777-7777-4777-8777-777777777777",
+      title: "Conversation B",
+    };
+    const secondSnapshot = {
+      schemaVersion: 1,
+      request: {
+        mode: "general",
+        operation: "question",
+        question: "Question from B",
+      },
+      response: {
+        mode: "general",
+        answer: "Answer from B",
+        answerable: true,
+        reasonCode: "ANSWER_GENERATED",
+        citations: [],
+        ragEnabled: false,
+        provider: "google",
+        model: "gemini-test",
+        promptVersion: "general-v1",
+      },
+    } as AssistantFeedbackSnapshot;
+    let rejectFirst: ((error: Error) => void) | undefined;
+    vi.spyOn(api, "listAssistantConversations").mockResolvedValue({
+      items: [first, second],
+      page: 1,
+      pageSize: 20,
+      total: 2,
+      totalPages: 1,
+    });
+    vi.spyOn(api, "getAssistantConversationMessages").mockImplementation(
+      (id) => {
+        if (id === first.id)
+          return new Promise((_, reject) => {
+            rejectFirst = reject;
+          });
+        return Promise.resolve({
+          conversation: second,
+          items: [
+            {
+              id: "88888888-8888-4888-8888-888888888888",
+              sequence: 1,
+              receiptId: "99999999-9999-4999-8999-999999999999",
+              snapshot: secondSnapshot,
+              createdAt: second.createdAt,
+            },
+          ],
+          page: 1,
+          pageSize: 50,
+          total: 1,
+          totalPages: 1,
+        });
+      },
+    );
+    render(
+      <Harness transport={async () => ({ text: "", citations: [] })} persist />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    const rowA = await waitFor(() => {
+      const found = document.querySelector(
+        ".assistant-history-open",
+      ) as HTMLButtonElement | null;
+      expect(found).not.toBeNull();
+      return found as HTMLButtonElement;
+    });
+    fireEvent.click(rowA);
+    expect(
+      await screen.findByText("Đang mở cuộc trò chuyện đã lưu…"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    const rowB = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(".assistant-history-open"),
+    ).find((button) => button.textContent?.includes("Conversation B"));
+    expect(rowB).toBeDefined();
+    fireEvent.click(rowB!);
+    expect(await screen.findByText("Answer from B")).toBeInTheDocument();
+
+    await act(async () => {
+      rejectFirst?.(new ApiError("Private detail", "INTERNAL_ERROR", 503));
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText("Private detail")).not.toBeInTheDocument();
+    expect(screen.getByText("Answer from B")).toBeInTheDocument();
+  });
+
+  it("clears the open target after reset/principal change and ignores both late responses", async () => {
+    const conversation: AssistantConversationSummary = {
+      id: "66666666-6666-4666-8666-666666666666",
+      mode: "general",
+      courseId: null,
+      documentId: null,
+      title: "Old principal conversation",
+      version: 1,
+      turnCount: 1,
+      createdAt: "2026-09-15T08:00:00.000Z",
+      updatedAt: "2026-09-15T08:00:00.000Z",
+      expiresAt: "2026-12-14T08:00:00.000Z",
+    };
+    const rejectPending: Array<(error: Error) => void> = [];
+    vi.spyOn(api, "listAssistantConversations").mockResolvedValue({
+      items: [conversation],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    });
+    const messages = vi
+      .spyOn(api, "getAssistantConversationMessages")
+      .mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            rejectPending.push(reject);
+          }),
+      );
+    const view = render(
+      <Harness
+        transport={async () => ({ text: "", citations: [] })}
+        persist
+        identityKey="account-a"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    const savedItem = await waitFor(() => {
+      const found = document.querySelector(
+        ".assistant-history-open",
+      ) as HTMLButtonElement | null;
+      expect(found).not.toBeNull();
+      return found as HTMLButtonElement;
+    });
+    fireEvent.click(savedItem);
+    expect(
+      await screen.findByText("Đang mở cuộc trò chuyện đã lưu…"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(
+        document.querySelector(".assistant-conversation-tools") as HTMLElement,
+      ).getByRole("button", { name: "Cuộc trò chuyện mới" }),
+    );
+    expect(screen.queryByText("Đang mở cuộc trò chuyện đã lưu…")).toBeNull();
+    await act(async () => {
+      rejectPending[0](
+        new ApiError("Old reset response", "INTERNAL_ERROR", 503),
+      );
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Lịch sử đã lưu" }));
+    const reopenedItem = await waitFor(() => {
+      const found = document.querySelector(
+        ".assistant-history-open",
+      ) as HTMLButtonElement | null;
+      expect(found).not.toBeNull();
+      return found as HTMLButtonElement;
+    });
+    fireEvent.click(reopenedItem);
+    expect(
+      await screen.findByText("Đang mở cuộc trò chuyện đã lưu…"),
+    ).toBeInTheDocument();
+
+    view.rerender(
+      <Harness
+        transport={async () => ({ text: "", citations: [] })}
+        persist
+        identityKey="account-b"
+      />,
+    );
+    expect(screen.queryByText("Đang mở cuộc trò chuyện đã lưu…")).toBeNull();
+    expect(
+      screen.queryByText("Old principal conversation"),
+    ).not.toBeInTheDocument();
+    await act(async () => {
+      rejectPending[1](new ApiError("Private detail", "INTERNAL_ERROR", 503));
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Thử mở lại" })).toBeNull();
+    expect(messages).toHaveBeenCalledTimes(2);
   });
 
   it("drops a pending history response immediately when the principal changes", async () => {

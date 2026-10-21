@@ -726,3 +726,23 @@ rollback chain. Those tests were corrected to use the intended versioned
 fixture boundary; migrations and their checksums were not changed. No browser
 tool was exposed, so visual browser acceptance remains pending; these tests do
 not claim browser or cloud acceptance.
+
+## 2026-10-21 — F07.1 saved-conversation open errors
+
+AI assistance converted the reproduced hidden-error case into a permanent
+Assistant regression, then separated transcript-open status from history-list
+status in the hook and rendered open progress/errors outside the collapsible
+history list. The first regression run was RED because no `role="alert"` was
+available after the history panel closed. The focused suite then passed 27/27.
+Coverage verifies GET-only retry for transient open failures, distinct list
+retry, safe expired/authorization/client-error handling, stale-response drops
+after opening another conversation/reset/principal change, draft preservation,
+and no chat/create/save/provider call during open or retry. Only transient
+network, 408/429 and 5xx errors expose “Thử mở lại”; stable 4xx errors direct
+the user to refresh the list or start a new conversation. No API, database,
+receipt, RLS or Auth implementation changed. Browser automation was not exposed
+in this session, so desktop/mobile acceptance remains pending; full source-final
+gates are recorded in the F07.1 checklist. New final run: typecheck/build/format
+exited 0; `npm test` exited 0 with API Vitest 384/384, API Node 856/856 and Web
+Vitest 476/476; the focused Assistant suite passed 27/27. The DB gate was not
+rerun because there were no backend, SQL, migration or permission changes.

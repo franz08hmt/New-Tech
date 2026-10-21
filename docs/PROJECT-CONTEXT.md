@@ -52,6 +52,25 @@ exited 0 with no failed, skipped, or cancelled tests. The database harness
 distinguishes its historical 021-only fixtures from the current 022 contract;
 no migration checksum or runtime grant changed for this fixture correction.
 
+F07.1 fixes the saved-conversation open failure path in the web client. Open
+loading/errors render outside the collapsible history list; transient network,
+408/429 and 5xx failures can retry only the scoped transcript GET, while
+expired/not-found and authorization failures offer list refresh/new
+conversation without exposing server details. List-read retry remains a
+separate GET action. Request epochs, abort signals and the captured principal
+guard discard stale open results after another target, reset or principal
+change. Opening/retrying never sends the draft or invokes AI. See the current
+F07.1 test run in FINAL-DEMO-CHECKLIST; browser acceptance remains pending.
+
+F07.1 source verification: `npm run typecheck`, `npm test`, `npm run build`,
+and `npm run format:check` all exited 0 on the final code (API Vitest 384/384,
+API Node 856/856, Web Vitest 476/476; no failed, skipped or cancelled tests).
+The focused Assistant suite passed 27/27. `npm run test:database` was not rerun:
+F07.1 changes only web UI/hook/tests/docs and does not touch API, SQL, migration
+or permissions, so the prior F07 database evidence remains historical rather
+than being presented as a new F07.1 result. Status: code verified; browser
+acceptance pending because no browser automation capability was available.
+
 ## F06 local checkpoint — code verified, browser pending (21/10/2026)
 
 Implemented in `6fca9e3` (API/DB/contract) and `341776f` (web UI); starting
