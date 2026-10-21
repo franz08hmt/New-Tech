@@ -32,6 +32,7 @@
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "format:check": "npm run format:check --workspaces --if-present"
+    "format:check": "npm run format:check --workspaces --if-present",
+    "eval:f09a:local": "npm run build --workspace @examate/api && node apps/api/scripts/evaluate-rag.mjs --local-integration"
   }
 }
