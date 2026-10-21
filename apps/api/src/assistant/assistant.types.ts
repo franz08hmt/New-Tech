@@ -25,6 +25,8 @@ export interface AssistantGeneration {
   conversation?: { role: "user" | "model"; text: string }[];
   responseMimeType?: "application/json";
   responseJsonSchema?: unknown;
+  /** Per-operation bounded override; absent callers retain the configured default. */
+  maxOutputTokens?: number;
 }
 
 export interface AssistantProvider {

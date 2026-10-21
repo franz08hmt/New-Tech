@@ -51,6 +51,14 @@ export class GeminiService implements AssistantProvider {
     let permitAuthorized = false;
     let providerDispatched = false;
     try {
+      const maxOutputTokens =
+        input.maxOutputTokens ?? this.config.maxOutputTokens;
+      if (
+        !Number.isInteger(maxOutputTokens) ||
+        maxOutputTokens < 1 ||
+        maxOutputTokens > 8192
+      )
+        throw new AssistantError("upstream");
       if (!this.config.apiKey) throw new AssistantError("not_configured");
       // Lazy initialization keeps status/startup independent of the SDK/network.
       this.client ??= new GoogleGenAI({
@@ -91,7 +99,7 @@ export class GeminiService implements AssistantProvider {
             ],
             config: {
               systemInstruction: input.systemInstruction,
-              maxOutputTokens: this.config.maxOutputTokens,
+              maxOutputTokens,
               candidateCount: 1,
               responseModalities: ["TEXT"],
               ...(input.responseMimeType

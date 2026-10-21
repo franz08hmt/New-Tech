@@ -34,6 +34,7 @@ const expectedMigrationNames = [
   "020_ai_admission.sql",
   "021_ai_usage_dashboard.sql",
   "022_assistant_conversations.sql",
+  "023_study_coach_quizzes.sql",
 ];
 
 const saved = { ...process.env };

@@ -760,7 +760,8 @@ export type AiUsageOperationName =
   | "assistant_question"
   | "assistant_summary"
   | "assistant_course_info"
-  | "document_index";
+  | "document_index"
+  | "study_quiz";
 export type AiUsageOperationMode = "general" | "documents" | "workspace";
 export type AiUsageOperationOutcome =
   "success" | "error" | "timeout" | "cancelled" | "rejected" | "unknown";
@@ -924,4 +925,121 @@ export interface AiUsageProviderCallsResponse {
   total: string;
   totalPages: number;
   items: AiUsageProviderCall[];
+}
+
+/** F08-A grounded Study Coach quiz wire contracts. */
+export type StudyQuizLanguage = "vi" | "en";
+export interface StudyQuizGenerateRequest {
+  documentId: string;
+  questionCount?: number;
+  language: StudyQuizLanguage;
+}
+export interface StudyQuizSource {
+  sourceId: string;
+  documentId: string;
+  title: string;
+  page: number | null;
+  chunkIndex: number;
+  available?: boolean;
+}
+export interface StudyQuizQuestionPreview {
+  id: string;
+  question: string;
+  options: [string, string, string, string];
+  correctIndex: number;
+  explanation: string;
+  sourceIds: string[];
+}
+export interface StudyQuizQuestionForPractice {
+  id: string;
+  question: string;
+  options: [string, string, string, string];
+  sourceIds: string[];
+}
+export interface StudyQuizPreview {
+  schemaVersion: "study-quiz-v1";
+  title: string;
+  language: StudyQuizLanguage;
+  questions: StudyQuizQuestionPreview[];
+  sources: StudyQuizSource[];
+}
+export interface StudyQuizGeneratedDraft {
+  draftId: string;
+  draftToken: string;
+  expiresAt: string;
+  documentId: string;
+  documentTitle: string;
+  quiz: StudyQuizPreview;
+}
+export type StudyQuizDraftReconciliation =
+  | {
+      status: "draft";
+      draft: {
+        draftId: string;
+        expiresAt: string;
+        documentId: string;
+        documentTitle: string;
+        quiz: StudyQuizPreview;
+      };
+    }
+  | { status: "confirmed"; quiz: StudyQuizSummary }
+  | { status: "cancelled" | "expired" | "deleted" };
+export interface StudyQuizConfirmRequest {
+  draftToken: string;
+}
+export interface StudyQuizSummary {
+  id: string;
+  title: string;
+  language: StudyQuizLanguage;
+  documentId: string;
+  documentTitle: string;
+  sourceAvailable: boolean;
+  questionCount: number;
+  createdAt: string;
+  expiresAt: string;
+  progress: {
+    attempts: number;
+    latestScore: number | null;
+    bestScore: number | null;
+  };
+}
+export interface StudyQuizListResponse {
+  items: StudyQuizSummary[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+export interface StudyQuizDetail {
+  quiz: StudyQuizSummary;
+  schemaVersion: "study-quiz-v1";
+  questions: StudyQuizQuestionForPractice[];
+  sources: StudyQuizSource[];
+}
+export interface StudyQuizAttemptRequest {
+  attemptKey: string;
+  answers: Array<{ questionId: string; selectedIndex: number }>;
+}
+export interface StudyQuizAttemptResult {
+  id: string;
+  attemptKey: string;
+  correctCount: number;
+  questionCount: number;
+  scorePercent: number;
+  submittedAt: string;
+  answers: Array<{
+    questionId: string;
+    selectedIndex: number;
+    correctIndex: number;
+    correct: boolean;
+    explanation: string;
+    sourceIds: string[];
+  }>;
+}
+export interface StudyQuizProgressResponse {
+  quizId: string;
+  attempts: number;
+  latestScore: number | null;
+  bestScore: number | null;
+  latestSubmittedAt: string | null;
 }

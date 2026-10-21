@@ -27,7 +27,8 @@ const snapshot = JSON.stringify({
 });
 
 before(async () => {
-  fixture = await openDocumentsTenantFixture();
+  // This lifecycle case verifies the exact pre-F08 rollback-022 chain.
+  fixture = await openDocumentsTenantFixture({ migrationLimit: 22 });
   await fixture.admin.query(
     `INSERT INTO assistant_answer_receipts(id,workspace_id,user_id,mode,request_id,snapshot_hash)
      VALUES($1,$2,$3,'general',$4,repeat('a',64))`,
@@ -155,8 +156,16 @@ test("022 rollback is guarded, preserves unrelated data, and full reapply restor
     0,
   );
 
-  await migrate(fixture.admin.options.connectionString);
-  await migrate(fixture.admin.options.connectionString);
+  const source022 = source.filter(
+    (file) => Number(file.name.slice(0, 3)) <= 22,
+  );
+  const loadSource022 = async () => source022;
+  await migrate(fixture.admin.options.connectionString, {
+    loadSource: loadSource022,
+  });
+  await migrate(fixture.admin.options.connectionString, {
+    loadSource: loadSource022,
+  });
   const ledgerAfter = await query(
     "SELECT name,checksum FROM schema_migrations ORDER BY name",
   );

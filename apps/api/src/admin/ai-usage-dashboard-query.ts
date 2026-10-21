@@ -23,6 +23,7 @@ const operations: readonly AiUsageOperationName[] = [
   "assistant_summary",
   "assistant_course_info",
   "document_index",
+  "study_quiz",
 ];
 const modes: readonly AiUsageOperationMode[] = [
   "general",

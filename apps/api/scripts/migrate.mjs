@@ -12,6 +12,7 @@ import {
 } from "../dist/config/config.js";
 import {
   EXPECTED_021_RUNTIME_POLICIES,
+  EXPECTED_022_RUNTIME_POLICIES,
   assertNoManagedRuntimePolicyConflict,
   lockManagedRuntimeRelations,
 } from "../dist/database/runtime-capability-contract.js";
@@ -232,6 +233,15 @@ export async function migrate(
           await assertNoManagedRuntimePolicyConflict(
             (text, values) => client.query(text, values),
             { allowedPolicyNames: EXPECTED_021_RUNTIME_POLICIES },
+          );
+        } else if (file.name === "023_study_coach_quizzes.sql") {
+          await lockManagedRuntimeRelations(
+            (text, values) => client.query(text, values),
+            { includeAiUsage: true },
+          );
+          await assertNoManagedRuntimePolicyConflict(
+            (text, values) => client.query(text, values),
+            { allowedPolicyNames: EXPECTED_022_RUNTIME_POLICIES },
           );
         }
         const appliedNow = await applyMigrationInTransaction(client, file, {

@@ -113,7 +113,11 @@ function providerLimit(
 }
 
 function initiallyPlannedProviderCalls(descriptor: AiOperationDescriptor) {
-  if (descriptor.operation !== "assistant_question") return 0;
+  if (
+    descriptor.operation !== "assistant_question" &&
+    descriptor.operation !== "study_quiz"
+  )
+    return 0;
   if (descriptor.mode === "workspace") return 0;
   return descriptor.mode === "general" ? 1 : 2;
 }
