@@ -5,6 +5,81 @@ Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong 
 
 ## F07 contract and local implementation
 
+## F08-B — Flashcards implementation checklist and contract
+
+F08-B adds private, evidence-grounded flashcard decks alongside F08-A quizzes;
+it does not change quiz contracts. The API namespace is
+`/api/study-coach/flashcards`: `POST /generate`, `GET /drafts/:id` for
+reconciliation, `POST /drafts/:id/confirm`, `DELETE /drafts/:id`, paginated
+`GET /`, `GET /:id`, `DELETE /:id`, `POST /:id/reviews`, and `GET /:id/progress`.
+Generation accepts one stored/ready document, language `vi|en`, and 3–10 cards
+(default 5); it returns a 15-minute owner-bound preview. Save is an explicit,
+idempotent confirm. Reviews use one client-generated UUID key and an exact
+card-ID/rating set; same key and payload reconcile to the same server result,
+while a changed payload conflicts. Lists use 20 items by default, max 50.
+Saved snapshots expire after 90 days by database time; reads do not renew them.
+
+Deck, draft and review ownership is `(verified workspace_id,user_id)` for every
+active role allowed to read the source document. Managers do not inherit other
+users' private decks. Flashcard content is unavailable to Auth capability.
+Source IDs and document/page/chunk metadata are validated and attached by the
+server. The learner flips each card, self-rates it as `remembered` or
+`needs_review`, and explicitly submits the complete review; counts and progress
+are calculated server-side. This is learner self-assessment, not an AI grade or
+proof of mastery. Generation is the distinct `study_flashcards` operation with
+prompt `study-coach.flashcards` / `flashcards-v1`, at most one retrieval
+embedding and one structured generation under existing F04 admission. Reads,
+confirm/delete, flips, reviews and progress do not call AI.
+
+Implementation checklist: (1) add migration 024, minimum grants/RLS, versioned
+runtime capability, rollback/apply and retention lifecycle; (2) strict
+schema/provenance validation, provider-wrapped generation and draft
+reconciliation; (3) idempotent explicit save, private list/detail/delete,
+flip/self-rating/review/progress; (4) separate Flashcards UI, tests, gates and
+evidence. F08-B is a separate local feature; F09 semantic/live evaluation,
+browser acceptance where unavailable, cloud rollout and full F08 acceptance
+remain separate.
+
+### F08-B local checkpoint — 21/10/2026
+
+Implemented the flashcard flow alongside, not inside, F08-A quiz contracts:
+strict generation preview from one authorized stored/ready document, explicit
+save with draft-token GET reconciliation, paginated private decks, detail,
+delete, flip/self-rating, idempotent review submission and server progress.
+Migration 024 is additive; runtime capability is v24, with business-only
+column grants and owner/workspace RLS. Draft tokens are hashed at rest and
+expire after 15 minutes; immutable saved snapshots expire after 90 days by DB
+clock. Bounded retention is explicit maintenance, dry-run by default. The
+rollback command is `npm run f08b:rollback-024`; it is dry-run-first, checks
+the guarded disposable target, source/ledger/capability/dependencies and uses
+`RESTRICT`, while preserving F03/F04 accounting rows.
+
+Generation is operation `study_flashcards`, prompt
+`study-coach.flashcards` / `flashcards-v1`, existing retrieval, Gemini
+wrappers, telemetry and F04 admission. Its preflight caps work at one retrieval
+embedding plus one generation. No review, read, save, delete or progress action
+calls AI. Auth upstream and SDK transport were synthetic in tests; Nest,
+PostgreSQL 17, business/Auth LOGIN roles, RLS, capability checks, admission,
+telemetry and SQL were real. The integration fixture verified owner isolation,
+all supported self-ratings, same-key replay/conflict, lost response after
+commit, admission denial before provider dispatch, F06 operation recognition,
+and migration 024 rollback/reapply/retention.
+
+Source verification: `npm run typecheck` exit 0; `npm test` exit 0 with API
+Vitest 405/405, API Node 858/858, Web Vitest 515/515 (1,778 total);
+`npm run build` exit 0 (Vite reports a >500 kB chunk advisory);
+`npm run format:check` exit 0; guarded PostgreSQL 17 `npm run test:database`
+exit 0, 477/477 across 44 serial suites. The test work also updated old migration-count fixtures to
+recognize the current 024 chain without changing migrations 001–023.
+
+Status: `F08-B_CODE_VERIFIED`; `BROWSER_ACCEPTANCE_PENDING` because no browser
+automation capability was exposed in the implementation session; and
+`SEMANTIC_REVIEW_PENDING`. Synthetic schema/provenance checks do not establish
+educational correctness. A human reviewer should assess the synthetic sample
+in FINAL-DEMO-CHECKLIST before any semantic-quality claim. Flashcards do not
+complete all F08, and F09 has not started. Cloud rollout, Google live and
+Thắng's machine remain unchanged/pending.
+
 ## F08-A — Study Coach quiz contract and implementation checkpoint
 
 F08-A is limited to one grounded quiz flow from a stored/ready document. It
@@ -65,8 +140,9 @@ F03 telemetry/F04 admission; (3) owner-scoped confirm/list/detail/delete and
 idempotent server grading/progress; (4) dedicated UI, regression and local
 verification. F08-A source, API/DB integration, automated tests and gates are
 verified in this checkpoint; browser acceptance and human semantic-quality
-review remain pending. Flashcards and F09 are not implemented. See the F08-A
-evidence in FINAL-DEMO-CHECKLIST; this is not full F08 acceptance.
+review remain pending. Flashcards have a separate F08-B implementation
+checkpoint above; F09 is not implemented and full F08 acceptance remains
+pending. See the separate F08-A/F08-B evidence in FINAL-DEMO-CHECKLIST.
 
 Source-final gates on 21/10/2026: typecheck, build and format exited 0;
 `npm test` passed 1,741/1,741 (API Vitest 393, API Node 857, Web Vitest 491);
@@ -113,8 +189,9 @@ passes API Vitest 393, API Node 857, and Web Vitest 500 (1,750 total), with no
 failures, skips, or cancellations; guarded PostgreSQL 17 `npm run
 test:database` passes 474/474 with no failures, skips, or cancellations. No
 browser automation is exposed in this session, so F08-A.1 browser acceptance
-remains pending. Semantic question quality, F08-B flashcards, F09, and all
-cloud/live acceptance remain separate and pending.
+remains pending. At the historical F08-A.1 checkpoint flashcards and F09 were
+pending; see the separate F08-B implementation checkpoint above. Semantic
+review and all cloud/live acceptance remain pending.
 
 ## F08-A.2 — creation/practice lifecycle coordination (21/10/2026)
 
@@ -144,8 +221,9 @@ and `npm run format:check` exit 0. `npm test` passed API Vitest 393, API Node
 857, and Web Vitest 507 (1,757 total), with zero failures, skips, or cancellations.
 No API/SQL/permission source changed, so the DB gate was not rerun. Browser
 automation is not exposed in this session; desktop/mobile F08-A.2 acceptance
-remains pending and is not inferred from React tests. F08-A browser acceptance,
-semantic review, F08-B, F09, and cloud/live acceptance remain pending.
+remains pending and is not inferred from React tests. At this historical
+F08-A.2 checkpoint F08-B was still pending; see the later F08-B checkpoint
+above. F09 and cloud/live acceptance remain pending.
 
 Assistant conversations are private to the verified `(workspace_id,user_id)`.
 Migration 022 adds a conversation header, receipt-linked canonical turns, and
@@ -949,8 +1027,10 @@ không nhận là kết quả chạy mới của task sau.
 - Auth đã bootstrap demo theo [handoff đăng nhập](PILOT-DEMO-HANDOFF.md), nhưng
   không suy ra đăng nhập thực tế trên máy Thắng hoặc extended Auth acceptance đã đạt.
 - Tenant RLS/grants toàn app chưa rollout cloud; non-owner/RLS proof là DB disposable.
-- Budget AI (B3), semantic RAG/live eval qua Auth (B4), PWA/flashcards vẫn theo roadmap,
-  chưa coi là hoàn tất. `eval:rag` live đang BLOCKED trước DB/Storage/Gemini.
+- Budget AI (B3), semantic RAG/live eval qua Auth (B4), and PWA remain
+  incomplete. F08-B flashcards have a local code/automated checkpoint, with
+  browser and human semantic acceptance pending. `eval:rag` live remains
+  BLOCKED before DB/Storage/Gemini.
 - STT audit còn 2 high/4 moderate package entries; remediation chưa xong. Không
   thấy đường image decode/format-string tương ứng trong audio path đã review,
   nhưng không gọi audit sạch hoặc chứng minh không thể khai thác.
@@ -977,7 +1057,7 @@ chiếu lịch sử. Không chạy lại phần đã có hoặc biến kế ho�
 | F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Documents, sidebar and all five F05.3 module screens have local automated coverage; browser acceptance pending, so whole F05 remains partial                     |
 | F06 | Dashboard AI cho admin đúng workspace: request/provider calls, token/cost/latency/lỗi/từ chối và filters                   | Local code/API/PG17 implementation and automated verification in this checkpoint; browser acceptance pending; not billing or F04 quota ledger                    |
 | F07 | N1 lưu bền, mở lại/xóa, retention/quyền; receipt/history/reset/account isolation                                           | Local implementation and automated verification complete; browser acceptance pending. F08-A is a separate partial feature, not part of F07 acceptance             |
-| F08 | N2 Study Coach: structured quiz/flashcards, nguồn, preview/xác nhận lưu, luyện tập/tiến độ cá nhân                         | F08-A code and automated local verification include F08-A.2 lifecycle guards; browser and semantic review pending; flashcards/F09 remain pending, so F08 is partial |
+| F08 | N2 Study Coach: structured quiz/flashcards, nguồn, preview/xác nhận lưu, luyện tập/tiến độ cá nhân                         | F08-A and F08-B have separate code/automated local checkpoints; browser and human semantic review pending, F09 outstanding, so full F08 remains partial |
 | F09 | B4: ít nhất 20 case thực thi có expected, cùng corpus/gold trước/sau, human review/guardrails/fallback/latency/cost        | Chưa nghiệm thu semantic/live; live runner còn BLOCKED, principal CLI hay HTTP chưa chốt                                                                         |
 | F10 | Chỉ STT của Thắng: hoàn thiện lỗi, bảo mật/dependency, accuracy/latency và nghiệm thu thực tế khi cần                      | Thu hẹp theo Tài ngày 19/10/2026; giữ implementation STT hiện có, không phát triển TTS, không chuyển ownership                                                   |
 | F11 | PWA/mobile thật: manifest/install/update/offline shell, Android và giới hạn iOS                                            | Pending; không cache dữ liệu riêng hoặc tự queue write                                                                                                           |

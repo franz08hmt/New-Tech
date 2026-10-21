@@ -796,8 +796,9 @@ No browser automation was exposed in this session, so preview/review/save/reload
 practice/delete keyboard and responsive acceptance remains pending. Structured
 validity and citation provenance do not prove question correctness; human review
 and F09 evaluation are pending. F08-A is code-verified locally, not full F08;
-flashcards remain unimplemented. Existing F05 browser, cloud rollout, Google
-live and the remote-machine pending status is unchanged.
+at that checkpoint flashcards were unimplemented, and F08-B is recorded
+separately below. Existing F05 browser, cloud rollout, Google live and the
+remote-machine pending status is unchanged.
 
 ## 2026-10-21 — F08-A.1 reliability fixes
 
@@ -836,3 +837,31 @@ API Node 857, and Web Vitest 507 (1,757 total), plus typecheck, build, and
 format. No backend/DB source changed and the database gate was not rerun.
 Browser tooling was not exposed; desktop/mobile browser acceptance and semantic
 review remain pending. No provider, cloud, STT weights, or migration was used.
+
+## 2026-10-21 — F08-B flashcards
+
+AI assistance helped inspect the current Study Coach, retrieval, structured
+generation, admission/telemetry, capability and migration patterns; draft the
+strict validator/API/UI regressions; implement the additive flashcard module;
+and update existing traceability docs. The owner should review the code,
+privacy behavior and sample card semantics. No claim about educational
+correctness was made.
+
+Generation uses the existing Gemini and embedding wrappers, retrieval, F03
+telemetry and F04 admission through real Nest routes. Tests replaced only the
+Auth upstream and SDK transports. PostgreSQL 17, business/Auth LOGIN role
+separation, non-owner/NOBYPASSRLS privileges, RLS, migrations, telemetry and
+admission were real in the disposable integration fixture. No paid provider,
+cloud, STT weights or connected browser was used.
+
+Final local results: validator/dashboard focused tests 55/55; focused Web tests
+8/8; flashcard Nest/PG integration 1/1 and lifecycle/retention/migration
+2/2. Gates passed: typecheck, `npm test` (API Vitest 405, API Node 858, Web
+Vitest 515; 1,778 total), build, format, and guarded PG17 `test:database`
+(477/477 across 44 serial suites). Existing migration-count fixtures were
+updated for additive migration 024; migrations 001–023 were not edited.
+
+Browser acceptance and human semantic review remain pending. The synthetic
+photosynthesis sample in FINAL-DEMO-CHECKLIST is for later human review, not an
+evaluation gold set. F09, all-F08 acceptance, cloud rollout, Google live and
+Thắng's machine were not advanced by this work.

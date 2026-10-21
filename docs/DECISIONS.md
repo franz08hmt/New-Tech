@@ -623,3 +623,41 @@ updates without resubmitting; list refresh remains a separate read. Document
 search uses the same bounded server endpoint and rejects stale principal/query
 responses. No change was made to quiz ownership, retention, migration 023,
 admission, or provider-call accounting.
+
+## ADR-010 — Private evidence-grounded flashcards (F08-B)
+
+F08-B is additive to quiz F08-A. Flashcards use a separate typed API and
+contract, `study-flashcards-v1` strict validation, dedicated preview/draft
+reconciliation, immutable saved snapshots and learner-authored reviews. Only a
+currently authorized stored/ready document may ground generation. Source IDs
+must belong to that retrieval run; document/page/chunk metadata is attached by
+the server. A schema/provenance pass is not a semantic-quality guarantee.
+
+Drafts, decks and reviews are private to `(verified workspace_id,user_id)`;
+manager does not gain another user's flashcards. Migration 024 adds owner RLS,
+minimum business column grants and no Auth content access. The F03 operation is
+`study_flashcards`, prompt `study-coach.flashcards` / `flashcards-v1`, with at
+most one retrieval embedding plus one generation under existing F04 admission.
+No retry loop was added. Reads, confirmation, deletion, flip/self-rating and
+progress do not call AI. F06 recognizes the operation in its existing usage
+dashboard; telemetry remains best-effort and is not billing or the quota
+ledger.
+
+Draft tokens are server-issued, stored only as hashes, and expire after 15
+minutes by database time. Explicit confirmation is idempotent and leaves a
+tombstone preventing stale confirm from recreating deleted content. Saved
+snapshots expire after 90 days; reads do not extend retention. Review
+submission binds a UUID key to the canonical complete card-ID/rating set; the
+server rejects changed payload under the same key, deduplicates concurrent or
+replayed submissions, and computes progress. No review scheduling or mastery
+score is inferred.
+
+Rollback `npm run f08b:rollback-024` is dry-run-first, disposable-target-only,
+checks source checksum/later migrations/capability/dependencies under a lock,
+uses `RESTRICT` and warns that flashcard content will be lost. It refuses when
+F08-B usage/admission accounting exists, preserving the newer operation
+constraints. Bounded retention uses `npm run f08b:retention` and is dry-run by
+default; no scheduler was added. Local PG17 integration verified apply,
+rollback/reapply, retention, real business/Auth LOGIN separation, RLS,
+admission, telemetry and idempotency. Browser acceptance and human semantic
+review remain pending; this ADR does not complete all F08 or start F09.

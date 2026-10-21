@@ -109,10 +109,12 @@ phải nghiệm thu Google live, cloud rollout hay máy Thắng.
       React/HTTP tests không được nhận là browser evidence. Human semantic review
       và F09 evaluation cũng pending.
 
-F08-A không đồng nghĩa toàn bộ F08: flashcards và F09 evaluation chưa làm.
-Quiz là evidence-grounded draft, không phải cam kết bao phủ toàn PDF hoặc bảo
-đảm semantic correctness. F03 telemetry vẫn best-effort; save/practice không
-gọi AI và không dùng telemetry làm admission.
+F08-A riêng lẻ không đồng nghĩa toàn bộ F08. Flashcards có implementation
+checkpoint F08-B bên dưới; browser acceptance và human semantic review vẫn
+pending, F09 evaluation chưa làm. Quiz/flashcard là evidence-grounded output,
+không cam kết bao phủ toàn PDF hoặc bảo đảm semantic correctness. F03 telemetry
+vẫn best-effort; save/practice/review không gọi AI và không dùng telemetry làm
+admission.
 
 - [ ] Chốt revision/nhánh và phân công Tài–Thắng; bảo toàn WIP trước pull.
 - [ ] Cài đúng Node/npm, giữ .env/credential riêng; mở đúng 127.0.0.1:5173.
@@ -323,8 +325,9 @@ failures, skips, or cancellations. This change is frontend-only; no database
 gate or migration was needed. Browser automation was not exposed in the session,
 so desktop 1440px/mobile 375px acceptance is `BROWSER_ACCEPTANCE_PENDING`;
 React tests are not browser evidence. F08-A browser acceptance and semantic
-review, flashcards/F08-B, F09, cloud rollout, Google live, and remote-machine
-acceptance remain pending.
+review, F09, cloud rollout, Google live, and remote-machine acceptance remain
+pending. At this historical F08-A.2 checkpoint, F08-B was still pending; see
+the separate F08-B checkpoint below.
 
 ## F08-A.1 — recovery/search/progress regressions (21/10/2026)
 
@@ -346,7 +349,52 @@ acceptance remain pending.
       `npm run test:database` 474/474. No failures/skips/cancellations.
 - [ ] Browser acceptance remains pending: this session exposes no browser
       automation tool. These React/API/DB tests are not browser evidence.
-- [ ] Human semantic quiz quality review, F08-B flashcards, and F09 remain pending.
+- [ ] At the historical F08-A.1 checkpoint, human quiz semantic review,
+      flashcards/F08-B and F09 were pending; see the F08-B checkpoint below.
+
+## F08-B — Flashcards preview, personal storage and self-review (21/10/2026)
+
+- [x] Generate from one currently readable stored/ready document only; strict
+      `study-flashcards-v1` schema/provenance validation, 3–10 cards (default 5),
+      `vi|en`, and explicit preview → confirm. No auto-repair or generation retry.
+- [x] Private `(workspace_id,user_id)` drafts, decks and reviews under migration
+      024, runtime capability v24, owner RLS and narrow business LOGIN grants;
+      Auth cannot read card content. Draft token is hashed and expires in 15
+      minutes; saved immutable content expires in 90 days by DB time.
+- [x] Flip, self-rate remembered/needs-review, then explicitly submit one exact
+      card-ID set. Server enforces idempotent review key/payload and computes
+      last-review counts/progress. This is learner self-assessment, not an AI
+      grade or evidence of mastery. Reads, confirm/delete/review/progress do not
+      invoke AI.
+- [x] Real Nest + PG17 integration used separate non-owner/NOBYPASSRLS
+      business/Auth LOGINs, live RLS/capability checks, real retrieval and
+      Gemini/provider wrappers, F03 telemetry and F04 admission. Only Auth
+      upstream and SDK transports were synthetic. It checked tenant/owner/role
+      isolation, invalid/forged output, quota denial before dispatch, confirm
+      and review replay/lost responses, progress, source availability, retention
+      and migration 024 rollback/reapply. Existing F08-A remained isolated.
+- [x] RED→GREEN: strict flashcard validator regression failed before the
+      validator was implemented; focused validator/dashboard tests now pass
+      55/55 and focused Web panel/workspace tests 8/8. A UI test caught an
+      overly strict guard dropping an already-resolved list response; the guard
+      was corrected to use request revision identity. Migration-024 integration
+      suites passed 3/3; final full DB gate passed 477/477 across 44 suites.
+- [x] Final automated gates: typecheck 0; `npm test` 0 (API Vitest 405/405,
+      API Node 858/858, Web Vitest 515/515; 1,778 total); build 0; format 0;
+      guarded `npm run test:database` on disposable PG17 0 (477/477). Build
+      emits a Vite advisory that one JS chunk is slightly over 500 kB.
+- [ ] Browser acceptance is pending: no browser automation tool was exposed in
+      this session. React/API/DB integration tests are not browser evidence.
+- [ ] Human semantic review is pending. Synthetic review sample (not a gold
+      answer): source excerpt — “During photosynthesis, chlorophyll absorbs
+      light energy. The plant uses that energy to convert carbon dioxide and
+      water into glucose and oxygen.” Candidate card — front: “What role does
+      chlorophyll play in photosynthesis?”; back: “It absorbs light energy used
+      to convert carbon dioxide and water into glucose and oxygen.” A reviewer
+      should judge usefulness, factuality and whether the cited passage supports
+      the answer; schema/provenance validity does not establish this.
+- [ ] F09/live evaluation, flashcard browser acceptance, full F08 acceptance,
+      cloud rollout, Google live and Thắng's machine remain pending.
 
 ## F06.2 — synchronized dashboard refresh
 
