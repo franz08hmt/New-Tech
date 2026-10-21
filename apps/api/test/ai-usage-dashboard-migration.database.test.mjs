@@ -6,7 +6,7 @@ import pg from "pg";
 import { DatabaseService } from "../dist/database/database.service.js";
 import { AuthDatabaseService } from "../dist/database/auth-database.service.js";
 import { runtimeCapabilityCatalogDigest } from "../dist/database/runtime-capability-contract.js";
-import { migrate } from "../scripts/migrate.mjs";
+import { loadMigrations, migrate } from "../scripts/migrate.mjs";
 import { runPilotRollback021 } from "../scripts/pilot-rollback-021.mjs";
 import {
   fixedId,
@@ -31,6 +31,17 @@ let authDb;
 let client;
 let clientPool;
 const createdRoles = [];
+
+async function migrateThrough021(connectionString) {
+  const files = await loadMigrations();
+  const index = files.findIndex(
+    (file) => file.name === "021_ai_usage_dashboard.sql",
+  );
+  assert.notEqual(index, -1);
+  await migrate(connectionString, {
+    loadSource: async () => files.slice(0, index + 1),
+  });
+}
 
 async function createRuntimeRole(name, password, group) {
   await fixture.admin.query(
@@ -124,7 +135,7 @@ test("021 preflight, manager RLS, rollback preservation and reapply are verified
   );
   try {
     await assert.rejects(
-      migrate(target),
+      migrateThrough021(target),
       /Unmanaged policy affects a protected runtime capability/,
     );
     assert.equal(
@@ -142,7 +153,7 @@ test("021 preflight, manager RLS, rollback preservation and reapply are verified
     );
   }
 
-  await migrate(target);
+  await migrateThrough021(target);
   assert.equal(
     await runtimeCapabilityCatalogDigest(
       (text, values) => fixture.admin.query(text, values),
@@ -150,8 +161,30 @@ test("021 preflight, manager RLS, rollback preservation and reapply are verified
     ),
     "a1d78d4abffa234b14fb58ecff790a096b1c14439f79330de325bd255934fa45",
   );
-  await business.assertBusinessCapability();
-  await authDb.assertCapability("examate_auth");
+  for (const [db, role, group] of [
+    [business, roles.business, "examate_business"],
+    [authDb, roles.auth, "examate_auth"],
+  ]) {
+    const identity = (
+      await db.query(
+        `SELECT current_user::text AS current_user,session_user::text AS session_user,
+          r.rolcanlogin,r.rolsuper,r.rolbypassrls,r.rolcreatedb,r.rolcreaterole,
+          pg_has_role(r.oid,$1,'member') AS in_expected_group
+         FROM pg_roles r WHERE r.rolname=current_user`,
+        [group],
+      )
+    ).rows[0];
+    assert.deepEqual(identity, {
+      current_user: role,
+      session_user: role,
+      rolcanlogin: true,
+      rolsuper: false,
+      rolbypassrls: false,
+      rolcreatedb: false,
+      rolcreaterole: false,
+      in_expected_group: true,
+    });
+  }
   assert.equal(
     (
       await fixture.admin.query(
@@ -274,9 +307,7 @@ test("021 preflight, manager RLS, rollback preservation and reapply are verified
     { code: "42501" },
   );
 
-  await migrate(target);
-  await business.assertBusinessCapability();
-  await authDb.assertCapability("examate_auth");
+  await migrateThrough021(target);
   const restored = await business.workspaceTransaction(manager, (tx) =>
     tx.query("SELECT operation_id::text FROM ai_usage_operations"),
   );

@@ -224,6 +224,15 @@ export async function migrate(
             (text, values) => client.query(text, values),
             { allowedPolicyNames: EXPECTED_021_RUNTIME_POLICIES },
           );
+        } else if (file.name === "022_assistant_conversations.sql") {
+          await lockManagedRuntimeRelations(
+            (text, values) => client.query(text, values),
+            { includeAiUsage: true },
+          );
+          await assertNoManagedRuntimePolicyConflict(
+            (text, values) => client.query(text, values),
+            { allowedPolicyNames: EXPECTED_021_RUNTIME_POLICIES },
+          );
         }
         const appliedNow = await applyMigrationInTransaction(client, file, {
           pilotWorkspace: process.env.PILOT_WORKSPACE_ID,

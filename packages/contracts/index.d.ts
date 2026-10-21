@@ -483,9 +483,70 @@ export interface AssistantChatRequest {
   pageContext?: AssistantPageContext | null;
   courseId?: string | null;
   documentId?: string | null;
+  /** Server-owned persistent conversation. When set, client history is forbidden. */
+  conversationId?: string;
+  /** Optimistic version returned by the conversation API. */
+  conversationVersion?: number;
   /** At most six receipted turns, oldest first. Question operation only.
    * UTF-8 JSON <=81920 bytes and <=64000 serialized characters in total. */
   history?: AssistantHistoryTurn[];
+}
+
+export interface AssistantConversationCreateRequest {
+  createKey: string;
+  mode: AssistantMode;
+  courseId?: string | null;
+  documentId?: string | null;
+  firstQuestion: string;
+}
+export interface AssistantConversationSummary {
+  id: string;
+  mode: AssistantMode;
+  courseId: string | null;
+  documentId: string | null;
+  title: string;
+  version: number;
+  turnCount: number;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+}
+export interface AssistantConversationListResponse {
+  items: AssistantConversationSummary[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+export type AssistantConversationCreateReconciliation =
+  | { state: "absent" }
+  | { state: "deleted" }
+  | { state: "found"; conversation: AssistantConversationSummary };
+export interface AssistantConversationMessage {
+  id: string;
+  sequence: number;
+  receiptId: string;
+  snapshot: AssistantFeedbackSnapshot;
+  createdAt: string;
+}
+export interface AssistantConversationSaveRetryRequest {
+  receiptId: string;
+  expectedVersion: number;
+  snapshot: AssistantFeedbackSnapshot;
+}
+export interface AssistantConversationMessagesResponse {
+  conversation: AssistantConversationSummary;
+  items: AssistantConversationMessage[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+export type AssistantConversationSaveState = "saved" | "not_saved" | "unknown";
+export interface AssistantConversationSaveMetadata {
+  state: AssistantConversationSaveState;
+  version?: number;
+  answerId?: string;
 }
 
 export interface AssistantHistoryTurn {
@@ -631,6 +692,8 @@ export type AssistantStreamEvent =
       response: AssistantChatResponse;
       /** Present only when the server persisted an answer receipt. */
       answerId?: string;
+      /** Present only for a persistent conversation append. */
+      conversationSave?: AssistantConversationSaveMetadata;
     }
   | { type: "error"; code: string; message: string };
 
@@ -700,17 +763,9 @@ export type AiUsageOperationName =
   | "document_index";
 export type AiUsageOperationMode = "general" | "documents" | "workspace";
 export type AiUsageOperationOutcome =
-  | "success"
-  | "error"
-  | "timeout"
-  | "cancelled"
-  | "rejected"
-  | "unknown";
+  "success" | "error" | "timeout" | "cancelled" | "rejected" | "unknown";
 export type AiUsageDashboardSort =
-  | "started_at"
-  | "duration_ms"
-  | "operation"
-  | "outcome";
+  "started_at" | "duration_ms" | "operation" | "outcome";
 export interface AiUsageDashboardQuery {
   from: string;
   to: string;
@@ -757,11 +812,18 @@ export interface AiUsageCostBreakdownResponse {
 export interface AiUsageOperationCount {
   total: string;
   outcomes: Record<AiUsageOperationOutcome, string>;
-  latency: { sampleCount: string; averageMs: string | null; p95Ms: string | null };
+  latency: {
+    sampleCount: string;
+    averageMs: string | null;
+    p95Ms: string | null;
+  };
 }
 export interface AiUsageProviderCallCount {
   total: string;
-  outcomes: Record<"success" | "error" | "timeout" | "cancelled" | "unknown", string>;
+  outcomes: Record<
+    "success" | "error" | "timeout" | "cancelled" | "unknown",
+    string
+  >;
   usage: Record<"complete" | "partial" | "missing" | "invalid", string>;
   tokens: {
     input: string | null;
@@ -775,7 +837,11 @@ export interface AiUsageProviderCallCount {
     estimatedCalls: string;
     unknownCalls: string;
   };
-  latency: { sampleCount: string; averageMs: string | null; p95Ms: string | null };
+  latency: {
+    sampleCount: string;
+    averageMs: string | null;
+    p95Ms: string | null;
+  };
 }
 export interface AiUsageDashboardOperation {
   operationId: string;

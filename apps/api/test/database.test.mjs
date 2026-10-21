@@ -60,12 +60,7 @@ function openRuntime() {
 }
 const migrationsThrough016 = async () =>
   (await loadMigrations()).filter(
-    (migration) =>
-      migration.name !== "017_runtime_rls.sql" &&
-      migration.name !== "018_runtime_rls_reindex.sql" &&
-      migration.name !== "019_ai_usage_telemetry.sql" &&
-      migration.name !== "020_ai_admission.sql" &&
-      migration.name !== "021_ai_usage_dashboard.sql",
+    (migration) => Number(migration.name.slice(0, 3)) <= 16,
   );
 before(async () => {
   process.env.DATABASE_SSL = "false";

@@ -21,7 +21,7 @@ export function runtimeCapabilityError(message?: string) {
   return new RuntimeCapabilityContractError(message);
 }
 
-export const RUNTIME_CAPABILITY_CONTRACT_VERSION = 21;
+export const RUNTIME_CAPABILITY_CONTRACT_VERSION = 22;
 
 const baseManagedRelations = [
   "workspaces",
@@ -54,15 +54,24 @@ const admissionRelations = [
   "ai_admission_user_daily",
   "ai_admission_operations",
 ];
-const managedRelations = [...baseManagedRelations, ...admissionRelations];
-const managedRelationsFor = (version: number) =>
-  version >= 20 ? managedRelations : baseManagedRelations;
+const conversationRelations = [
+  "assistant_conversations",
+  "assistant_conversation_turns",
+  "assistant_conversation_create_keys",
+];
+const managedRelationsFor = (version: number) => [
+  ...baseManagedRelations,
+  ...(version >= 22 ? conversationRelations : []),
+  ...(version >= 20 ? admissionRelations : []),
+];
 
 const roleGroups = ["examate_business", "examate_auth", "examate_policy_owner"];
-const aiUsageRelationsFor = (version: number) =>
-  version >= 20
-    ? ["ai_usage_operations", "ai_usage_provider_calls", ...admissionRelations]
-    : ["ai_usage_operations", "ai_usage_provider_calls"];
+const aiUsageRelationsFor = (version: number) => [
+  "ai_usage_operations",
+  "ai_usage_provider_calls",
+  ...(version >= 20 ? admissionRelations : []),
+  ...(version >= 22 ? conversationRelations : []),
+];
 
 // Generated once from a pristine PostgreSQL 17 database by applying the
 // committed migration source. Never derive or update this from a target DB.
@@ -72,6 +81,8 @@ const expectedCatalogDigests: Readonly<Record<number, string>> = {
   20: "b14a19fb148904116b166da9bbd5c4bf3649fd2b27e6947a525d5589a14a9986",
   // Generated from a pristine PostgreSQL 17 database by applying source migrations 001-021.
   21: "a1d78d4abffa234b14fb58ecff790a096b1c14439f79330de325bd255934fa45",
+  // Generated from a pristine PG17 database by applying source migrations 001-022.
+  22: "befdd28ceed598d7b6009c24e42b116f2264c47e886319100512563538f409fa",
 };
 
 async function readContractCatalog(query: Query, version: number) {
@@ -344,6 +355,9 @@ const managedPolicyRelations = [
   "documents",
   "document_chunks",
   "assistant_answer_receipts",
+  "assistant_conversations",
+  "assistant_conversation_turns",
+  "assistant_conversation_create_keys",
   "assistant_feedback",
   "pilot_sessions",
   "pilot_auth_limits",
@@ -400,15 +414,22 @@ export async function lockManagedRuntimeRelations(
   query: Query,
   { includeAiUsage = false }: { includeAiUsage?: boolean } = {},
 ) {
+  const candidates = managedPolicyRelations.filter(
+    (name) =>
+      !admissionRelations.includes(name) &&
+      (includeAiUsage || !name.startsWith("ai_usage_")),
+  );
+  const existing = await query(
+    `SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname='public' AND c.relname=ANY($1::text[]) AND c.relkind IN ('r','p')
+      ORDER BY c.relname`,
+    [candidates],
+  );
+  const names = new Set(existing.rows.map((row) => String(row.relname)));
+  const tables = candidates.filter((name) => names.has(name));
+  if (!tables.length) return;
   await query(
-    `LOCK TABLE ${managedPolicyRelations
-      .filter(
-        (name) =>
-          !admissionRelations.includes(name) &&
-          (includeAiUsage || !name.startsWith("ai_usage_")),
-      )
-      .map((name) => `public.${name}`)
-      .join(",")} IN ACCESS EXCLUSIVE MODE`,
+    `LOCK TABLE ${tables.map((name) => `public.${name}`).join(",")} IN ACCESS EXCLUSIVE MODE`,
   );
 }
 
@@ -471,4 +492,16 @@ export const EXPECTED_021_RUNTIME_POLICIES = [
   "f04_admission_operations_delete_expired",
   "f06_usage_operations_manager_select",
   "f06_usage_calls_manager_select",
+];
+
+export const EXPECTED_022_RUNTIME_POLICIES = [
+  ...EXPECTED_021_RUNTIME_POLICIES,
+  "f07_create_keys_owner_select",
+  "f07_create_keys_owner_insert",
+  "f07_conversations_owner_select",
+  "f07_conversations_owner_insert",
+  "f07_conversations_owner_update",
+  "f07_conversations_owner_delete",
+  "f07_turns_owner_select",
+  "f07_turns_owner_insert",
 ];

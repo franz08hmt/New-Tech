@@ -24,8 +24,10 @@ import type { AuthRequest } from "../auth/auth.service.js";
 import type {
   AssistantAnswerIdHeader,
   AssistantChatResponse,
+  AssistantConversationSaveMetadata,
 } from "@examate/contracts";
 import { AnswerReceiptService } from "./answer-receipt.service.js";
+import { AssistantConversationService } from "./assistant-conversation.service.js";
 import { requestContext } from "../common/log.js";
 import { randomUUID } from "node:crypto";
 import { AssistantError } from "./assistant.types.js";
@@ -134,6 +136,7 @@ export class AssistantController {
     private readonly workspace: WorkspaceAssistantService,
     private readonly receipts: AnswerReceiptService,
     private readonly usage: AiUsageService,
+    private readonly conversations: AssistantConversationService,
   ) {}
 
   @Get("status")
@@ -159,6 +162,7 @@ export class AssistantController {
     req?: AuthRequest,
     res?: { setHeader(name: string, value: string): void },
   ) {
+    input.history = await this.conversations.prepareChat(input, req?.principal);
     await this.receipts.verifyHistory(input, req?.principal);
     // Workspace questions are answered from records by their own read-only
     // service. Other modes receive only the guard-verified server principal.
@@ -167,14 +171,34 @@ export class AssistantController {
         ? await this.workspace.chat(input, req?.principal)
         : await this.assistant.chat(input, req?.principal);
     try {
-      const id = await this.receipts.issue(
-        input,
-        answer,
-        req?.principal,
-        requestContext.getStore()?.requestId ?? randomUUID(),
-      );
+      let id: string | undefined;
+      let conversationSave: AssistantConversationSaveMetadata | undefined;
+      if (input.conversationId) {
+        conversationSave = await this.conversations.appendCompleted(
+          input,
+          answer,
+          req?.principal,
+          requestContext.getStore()?.requestId ?? randomUUID(),
+        );
+        id = conversationSave.answerId;
+      } else {
+        id = await this.receipts.issue(
+          input,
+          answer,
+          req?.principal,
+          requestContext.getStore()?.requestId ?? randomUUID(),
+        );
+      }
       const header: AssistantAnswerIdHeader = "X-Assistant-Answer-ID";
-      res?.setHeader(header, id);
+      if (id) res?.setHeader(header, id);
+      if (conversationSave) {
+        res?.setHeader("X-Assistant-Conversation-Save", conversationSave.state);
+        if (conversationSave.version !== undefined)
+          res?.setHeader(
+            "X-Assistant-Conversation-Version",
+            String(conversationSave.version),
+          );
+      }
     } catch (error) {
       // Only receipt persistence is best-effort after a validated answer.
       // The receipt service logs its fixed outage code; revoked access is not
@@ -214,6 +238,7 @@ export class AssistantController {
         message:
           "Streaming hỗ trợ câu hỏi AI Chat và Hỏi workspace; thao tác tài liệu riêng dùng endpoint chat thông thường.",
       });
+    input.history = await this.conversations.prepareChat(input, req.principal);
     await this.receipts.verifyHistory(input, req.principal);
 
     const controller = new AbortController();
@@ -270,13 +295,24 @@ export class AssistantController {
       if (!answer) throw new AssistantError("upstream");
 
       let answerId: string | undefined;
+      let conversationSave: AssistantConversationSaveMetadata | undefined;
       try {
-        answerId = await this.receipts.issue(
-          input,
-          answer,
-          req.principal,
-          requestContext.getStore()?.requestId ?? randomUUID(),
-        );
+        if (input.conversationId) {
+          conversationSave = await this.conversations.appendCompleted(
+            input,
+            answer,
+            req.principal,
+            requestContext.getStore()?.requestId ?? randomUUID(),
+          );
+          answerId = conversationSave.answerId;
+        } else {
+          answerId = await this.receipts.issue(
+            input,
+            answer,
+            req.principal,
+            requestContext.getStore()?.requestId ?? randomUUID(),
+          );
+        }
       } catch (error) {
         // Preserve the JSON endpoint's policy: transient receipt outages do
         // not discard a completed answer, but authorization failures do.
@@ -289,6 +325,7 @@ export class AssistantController {
           type: "done",
           response: answer,
           ...(answerId ? { answerId } : {}),
+          ...(conversationSave ? { conversationSave } : {}),
         },
         controller,
       );

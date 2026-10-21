@@ -10,6 +10,8 @@ import { FeedbackController } from "./feedback/feedback.controller.js";
 import { FeedbackService } from "./feedback/feedback.service.js";
 import { AssistantController } from "./assistant/assistant.controller.js";
 import { AnswerReceiptService } from "./assistant/answer-receipt.service.js";
+import { AssistantConversationController } from "./assistant/assistant-conversation.controller.js";
+import { AssistantConversationService } from "./assistant/assistant-conversation.service.js";
 import { AssistantService } from "./assistant/assistant.service.js";
 import { GeminiService } from "./assistant/gemini.service.js";
 import { GeminiEmbeddingService } from "./assistant/gemini-embedding.service.js";
@@ -64,6 +66,7 @@ import { SPEECH_PROVIDER } from "./speech/speech.types.js";
     HealthController,
     TasksController,
     AssistantController,
+    AssistantConversationController,
     DocumentsController,
     CoursesController,
     ExamsController,
@@ -96,6 +99,7 @@ import { SPEECH_PROVIDER } from "./speech/speech.types.js";
     WorkspaceSearchService,
     AssistantService,
     AnswerReceiptService,
+    AssistantConversationService,
     GeminiService,
     GeminiEmbeddingService,
     RagRetrievalService,

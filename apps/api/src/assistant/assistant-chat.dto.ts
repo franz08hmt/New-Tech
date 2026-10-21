@@ -1,12 +1,15 @@
 import { Transform, Type } from "class-transformer";
 import {
   IsNotEmpty,
+  IsInt,
   IsIn,
   IsObject,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
+  Max,
+  Min,
   ValidateNested,
   Validate,
   ValidateIf,
@@ -85,4 +88,14 @@ export class AssistantChatDto implements AssistantChatRequest {
   @IsOptional()
   @IsUUID()
   documentId?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  conversationId?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  conversationVersion?: number;
 }

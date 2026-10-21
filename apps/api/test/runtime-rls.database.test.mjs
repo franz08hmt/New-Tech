@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { before, after, test } from "node:test";
 import assert from "node:assert/strict";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import pg from "pg";
 import { Test } from "@nestjs/testing";
 import { DatabaseService } from "../dist/database/database.service.js";
@@ -18,6 +18,7 @@ import { AUTH_ADAPTER, AUTH_CONFIG } from "../dist/auth/auth-config.js";
 import { configureApp } from "../dist/common/http.js";
 import { authFixture } from "./auth-fixture.mjs";
 import { json } from "./helpers.mjs";
+import { canonicalJson } from "../dist/feedback/feedback-validation.js";
 import {
   openDocumentsTenantFixture,
   people,
@@ -3294,6 +3295,449 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
       B.id,
     ]);
   }
+
+  // F07 exercises the real Auth guard, business LOGIN, workspace transaction,
+  // RLS, receipt verification and fake SDK at the HTTP boundary.
+  const createConversation = async (createKey = randomUUID()) => {
+    const response = await fetch(`${base}/api/assistant/conversations`, {
+      ...json("POST", {
+        createKey,
+        mode: "general",
+        firstQuestion: "Synthetic personal conversation title",
+      }),
+      headers: writeHeaders(),
+    });
+    return { response, body: await response.json() };
+  };
+  const createKey = randomUUID();
+  const createdConversation = await createConversation(createKey);
+  assert.equal(createdConversation.response.status, 201);
+  assert.equal(createdConversation.body.version, 0);
+  const idempotentCreate = await createConversation(createKey);
+  assert.equal(idempotentCreate.response.status, 201);
+  assert.equal(idempotentCreate.body.id, createdConversation.body.id);
+  const reconciledCreate = await fetch(
+    `${base}/api/assistant/conversations/create-keys/${createKey}`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(reconciledCreate.status, 200);
+  assert.equal((await reconciledCreate.json()).state, "found");
+  const absentCreate = await fetch(
+    `${base}/api/assistant/conversations/create-keys/${randomUUID()}`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(absentCreate.status, 200);
+  assert.deepEqual(await absentCreate.json(), { state: "absent" });
+
+  const emptyHistory = await fetch(`${base}/api/assistant/conversations`, {
+    headers: { Cookie: nextCookie },
+  });
+  assert.equal(emptyHistory.status, 200);
+  assert.equal((await emptyHistory.json()).total, 0);
+
+  const sdkBeforeConflict = sdkCalls.generation.length;
+  const conflictingClientHistory = await postChat({
+    mode: "general",
+    message: "This must not dispatch a provider request.",
+    conversationId: createdConversation.body.id,
+    conversationVersion: 0,
+    history: [{ untrusted: true }],
+  });
+  assert.equal(conflictingClientHistory.status, 400);
+  assert.equal(sdkCalls.generation.length, sdkBeforeConflict);
+
+  const firstSavedTurn = await postChat({
+    mode: "general",
+    message: "Synthetic F07 first completed turn.",
+    conversationId: createdConversation.body.id,
+    conversationVersion: 0,
+  });
+  assert.equal(firstSavedTurn.status, 200);
+  assert.equal(
+    firstSavedTurn.headers.get("x-assistant-conversation-save"),
+    "saved",
+  );
+  assert.equal(
+    firstSavedTurn.headers.get("x-assistant-conversation-version"),
+    "1",
+  );
+  const firstSavedAnswer = firstSavedTurn.headers.get("x-assistant-answer-id");
+  assert.match(firstSavedAnswer ?? "", /^[0-9a-f-]{36}$/i);
+
+  const listedConversation = await fetch(
+    `${base}/api/assistant/conversations?page=1&pageSize=20`,
+    {
+      headers: { Cookie: nextCookie },
+    },
+  );
+  assert.equal(listedConversation.status, 200);
+  const listedBody = await listedConversation.json();
+  assert.equal(listedBody.total, 1);
+  assert.equal(listedBody.items[0].id, createdConversation.body.id);
+  const firstMessages = await fetch(
+    `${base}/api/assistant/conversations/${createdConversation.body.id}/messages?page=1&pageSize=20`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(firstMessages.status, 200);
+  const firstMessagesBody = await firstMessages.json();
+  assert.equal(firstMessagesBody.total, 1);
+  assert.equal(firstMessagesBody.items[0].receiptId, firstSavedAnswer);
+  assert.equal(
+    firstMessagesBody.items[0].snapshot.request.question,
+    "Synthetic F07 first completed turn.",
+  );
+
+  const secondSavedTurn = await postChat({
+    mode: "general",
+    message: "Synthetic F07 verified follow-up.",
+    conversationId: createdConversation.body.id,
+    conversationVersion: 1,
+  });
+  assert.equal(secondSavedTurn.status, 200);
+  assert.equal(
+    secondSavedTurn.headers.get("x-assistant-conversation-version"),
+    "2",
+  );
+  const streamedConversation = await createConversation();
+  assert.equal(streamedConversation.response.status, 201);
+  const streamCallsBeforeConversation = sdkCalls.streams.length;
+  const persistedStream = await postStream({
+    mode: "general",
+    message: "Synthetic F07 completed SSE turn.",
+    conversationId: streamedConversation.body.id,
+    conversationVersion: 0,
+  });
+  assert.equal(persistedStream.status, 200);
+  const persistedStreamText = await persistedStream.text();
+  const persistedEvents = persistedStreamText
+    .split("\n")
+    .filter((line) => line.startsWith("data: "))
+    .map((line) => JSON.parse(line.slice(6)));
+  const persistedDone = persistedEvents.find((event) => event.type === "done");
+  assert.equal(persistedDone?.conversationSave?.state, "saved");
+  assert.equal(persistedDone?.conversationSave?.version, 1);
+  assert.match(
+    persistedDone?.conversationSave?.answerId ?? "",
+    /^[0-9a-f-]{36}$/i,
+  );
+  assert.equal(sdkCalls.streams.length - streamCallsBeforeConversation, 1);
+  const persistedStreamMessages = await fetch(
+    `${base}/api/assistant/conversations/${streamedConversation.body.id}/messages`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(persistedStreamMessages.status, 200);
+  assert.equal((await persistedStreamMessages.json()).total, 1);
+
+  const cancelledConversation = await createConversation();
+  assert.equal(cancelledConversation.response.status, 201);
+  const cancelConversationRequest = new AbortController();
+  const cancelledConversationStream = await postStream(
+    {
+      mode: "general",
+      message: "F031_CANCEL_SENTINEL: F07 partial turn must not be persisted.",
+      conversationId: cancelledConversation.body.id,
+      conversationVersion: 0,
+    },
+    cancelConversationRequest.signal,
+  );
+  const cancelledConversationReader =
+    cancelledConversationStream.body.getReader();
+  const cancelledConversationDecoder = new TextDecoder();
+  let cancelledConversationText = "";
+  while (!cancelledConversationText.includes("Synthetic cancellation chunk.")) {
+    const part = await cancelledConversationReader.read();
+    assert.equal(part.done, false);
+    cancelledConversationText += cancelledConversationDecoder.decode(
+      part.value,
+      { stream: true },
+    );
+  }
+  cancelConversationRequest.abort();
+  await cancelledConversationReader.cancel().catch(() => {});
+  const cancelledConversationTelemetry = await telemetryFor(
+    cancelledConversationStream,
+  );
+  assert.equal(cancelledConversationTelemetry.operation.outcome, "cancelled");
+  const partialTurns = await fixture.admin.query(
+    "SELECT count(*)::int AS count FROM assistant_conversation_turns WHERE conversation_id=$1",
+    [cancelledConversation.body.id],
+  );
+  assert.equal(
+    partialTurns.rows[0].count,
+    0,
+    "cancelled SSE never persists a partial answer",
+  );
+
+  const staleVersionCalls = sdkCalls.generation.length;
+  const staleVersion = await postChat({
+    mode: "general",
+    message: "Stale version must be rejected before dispatch.",
+    conversationId: createdConversation.body.id,
+    conversationVersion: 1,
+  });
+  assert.equal(staleVersion.status, 409);
+  assert.equal(
+    (await staleVersion.json()).code,
+    "CONVERSATION_VERSION_CONFLICT",
+  );
+  assert.equal(sdkCalls.generation.length, staleVersionCalls);
+
+  const foreignConversationId = randomUUID();
+  await fixture.admin.query(
+    `INSERT INTO assistant_conversations
+       (id,workspace_id,user_id,mode,title,create_key,version,turn_count)
+     VALUES($1,$2,$3,'general','Synthetic other user transcript',$4,1,1)`,
+    [foreignConversationId, B.id, people.member, randomUUID()],
+  );
+  const ownRows = await context(
+    { workspaceId: B.id, userId: people.manager, role: "manager" },
+    (tx) => tx.query("SELECT id,user_id FROM assistant_conversations"),
+  );
+  assert.ok(ownRows.rows.some((row) => row.id === createdConversation.body.id));
+  assert.ok(ownRows.rows.every((row) => row.user_id === people.manager));
+  const foreignDetail = await fetch(
+    `${base}/api/assistant/conversations/${foreignConversationId}/messages`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(foreignDetail.status, 404);
+  const foreignDelete = await fetch(
+    `${base}/api/assistant/conversations/${foreignConversationId}`,
+    { method: "DELETE", headers: writeHeaders() },
+  );
+  assert.equal(foreignDelete.status, 404);
+  await assert.rejects(authDb.query("SELECT id FROM assistant_conversations"), {
+    code: "42501",
+  });
+
+  const managerMembership = await fixture.admin.query(
+    "UPDATE workspace_memberships SET active=false WHERE workspace_id=$1 AND user_id=$2 RETURNING active",
+    [B.id, people.manager],
+  );
+  try {
+    const revokedList = await fetch(`${base}/api/assistant/conversations`, {
+      headers: { Cookie: nextCookie },
+    });
+    assert.equal(revokedList.status, 403);
+    assert.equal((await revokedList.json()).code, "WORKSPACE_ACCESS_DENIED");
+  } finally {
+    assert.equal(managerMembership.rows[0].active, false);
+    await fixture.admin.query(
+      "UPDATE workspace_memberships SET active=true WHERE workspace_id=$1 AND user_id=$2",
+      [B.id, people.manager],
+    );
+  }
+
+  const pendingConversation = await createConversation();
+  assert.equal(pendingConversation.response.status, 201);
+  let markLateProvider;
+  let releaseLateProvider;
+  const lateProviderEntered = new Promise((resolve) => {
+    markLateProvider = resolve;
+  });
+  const lateProviderWait = new Promise((resolve) => {
+    releaseLateProvider = resolve;
+  });
+  providerGate = {
+    markEntered: markLateProvider,
+    wait: lateProviderWait,
+  };
+  const lateAppend = postChat({
+    mode: "general",
+    message: "F04_CONCURRENCY_SENTINEL: late append after delete.",
+    conversationId: pendingConversation.body.id,
+    conversationVersion: 0,
+  });
+  let lateTimer;
+  try {
+    await Promise.race([
+      lateProviderEntered,
+      new Promise((_, reject) => {
+        lateTimer = setTimeout(
+          () =>
+            reject(new Error("F07 synthetic provider barrier was not reached")),
+          5_000,
+        );
+      }),
+    ]);
+    const deletedDuringProvider = await fetch(
+      `${base}/api/assistant/conversations/${pendingConversation.body.id}`,
+      { method: "DELETE", headers: writeHeaders() },
+    );
+    assert.equal(deletedDuringProvider.status, 200);
+    releaseLateProvider();
+    const completedLate = await lateAppend;
+    assert.equal(completedLate.status, 200);
+    assert.equal(
+      completedLate.headers.get("x-assistant-conversation-save"),
+      "not_saved",
+    );
+    const lateMessages = await fetch(
+      `${base}/api/assistant/conversations/${pendingConversation.body.id}/messages`,
+      { headers: { Cookie: nextCookie } },
+    );
+    assert.equal(lateMessages.status, 404);
+  } finally {
+    clearTimeout(lateTimer);
+    releaseLateProvider();
+    providerGate = undefined;
+    await Promise.allSettled([lateAppend]);
+  }
+
+  const savedReceipt = await fixture.admin.query(
+    "SELECT id FROM assistant_answer_receipts WHERE id=$1",
+    [firstSavedAnswer],
+  );
+  assert.equal(
+    savedReceipt.rowCount,
+    1,
+    "deleting a conversation does not delete receipts",
+  );
+  const deletedConversation = await fetch(
+    `${base}/api/assistant/conversations/${createdConversation.body.id}`,
+    { method: "DELETE", headers: writeHeaders() },
+  );
+  assert.equal(deletedConversation.status, 200);
+  const deletedMessages = await fetch(
+    `${base}/api/assistant/conversations/${createdConversation.body.id}/messages`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(deletedMessages.status, 404);
+  const reconciledDelete = await fetch(
+    `${base}/api/assistant/conversations/create-keys/${createKey}`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(reconciledDelete.status, 200);
+  assert.deepEqual(await reconciledDelete.json(), { state: "deleted" });
+
+  const storedSnapshot = firstMessagesBody.items[0].snapshot;
+  const serializedSnapshot = JSON.stringify(storedSnapshot);
+  const snapshotBytes = Buffer.byteLength(serializedSnapshot, "utf8");
+  const snapshotHash = createHash("sha256")
+    .update(canonicalJson(storedSnapshot))
+    .digest("hex");
+  const seedConversation = async (turnCount) => {
+    const conversationId = randomUUID();
+    const createKey = randomUUID();
+    const sequences = Array.from(
+      { length: turnCount },
+      (_, index) => index + 1,
+    );
+    await fixture.admin.query(
+      `INSERT INTO assistant_conversations
+         (id,workspace_id,user_id,mode,title,create_key,version,turn_count,content_bytes)
+       VALUES($1,$2,$3,'general','Synthetic paged history',$4,$5,$5,$6)`,
+      [
+        conversationId,
+        B.id,
+        people.manager,
+        createKey,
+        turnCount,
+        snapshotBytes * turnCount,
+      ],
+    );
+    await fixture.admin.query(
+      `INSERT INTO assistant_conversation_create_keys(workspace_id,user_id,create_key)
+       VALUES($1,$2,$3)`,
+      [B.id, people.manager, createKey],
+    );
+    for (const sequence of sequences) {
+      const receiptId = randomUUID();
+      const requestId = randomUUID();
+      await fixture.admin.query(
+        `INSERT INTO assistant_answer_receipts(id,workspace_id,user_id,mode,request_id,snapshot_hash)
+         VALUES($1,$2,$3,'general',$4,$5)`,
+        [receiptId, B.id, people.manager, requestId, snapshotHash],
+      );
+      await fixture.admin.query(
+        `INSERT INTO assistant_conversation_turns
+           (id,conversation_id,workspace_id,user_id,sequence,request_id,receipt_id,snapshot)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb)`,
+        [
+          randomUUID(),
+          conversationId,
+          B.id,
+          people.manager,
+          sequence,
+          requestId,
+          receiptId,
+          serializedSnapshot,
+        ],
+      );
+    }
+    return conversationId;
+  };
+  await Promise.all(Array.from({ length: 20 }, () => seedConversation(1)));
+  const pagedHistoryId = await seedConversation(51);
+  const conversationPage1 = await fetch(
+    `${base}/api/assistant/conversations?page=1&pageSize=20`,
+    { headers: { Cookie: nextCookie } },
+  );
+  const conversationPage1Body = await conversationPage1.json();
+  assert.equal(conversationPage1.status, 200);
+  assert.equal(conversationPage1Body.total, 22);
+  assert.equal(conversationPage1Body.items.length, 20);
+  const conversationPage1Repeat = await fetch(
+    `${base}/api/assistant/conversations?page=1&pageSize=20`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.deepEqual(
+    (await conversationPage1Repeat.json()).items.map((item) => item.id),
+    conversationPage1Body.items.map((item) => item.id),
+  );
+  const conversationPage2 = await fetch(
+    `${base}/api/assistant/conversations?page=2&pageSize=20`,
+    { headers: { Cookie: nextCookie } },
+  );
+  const conversationPage2Body = await conversationPage2.json();
+  assert.equal(conversationPage2Body.total, 22);
+  assert.equal(conversationPage2Body.items.length, 2);
+  assert.equal(
+    new Set([
+      ...conversationPage1Body.items.map((item) => item.id),
+      ...conversationPage2Body.items.map((item) => item.id),
+    ]).size,
+    22,
+  );
+  const messagePage1 = await fetch(
+    `${base}/api/assistant/conversations/${pagedHistoryId}/messages?page=1&pageSize=50`,
+    { headers: { Cookie: nextCookie } },
+  );
+  const messagePage1Body = await messagePage1.json();
+  assert.equal(messagePage1.status, 200);
+  assert.equal(messagePage1Body.total, 51);
+  assert.equal(messagePage1Body.items.length, 50);
+  const messagePage2 = await fetch(
+    `${base}/api/assistant/conversations/${pagedHistoryId}/messages?page=2&pageSize=50`,
+    { headers: { Cookie: nextCookie } },
+  );
+  const messagePage2Body = await messagePage2.json();
+  assert.equal(messagePage2Body.total, 51);
+  assert.equal(messagePage2Body.items.length, 1);
+
+  const expiredConversation = await createConversation();
+  assert.equal(expiredConversation.response.status, 201);
+  await fixture.admin.query(
+    "UPDATE assistant_conversations SET expires_at=clock_timestamp()-INTERVAL '1 second' WHERE id=$1",
+    [expiredConversation.body.id],
+  );
+  const expiredMessages = await fetch(
+    `${base}/api/assistant/conversations/${expiredConversation.body.id}/messages`,
+    { headers: { Cookie: nextCookie } },
+  );
+  assert.equal(
+    expiredMessages.status,
+    404,
+    "expiry blocks history before the retention job runs",
+  );
+  const delayedCreateRetry = await createConversation(createKey);
+  assert.equal(delayedCreateRetry.response.status, 409);
+  assert.equal(delayedCreateRetry.body.code, "CONVERSATION_CREATE_CONFLICT");
+  const tombstone = await fixture.admin.query(
+    `SELECT count(*)::int AS count FROM assistant_conversation_create_keys
+     WHERE workspace_id=$1 AND user_id=$2 AND create_key=$3`,
+    [B.id, people.manager, createKey],
+  );
+  assert.equal(tombstone.rows[0].count, 1);
 });
 
 test("runtime capabilities reject ownership of managed schemas and database", async () => {

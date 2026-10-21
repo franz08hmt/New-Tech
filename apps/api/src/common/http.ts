@@ -178,6 +178,8 @@ export function configureApp(app: INestApplication, origins: string[] = []) {
     exposedHeaders: [
       "X-Request-ID",
       "X-Assistant-Answer-ID" satisfies AssistantAnswerIdHeader,
+      "X-Assistant-Conversation-Save",
+      "X-Assistant-Conversation-Version",
     ],
   });
   app.enableShutdownHooks();

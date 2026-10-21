@@ -11,10 +11,19 @@ import type {
   AssistantFeedbackSnapshot,
   PilotPrincipal,
 } from "@examate/contracts";
-import { DatabaseService } from "../database/database.service.js";
+import {
+  DatabaseService,
+  type DatabaseTransaction,
+} from "../database/database.service.js";
 import { DocumentAccessService } from "../documents/document-access.service.js";
 import { canonicalJson } from "../feedback/feedback-validation.js";
 import { log } from "../common/log.js";
+
+export interface PreparedAnswerReceipt {
+  id: string;
+  snapshot: AssistantFeedbackSnapshot;
+  snapshotHash: string;
+}
 
 @Injectable()
 export class AnswerReceiptService {
@@ -58,12 +67,10 @@ export class AnswerReceiptService {
     });
   }
 
-  async issue(
+  prepare(
     input: AssistantChatRequest,
     response: AssistantChatResponse,
-    principal: PilotPrincipal | undefined,
-    requestId: string,
-  ): Promise<string> {
+  ): PreparedAnswerReceipt {
     // Hash the public response, never rendered Markdown or model raw output.
     // Feedback size limits do not become a new chat acceptance rule.
     const snapshot: AssistantFeedbackSnapshot = {
@@ -80,26 +87,43 @@ export class AnswerReceiptService {
     const snapshotHash = createHash("sha256")
       .update(canonicalJson(snapshot))
       .digest("hex");
-    const id = randomUUID();
+    return { id: randomUUID(), snapshot, snapshotHash };
+  }
+
+  async insert(
+    tx: DatabaseTransaction,
+    owner: PilotPrincipal,
+    requestId: string,
+    prepared: PreparedAnswerReceipt,
+  ) {
+    const result = await tx.query(
+      `INSERT INTO assistant_answer_receipts (id, workspace_id, user_id, mode, request_id, snapshot_hash)
+      VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+      [
+        prepared.id,
+        owner.workspaceId,
+        owner.userId,
+        prepared.snapshot.request.mode,
+        requestId,
+        prepared.snapshotHash,
+      ],
+    );
+    if (result.rows.length !== 1) throw new Error("Receipt was not persisted");
+  }
+
+  async issue(
+    input: AssistantChatRequest,
+    response: AssistantChatResponse,
+    principal: PilotPrincipal | undefined,
+    requestId: string,
+  ): Promise<string> {
+    const prepared = this.prepare(input, response);
     try {
       await this.database.workspaceTransaction(principal, async (tx) => {
         const owner = await this.access.authorize(principal, "read", tx);
-        const result = await tx.query(
-          `INSERT INTO assistant_answer_receipts (id, workspace_id, user_id, mode, request_id, snapshot_hash)
-          VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-          [
-            id,
-            owner.workspaceId,
-            owner.userId,
-            response.mode,
-            requestId,
-            snapshotHash,
-          ],
-        );
-        if (result.rows.length !== 1)
-          throw new Error("Receipt was not persisted");
+        await this.insert(tx, owner, requestId, prepared);
       });
-      return id;
+      return prepared.id;
     } catch (error) {
       if (error instanceof HttpException && error.getStatus() < 500)
         throw error;

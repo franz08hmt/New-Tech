@@ -87,6 +87,12 @@ function fixture(status: AssistantStatus) {
           .mockResolvedValue("77777777-7777-4777-8777-777777777777"),
       } as unknown as AnswerReceiptService,
       usage as never,
+      {
+        prepareChat: vi.fn(
+          async (input: { history?: unknown }) => input.history,
+        ),
+        appendCompleted: vi.fn().mockResolvedValue({ state: "saved" }),
+      } as never,
     ),
   };
 }

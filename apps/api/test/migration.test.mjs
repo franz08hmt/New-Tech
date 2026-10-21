@@ -33,6 +33,7 @@ const expectedMigrationNames = [
   "019_ai_usage_telemetry.sql",
   "020_ai_admission.sql",
   "021_ai_usage_dashboard.sql",
+  "022_assistant_conversations.sql",
 ];
 
 const saved = { ...process.env };
@@ -113,6 +114,47 @@ test("020 admission ledger separates durable quota from telemetry with scoped le
     migration.sql,
     /^\s*(?:prompt|question|answer|document_text|access_token|signed_url)\s+(?:TEXT|VARCHAR|BYTEA)\b/im,
     "admission rows contain counters and bounded operation state only",
+  );
+});
+
+test("022 stores only bounded receipt-linked personal conversations under owner RLS", async () => {
+  const migration = (await loadMigrations()).find(
+    (file) => file.name === "022_assistant_conversations.sql",
+  );
+  assert.ok(migration);
+  for (const pattern of [
+    /CREATE TABLE public\.assistant_conversations/,
+    /CREATE TABLE public\.assistant_conversation_turns/,
+    /CREATE TABLE public\.assistant_conversation_create_keys/,
+    /user_id UUID NOT NULL REFERENCES auth\.users\(id\) ON DELETE RESTRICT/,
+    /expires_at TIMESTAMPTZ NOT NULL DEFAULT \(clock_timestamp\(\) \+ INTERVAL '90 days'\)/,
+    /turn_count BETWEEN 0 AND 100/,
+    /content_bytes BETWEEN 0 AND 4194304/,
+    /UNIQUE\(workspace_id,user_id,create_key\)/,
+    /UNIQUE\(conversation_id,sequence\)/,
+    /UNIQUE\(conversation_id,request_id\)/,
+    /receipt_id UUID NOT NULL UNIQUE REFERENCES public\.assistant_answer_receipts\(id\) ON DELETE RESTRICT/,
+    /ENABLE ROW LEVEL SECURITY/,
+    /f07_conversations_owner_select/,
+    /f07_conversations_owner_insert/,
+    /f07_conversations_owner_update/,
+    /f07_conversations_owner_delete/,
+    /f07_turns_owner_select/,
+    /f07_turns_owner_insert/,
+    /f07_create_keys_owner_select/,
+    /f07_create_keys_owner_insert/,
+    /examate_workspace_role\(workspace_id\) IS NOT NULL/,
+    /GRANT SELECT \(/,
+    /GRANT INSERT \(/,
+  ])
+    assert.match(migration.sql, pattern);
+  assert.doesNotMatch(
+    migration.sql,
+    /GRANT ALL|BYPASSRLS|SECURITY DEFINER|ON DELETE CASCADE.*assistant_answer_receipts/i,
+  );
+  assert.doesNotMatch(
+    migration.sql,
+    /^\s*(?:access_token|refresh_token|cookie|signed_url|storage_key|provider_payload)\s+(?:TEXT|VARCHAR|BYTEA)\b/im,
   );
 });
 afterEach(() => {
