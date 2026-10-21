@@ -12,6 +12,7 @@ import {
   QuestionMarkCircleIcon,
   DocumentArrowUpIcon,
   ChartBarIcon,
+  BookOpenIcon,
 } from "@heroicons/react/24/outline";
 import { AssistantPanel } from "./AssistantPanel";
 import { ApiError, api, type AssistantReasonCode } from "./api";
@@ -80,6 +81,14 @@ const pages = [
     title: "Your trusted study sources",
     description:
       "Collect the materials ExaMate will use for review and grounded answers.",
+  },
+  {
+    id: "study-coach",
+    eyebrow: "PERSONAL PRACTICE",
+    name: "Study Coach",
+    icon: BookOpenIcon,
+    title: "Practice from your study sources",
+    description: "Review evidence-grounded quizzes that you chose to save.",
   },
   {
     id: "finances",

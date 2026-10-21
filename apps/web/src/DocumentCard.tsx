@@ -17,6 +17,7 @@ interface DocumentCardProps {
   onProcess?: () => void;
   indexUnconfirmed?: boolean;
   onCheckStatus?: () => void;
+  onCreateQuiz?: () => void;
 }
 export function DocumentCard({
   name,
@@ -32,6 +33,7 @@ export function DocumentCard({
   onProcess,
   indexUnconfirmed,
   onCheckStatus,
+  onCreateQuiz,
 }: DocumentCardProps) {
   const processLabel =
     processingStatus === "failed"
@@ -147,6 +149,18 @@ export function DocumentCard({
             onClick={onProcess}
           >
             {processingStatus === "processing" ? "Indexing…" : processLabel}
+          </button>
+        )}
+        {onCreateQuiz && (
+          <button
+            type="button"
+            disabled={
+              busy || state !== "stored" || processingStatus !== "ready"
+            }
+            aria-label={`Create quiz from ${name}`}
+            onClick={onCreateQuiz}
+          >
+            Create quiz
           </button>
         )}
         {onCheckStatus && (

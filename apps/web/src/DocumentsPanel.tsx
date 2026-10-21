@@ -674,6 +674,14 @@ export function DocumentsPanel({
               : undefined
           }
           onProcess={canWrite ? () => void process(item) : undefined}
+          onCreateQuiz={
+            item.storage_status === "stored" &&
+            item.processing_status === "ready"
+              ? () => {
+                  window.location.hash = `#study-coach/${encodeURIComponent(item.id)}`;
+                }
+              : undefined
+          }
           onDownload={() => void download(item)}
           onRemove={canDelete ? () => void remove(item) : undefined}
         />
@@ -1014,6 +1022,14 @@ export function DocumentsPanel({
                         : undefined
                     }
                     onProcess={canWrite ? () => void process(item) : undefined}
+                    onCreateQuiz={
+                      item.storage_status === "stored" &&
+                      item.processing_status === "ready"
+                        ? () => {
+                            window.location.hash = `#study-coach/${encodeURIComponent(item.id)}`;
+                          }
+                        : undefined
+                    }
                     onDownload={() => void download(item)}
                     onRemove={canDelete ? () => void remove(item) : undefined}
                   />

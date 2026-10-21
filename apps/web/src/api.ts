@@ -24,6 +24,16 @@ export type {
   AssistantConversationSummary,
   AssistantConversationMessage,
   AssistantConversationSaveRetryRequest,
+  StudyQuizAttemptRequest,
+  StudyQuizAttemptResult,
+  StudyQuizConfirmRequest,
+  StudyQuizDetail,
+  StudyQuizDraftReconciliation,
+  StudyQuizGenerateRequest,
+  StudyQuizGeneratedDraft,
+  StudyQuizListResponse,
+  StudyQuizProgressResponse,
+  StudyQuizSummary,
   AssistantConversationMessagesResponse,
   AssistantConversationSaveMetadata,
   AssistantStreamStage,
@@ -42,6 +52,7 @@ export type {
   DocumentSearchPage,
   DocumentSearchQuery,
   DocumentSearchSort,
+  StudyQuizLanguage,
   DocumentProcessingResult,
   Exam,
   ExamSearchPage,
@@ -119,6 +130,16 @@ import type {
   AssistantConversationSummary,
   AssistantConversationMessage,
   AssistantConversationSaveRetryRequest,
+  StudyQuizAttemptRequest,
+  StudyQuizAttemptResult,
+  StudyQuizConfirmRequest,
+  StudyQuizDetail,
+  StudyQuizDraftReconciliation,
+  StudyQuizGenerateRequest,
+  StudyQuizGeneratedDraft,
+  StudyQuizListResponse,
+  StudyQuizProgressResponse,
+  StudyQuizSummary,
   AssistantStreamStage,
   Course,
   CourseSearchPage,
@@ -247,6 +268,55 @@ export async function request<T>(
 }
 
 export const api = {
+  generateStudyQuiz: (input: StudyQuizGenerateRequest) =>
+    request<StudyQuizGeneratedDraft>("/api/study-coach/quizzes/generate", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  confirmStudyQuiz: (draftId: string, input: StudyQuizConfirmRequest) =>
+    request<StudyQuizSummary>(
+      `/api/study-coach/quizzes/drafts/${encodeURIComponent(draftId)}/confirm`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  reconcileStudyQuizDraft: (
+    draftId: string,
+    draftToken: string,
+    signal?: AbortSignal,
+  ) =>
+    request<StudyQuizDraftReconciliation>(
+      `/api/study-coach/quizzes/drafts/${encodeURIComponent(draftId)}`,
+      { signal, headers: { "x-study-quiz-draft-token": draftToken } },
+    ),
+  cancelStudyQuizDraft: (draftId: string, input: StudyQuizConfirmRequest) =>
+    request<{ status: "cancelled" | "expired" }>(
+      `/api/study-coach/quizzes/drafts/${encodeURIComponent(draftId)}`,
+      { method: "DELETE", body: JSON.stringify(input) },
+    ),
+  listStudyQuizzes: (page = 1, pageSize = 20, signal?: AbortSignal) =>
+    request<StudyQuizListResponse>(
+      `/api/study-coach/quizzes?page=${page}&pageSize=${pageSize}`,
+      { signal },
+    ),
+  getStudyQuiz: (id: string, signal?: AbortSignal) =>
+    request<StudyQuizDetail>(
+      `/api/study-coach/quizzes/${encodeURIComponent(id)}`,
+      { signal },
+    ),
+  deleteStudyQuiz: (id: string) =>
+    request<{ status: "deleted" }>(
+      `/api/study-coach/quizzes/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    ),
+  submitStudyQuiz: (id: string, input: StudyQuizAttemptRequest) =>
+    request<StudyQuizAttemptResult>(
+      `/api/study-coach/quizzes/${encodeURIComponent(id)}/attempts`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  getStudyQuizProgress: (id: string, signal?: AbortSignal) =>
+    request<StudyQuizProgressResponse>(
+      `/api/study-coach/quizzes/${encodeURIComponent(id)}/progress`,
+      { signal },
+    ),
   aiUsageDashboard: (query: AiUsageDashboardQuery, signal?: AbortSignal) => {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(query))
