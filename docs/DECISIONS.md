@@ -550,3 +550,62 @@ create a write race, or make deletion/retention semantics ambiguous. Database
 RLS protects against missing or incorrect tenant predicates but does not
 authenticate custom GUC values against a fully compromised application
 process. Disposable PG17 evidence does not imply cloud migration/readiness.
+
+## ADR-009 — Private, evidence-grounded Study Coach quizzes (F08-A)
+
+F08-A stores only quizzes that a user explicitly confirms from a server-issued
+draft. Generation uses the existing document retrieval path and structured
+Gemini wrapper under a distinct `study_quiz` F03 usage operation and F04
+reservation; the planned fan-out is one query embedding and one generation.
+Generation takes no browser-authored evidence or model-authored identity,
+ownership, URL, or storage metadata. The server rejects malformed/truncated
+JSON, unknown fields, duplicate questions/options, incorrect question count,
+and citations outside the exact retrieval evidence for that run. A valid
+schema/citation is a provenance check, not semantic proof; human review and
+the later F09 evaluation remain necessary.
+
+Drafts are owner/workspace bound, store only a hash of the server-issued
+confirmation token, and expire after 15 minutes in database time. Confirmation
+atomically copies a validated immutable snapshot and changes the draft to a
+confirmed tombstone. The draft ID is the idempotency identity; after ambiguous
+commit the client performs the token-protected draft GET before any retry. A
+deleted quiz leaves its tombstone, so an old confirmation cannot recreate it.
+Quiz expiry is fixed at 90 days from save and GET does not renew it. Quiz source
+provenance stores document/chunk/page references and a title snapshot, not PDF
+text. Missing/deleted sources are displayed as unavailable; opening a PDF must
+still pass through current document authorization and fresh URL signing.
+
+The business runtime may create, read, confirm, delete and practice only its
+own `(workspace_id,user_id)` quizzes while current active membership RLS is
+satisfied. Any active role that can read the source may manage its own quiz;
+manager status grants no cross-user transcript/quiz access. The Auth role gets
+no table privileges. Attempts contain a server-verified answer map, a digest,
+and a server-computed score; the unique per-quiz attempt key makes same-payload
+retry idempotent and rejects key reuse with different answers. Practice never
+calls AI or admission.
+
+Migration 023 is additive after the immutable 001–022 chain. It introduces
+quiz/draft/attempt tables with RLS and narrow grants, and extends the operation
+constraints for F03 telemetry/F04 admission without changing their accounting
+semantics. Runtime capability v23 fails startup on missing/drifted quiz ACL or
+policy; it never repairs grants. Local rollback is dry-run-first, checks
+checksums/later migrations/external dependencies under an advisory lock, uses
+`RESTRICT`, and reports quiz content/attempts that would be lost. It preserves
+all F03/F04/F07 rows. Because the older operation constraints cannot represent
+`study_quiz`, rollback refuses once F08 usage/admission rows exist rather than
+deleting or rewriting that accounting. Disposable PG17 success does not
+establish cloud readiness.
+
+The bounded maintenance command is `npm run f08:retention -- --batch-size=100`
+with `TEST_DATABASE_URL` targeting a guarded disposable database. It is dry-run
+by default; `--apply --confirm-database=<exact-disposable-name>` is required to
+write. It removes only expired quiz/attempt/draft content in bounded batches.
+It does not delete receipts, feedback, F03 usage or F04 admission rows. No
+cloud scheduler or cleanup was added.
+
+Source-final local verification on 21/10/2026 passed typecheck, all application
+tests (1,741), build, format and guarded PG17 database tests (474 tests across
+42 serial suites). Runtime integration uses separate business/Auth LOGIN roles
+that are non-owner and NOBYPASSRLS; only Auth upstream and provider SDK
+transports are synthetic. Browser acceptance and semantic-quality review remain
+pending; these local results do not establish cloud readiness or F09 quality.

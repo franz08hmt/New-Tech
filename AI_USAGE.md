@@ -767,3 +767,34 @@ full `npm test` (API Vitest 384/384, API Node 856/856, Web Vitest 489/489; no
 failures/skips/cancellations). The database gate was not rerun because the diff
 is web-only. Browser automation was not exposed, so desktop/mobile acceptance
 remains pending; no React result is claimed as browser evidence.
+
+## 2026-10-21 — F08-A Study Coach quiz
+
+Codex assisted with the quiz contract, additive API and shared types, migration
+023/runtime capability v23, strict structured-output validation, private draft
+and quiz persistence, server grading/progress, the focused UI, regressions and
+the existing project documentation. The design keeps quiz ownership at the
+verified workspace/user pair, uses a short-lived server-issued draft token,
+requires explicit confirmation, and makes confirmation and answer submission
+idempotent. Provider generation is a distinct `study_quiz` operation using the
+existing retrieval, Gemini wrapper, F03 telemetry and F04 admission boundary.
+Save/list/detail/delete/practice do not call AI. The rollback refuses to discard
+F08 accounting rows, and bounded retention is dry-run by default.
+
+Review verification used real Nest routes, PostgreSQL 17, current membership/RLS,
+and separate business/Auth LOGIN roles that are non-owner and NOBYPASSRLS. Auth
+upstream and Gemini/embedding SDK transports were synthetic; no paid provider,
+cloud, STT weights or browser was used. The F08 validator tests passed 9/9, the
+web panel tests 2/2, runtime HTTP/DB integration 1/1 and migration/retention
+lifecycle 1/1. Final gates passed: typecheck, `npm test` (API Vitest 393/393,
+API Node 857/857, Web 491/491; 1,741 total), build, format, and guarded PG17
+`test:database` (474/474 across 42 serial suites). The test work also corrected
+the F04 admission fixture to provision capability v23 and kept the F07 rollback
+test on its intended 001–022 baseline; no historical migration was changed.
+
+No browser automation was exposed in this session, so preview/review/save/reload/
+practice/delete keyboard and responsive acceptance remains pending. Structured
+validity and citation provenance do not prove question correctness; human review
+and F09 evaluation are pending. F08-A is code-verified locally, not full F08;
+flashcards remain unimplemented. Existing F05 browser, cloud rollout, Google
+live and the remote-machine pending status is unchanged.

@@ -78,6 +78,42 @@ phải nghiệm thu Google live, cloud rollout hay máy Thắng.
 
 ## Chuẩn bị trước buổi báo cáo
 
+### F08-A — Study Coach Quiz
+
+- [x] Generation chỉ nhận document stored/ready có scope hiện hành; model output
+      được kiểm strict JSON/schema/câu hỏi/nguồn trước khi thành draft. Preview
+      không tự lưu; xác nhận bằng token server-issued mới tạo quiz.
+- [x] Quiz/attempts gắn `(workspace_id,user_id)`; manager không đọc quiz cá nhân
+      khác. Draft 15 phút, quiz 30–90 ngày (mặc định 90 ngày), theo DB clock;
+      GET không gia hạn. Practice được chấm ở server và idempotent; không gọi AI.
+- [x] PG17 disposable qua Nest với business/Auth LOGIN riêng non-owner kiểm
+      generation wrapper thật, retrieval/embedding thật, F03 call/operation rows,
+      F04 reservation, confirm/list/detail/delete/attempt/progress, role/tenant
+      isolation, expiry, retention, rollback/reapply và Auth grants.
+- [x] Quiz list có hơn một trang; expired draft/quiz bị chặn trước retention.
+- [ ] Browser thật desktop 1440px/mobile 375px: tạo preview, xác nhận lưu,
+      reload/mở lại, luyện tập, xóa, keyboard/focus/layout. Browser automation
+      không được cấp trong phiên này; React/HTTP tests không thay browser PASS.
+- [ ] Human review chất lượng câu hỏi trên corpus/gold và đánh giá semantic F09.
+- [x] Rollback 023 dry-run/apply dùng đúng disposable guard/checksum/dependency
+      và RESTRICT; giữ dữ liệu F03/F04/F07. Nếu đã có `study_quiz` telemetry
+      hoặc admission rows, rollback từ chối để không phá ràng buộc cũ.
+- [x] Source-final gates (21/10/2026): `npm run typecheck` exit 0;
+      `npm test` exit 0 (API Vitest 393/393, API Node 857/857, Web Vitest
+      491/491; tổng 1,741); `npm run build` exit 0; `npm run format:check`
+      exit 0; guarded PG17 `npm run test:database` exit 0 (42 serial suites,
+      474/474, không fail/skip/cancel).
+- [x] F08-A focused tests: quiz validator 9/9, Study Coach UI 2/2,
+      runtime Nest/PG17 non-owner 1/1, migration/retention lifecycle 1/1.
+- [ ] Browser acceptance chưa chạy: phiên không cung cấp browser automation;
+      React/HTTP tests không được nhận là browser evidence. Human semantic review
+      và F09 evaluation cũng pending.
+
+F08-A không đồng nghĩa toàn bộ F08: flashcards và F09 evaluation chưa làm.
+Quiz là evidence-grounded draft, không phải cam kết bao phủ toàn PDF hoặc bảo
+đảm semantic correctness. F03 telemetry vẫn best-effort; save/practice không
+gọi AI và không dùng telemetry làm admission.
+
 - [ ] Chốt revision/nhánh và phân công Tài–Thắng; bảo toàn WIP trước pull.
 - [ ] Cài đúng Node/npm, giữ .env/credential riêng; mở đúng 127.0.0.1:5173.
 - [ ] Xác nhận login trên **từng máy**, reload/logout; không lấy máy Tài thay máy Thắng.

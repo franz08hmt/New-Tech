@@ -5,6 +5,78 @@ Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong 
 
 ## F07 contract and local implementation
 
+## F08-A — Study Coach quiz contract and implementation checkpoint
+
+F08-A is limited to one grounded quiz flow from a stored/ready document. It
+does not include flashcards, F09 evaluation, automatic re-index/OCR, web search,
+or writes to Tasks/Study plans/Exams. The existing F07.2 local review evidence
+is historical and remains separate from new F08-A verification.
+
+The additive API is `POST /api/study-coach/quizzes/generate`,
+`POST /api/study-coach/quizzes/drafts/:draftId/confirm`,
+`GET /api/study-coach/quizzes/drafts/:draftId` for save reconciliation,
+`GET /api/study-coach/quizzes`, `GET /api/study-coach/quizzes/:id`,
+`DELETE /api/study-coach/quizzes/:id`,
+`POST /api/study-coach/quizzes/:id/attempts`, and
+`GET /api/study-coach/quizzes/:id/progress`. Lists default to 20 and cap at
+50. Generation defaults to five questions and accepts 3–10, with language
+`vi` or `en`; a generated preview is never persisted as a quiz until explicit
+confirmation. Structured output schema version `study-quiz-v1` requires four
+distinct options, a valid answer index, an explanation, and one or more source
+IDs from that generation's retrieved evidence. All question IDs and source
+metadata are assigned/verified by the server. Quiz creation is grounded in
+retrieval for one stored/ready document and does not claim full-PDF coverage.
+
+Draft tokens are server-issued, held only in client memory, bound to the
+verified workspace/user and stored as hashes. Drafts expire after 15 minutes
+using database time. Confirm is idempotent by draft ID and leaves a tombstone;
+after quiz deletion the same confirmation cannot recreate the deleted quiz.
+An ambiguous confirm is reconciled by the draft GET before any later write.
+Saved quizzes are immutable snapshots, private to their verified
+`(workspace_id,user_id)`, and expire 90 days after save without GET renewal.
+Current membership and document scope/status are rechecked after generation
+and before saving the draft. Source records retain document/page/chunk
+provenance, not extracted PDF text; a source that later disappears is marked
+unavailable and PDF access still uses the existing authorization and fresh
+signed-URL flow. Managers do not inherit access to another user's quiz.
+
+All active workspace roles that may read a document (manager/member/viewer)
+may create and use their own quizzes; no role may read another owner's quiz.
+Practice submission accepts only question IDs and selected option indexes.
+The server grades from the immutable saved snapshot and stores attempts under
+the quiz owner. A UUID attempt key makes retries idempotent; the same key with
+different answers conflicts. Grading/progress/list/detail/confirm/delete do
+not invoke AI or consume an AI operation. No client score is accepted.
+
+Generation is the distinct `study_quiz` operation with prompt
+`study-coach.quiz` version `quiz-v1`, F04 admission reservation for at most two
+provider attempts (one retrieval embedding and one structured generation),
+and the existing usage/provider wrappers. No automatic repair/retry is added.
+Missing evidence rejects before generation. Mechanically valid JSON and
+citations do not prove semantic correctness; human review is required and F09
+quality evaluation remains pending. Quiz content is never copied into
+telemetry/logs. The private quiz tables use a new migration and minimum
+business-runtime grants/RLS; Auth receives no quiz-content capability. The
+rollback dry-run reports quiz/draft/attempt data loss and uses RESTRICT.
+
+Implementation checklist: (1) schema, RLS, runtime capability v23, migration
+apply/rollback/reapply; (2) strict structured generation, evidence validation,
+F03 telemetry/F04 admission; (3) owner-scoped confirm/list/detail/delete and
+idempotent server grading/progress; (4) dedicated UI, regression and local
+verification. F08-A source, API/DB integration, automated tests and gates are
+verified in this checkpoint; browser acceptance and human semantic-quality
+review remain pending. Flashcards and F09 are not implemented. See the F08-A
+evidence in FINAL-DEMO-CHECKLIST; this is not full F08 acceptance.
+
+Source-final gates on 21/10/2026: typecheck, build and format exited 0;
+`npm test` passed 1,741/1,741 (API Vitest 393, API Node 857, Web Vitest 491);
+guarded PostgreSQL 17 `test:database` passed 474/474 across 42 serial suites.
+The Study Coach HTTP/DB test uses Nest, active-membership checks, RLS and
+separate non-owner/NOBYPASSRLS business/Auth LOGIN roles; Auth upstream and
+provider SDK transports are synthetic. No browser capability was available,
+so these automated results are not browser acceptance. No cloud or live AI
+provider was used.
+
 Assistant conversations are private to the verified `(workspace_id,user_id)`.
 Migration 022 adds a conversation header, receipt-linked canonical turns, and
 minimal create-key tombstones that prevent a delayed create retry from
@@ -834,8 +906,8 @@ chiếu lịch sử. Không chạy lại phần đã có hoặc biến kế ho�
 | F04 | B3: cap user/ngày, concurrency, fan-out summary/index/OCR; admission nguyên tử và bền vững                                 | Migration 020/contract v20 triển khai local; automated gates pass, browser acceptance pending; không phải monetary budget hay dashboard F06                      |
 | F05 | Search/filter/sort/pagination FE–API–DB; Documents trước, scope trước count/pagination, chống stale response               | Documents, sidebar and all five F05.3 module screens have local automated coverage; browser acceptance pending, so whole F05 remains partial                     |
 | F06 | Dashboard AI cho admin đúng workspace: request/provider calls, token/cost/latency/lỗi/từ chối và filters                   | Local code/API/PG17 implementation and automated verification in this checkpoint; browser acceptance pending; not billing or F04 quota ledger                    |
-| F07 | N1 lưu bền, mở lại/xóa, retention/quyền; receipt/history/reset/account isolation                                           | Local implementation and automated verification complete; browser acceptance pending. No F08 work is included                                                    |
-| F08 | N2 Study Coach: structured quiz/flashcards, nguồn, preview/xác nhận lưu, luyện tập/tiến độ cá nhân                         | Pending                                                                                                                                                          |
+| F07 | N1 lưu bền, mở lại/xóa, retention/quyền; receipt/history/reset/account isolation                                           | Local implementation and automated verification complete; browser acceptance pending. F08-A is a separate partial feature, not part of F07 acceptance             |
+| F08 | N2 Study Coach: structured quiz/flashcards, nguồn, preview/xác nhận lưu, luyện tập/tiến độ cá nhân                         | F08-A quiz code and automated local verification complete; browser and semantic review pending; flashcards/F09 remain pending, so F08 is partial |
 | F09 | B4: ít nhất 20 case thực thi có expected, cùng corpus/gold trước/sau, human review/guardrails/fallback/latency/cost        | Chưa nghiệm thu semantic/live; live runner còn BLOCKED, principal CLI hay HTTP chưa chốt                                                                         |
 | F10 | Chỉ STT của Thắng: hoàn thiện lỗi, bảo mật/dependency, accuracy/latency và nghiệm thu thực tế khi cần                      | Thu hẹp theo Tài ngày 19/10/2026; giữ implementation STT hiện có, không phát triển TTS, không chuyển ownership                                                   |
 | F11 | PWA/mobile thật: manifest/install/update/offline shell, Android và giới hạn iOS                                            | Pending; không cache dữ liệu riêng hoặc tự queue write                                                                                                           |
