@@ -661,3 +661,11 @@ default; no scheduler was added. Local PG17 integration verified apply,
 rollback/reapply, retention, real business/Auth LOGIN separation, RLS,
 admission, telemetry and idempotency. Browser acceptance and human semantic
 review remain pending; this ADR does not complete all F08 or start F09.
+
+F08-B.1 correction: preview visibility does not own rejection/recovery UI.
+Definite confirm/cancel rejection exposes an independent accessible alert and
+an explicit draft GET, rather than retrying a write. Only a `draft` read enables
+a later explicit confirm/cancel; confirmed/terminal states are accepted as read,
+and a failed read keeps unknown-outcome writes locked. Messages use safe
+code/status categories, not raw exceptions. This is a frontend lifecycle fix;
+ownership, idempotency, retention, schema and admission are unchanged.

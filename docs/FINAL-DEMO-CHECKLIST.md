@@ -396,6 +396,37 @@ the separate F08-B checkpoint below.
 - [ ] F09/live evaluation, flashcard browser acceptance, full F08 acceptance,
       cloud rollout, Google live and Thắng's machine remain pending.
 
+## F08-B.1 — visible draft rejection and GET recovery (21/10/2026)
+
+- [x] Confirm/cancel definite errors have an independent `role=alert`, safe
+      operation-specific explanation and explicit GET reconciliation. An expired
+      or removed preview cannot hide the failure. Access/source/unavailable and
+      other definite errors are distinguished from network/408/5xx unknowns.
+- [x] GET confirmed accepts the saved result; GET draft enables a separate
+      explicit write; expired/cancelled/deleted remains visible without preview.
+      Failed GET keeps unknown and only retries the read. No automatic write or
+      generation occurs. Previous success notice is cleared before a new action.
+- [x] Fresh RED at `c718e62`: managed confirm-409 and cancel-409 regressions both
+      failed with `Unable to find role="alert"` (exit 1; 2 failed, 7 filtered).
+      GREEN: focused panel/quiz/workspace 55/55, full Web 544/544. Re-run:
+      `npm run test --workspace @examate/web -- src/StudyFlashcardsPanel.test.tsx src/StudyCoachPanel.test.tsx src/StudyCoachWorkspace.test.tsx`.
+      Coverage includes all reconciliation results, failed GET/retry, stale
+      principal/unmount responses, safe error messages and no write/provider replay.
+- [x] New source-final gates: `npm run typecheck` exit 0; `npm test` exit 0
+      (API Vitest 405, API Node 858, Web Vitest 544: 1,807 passed; fail/skip/
+      cancelled 0); `npm run build` exit 0 (existing Vite >500 kB advisory);
+      `npm run format:check` exit 0. Status: `F08-B.1_CODE_VERIFIED`.
+- [x] No API/SQL/schema/grant changes; no DB fixture or full database gate was
+      run for this frontend-only correction. The earlier PG17 counts above are
+      historical and are not new evidence for F08-B.1.
+- [ ] Browser acceptance pending: this session exposes no browser automation
+      tool. Desktop 1440px/mobile 375px confirm rejection, cancel conflict,
+      keyboard/focus/layout/console and unknown recovery still require browser
+      verification through Nest/PG17 non-owner runtime. React tests use mocked
+      API boundaries and do not substitute for that verification.
+- [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
+      cloud rollout, Google live and Thắng's machine are unchanged.
+
 ## F06.2 — synchronized dashboard refresh
 
 The toolbar refresh uses one generation across overview, the selected cost

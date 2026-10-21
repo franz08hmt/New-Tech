@@ -80,6 +80,31 @@ in FINAL-DEMO-CHECKLIST before any semantic-quality claim. Flashcards do not
 complete all F08, and F09 has not started. Cloud rollout, Google live and
 Thắng's machine remain unchanged/pending.
 
+### F08-B.1 — Confirm/cancel rejection recovery (21/10/2026)
+
+On baseline `c718e62`, definite confirm/cancel errors set `saveState=error`
+but the only error display was inside the preview, which no longer rendered.
+Two new managed regressions reproduced this: both 409 cases failed because no
+`role=alert` existed. Error/status/reconciliation now render independently of
+preview content and are scoped to the draft principal. Safe messages distinguish
+expired/unavailable drafts, changed/not-ready sources, access errors, other
+definite rejections and unknown transport outcomes. A previous success notice
+is cleared before confirm, cancel or reconciliation.
+
+Definite errors keep their draft identity/token for an explicit GET; writes
+remain disabled until that GET returns `draft`, then require a separate click.
+Confirmed results are accepted without replay; terminal results remain visible
+after preview removal; failed GET retains unknown and locks writes. Creating a
+replacement preview is explicit and warns about a possible new AI operation.
+Existing action-token, epoch/principal and unknown-review guards remain intact.
+No backend, SQL, migration, grants, quota or quiz contract changed. Browser and
+semantic-review statuses remain pending; HTTP/React evidence is not browser
+acceptance. Verification commands/counts are recorded in FINAL-DEMO-CHECKLIST.
+New gates all exit 0: typecheck, `npm test` (API Vitest 405, API Node 858,
+Web 544; 1,807 pass, fail/skip/cancelled 0), build and format. Focused tests
+pass 55/55; the independent full Web run passes 544/544. Status is
+`F08-B.1_CODE_VERIFIED + BROWSER_ACCEPTANCE_PENDING + SEMANTIC_REVIEW_PENDING`.
+
 ## F08-A — Study Coach quiz contract and implementation checkpoint
 
 F08-A is limited to one grounded quiz flow from a stored/ready document. It

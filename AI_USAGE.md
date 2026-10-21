@@ -865,3 +865,26 @@ Browser acceptance and human semantic review remain pending. The synthetic
 photosynthesis sample in FINAL-DEMO-CHECKLIST is for later human review, not an
 evaluation gold set. F09, all-F08 acceptance, cloud rollout, Google live and
 Thắng's machine were not advanced by this work.
+
+## 2026-10-21 — F08-B.1 draft rejection recovery
+
+AI assistance inspected the ignored independent review before transferring the
+confirm/cancel 409 reproductions into the managed Web suite. Both were observed
+RED on `c718e62` because no accessible alert rendered after rejection. The fix
+moves error/reconciliation UI outside preview content, uses safe code/status
+messages, clears prior notices, and requires an explicit GET before enabling a
+later write. It preserves draft identity/token, action-token/epoch guards and
+the exact-key review recovery. No backend, migration, grant, quota, model,
+prompt, quiz or STT source changed.
+
+Focused tests passed 55/55 and the full Web suite passed 544/544; these use
+synthetic API responses, including transport loss and delayed responses, rather
+than claiming new Nest/PostgreSQL/browser integration evidence. No DB fixture,
+provider call or cloud write was made for this correction. No browser tool is
+exposed, so desktop/mobile acceptance is pending. Human semantic review, F09,
+full F08 and other cloud/Google/remote-machine acceptance are not advanced.
+Fresh final gates all exited 0: typecheck, `npm test` (405 API Vitest + 858
+API Node + 544 Web = 1,807 passing, fail/skip/cancelled 0), build and format.
+Build retains the Vite >500 kB chunk advisory. Full DB gate was not rerun for
+this frontend-only fix; no resource cleanup outside test-process teardown was
+needed and SOP containers were untouched.
