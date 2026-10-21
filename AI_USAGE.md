@@ -746,3 +746,24 @@ gates are recorded in the F07.1 checklist. New final run: typecheck/build/format
 exited 0; `npm test` exited 0 with API Vitest 384/384, API Node 856/856 and Web
 Vitest 476/476; the focused Assistant suite passed 27/27. The DB gate was not
 rerun because there were no backend, SQL, migration or permission changes.
+
+## 2026-10-21 — F07.2 saved document-conversation retry and action guard
+
+AI assistance added focused regressions before implementation for a successful
+history retry leaving the document selector unchanged, and for document actions
+that could call context reset/create/transport while transcript GET was pending
+or had failed. The first focused RED run exposed the expected behavior failures;
+one unrelated test assertion that required the document selector to be absent
+for a course-mismatch view was corrected to assert the intended read-only send
+boundary instead. After the change, `assistant.test.tsx` passed 40/40.
+
+The implementation uses one panel helper for initial-open and retry success,
+and a synchronous hook ref checked before `syncContext` to prevent stale action
+callbacks from creating or dispatching work during an unresolved open. It also
+invalidates open reads on reset, principal change, replacement open, list-read
+cancellation, and unmount. No API, database, migration, receipt, RLS, Auth, or
+provider code changed. Source-final gates passed: typecheck, build, format, and
+full `npm test` (API Vitest 384/384, API Node 856/856, Web Vitest 489/489; no
+failures/skips/cancellations). The database gate was not rerun because the diff
+is web-only. Browser automation was not exposed, so desktop/mobile acceptance
+remains pending; no React result is claimed as browser evidence.

@@ -207,6 +207,11 @@ export function useAssistant(
   const [historyHasMore, setHistoryHasMore] = useState(false);
   const [conversationOpenState, setConversationOpenState] =
     useState<AssistantConversationOpenState>(null);
+  // Synchronous guard for callbacks that can run before React commits the
+  // loading/error state. An open failure remains blocking until some
+  // conversation opens successfully or the user explicitly resets.
+  const conversationOpenBlocked = useRef(false);
+  const conversationOpenRequestInFlight = useRef(false);
   const historyPage = useRef(0);
   const historyEpoch = useRef(0);
   const historyAbort = useRef<AbortController | null>(null);
@@ -238,6 +243,8 @@ export function useAssistant(
       historyAbort.current?.abort();
       historyEpoch.current++;
       conversationOpenTarget.current = null;
+      conversationOpenBlocked.current = false;
+      conversationOpenRequestInFlight.current = false;
       setConversationOpenState(null);
       setHistoryError("");
       setHistoryLoading(false);
@@ -291,6 +298,11 @@ export function useAssistant(
     () => () => {
       epoch.current++;
       pending.current?.abort();
+      historyAbort.current?.abort();
+      historyEpoch.current++;
+      conversationOpenTarget.current = null;
+      conversationOpenBlocked.current = false;
+      conversationOpenRequestInFlight.current = false;
       saveResolutionAbort.current?.abort();
     },
     [],
@@ -300,6 +312,7 @@ export function useAssistant(
     Boolean(transport) &&
     draft.trim().length > 0 &&
     !historyLoading &&
+    conversationOpenState === null &&
     status !== "sending" &&
     conversationSaveState !== "not_saved" &&
     conversationSaveState !== "unknown";
@@ -309,6 +322,10 @@ export function useAssistant(
       context: AssistantContext,
       options?: { operation?: AssistantOperation; message?: string },
     ) => {
+      // This check must precede syncContext: that call can reset the current
+      // conversation and create a new one before dispatching the transport.
+      // It intentionally covers fixed-message operations such as summarize.
+      if (conversationOpenBlocked.current) return;
       const question = (options?.message ?? draft).trim();
       syncContext(context);
       if (!transport || !question || inFlight.current) return;
@@ -588,8 +605,10 @@ export function useAssistant(
   const loadConversationHistory = useCallback(
     async (append = false) => {
       if (historyLoading) return;
-      if (conversationOpenState?.status === "loading") {
+      if (conversationOpenRequestInFlight.current) {
         conversationOpenTarget.current = null;
+        conversationOpenBlocked.current = false;
+        conversationOpenRequestInFlight.current = false;
         setConversationOpenState(null);
       }
       const requestedPage = append ? historyPage.current + 1 : 1;
@@ -626,11 +645,13 @@ export function useAssistant(
         if (requestEpoch === historyEpoch.current) setHistoryLoading(false);
       }
     },
-    [conversationOpenState, historyLoading],
+    [historyLoading],
   );
 
   const openConversation = useCallback(
     async (id: string) => {
+      conversationOpenBlocked.current = true;
+      conversationOpenRequestInFlight.current = true;
       historyAbort.current?.abort();
       saveResolutionAbort.current?.abort();
       saveResolutionAbort.current = null;
@@ -739,6 +760,7 @@ export function useAssistant(
         setStreamStage(null);
         conversationOpenTarget.current = null;
         setConversationOpenState(null);
+        conversationOpenBlocked.current = false;
         return conversation;
       } catch (error) {
         if (
@@ -771,9 +793,14 @@ export function useAssistant(
         });
         if (unavailable || authorizationFailure)
           conversationOpenTarget.current = null;
+        // Keep sends blocked even when the target is no longer retryable.
+        // The user must explicitly reset before creating a new conversation.
         return null;
       } finally {
-        if (requestEpoch === historyEpoch.current) setHistoryLoading(false);
+        if (requestEpoch === historyEpoch.current) {
+          conversationOpenRequestInFlight.current = false;
+          setHistoryLoading(false);
+        }
       }
     },
     [setActive, transport],
@@ -797,6 +824,8 @@ export function useAssistant(
           historyAbort.current?.abort();
           historyEpoch.current++;
           conversationOpenTarget.current = null;
+          conversationOpenBlocked.current = false;
+          conversationOpenRequestInFlight.current = false;
           setConversationOpenState(null);
         }
         setSavedConversations((items) =>

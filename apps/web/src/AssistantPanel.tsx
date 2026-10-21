@@ -216,6 +216,12 @@ export function AssistantPanel({
       assistant.activeConversation.courseId === (courseId ?? null) &&
       assistant.activeConversation.documentId ===
         (assistant.mode === "documents" ? documentId || null : null));
+  const applyOpenedConversation = (
+    opened: NonNullable<AssistantState["activeConversation"]> | null,
+  ) => {
+    if (!opened) return;
+    setDocumentId(opened.mode === "documents" ? (opened.documentId ?? "") : "");
+  };
   const prompts =
     assistant.mode === "workspace"
       ? workspacePrompts(workspaceCourse)
@@ -543,7 +549,11 @@ export function AssistantPanel({
                 {assistant.conversationOpenState.retryable && (
                   <button
                     type="button"
-                    onClick={() => void assistant.retryOpenConversation()}
+                    onClick={() =>
+                      void assistant
+                        .retryOpenConversation()
+                        .then(applyOpenedConversation)
+                    }
                   >
                     Thử mở lại
                   </button>
@@ -611,14 +621,7 @@ export function AssistantPanel({
                         setHistoryOpen(false);
                         void assistant
                           .openConversation(item.id)
-                          .then((opened) => {
-                            if (opened)
-                              setDocumentId(
-                                opened.mode === "documents"
-                                  ? (opened.documentId ?? "")
-                                  : "",
-                              );
-                          });
+                          .then(applyOpenedConversation);
                       }}
                     >
                       <span>{item.title}</span>
@@ -1134,6 +1137,8 @@ export function AssistantPanel({
               disabled={
                 !documentId ||
                 documentsUnavailable ||
+                !activeScopeMatches ||
+                assistant.conversationOpenState !== null ||
                 assistant.status === "sending" ||
                 assistant.status === "unavailable"
               }
@@ -1160,6 +1165,8 @@ export function AssistantPanel({
               disabled={
                 !documentId ||
                 documentsUnavailable ||
+                !activeScopeMatches ||
+                assistant.conversationOpenState !== null ||
                 assistant.status === "sending" ||
                 assistant.status === "unavailable"
               }

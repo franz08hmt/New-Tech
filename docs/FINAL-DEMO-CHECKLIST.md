@@ -53,6 +53,29 @@ Giới hạn: nội dung hết hạn sau 90 ngày kể từ tạo theo DB clock;
 hạn. Retention không xóa receipt/feedback. Đây là kiểm local synthetic, không
 phải nghiệm thu Google live, cloud rollout hay máy Thắng.
 
+### F07.2 — đồng bộ document selection và chặn document actions khi mở history
+
+- [x] RED trên code ban đầu: retry mở transcript thành công nhưng giữ tài liệu
+      đang chọn; document actions vẫn gọi create/chat trong lúc GET mở/retry chờ
+      hoặc sau lỗi chưa recovery. Các regression mới quan sát đúng các hành vi này.
+- [x] GREEN: lần mở đầu và retry dùng chung helper áp dụng summary đã được hook
+      chấp nhận; hook chặn `send` trước `syncContext` trong lúc mở/lỗi unresolved.
+      Hai nút tóm tắt/tra môn bị disable; reset hoặc mở thành công khôi phục thao tác.
+      Course/workspace không tự đổi; draft và flow receipt/save giữ nguyên.
+- [x] Focused `npm test --workspace @examate/web -- --run
+      src/assistant.test.tsx --reporter=dot`: exit 0, 40/40. Bao gồm retry rồi
+      follow-up đúng conversation/version/document, không create/save/provider khi
+      mở/retry, direct send guard, scope course khác, reset/principal/unmount và
+      response retry cũ sau khi mở hội thoại B.
+- [x] Source-final gates: `npm run typecheck` exit 0; `npm test` exit 0
+      (API Vitest 384/384, API Node 856/856, Web Vitest 489/489; fail/skip/
+      cancelled đều 0); `npm run build` exit 0; `npm run format:check` exit 0.
+      Không chạy `npm run test:database`: chỉ đổi web hook/panel/tests/docs,
+      không đổi API/SQL/quyền. Không tạo database/container trong lượt này.
+- [ ] Browser desktop 1440px/mobile 375px chưa kiểm: phiên không cung cấp
+      browser automation tool. React tests không được tính là browser acceptance;
+      F07.2 browser acceptance còn pending.
+
 ## Chuẩn bị trước buổi báo cáo
 
 - [ ] Chốt revision/nhánh và phân công Tài–Thắng; bảo toàn WIP trước pull.

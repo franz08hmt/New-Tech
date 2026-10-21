@@ -71,6 +71,21 @@ or permissions, so the prior F07 database evidence remains historical rather
 than being presented as a new F07.1 result. Status: code verified; browser
 acceptance pending because no browser automation capability was available.
 
+F07.2 fixes two Assistant document-conversation lifecycle gaps. Initial open
+and retry now pass their accepted server summary through one selection-apply
+helper, so a successful retry restores the saved document without changing
+course/workspace scope. A synchronous hook guard blocks every `send` operation
+before `syncContext` while an open/retry is in flight or its error remains
+unresolved; both document-action buttons also show disabled state. Reset,
+principal change, a newer open, list refresh that cancels an in-flight open,
+and unmount invalidate the old request; explicit reset or successful open
+restores normal actions. Draft text remains untouched. The focused suite was
+RED before implementation for the retry selection and action-dispatch cases,
+then passed 40/40 after the fix. Final source gates are recorded in
+FINAL-DEMO-CHECKLIST. This is frontend-only, so no database gate or DB cleanup
+was needed. Browser automation was not exposed in this session; F07.2 browser
+acceptance remains pending and React tests are not claimed as browser evidence.
+
 ## F06 local checkpoint — code verified, browser pending (21/10/2026)
 
 Implemented in `6fca9e3` (API/DB/contract) and `341776f` (web UI); starting

@@ -9,7 +9,11 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { AssistantPanel } from "./AssistantPanel";
-import { useAssistant, type AskTransport } from "./use-assistant";
+import {
+  useAssistant,
+  type AskTransport,
+  type AssistantState,
+} from "./use-assistant";
 import { ApiError, api, type StoredDocument } from "./api";
 import type {
   AssistantChatResponse,
@@ -27,13 +31,18 @@ function Harness({
   documents,
   persist = false,
   identityKey = "fixture-user-a",
+  onAssistant,
+  courseId,
 }: {
   transport?: AskTransport;
   documents?: StoredDocument[];
   persist?: boolean;
   identityKey?: string;
+  onAssistant?: (assistant: AssistantState) => void;
+  courseId?: string;
 }) {
   const assistant = useAssistant(transport, persist, identityKey);
+  onAssistant?.(assistant);
   return (
     <AssistantPanel
       open
@@ -43,11 +52,96 @@ function Harness({
       onToggleExpanded={() => {}}
       pageId="courses"
       pageName="Công nghệ phần mềm"
+      courseId={courseId}
       assistant={assistant}
       documents={documents}
       onClose={() => {}}
     />
   );
+}
+
+const savedDocumentId = "11111111-1111-4111-8111-111111111111";
+const otherReadyDocumentId = "22222222-2222-4222-8222-222222222222";
+
+function savedDocumentConversation(
+  documentId = savedDocumentId,
+  courseId: string | null = null,
+): AssistantConversationSummary {
+  return {
+    id: "66666666-6666-4666-8666-666666666666",
+    mode: "documents",
+    courseId,
+    documentId,
+    title: "Synthetic saved document conversation",
+    version: 4,
+    turnCount: 1,
+    createdAt: "2026-09-15T08:00:00.000Z",
+    updatedAt: "2026-09-15T08:00:00.000Z",
+    expiresAt: "2026-12-14T08:00:00.000Z",
+  };
+}
+
+function readyStoredDocument(
+  id: string,
+  name: string,
+  courseId: string | null = null,
+): StoredDocument {
+  return {
+    id,
+    name,
+    media_type: "application/pdf",
+    size_bytes: 512,
+    storage_status: "stored",
+    processing_status: "ready",
+    index_quality: null,
+    course_id: courseId,
+    course_slug: null,
+    course_name: null,
+    course_code: null,
+    created_at: "2026-09-15T08:00:00.000Z",
+    updated_at: "2026-09-15T08:00:00.000Z",
+  };
+}
+
+function savedDocumentMessages(
+  conversation: AssistantConversationSummary,
+  answer = "Synthetic saved document answer",
+) {
+  return {
+    conversation,
+    items: [
+      {
+        id: "77777777-7777-4777-8777-777777777777",
+        sequence: 1,
+        receiptId: "88888888-8888-4888-8888-888888888888",
+        snapshot: {
+          schemaVersion: 1,
+          request: {
+            mode: "documents",
+            operation: "question",
+            question: "Synthetic saved question",
+            documentId: conversation.documentId!,
+          },
+          response: {
+            mode: "documents",
+            answer,
+            answerable: true,
+            reasonCode: "ANSWER_GENERATED",
+            citations: [],
+            ragEnabled: true,
+            provider: "google",
+            model: "gemini-test",
+            promptVersion: "rag-v1",
+          },
+        } as AssistantFeedbackSnapshot,
+        createdAt: conversation.createdAt,
+      },
+    ],
+    page: 1,
+    pageSize: 50,
+    total: 1,
+    totalPages: 1,
+  };
 }
 
 afterEach(() => {
@@ -610,6 +704,685 @@ describe("ExaMate AI seam", () => {
     expect(create).not.toHaveBeenCalled();
     expect(save).not.toHaveBeenCalled();
   });
+
+  it("applies the document selection when initially opening a saved document conversation", async () => {
+    const conversation = savedDocumentConversation();
+    vi.spyOn(api, "listAssistantConversations").mockResolvedValue({
+      items: [conversation],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    });
+    const messages = vi
+      .spyOn(api, "getAssistantConversationMessages")
+      .mockResolvedValue(savedDocumentMessages(conversation));
+    const documents = [
+      readyStoredDocument(savedDocumentId, "Target.pdf"),
+      readyStoredDocument(otherReadyDocumentId, "Other.pdf"),
+    ];
+
+    render(<Harness documents={documents} transport={vi.fn()} persist />);
+    const selector = screen.getByLabelText("Chọn tài liệu để tra cứu");
+    fireEvent.change(selector, { target: { value: otherReadyDocumentId } });
+    fireEvent.click(screen.getByRole("button", { name: "Lịch sử đã lưu" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /^Synthetic saved document conversation/,
+      }),
+    );
+
+    expect(
+      await screen.findByText("Synthetic saved document answer"),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(selector).toHaveValue(savedDocumentId));
+    expect(messages).toHaveBeenCalledOnce();
+  });
+
+  it("restores the document selection after retry and continues with that saved scope", async () => {
+    const conversation = savedDocumentConversation();
+    vi.spyOn(api, "listAssistantConversations").mockResolvedValue({
+      items: [conversation],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    });
+    const messages = vi
+      .spyOn(api, "getAssistantConversationMessages")
+      .mockRejectedValueOnce(
+        new ApiError("Temporary failure", "INTERNAL_ERROR", 503),
+      )
+      .mockResolvedValueOnce(savedDocumentMessages(conversation));
+    const documents = [
+      readyStoredDocument(savedDocumentId, "Target.pdf"),
+      readyStoredDocument(otherReadyDocumentId, "Other.pdf"),
+    ];
+    const create = vi
+      .spyOn(api, "createAssistantConversation")
+      .mockResolvedValue(conversation);
+    const save = vi.spyOn(api, "retrySaveAssistantTurn");
+    const transport = vi.fn<AskTransport>(async () => ({
+      text: "Follow-up answer",
+      citations: [],
+      conversationSave: { state: "saved", version: conversation.version + 1 },
+    }));
+
+    render(<Harness documents={documents} transport={transport} persist />);
+    const selector = screen.getByLabelText("Chọn tài liệu để tra cứu");
+    const composer = screen.getByLabelText("Câu hỏi cho ExaMate");
+    fireEvent.change(selector, { target: { value: otherReadyDocumentId } });
+    fireEvent.change(composer, {
+      target: { value: "Draft retained through open retry" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Lịch sử đã lưu" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /^Synthetic saved document conversation/,
+      }),
+    );
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Thử mở lại" }));
+    expect(
+      await screen.findByText("Synthetic saved document answer"),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(selector).toHaveValue(savedDocumentId));
+    expect(composer).toHaveValue("Draft retained through open retry");
+    expect(messages).toHaveBeenCalledTimes(2);
+    expect(transport).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Gửi câu hỏi" }));
+    expect(await screen.findByText("Follow-up answer")).toBeInTheDocument();
+    expect(transport).toHaveBeenCalledOnce();
+    expect(transport.mock.calls[0][1]).toEqual(
+      expect.objectContaining({ documentId: savedDocumentId }),
+    );
+    expect(transport.mock.calls[0][4]).toEqual(
+      expect.objectContaining({
+        conversationId: conversation.id,
+        conversationVersion: conversation.version,
+      }),
+    );
+    expect(create).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["Tóm tắt tài liệu", "summarize", "Tóm tắt tài liệu đã chọn."],
+    ["Môn học của tài liệu", "course_info", "Tài liệu này thuộc môn học nào?"],
+  ] as const)(
+    "blocks the %s control while a saved transcript is opening",
+    async (label, _operation, _message) => {
+      const conversation = savedDocumentConversation();
+      vi.spyOn(api, "listAssistantConversations").mockResolvedValue({
+        items: [conversation],
+        page: 1,
+        pageSize: 20,
+        total: 1,
+        totalPages: 1,
+      });
+      let finishOpen:
+        | ((response: ReturnType<typeof savedDocumentMessages>) => void)
+        | undefined;
+      const messages = vi
+        .spyOn(api, "getAssistantConversationMessages")
+        .mockImplementation(
+          () =>
+            new Promise((resolve) => {
+              finishOpen = resolve;
+            }),
+        );
+      const create = vi
+        .spyOn(api, "createAssistantConversation")
+        .mockResolvedValue(conversation);
+      const transport = vi.fn<AskTransport>(async () => ({
+        text: "Unexpected answer",
+        citations: [],
+        conversationSave: { state: "saved", version: conversation.version + 1 },
+      }));
+      render(
+        <Harness
+          documents={[readyStoredDocument(savedDocumentId, "Target.pdf")]}
+          transport={transport}
+          persist
+        />,
+      );
+      fireEvent.change(screen.getByLabelText("Chọn tài liệu để tra cứu"), {
+        target: { value: savedDocumentId },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Lịch sử đã lưu" }));
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: /^Synthetic saved document conversation/,
+        }),
+      );
+      await screen.findByText("Đang mở cuộc trò chuyện đã lưu…");
+
+      const action = screen.getByRole("button", { name: label });
+      const wasDisabled = action.hasAttribute("disabled");
+      fireEvent.click(action);
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      await act(async () => {
+        finishOpen?.(savedDocumentMessages(conversation));
+      });
+
+      expect({
+        disabledWhileOpening: wasDisabled,
+        creates: create.mock.calls.length,
+        providerCalls: transport.mock.calls.length,
+        openReads: messages.mock.calls.length,
+      }).toEqual({
+        disabledWhileOpening: true,
+        creates: 0,
+        providerCalls: 0,
+        openReads: 1,
+      });
+    },
+  );
+
+  it("blocks direct document sends before context reset while an open request is pending", async () => {
+    const conversation = savedDocumentConversation();
+    vi.spyOn(api, "listAssistantConversations").mockResolvedValue({
+      items: [conversation],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    });
+    let finishOpen:
+      | ((response: ReturnType<typeof savedDocumentMessages>) => void)
+      | undefined;
+    const messages = vi
+      .spyOn(api, "getAssistantConversationMessages")
+      .mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finishOpen = resolve;
+          }),
+      );
+    const create = vi
+      .spyOn(api, "createAssistantConversation")
+      .mockResolvedValue(conversation);
+    const transport = vi.fn<AskTransport>(async () => ({
+      text: "Unexpected answer",
+      citations: [],
+    }));
+    let currentAssistant: AssistantState | undefined;
+    render(
+      <Harness
+        documents={[
+          readyStoredDocument(savedDocumentId, "Target.pdf"),
+          readyStoredDocument(otherReadyDocumentId, "Other.pdf"),
+        ]}
+        transport={transport}
+        persist
+        onAssistant={(assistant) => {
+          currentAssistant = assistant;
+        }}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Chọn tài liệu để tra cứu"), {
+      target: { value: savedDocumentId },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Lịch sử đã lưu" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /^Synthetic saved document conversation/,
+      }),
+    );
+    await screen.findByText("Đang mở cuộc trò chuyện đã lưu…");
+    const openSignal = messages.mock.calls[0][3];
+
+    await act(async () => {
+      await currentAssistant!.send(
+        {
+          pageId: "courses",
+          pageName: "Công nghệ phần mềm",
+          documentId: otherReadyDocumentId,
+        },
+        { operation: "summarize", message: "Tóm tắt tài liệu đã chọn." },
+      );
+      await currentAssistant!.send(
+        {
+          pageId: "courses",
+          pageName: "Công nghệ phần mềm",
+          documentId: otherReadyDocumentId,
+        },
+        {
+          operation: "course_info",
+          message: "Tài liệu này thuộc môn học nào?",
+        },
+      );
+    });
+
+    expect({
+      openRequestAborted: openSignal?.aborted,
+      stillOpening: currentAssistant?.conversationOpenState?.status,
+      creates: create.mock.calls.length,
+      providerCalls: transport.mock.calls.length,
+    }).toEqual({
+      openRequestAborted: false,
+      stillOpening: "loading",
+      creates: 0,
+      providerCalls: 0,
+    });
+    await act(async () => {
+      finishOpen?.(savedDocumentMessages(conversation));
+    });
+  });
+
+  it("keeps both document actions blocked after open failure and while retry is pending", async () => {
+    const conversation = savedDocumentConversation();
+    vi.spyOn(api, "listAssistantConversations").mockResolvedValue({
+      items: [conversation],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    });
+    let finishRetry:
+      | ((response: ReturnType<typeof savedDocumentMessages>) => void)
+      | undefined;
+    const messages = vi
+      .spyOn(api, "getAssistantConversationMessages")
+      .mockRejectedValueOnce(
+        new ApiError("Temporary failure", "INTERNAL_ERROR", 503),
+      )
+      .mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finishRetry = resolve;
+          }),
+      );
+    const create = vi
+      .spyOn(api, "createAssistantConversation")
+      .mockResolvedValue(conversation);
+    const transport = vi.fn<AskTransport>(async () => ({
+      text: "Unexpected answer",
+      citations: [],
+    }));
+    let currentAssistant: AssistantState | undefined;
+    render(
+      <Harness
+        documents={[readyStoredDocument(savedDocumentId, "Target.pdf")]}
+        transport={transport}
+        persist
+        onAssistant={(assistant) => {
+          currentAssistant = assistant;
+        }}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Chọn tài liệu để tra cứu"), {
+      target: { value: savedDocumentId },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Lịch sử đã lưu" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /^Synthetic saved document conversation/,
+      }),
+    );
+    await screen.findByRole("alert");
+    const actionButtons = [
+      screen.getByRole("button", { name: "Tóm tắt tài liệu" }),
+      screen.getByRole("button", { name: "Môn học của tài liệu" }),
+    ];
+    const disabledAfterError = actionButtons.every((button) =>
+      button.hasAttribute("disabled"),
+    );
+
+    const sendActions = async () => {
+      await currentAssistant!.send(
+        {
+          pageId: "courses",
+          pageName: "Công nghệ phần mềm",
+          documentId: savedDocumentId,
+        },
+        { operation: "summarize", message: "Tóm tắt tài liệu đã chọn." },
+      );
+      await currentAssistant!.send(
+        {
+          pageId: "courses",
+          pageName: "Công nghệ phần mềm",
+          documentId: savedDocumentId,
+        },
+        {
+          operation: "course_info",
+          message: "Tài liệu này thuộc môn học nào?",
+        },
+      );
+    };
+    await act(async () => sendActions());
+    fireEvent.click(screen.getByRole("button", { name: "Thử mở lại" }));
+    await waitFor(() => expect(messages).toHaveBeenCalledTimes(2));
+    await screen.findByText("Đang mở cuộc trò chuyện đã lưu…");
+    const disabledDuringRetry = actionButtons.every((button) =>
+      button.hasAttribute("disabled"),
+    );
+    await act(async () => sendActions());
+    const sideEffectsWhileBlocked = {
+      creates: create.mock.calls.length,
+      providerCalls: transport.mock.calls.length,
+    };
+    await act(async () => {
+      finishRetry?.(savedDocumentMessages(conversation));
+    });
+
+    expect({
+      disabledAfterError,
+      disabledDuringRetry,
+      sideEffectsWhileBlocked,
+    }).toEqual({
+      disabledAfterError: true,
+      disabledDuringRetry: true,
+      sideEffectsWhileBlocked: { creates: 0, providerCalls: 0 },
+    });
+  });
+
+  it("does not dispatch either direct document operation while an open error is unresolved", async () => {
+    const conversation = savedDocumentConversation();
+    vi.spyOn(api, "listAssistantConversations").mockResolvedValue({
+      items: [conversation],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    });
+    vi.spyOn(api, "getAssistantConversationMessages").mockRejectedValue(
+      new ApiError("Temporary failure", "INTERNAL_ERROR", 503),
+    );
+    const create = vi
+      .spyOn(api, "createAssistantConversation")
+      .mockResolvedValue(conversation);
+    const transport = vi.fn<AskTransport>(async () => ({
+      text: "Unexpected answer",
+      citations: [],
+    }));
+    let currentAssistant: AssistantState | undefined;
+    render(
+      <Harness
+        documents={[readyStoredDocument(savedDocumentId, "Target.pdf")]}
+        transport={transport}
+        persist
+        onAssistant={(assistant) => {
+          currentAssistant = assistant;
+        }}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Chọn tài liệu để tra cứu"), {
+      target: { value: savedDocumentId },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Lịch sử đã lưu" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /^Synthetic saved document conversation/,
+      }),
+    );
+    await screen.findByRole("alert");
+
+    await act(async () => {
+      await currentAssistant!.send(
+        {
+          pageId: "courses",
+          pageName: "Công nghệ phần mềm",
+          documentId: savedDocumentId,
+        },
+        { operation: "summarize", message: "Tóm tắt tài liệu đã chọn." },
+      );
+      await currentAssistant!.send(
+        {
+          pageId: "courses",
+          pageName: "Công nghệ phần mềm",
+          documentId: savedDocumentId,
+        },
+        {
+          operation: "course_info",
+          message: "Tài liệu này thuộc môn học nào?",
+        },
+      );
+    });
+
+    expect(create).not.toHaveBeenCalled();
+    expect(transport).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("allows document actions again after explicitly resetting an open attempt", async () => {
+    const conversation = savedDocumentConversation();
+    vi.spyOn(api, "listAssistantConversations").mockResolvedValue({
+      items: [conversation],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    });
+    vi.spyOn(api, "getAssistantConversationMessages").mockImplementation(
+      () => new Promise(() => {}),
+    );
+    const transport = vi.fn<AskTransport>(async () => ({
+      text: "Summary after reset",
+      citations: [],
+    }));
+    render(
+      <Harness
+        documents={[readyStoredDocument(savedDocumentId, "Target.pdf")]}
+        transport={transport}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Chọn tài liệu để tra cứu"), {
+      target: { value: savedDocumentId },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Lịch sử đã lưu" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /^Synthetic saved document conversation/,
+      }),
+    );
+    await screen.findByText("Đang mở cuộc trò chuyện đã lưu…");
+
+    fireEvent.click(
+      within(
+        document.querySelector(".assistant-conversation-tools") as HTMLElement,
+      ).getByRole("button", { name: "Cuộc trò chuyện mới" }),
+    );
+    const summarize = screen.getByRole("button", { name: "Tóm tắt tài liệu" });
+    expect(summarize).toBeEnabled();
+    fireEvent.click(summarize);
+
+    expect(await screen.findByText("Summary after reset")).toBeInTheDocument();
+    expect(transport).toHaveBeenCalledOnce();
+    expect(transport.mock.calls[0][1]).toEqual(
+      expect.objectContaining({ documentId: savedDocumentId }),
+    );
+    expect(transport.mock.calls[0][3]).toBe("summarize");
+  });
+
+  it("drops a late retry result after opening another saved document conversation", async () => {
+    const first = {
+      ...savedDocumentConversation(savedDocumentId),
+      id: "66666666-6666-4666-8666-666666666661",
+      title: "Conversation A",
+    };
+    const second = {
+      ...savedDocumentConversation(otherReadyDocumentId),
+      id: "66666666-6666-4666-8666-666666666662",
+      title: "Conversation B",
+    };
+    vi.spyOn(api, "listAssistantConversations").mockResolvedValue({
+      items: [first, second],
+      page: 1,
+      pageSize: 20,
+      total: 2,
+      totalPages: 1,
+    });
+    let finishRetry:
+      | ((response: ReturnType<typeof savedDocumentMessages>) => void)
+      | undefined;
+    const messages = vi
+      .spyOn(api, "getAssistantConversationMessages")
+      .mockRejectedValueOnce(
+        new ApiError("Temporary failure", "INTERNAL_ERROR", 503),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishRetry = resolve;
+          }),
+      )
+      .mockImplementationOnce(async () =>
+        savedDocumentMessages(second, "Answer from B"),
+      );
+    const documents = [
+      readyStoredDocument(savedDocumentId, "Target A.pdf"),
+      readyStoredDocument(otherReadyDocumentId, "Target B.pdf"),
+    ];
+    render(
+      <Harness
+        documents={documents}
+        transport={async () => ({ text: "", citations: [] })}
+        persist
+      />,
+    );
+    const selector = screen.getByLabelText("Chọn tài liệu để tra cứu");
+    fireEvent.change(selector, { target: { value: savedDocumentId } });
+    fireEvent.click(screen.getByRole("button", { name: "Lịch sử đã lưu" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Conversation A/ }),
+    );
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: "Thử mở lại" }));
+    await screen.findByText("Đang mở cuộc trò chuyện đã lưu…");
+
+    fireEvent.click(screen.getByRole("button", { name: "Lịch sử đã lưu" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Conversation B/ }),
+    );
+    expect(await screen.findByText("Answer from B")).toBeInTheDocument();
+    await waitFor(() => expect(selector).toHaveValue(otherReadyDocumentId));
+
+    await act(async () => {
+      finishRetry?.(savedDocumentMessages(first, "Late answer from A"));
+    });
+    expect(selector).toHaveValue(otherReadyDocumentId);
+    expect(screen.getByText("Answer from B")).toBeInTheDocument();
+    expect(screen.queryByText("Late answer from A")).not.toBeInTheDocument();
+    expect(messages).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps a genuinely different course scope read-only after opening saved history", async () => {
+    const conversation = savedDocumentConversation(savedDocumentId, "course-a");
+    vi.spyOn(api, "listAssistantConversations").mockResolvedValue({
+      items: [conversation],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    });
+    vi.spyOn(api, "getAssistantConversationMessages").mockResolvedValue(
+      savedDocumentMessages(conversation),
+    );
+    const transport = vi.fn<AskTransport>();
+    render(
+      <Harness
+        documents={[
+          readyStoredDocument(savedDocumentId, "Target.pdf", "course-a"),
+        ]}
+        courseId="course-b"
+        transport={transport}
+        persist
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Lịch sử đã lưu" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /^Synthetic saved document conversation/,
+      }),
+    );
+
+    expect(
+      await screen.findByText("Synthetic saved document answer"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Cuộc trò chuyện thuộc ngữ cảnh khác/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Gửi câu hỏi" })).toBeDisabled();
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it.each(["reset", "principal change", "unmount"] as const)(
+    "does not apply the document selection from a late successful open after %s",
+    async (change) => {
+      const conversation = savedDocumentConversation();
+      vi.spyOn(api, "listAssistantConversations").mockResolvedValue({
+        items: [conversation],
+        page: 1,
+        pageSize: 20,
+        total: 1,
+        totalPages: 1,
+      });
+      let finishOpen:
+        | ((response: ReturnType<typeof savedDocumentMessages>) => void)
+        | undefined;
+      const messages = vi
+        .spyOn(api, "getAssistantConversationMessages")
+        .mockImplementation(
+          () =>
+            new Promise((resolve) => {
+              finishOpen = resolve;
+            }),
+        );
+      const documents = [
+        readyStoredDocument(savedDocumentId, "Target.pdf"),
+        readyStoredDocument(otherReadyDocumentId, "Other.pdf"),
+      ];
+      const renderHarness = (identityKey: string) => (
+        <Harness
+          documents={documents}
+          transport={async () => ({ text: "", citations: [] })}
+          persist
+          identityKey={identityKey}
+        />
+      );
+      const view = render(renderHarness("account-a"));
+      const selector = screen.getByLabelText("Chọn tài liệu để tra cứu");
+      fireEvent.change(selector, { target: { value: otherReadyDocumentId } });
+      fireEvent.click(screen.getByRole("button", { name: "Lịch sử đã lưu" }));
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: /^Synthetic saved document conversation/,
+        }),
+      );
+      await screen.findByText("Đang mở cuộc trò chuyện đã lưu…");
+      const openSignal = messages.mock.calls[0][3];
+
+      if (change === "reset") {
+        fireEvent.click(
+          within(
+            document.querySelector(
+              ".assistant-conversation-tools",
+            ) as HTMLElement,
+          ).getByRole("button", { name: "Cuộc trò chuyện mới" }),
+        );
+      } else if (change === "principal change") {
+        view.rerender(renderHarness("account-b"));
+      } else {
+        view.unmount();
+      }
+
+      await act(async () => {
+        finishOpen?.(savedDocumentMessages(conversation));
+      });
+      expect(openSignal?.aborted).toBe(true);
+      expect(selector).toHaveValue(otherReadyDocumentId);
+      expect(
+        screen.queryByText("Synthetic saved document answer"),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it("does not expose an expired transcript and offers list refresh or a new conversation", async () => {
     const conversation: AssistantConversationSummary = {
