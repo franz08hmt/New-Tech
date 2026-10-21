@@ -439,6 +439,12 @@ test("grounded generation, explicit save, reopen, server grading and owner isola
   const opened = await owner.request(`/study-coach/quizzes/${savedQuiz.id}`);
   assert.equal(opened.status, 200);
   const detail = await opened.json();
+  assert.equal(detail.quiz.title, "Synthetic quiz");
+  assert.deepEqual(detail.quiz.progress, {
+    attempts: 0,
+    latestScore: null,
+    bestScore: null,
+  });
   assert.equal(detail.questions.length, 3);
   assert.equal("correctIndex" in detail.questions[0], false);
   assert.equal("explanation" in detail.questions[0], false);
@@ -461,6 +467,11 @@ test("grounded generation, explicit save, reopen, server grading and owner isola
   const result = await submitted.json();
   assert.equal(result.correctCount, 3);
   assert.equal(result.scorePercent, 100);
+  assert.deepEqual(result.progress, {
+    attempts: 1,
+    latestScore: 100,
+    bestScore: 100,
+  });
   assert.ok(
     result.answers.every((answer) => answer.correct && answer.explanation),
   );
@@ -473,16 +484,114 @@ test("grounded generation, explicit save, reopen, server grading and owner isola
     },
   );
   assert.equal(replay.status, 201);
-  assert.equal((await replay.json()).id, result.id);
+  assert.deepEqual(await replay.json(), result);
+  const firstAttemptList = await owner.request("/study-coach/quizzes");
+  assert.equal(firstAttemptList.status, 200);
+  assert.deepEqual((await firstAttemptList.json()).items[0].progress, {
+    attempts: 1,
+    latestScore: 100,
+    bestScore: 100,
+  });
+  assert.deepEqual(
+    (await (await owner.request(`/study-coach/quizzes/${savedQuiz.id}`)).json())
+      .quiz.progress,
+    {
+      attempts: 1,
+      latestScore: 100,
+      bestScore: 100,
+    },
+  );
+
+  const zeroAttemptInput = {
+    attemptKey: randomUUID(),
+    answers: detail.questions.map((question) => ({
+      questionId: question.id,
+      selectedIndex: 0,
+    })),
+  };
+  const zeroAttemptResponse = await owner.request(
+    `/study-coach/quizzes/${savedQuiz.id}/attempts`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(zeroAttemptInput),
+    },
+  );
+  await expectStatus(zeroAttemptResponse, 201);
+  const zeroAttempt = await zeroAttemptResponse.json();
+  assert.equal(zeroAttempt.scorePercent, 0);
+  assert.deepEqual(zeroAttempt.progress, {
+    attempts: 2,
+    latestScore: 0,
+    bestScore: 100,
+  });
+  const multiAttemptDetailResponse = await owner.request(
+    `/study-coach/quizzes/${savedQuiz.id}`,
+  );
+  assert.equal(multiAttemptDetailResponse.status, 200);
+  const multiAttemptDetail = await multiAttemptDetailResponse.json();
+  assert.equal(multiAttemptDetail.quiz.title, "Synthetic quiz");
+  assert.deepEqual(multiAttemptDetail.quiz.progress, zeroAttempt.progress);
+  const multiAttemptList = await owner.request("/study-coach/quizzes");
+  assert.deepEqual(
+    (await multiAttemptList.json()).items[0].progress,
+    zeroAttempt.progress,
+  );
+
+  const lostAckInput = {
+    attemptKey: randomUUID(),
+    answers: detail.questions.map((question) => ({
+      questionId: question.id,
+      selectedIndex: 1,
+    })),
+  };
+  await assert.rejects(
+    (async () => {
+      const committedButUnobserved = await owner.request(
+        `/study-coach/quizzes/${savedQuiz.id}/attempts`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(lostAckInput),
+        },
+      );
+      await expectStatus(committedButUnobserved, 201);
+      await committedButUnobserved.arrayBuffer();
+      throw new Error("synthetic client ACK loss after committed response");
+    })(),
+    /synthetic client ACK loss/,
+  );
+  const reconciledLostAck = await owner.request(
+    `/study-coach/quizzes/${savedQuiz.id}/attempts`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(lostAckInput),
+    },
+  );
+  await expectStatus(reconciledLostAck, 201);
+  const reconciledResult = await reconciledLostAck.json();
+  const lostAckCount = await fixture.admin.query(
+    `SELECT count(*)::int AS count FROM study_coach_quiz_attempts
+     WHERE quiz_id=$1 AND attempt_key=$2`,
+    [savedQuiz.id, lostAckInput.attemptKey],
+  );
+  assert.equal(lostAckCount.rows[0].count, 1);
+  assert.equal(reconciledResult.progress.attempts, 3);
+  const reconciledList = await owner.request("/study-coach/quizzes");
+  assert.deepEqual(
+    (await reconciledList.json()).items[0].progress,
+    reconciledResult.progress,
+  );
   const progress = await owner.request(
     `/study-coach/quizzes/${savedQuiz.id}/progress`,
   );
   assert.deepEqual(await progress.json(), {
     quizId: savedQuiz.id,
-    attempts: 1,
+    attempts: 3,
     latestScore: 100,
     bestScore: 100,
-    latestSubmittedAt: result.submittedAt,
+    latestSubmittedAt: reconciledResult.submittedAt,
   });
   const wrongReplay = await owner.request(
     `/study-coach/quizzes/${savedQuiz.id}/attempts`,

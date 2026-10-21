@@ -1027,6 +1027,7 @@ export interface StudyQuizAttemptResult {
   questionCount: number;
   scorePercent: number;
   submittedAt: string;
+  progress: StudyQuizSummary["progress"];
   answers: Array<{
     questionId: string;
     selectedIndex: number;

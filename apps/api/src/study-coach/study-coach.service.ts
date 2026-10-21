@@ -113,6 +113,7 @@ interface QuizRow extends QueryResultRow {
   draft_id: string;
   workspace_id: string;
   user_id: string;
+  title: string;
   document_id: string;
   document_title: string;
   language: StudyQuizLanguage;
@@ -122,9 +123,9 @@ interface QuizRow extends QueryResultRow {
   created_at: Date | string;
   expires_at: Date | string;
   source_available: boolean;
-  attempts?: number;
-  latest_score?: string | null;
-  best_score?: string | null;
+  attempts: number;
+  latest_score: string | null;
+  best_score: string | null;
 }
 
 interface AttemptRow extends QueryResultRow {
@@ -716,7 +717,13 @@ export class StudyCoachService {
             code: "STUDY_QUIZ_ATTEMPT_KEY_REUSED",
             message: "Khóa lượt làm đã được dùng với câu trả lời khác.",
           });
-        return this.attemptResult(existing, content);
+        const progress = await this.readProgressAggregate(
+          tx,
+          quizId,
+          verified.workspaceId,
+          verified.userId,
+        );
+        return this.attemptResult(existing, content, progress);
       }
       const correctCount = normalized.reduce(
         (count, answer, index) =>
@@ -750,7 +757,16 @@ export class StudyCoachService {
       const persisted = await this.readAttempt(tx, quizId, input.attemptKey);
       if (!persisted || !inserted.rowCount) {
         if (persisted && matchesDigest(persisted.answer_hash, answerHash))
-          return this.attemptResult(persisted, content);
+          return this.attemptResult(
+            persisted,
+            content,
+            await this.readProgressAggregate(
+              tx,
+              quizId,
+              verified.workspaceId,
+              verified.userId,
+            ),
+          );
         if (persisted)
           throw new ConflictException({
             code: "STUDY_QUIZ_ATTEMPT_KEY_REUSED",
@@ -758,7 +774,16 @@ export class StudyCoachService {
           });
         throw new Error("Quiz attempt result could not be reconciled");
       }
-      return this.attemptResult(persisted, content);
+      return this.attemptResult(
+        persisted,
+        content,
+        await this.readProgressAggregate(
+          tx,
+          quizId,
+          verified.workspaceId,
+          verified.userId,
+        ),
+      );
     });
   }
 
@@ -771,35 +796,15 @@ export class StudyCoachService {
     return this.database.workspaceTransaction(verified, async (tx) => {
       await this.access.authorize(verified, "read", tx);
       await this.readQuiz(tx, quizId);
-      const result = await tx.query<{
-        attempts: number;
-        latest_score: string | null;
-        best_score: string | null;
-        latest_submitted_at: Date | string | null;
-      }>(
-        `SELECT count(*)::int AS attempts,
-           (SELECT score_percent::text FROM public.study_coach_quiz_attempts a
-            WHERE a.quiz_id=$1::uuid ORDER BY a.submitted_at DESC,a.id DESC LIMIT 1) AS latest_score,
-           max(score_percent)::text AS best_score,max(submitted_at) AS latest_submitted_at
-         FROM public.study_coach_quiz_attempts
-         WHERE quiz_id=$1::uuid AND workspace_id=$2::uuid AND user_id=$3::uuid`,
-        [quizId, verified.workspaceId, verified.userId],
+      const result = await this.readProgressAggregate(
+        tx,
+        quizId,
+        verified.workspaceId,
+        verified.userId,
       );
-      const row = result.rows[0];
       return {
         quizId,
-        attempts: row?.attempts ?? 0,
-        latestScore:
-          row?.latest_score === null || row?.latest_score === undefined
-            ? null
-            : Number(row.latest_score),
-        bestScore:
-          row?.best_score === null || row?.best_score === undefined
-            ? null
-            : Number(row.best_score),
-        latestSubmittedAt: row?.latest_submitted_at
-          ? iso(row.latest_submitted_at)
-          : null,
+        ...result,
       };
     });
   }
@@ -873,7 +878,7 @@ export class StudyCoachService {
       createdAt: iso(row.created_at),
       expiresAt: iso(row.expires_at),
       progress: {
-        attempts: Number(row.attempts ?? 0),
+        attempts: Number(row.attempts),
         latestScore:
           row.latest_score === null || row.latest_score === undefined
             ? null
@@ -915,11 +920,22 @@ export class StudyCoachService {
   private async readQuiz(tx: DatabaseTransaction, id: string) {
     const result = await tx.query<QuizRow>(
       `SELECT q.id::text,q.draft_id::text,q.workspace_id::text,q.user_id::text,
-        q.document_id::text,q.document_title,q.language,q.schema_version,q.content,
-        q.question_count,q.created_at,q.expires_at,(d.id IS NOT NULL) AS source_available
+        q.content->>'title' AS title,q.document_id::text,q.document_title,q.language,
+        q.schema_version,q.content,q.question_count,q.created_at,q.expires_at,
+        (d.id IS NOT NULL) AS source_available,COALESCE(a.attempts,0)::int AS attempts,
+        a.latest_score,a.best_score
        FROM public.study_coach_quizzes q
        LEFT JOIN public.documents d ON d.id=q.document_id AND d.workspace_id=q.workspace_id
          AND d.storage_status='stored' AND d.processing_status='ready'
+       LEFT JOIN LATERAL (
+         SELECT count(*)::int AS attempts,
+           (SELECT score_percent::text FROM public.study_coach_quiz_attempts x
+            WHERE x.quiz_id=q.id AND x.workspace_id=q.workspace_id AND x.user_id=q.user_id
+            ORDER BY x.submitted_at DESC,x.id DESC LIMIT 1) AS latest_score,
+           max(score_percent)::text AS best_score
+         FROM public.study_coach_quiz_attempts x
+         WHERE x.quiz_id=q.id AND x.workspace_id=q.workspace_id AND x.user_id=q.user_id
+       ) a ON true
        WHERE q.id=$1::uuid AND q.expires_at>clock_timestamp()`,
       [id],
     );
@@ -930,6 +946,44 @@ export class StudyCoachService {
         message: "Quiz không còn khả dụng trong tài khoản hiện tại.",
       });
     return row;
+  }
+
+  private async readProgressAggregate(
+    tx: DatabaseTransaction,
+    quizId: string,
+    workspaceId: string,
+    userId: string,
+  ) {
+    const result = await tx.query<{
+      attempts: number;
+      latest_score: string | null;
+      best_score: string | null;
+      latest_submitted_at: Date | string | null;
+    }>(
+      `SELECT count(*)::int AS attempts,
+         (SELECT score_percent::text FROM public.study_coach_quiz_attempts a
+          WHERE a.quiz_id=$1::uuid AND a.workspace_id=$2::uuid AND a.user_id=$3::uuid
+          ORDER BY a.submitted_at DESC,a.id DESC LIMIT 1) AS latest_score,
+         max(score_percent)::text AS best_score,max(submitted_at) AS latest_submitted_at
+       FROM public.study_coach_quiz_attempts
+       WHERE quiz_id=$1::uuid AND workspace_id=$2::uuid AND user_id=$3::uuid`,
+      [quizId, workspaceId, userId],
+    );
+    const row = result.rows[0];
+    return {
+      attempts: Number(row?.attempts ?? 0),
+      latestScore:
+        row?.latest_score === null || row?.latest_score === undefined
+          ? null
+          : Number(row.latest_score),
+      bestScore:
+        row?.best_score === null || row?.best_score === undefined
+          ? null
+          : Number(row.best_score),
+      latestSubmittedAt: row?.latest_submitted_at
+        ? iso(row.latest_submitted_at)
+        : null,
+    };
   }
 
   private quizContent(
@@ -1004,6 +1058,12 @@ export class StudyCoachService {
   private attemptResult(
     row: AttemptRow,
     content: QuizContent,
+    progress: {
+      attempts: number;
+      latestScore: number | null;
+      bestScore: number | null;
+      latestSubmittedAt: string | null;
+    },
   ): StudyQuizAttemptResult {
     const answers =
       asJson<Array<{ questionId: string; selectedIndex: number }>>(
@@ -1019,6 +1079,11 @@ export class StudyCoachService {
       questionCount: Number(row.question_count),
       scorePercent: Number(row.score_percent),
       submittedAt: iso(row.submitted_at),
+      progress: {
+        attempts: progress.attempts,
+        latestScore: progress.latestScore,
+        bestScore: progress.bestScore,
+      },
       answers: answers.map((answer) => {
         const question = byId.get(answer.questionId);
         if (!question)
