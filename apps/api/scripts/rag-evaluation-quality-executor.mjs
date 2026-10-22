@@ -188,37 +188,69 @@ function deepFreeze(value) {
 }
 
 /**
+ * The caller's plan, copied in one synchronous step. It runs before this module
+ * awaits anything, so what it copies is one consistent moment of the caller's
+ * objects; nothing the caller owns is read after it. The suite bytes are copied
+ * into a buffer only this module holds, and that same buffer is hashed, parsed,
+ * used for the rebuild, kept in the sealed copy and handed to the provenance
+ * verifier. (Object.freeze cannot make a buffer immutable; owning a private copy
+ * and never exposing it is what does.)
+ */
+function snapshotCandidate(candidate) {
+  try {
+    const bytes = candidate?.suite?.bytes;
+    return {
+      bytes: Buffer.isBuffer(bytes) ? Buffer.from(bytes) : null,
+      suiteSha256: candidate.suite.manifestSha256,
+      definition: structuredClone(candidate.suite.definition),
+      plan: structuredClone(candidate.plan),
+      planSha256: candidate.planSha256,
+      resolved: structuredClone(candidate.resolved),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** The approval record as it was when the call was made, or a marker if it cannot be read. */
+function snapshotApproval(value) {
+  if (value === undefined || value === null) return value;
+  try {
+    return structuredClone(value);
+  } catch {
+    return "unreadable";
+  }
+}
+
+/**
  * Checks the plan against the data it claims to describe and returns a private,
  * immutable copy of what was verified. Nothing is trusted because it is stored:
  * the suite bytes are re-hashed and re-parsed with the canonical loader, every
  * request hash is recomputed from the request itself, and the whole plan is
- * rebuilt by the canonical planner from those bytes and compared. The caller's
- * objects are not consulted again after this returns.
+ * rebuilt by the canonical planner from those bytes and compared. It reads only
+ * the snapshot it is given, never the caller's objects.
  */
-async function sealPlanned(candidate) {
+async function sealPlanned(snap) {
   const refuse = (reason) => ({ reason });
   try {
-    const bytes = candidate?.suite?.bytes;
-    if (!Buffer.isBuffer(bytes)) return refuse("SUITE_BYTES_MISMATCH");
-    const digest = sha256(bytes);
+    if (!snap || !Buffer.isBuffer(snap.bytes))
+      return refuse("SUITE_BYTES_MISMATCH");
+    const digest = sha256(snap.bytes);
     if (
-      candidate.suite.manifestSha256 !== digest ||
-      candidate.plan?.suite?.manifestSha256 !== digest
+      snap.suiteSha256 !== digest ||
+      snap.plan?.suite?.manifestSha256 !== digest
     )
       return refuse("SUITE_BYTES_MISMATCH");
     let loaded;
     try {
-      loaded = loadQualitySuite(Buffer.from(bytes));
+      loaded = loadQualitySuite(snap.bytes);
     } catch {
       return refuse("SUITE_BYTES_MISMATCH");
     }
     // The definition used for evaluation must be the one in those exact bytes.
-    if (
-      canonicalJson(loaded.definition) !==
-      canonicalJson(candidate.suite.definition)
-    )
+    if (canonicalJson(loaded.definition) !== canonicalJson(snap.definition))
       return refuse("SUITE_DEFINITION_MISMATCH");
-    const given = candidate.plan;
+    const given = snap.plan;
     for (const item of given.cases) {
       const request = item.request;
       if (
@@ -227,11 +259,11 @@ async function sealPlanned(candidate) {
       )
         return refuse("PLAN_REQUEST_HASH_MISMATCH");
     }
-    if (sha256(canonicalJson(given)) !== candidate.planSha256)
+    if (sha256(canonicalJson(given)) !== snap.planSha256)
       return refuse("PLAN_HASH_MISMATCH");
     const rebuilt = await assembleQualityPlan({
       suite: loaded,
-      resolved: structuredClone(candidate.resolved),
+      resolved: structuredClone(snap.resolved),
       target: { base: new URL(given.target.base), origin: given.target.origin },
       options: {
         batchSize: given.limits.batchSize,
@@ -242,7 +274,7 @@ async function sealPlanned(candidate) {
             : given.selection.requested.join(","),
       },
     });
-    if (rebuilt.planSha256 !== candidate.planSha256) {
+    if (rebuilt.planSha256 !== snap.planSha256) {
       const without = (plan) => canonicalJson({ ...plan, batches: null });
       return refuse(
         without(rebuilt.plan) === without(given)
@@ -254,11 +286,12 @@ async function sealPlanned(candidate) {
       sealed: deepFreeze({
         plan: structuredClone(rebuilt.plan),
         planSha256: rebuilt.planSha256,
-        resolved: structuredClone(candidate.resolved),
+        resolved: structuredClone(snap.resolved),
         suite: {
           definition: structuredClone(loaded.definition),
           manifestSha256: digest,
-          bytes: Buffer.from(bytes),
+          // The very buffer that was hashed and parsed: never copied again.
+          bytes: snap.bytes,
         },
       }),
     };
@@ -274,7 +307,7 @@ async function sealPlanned(candidate) {
 export async function executeQualityBatch({
   planned: callerPlanned,
   batchId,
-  approval,
+  approval: callerApproval,
   authorize,
   targetEquivalence,
   provenance = {},
@@ -286,9 +319,14 @@ export async function executeQualityBatch({
   onCheckpoint = async () => {},
   runId = randomUUID(),
 }) {
-  // Copies of everything the caller could change while this function awaits.
+  // Everything the caller owns is copied here, synchronously, before the first
+  // await. Nothing below reads the caller's objects again.
+  const snap = snapshotCandidate(callerPlanned);
+  const approval = snapshotApproval(callerApproval);
   const prov = {
-    manifestBytes: provenance?.manifestBytes,
+    manifestBytes: Buffer.isBuffer(provenance?.manifestBytes)
+      ? Buffer.from(provenance.manifestBytes)
+      : provenance?.manifestBytes,
     artifactText: provenance?.artifactText,
     observationText: provenance?.observationText,
     expectedDigest: provenance?.expectedDigest,
@@ -296,7 +334,7 @@ export async function executeQualityBatch({
   const acknowledged = Array.isArray(rerunAcknowledged)
     ? [...rerunAcknowledged]
     : [];
-  const sealedResult = await sealPlanned(callerPlanned);
+  const sealedResult = await sealPlanned(snap);
   if (sealedResult.reason) return refusal(sealedResult.reason, "integrity");
   const planned = sealedResult.sealed;
   // Provenance must have been verified against the very bytes of the approved suite.

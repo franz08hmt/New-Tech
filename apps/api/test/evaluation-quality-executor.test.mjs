@@ -87,7 +87,7 @@ const approvalFor = (planned, batchId) => {
 
 async function plan(options = {}, target, suiteBytes = manifestBytes) {
   return planQualitySuite({
-    manifestBytes: suiteBytes,
+    manifestBytes: Buffer.from(suiteBytes),
     mappingInput: mappingFile(),
     target: target ?? {
       base: new URL("http://127.0.0.1:3000/api/"),
@@ -1130,6 +1130,203 @@ test("approval of one batch still cannot move to another, with integrity enforce
     assert.equal(second.status, "REFUSED");
     assert.equal(second.refusal.reason, "APPROVAL_BINDING_MISMATCH");
     assert.equal(w.api.requests.length, 0);
+  } finally {
+    await w.api.close();
+  }
+});
+
+// ---- F09-B.2B.5.2: nothing the caller owns is read after the executor's first await ----
+
+// The same JSON with its final line feed replaced by a space: equal meaning,
+// same length, different hash.
+const lastLfToSpace = (bytes) => {
+  const copy = Buffer.from(bytes);
+  assert.equal(copy[copy.length - 1], 0x0a, "the suite ends with a line feed");
+  copy[copy.length - 1] = 0x20;
+  return copy;
+};
+
+// Each test calls the executor and mutates the caller's data immediately after the
+// call returns its promise. An async function runs synchronously up to its first
+// await, so this is exactly the window inside the sealing step, in a fixed order.
+async function mutateInTheWindow({ mutate, prepare = async () => ({}) }) {
+  const w = await world();
+  try {
+    const extra = await prepare(w);
+    const originals = w.planned.plan.batches[0].caseIds.map((id) =>
+      structuredClone(
+        w.planned.plan.cases.find((c) => c.id === id).request.body,
+      ),
+    );
+    let credentialReads = 0;
+    const pending = executeQualityBatch({
+      ...w.base,
+      ...extra,
+      credentials: async () => (
+        credentialReads++,
+        { email: EMAIL, password: PASSWORD }
+      ),
+    });
+    mutate(w, extra);
+    const report = await pending;
+    return { w, report, originals, credentialReads, sent: bodiesSent(w.api) };
+  } catch (error) {
+    await w.api.close();
+    throw error;
+  }
+}
+
+test("suite bytes changed inside the sealing window cannot authenticate provenance for other bytes", async () => {
+  const changed = lastLfToSpace(manifestBytes);
+  assert.notEqual(sha256(changed), sha256(manifestBytes));
+  assert.deepEqual(JSON.parse(changed), JSON.parse(manifestBytes));
+  const r = await mutateInTheWindow({
+    prepare: async (w) => {
+      const artifact = await auditArtifact(auditRequest(changed));
+      const observation = await auditArtifact(auditRequest(changed), {
+        auditId: "99999999-9999-4999-8999-999999999999",
+      });
+      return {
+        provenance: {
+          artifactText: JSON.stringify(artifact),
+          observationText: JSON.stringify(observation),
+          expectedDigest: artifact.integrity.digest,
+        },
+      };
+    },
+    mutate: (w) => w.planned.suite.bytes.set(changed),
+  });
+  try {
+    // The approved bytes are the ones that existed when the call was made; a
+    // provenance artifact that fits only the changed bytes is refused.
+    assert.equal(r.report.status, "REFUSED");
+    assert.equal(r.report.refusal.reason, "PROVENANCE_ARTIFACT_FAILED");
+    assert.equal(r.credentialReads, 0);
+    assert.equal(r.w.api.requests.length, 0);
+    assert.deepEqual(await readdir(r.w.ledgerDir), []);
+  } finally {
+    await r.w.api.close();
+  }
+});
+
+test("provenance for the original bytes still works when the caller's buffer changes in the window", async () => {
+  const changed = lastLfToSpace(manifestBytes);
+  const r = await mutateInTheWindow({
+    mutate: (w) => w.planned.suite.bytes.set(changed),
+  });
+  try {
+    assert.equal(
+      r.report.status,
+      "COMPLETED",
+      JSON.stringify(r.report.refusal),
+    );
+    assert.equal(r.report.suite.manifestSha256, sha256(manifestBytes));
+    assert.deepEqual(r.sent, r.originals);
+  } finally {
+    await r.w.api.close();
+  }
+});
+
+test("the caller's provenance manifest buffer is copied before the first await", async () => {
+  const changed = lastLfToSpace(manifestBytes);
+  const r = await mutateInTheWindow({
+    prepare: async (w) => ({
+      provenance: {
+        ...w.base.provenance,
+        manifestBytes: Buffer.from(manifestBytes),
+      },
+    }),
+    mutate: (_w, extra) => extra.provenance.manifestBytes.set(changed),
+  });
+  try {
+    assert.equal(
+      r.report.status,
+      "COMPLETED",
+      JSON.stringify(r.report.refusal),
+    );
+    assert.deepEqual(r.sent, r.originals);
+  } finally {
+    await r.w.api.close();
+  }
+});
+
+test("the resolved mapping, the plan and the approval are one snapshot taken before the first await", async () => {
+  const r = await mutateInTheWindow({
+    mutate: (w) => {
+      w.planned.resolved.mapping.documents[BRIEF.file] = POLICY_ID;
+      w.planned.resolved.scopes[0].courseId = COURSE_POLICY;
+      w.planned.resolved.scopes[0].documents[BRIEF.file] = COPY_ID;
+      w.planned.plan.cases[0].request.body.message =
+        "CHANGED IN THE SEALING WINDOW";
+      w.planned.plan.batches[0].caseIds.reverse();
+      w.planned.suite.definition.cases[0].expected.minCitations = 99;
+      w.base.approval.binds.batch.id = "quality-batch-9";
+      w.base.approval.binds.target.origin = "http://127.0.0.1:1";
+    },
+  });
+  try {
+    // A mixed before/after snapshot would be refused or send something else;
+    // the original, approved data is what runs.
+    assert.equal(
+      r.report.status,
+      "COMPLETED",
+      JSON.stringify(r.report.refusal),
+    );
+    assert.deepEqual(r.sent, r.originals);
+    assert.deepEqual(
+      r.report.results.map((x) => x.caseId),
+      ["RQ01", "RQ02"],
+    );
+    assert.deepEqual(r.report.batch.caseIds, ["RQ01", "RQ02"]);
+    const check = r.report.results[0].assessment.answer.checks.find(
+      (c) => c.name === "minimum_citations",
+    );
+    assert.equal(check.passed, true);
+  } finally {
+    await r.w.api.close();
+  }
+});
+
+test("a change made after the call but before any await cannot be observed by the run either", async () => {
+  // The synchronous start already copied everything: mutating the very next
+  // statement, before the promise is awaited, is the same window as above, and
+  // mutating after the executor finished changes nothing it reported.
+  const w = await world();
+  try {
+    const report = await executeQualityBatch(w.base);
+    const before = JSON.stringify(report);
+    w.planned.suite.bytes.fill(0);
+    w.planned.plan.cases[0].request.body.message = "after the run";
+    assert.equal(JSON.stringify(report), before);
+    assert.equal(report.status, "COMPLETED");
+  } finally {
+    await w.api.close();
+  }
+});
+
+test("no buffer or object of the executor's own copy is handed to a callback", async () => {
+  const w = await world();
+  try {
+    const seen = [];
+    const record = (value) => seen.push(value);
+    const report = await executeQualityBatch({
+      ...w.base,
+      authorize: async (input) => (record(input), authorize(input)),
+      targetEquivalence: async (input) => (record(input), equivalent(input)),
+      onCheckpoint: async (snapshot) => record(snapshot),
+    });
+    assert.equal(report.status, "COMPLETED");
+    const walk = (value, path, hits) => {
+      if (ArrayBuffer.isView(value) || value instanceof ArrayBuffer)
+        hits.push(path);
+      else if (value && typeof value === "object")
+        for (const [key, inner] of Object.entries(value))
+          walk(inner, `${path}.${key}`, hits);
+      return hits;
+    };
+    assert.ok(seen.length >= 3);
+    assert.deepEqual(walk(seen, "callbacks", []), []);
+    assert.deepEqual(walk(report, "report", []), []);
   } finally {
     await w.api.close();
   }
