@@ -3,6 +3,47 @@
 Cập nhật 22/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
+## F09-B.2A — offline quality-suite preparation (22/10/2026)
+
+Completed checklist: (1) separate draft revision with 24 distinct authored quality
+objectives and frozen rag-eval-v2 fact/page bindings; (2) RED→GREEN offline
+validation, bounded proposed batches and a Tài–Thắng gold-review pack;
+(3) evaluation compatibility tests and four application gates, local commits.
+No execute wiring, provenance attestation, live calls, DB or ledger changes.
+Document-question operation compatibility is separate from executable support:
+the current HTTP runner still reads v3, while course/intersection/summary need
+transport work. Gold approval before execution is separate from human semantic
+review of model responses after execution; both remain pending until evidenced.
+
+`F09-B.2A_CODE_VERIFIED + GOLD_REVIEW_PENDING`: manifest commit `b4b7d21`,
+tool/test source `1860cc8`. Revision `rag-quality-20261022-v1`, exact file SHA-256
+`97b029588eacdabd593fbc80da0315a8aeef273cbf3e233696b1aaed5e7df7b9`.
+Coverage overlaps: grounded 18, no-evidence 6, document 16, course 6,
+intersection 2, Vietnamese 18, injection 4, summary 3. Both synthetic PDFs and
+all 10 frozen facts survive production local extraction on their bound pages.
+No grounded case lacks a structural gold binding; absence oracles and substantive
+objective distinctions still need human review. Zero cases executed/approved.
+
+14 document-question operation-compatible cases form **proposed** batches 5/5/4;
+10 unsupported cases remain deferred. All new IDs are non-executable because
+the HTTP runner still reads v3. Legacy 9-live-case manifest / ten-request cap
+remain unchanged. Source `1860cc8`: 58 new tests, focused evaluation/HTTP/ledger
+375/375; typecheck, npm test (457 API Vitest + 1,199 API Node + 544 Web = 2,200),
+build and format all exit 0, fail/skip/cancelled 0. Build retains the chunk-size
+advisory. RED evidence includes three missing-exception failures before added
+guards; initial missing-module and two first-implementation failures are retained,
+not production defects or live results.
+
+Re-run `npm run eval:f09b2a:prepare -- --output artifacts/my-gold-review --batch-size 5`.
+Use a new directory. Current pack/logs: `artifacts/f09b2a-20261022/` (catalog
+records source SHA and dirty=true for then-uncommitted docs). No DB/browser run:
+offline data/scripts only, no runtime/SQL/UI change. No persistent resources
+created; own temporary test directories removed, artifacts retained. Pending
+LIVE_EVALUATION, post-response SEMANTIC_REVIEW, prior F05/F06/F08 browser,
+cloud/Google/Thắng-machine and F09-A.1 RESOURCE_CLEANUP_BLOCKED are unchanged.
+B.2B still needs real gold approval, runtime provenance attestation, missing
+transport support and explicit target/batch/quota approval; not implemented here.
+
 ## F07 contract and local implementation
 
 ## F09-B.1.3 — fail-closed marker publication (22/10/2026)

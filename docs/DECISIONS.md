@@ -796,3 +796,21 @@ markers/corrupt public markers require investigation, not silent fallback. NTFS
 same-volume hard links were chosen over rename (replacement semantics) or copy
 (partial-file visibility). No directory fsync/power-loss, hostile-local-writer or
 network-share durability is certified. No schema/service/dependency is added.
+
+F09-B.2A decision: keep draft quality-suite authoring separate from legacy run
+definitions. `rag-quality-suite-v1` pins the unchanged synthetic corpus and uses
+existing fact-group alternatives, with explicit scope and transport support.
+The offline tool reuses the PDF generator/extractor and HTTP eligibility helper,
+but cannot execute requests, read credentials or publish ledger records. A suite
+may exceed ten cases; each proposed batch remains <=10 requests, and unsupported
+cases remain deferred. The current HTTP runner still reads v3, so new IDs have
+zero executable support until a later separately approved adaptation.
+
+Gold approval is a pre-execution human decision bound to exact draft/corpus
+hashes, separate from model-response semantic review. The tool exports pending
+Tài–Thắng forms only; it does not ingest decisions, freeze a suite, attest runtime
+provenance or grant execution permission. An unchanged pending template can be
+validated; filled forms need maintainer verification in the later approval step.
+Machine source/page/hash checks do not certify educational correctness or convert
+synthetic examples into real lecturer requirements. No model/gold tuning based on
+observed model output took place; B.2A produces no model output.

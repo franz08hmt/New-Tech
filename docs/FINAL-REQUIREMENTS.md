@@ -3,6 +3,16 @@
 Local là test/fixture synthetic. Live pending cần project/người dùng thật.
 Trạng thái không phải lời hứa production-ready.
 
+F09-B.2A adds draft `rag-quality-20261022-v1`: 24 distinct authored objectives,
+18 grounded / 6 explicit no-evidence oracles, frozen synthetic fact/page/hash
+bindings and a pre-execution Tài–Thắng review pack. Offline checks and proposed
+batches are preparation evidence only. Fourteen cases match the existing HTTP
+operation shape; ten need course/intersection/summary transport work; no new case
+is connected to execute. Zero quality cases executed or human-approved. Existing
+v3/F09-A/gold/reports and live guards are unchanged. Gold review, actual runtime
+provenance attestation, target/batch/quota approval and response-bound semantic
+review remain required; this does not accept capability A/C or whole F09.
+
 | ID  | Story và acceptance                                                                                                       | Source / test để trace                                                                                                                                                                                                 | Trạng thái                                                                                                                                                                                                                               |
 | --- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | R01 | Email/password, reload/refresh/logout; Origin/CSRF sai bị chặn                                                            | auth.service, auth.test, pilot-session-race                                                                                                                                                                            | Implemented/local regression; HTTP thật máy Tài là lịch sử, extended pending                                                                                                                                                             |

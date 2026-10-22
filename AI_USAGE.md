@@ -1075,3 +1075,43 @@ advisory. Source stayed unchanged during verification. Cleanup checked exact
 task/repo/date labels and the sole volume consumer, then removed only the newly
 created F09-B.1.3 container/volume; none remain. F09-A.1 resources and SOP were
 not touched; raw test/mutation/report evidence remains ignored and retained.
+
+## 2026-10-22 — F09-B.2A offline RAG gold preparation
+
+AI assistance inspected the corpus, legacy v3 validation, HTTP eligibility and
+human-review/report conventions, then authored a separate 24-objective draft
+`rag-quality-20261022-v1`. Gold comes from the unchanged synthetic PDF generator
+and frozen fact/page registry, not model answers; actual production local PDF
+extraction verifies both PDF hashes and all ten facts. The agent's authorship is
+not human gold approval or educational semantic review. Synthetic dates, amounts
+and requirements are not a lecturer rubric. Vietnamese questions do not prove
+accented Vietnamese PDF extraction.
+
+The first RED was the missing new offline module, not a production defect. The
+first implementation run had 53/55 pass: missing-review error classification and
+Windows --import file-URL handling were corrected. Three additional assertions
+then observed real RED (missing exceptions): an injection objective could lose
+its label, a stale batch definition could retain identical IDs, and an absent
+legacy predecessor was accepted. Guards/binding were added without weakening
+assertions. Focused final verification: 58 new tests and 375 total evaluation /
+HTTP / reservation tests pass, exit 0, no fail/skip/cancelled. Raw logs remain in
+`artifacts/f09b2a-20261022/`.
+
+The offline command exports source PDFs, catalog, draft copy, proposed batches
+and Tài–Thắng gold forms. It has no execute/credential/endpoint option; its CLI
+test denies secret-file, network and ledger access. Fourteen new cases share the
+HTTP adapter's supported operation shape, ten require transport work, and all
+24 remain NOT_ATTEMPTED with zero human approvals. Proposed batches 5/5/4 are
+non-executable; no provider-call count, quota or target is approved. Assigned
+reviewer names are not signatures; decisions/times/comments are blank. No model
+output, provenance attestation, DB, migration, UI or ledger change was made.
+Gold review, live evaluation, post-response semantic review, earlier browser /
+cloud / Google / Thắng-machine and F09-A.1 resource-cleanup pending remain open.
+
+Fresh gates at source `1860cc8`: typecheck, npm test, build and format all exit 0.
+Full test counts: 457 API Vitest, 1,199 API Node and 544 Web (2,200), no
+fail/skip/cancelled. Build retains its chunk-size advisory. Data commit `b4b7d21`
+and tool/test commit `1860cc8` were local only. No DB/browser gate was run because
+only offline data/scripts/tests changed. No persistent test resources were made;
+own temporary test directories were removed and raw artifacts retained. Status
+is F09-B.2A_CODE_VERIFIED + GOLD_REVIEW_PENDING, not whole-F09 acceptance.

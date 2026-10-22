@@ -427,6 +427,46 @@ the separate F08-B checkpoint below.
 - [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
       cloud rollout, Google live and Thắng's machine are unchanged.
 
+## F09-B.2A — offline draft quality suite (22/10/2026)
+
+- [x] Separate `docs/evaluation-quality-cases-v1.json`, schema
+      `rag-quality-suite-v1`, revision `rag-quality-20261022-v1`, 24 distinct
+      authored objectives; unchanged v3 / F09-A / rag-eval-v2 / historical reports.
+      Exact manifest SHA-256:
+      `97b029588eacdabd593fbc80da0315a8aeef273cbf3e233696b1aaed5e7df7b9`.
+- [x] 18 grounded bindings and six reasoned no-evidence oracles; source PDFs,
+      correct pages and all ten frozen facts machine-checked via actual local
+      PDF extraction. Overlapping coverage: document/course/intersection 16/6/2,
+      Vietnamese/injection/summary 18/4/3. Synthetic facts are not lecturer rules;
+      Vietnamese questions on ASCII PDFs are not Vietnamese extraction evidence.
+- [x] Exported `artifacts/f09b2a-20261022/review-pack/`: catalog with Git/dirty,
+      byte hash/revision and NOT_ATTEMPTED cases; PDFs/source pages; gold-review
+      template for Tài–Thắng; proposed batches 5/5/4. Ten unsupported cases are
+      deferred, none dropped. Fourteen operation-compatible cases are still
+      non-executable new IDs. No cap/readiness/execute/ledger change.
+- [x] RED logs retained: initial missing new module; first implementation 53/55
+      (review error classification, Windows import URL); then three actual
+      missing-exception failures for injection label, stale batch binding and
+      nonexistent predecessor. Final new suite 58/58; focused evaluation + HTTP
+      + reservation 375/375, exit 0; fail/skip/cancelled 0.
+- [x] Fresh four gates on source `1860cc8` exit 0: typecheck, npm test, build,
+      format. Full tests: 457 API Vitest + 1,199 API Node + 544 Web = 2,200 pass;
+      fail/skip/cancelled 0. Build chunk advisory remains. Logs/gate exit codes
+      are in `artifacts/f09b2a-20261022/`; counts are new, not B.1.3 history.
+- [x] Re-run `npm run eval:f09b2a:prepare -- --output artifacts/my-gold-review --batch-size 5`;
+      `node --test apps/api/test/evaluation-quality.test.mjs`. Output must be new.
+      Offline CLI guards cover network/secret-file/ledger attempts; it has no
+      execution or credential options. No DB/browser gate was needed or claimed
+      for this data/script-only slice. No disposable container/DB was created.
+- [x] `F09-B.2A_CODE_VERIFIED + GOLD_REVIEW_PENDING` for preparation only.
+- [ ] Tài–Thắng must review/approve exact-bound gold, source semantics, objective
+      variety and absence oracles. Reviewer/time/decision/notes remain blank;
+      DRAFT_REVIEW_REQUIRED, not frozen. No quality cases executed or approved.
+- [ ] B.2B provenance attestation, missing transport support and target/batch/quota
+      approval before live calls. LIVE_EVALUATION_PENDING and post-response
+      SEMANTIC_REVIEW_PENDING remain; prior F05/F06/F08 browser, cloud/Google/
+      Thắng-machine and F09-A.1 cleanup pending unchanged. B.2B not started.
+
 ## F09-B.1.3 — marker publication (22/10/2026)
 
 - [x] RED on baseline `8512024`: 30 tracked tests fail; reviewer marker-fault

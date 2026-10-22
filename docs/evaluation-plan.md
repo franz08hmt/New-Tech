@@ -1,5 +1,84 @@
 # ExaMate RAG evaluation — Phase 4
 
+## F09-B.2A — draft quality suite and pre-execution gold review
+
+Separate schema `rag-quality-suite-v1`, revision `rag-quality-20261022-v1` lives
+in [evaluation-quality-cases-v1.json](evaluation-quality-cases-v1.json).
+Status is **DRAFT_REVIEW_REQUIRED**, never frozen/approved by the agent.
+It preserves v3, F09-A, corpus `rag-eval-v2`, old gold and reports unchanged.
+The 24 objectives RQ01–RQ24 are draft quality cases, **zero executed and zero
+human-approved**. Exact question/objective duplicates are rejected; substantive
+variety, gold completeness and acceptable paraphrases still require Tài–Thắng.
+
+| Coverage (overlapping) | Cases | Purpose |
+| --- | --- | --- |
+| Grounded / no evidence | 18 / 6 | Required fact groups versus explicit absence/scope oracle |
+| Document / course / intersection | 16 / 6 / 2 | Single-source, cross-document composition, scope exclusion |
+| Vietnamese / injection / summary | 18 / 4 / 3 | Language, data versus instructions, cross-page synthesis |
+
+Each grounded case uses the existing gold-group/alternatives representation,
+plus PDF hash and corpus revision on every alternative. All 10 frozen facts
+are checked against actual generated PDF bytes and pages extracted by the
+production local PDF extractor. The pack includes both PDFs and all relevant
+source pages, questions, required behavior, failure criteria and reviewer fields.
+No-evidence cases enumerate the complete scoped sources and explain the absent
+fact; machine binding does not prove a semantic absence oracle is correct.
+All material is synthetic and illustrative, **not lecturer rubric/deadlines or
+real expenditure limits**. Vietnamese questions on ASCII PDFs do not establish
+accented Vietnamese PDF extraction. This check does not attest any uploaded or
+indexed runtime document's provenance/readiness.
+
+Transport accounting is explicit: RQ01–RQ10 and RQ17–RQ20 (14 cases) have the
+document-question *operation shape* accepted by the current HTTP adapter.
+**None of the new IDs is executable now**: the adapter still reads fixed v3.
+RQ11–RQ16 and RQ21–RQ24 (10 cases) need course/intersection/summary support.
+Scopes describe corpus membership, not a client-supplied runtime principal or a
+ready-to-send UUID mapping. Planned API operations are not support attestations.
+No new manifest is connected to execute, and no readiness or legacy cap changes.
+
+```powershell
+npm run eval:f09b2a:prepare -- --output artifacts/my-gold-review --batch-size 5
+node --test apps/api/test/evaluation-quality.test.mjs
+```
+
+The first command builds API locally for its existing PDF extractor, then runs
+only offline preparation. Use a **new** output directory under artifacts; prior
+packs are never overwritten. There is no input credential, execute, force-ready,
+endpoint or ledger option. It reads only the fixed draft/corpus and local Git
+SHA/dirty state, writes source PDFs, `cases.json`, `corpus-manifest.json`,
+`catalog.json`, `batch-plan.json` and `gold-review-template.json`. The catalog
+binds exact manifest bytes (SHA-256), corpus, revision, case IDs, time and Git.
+Model/prompt/retrieval configuration is unknown/not loaded. Output is preparation,
+not a run of model cases or a latency/usage/cost measurement.
+
+Default proposed batches have 5, 5, 4 requests (upper bound configurable 1–10,
+matching but not changing the existing HTTP request cap). Ten unsupported cases
+are an explicit deferred partition. Duplicate/missing IDs, oversized batches and
+changed suite/corpus hashes are rejected. Standalone plans bind revision and
+`definitionSha256` (JSON serialization of the parsed definition); the catalog and
+review additionally bind `manifestSha256` (exact file bytes). All plans have
+`dispatchAllowed=false`; neither client-request nor provider-call allowance is
+approved. Provider calls are unknown, not zero. This is not permission to execute
+three batches or evidence of 24 quality results.
+
+Tài and Thắng must each inspect sources, page/fact bindings, scope exclusions,
+objective distinctions and failure criteria. Their assigned names are labels;
+reviewer, timestamp, decision and comments start empty/null. This slice only
+exports and validates an unchanged pending template; edited/completed forms must
+be handed to maintainers for a separately verified, exact-hash freeze decision.
+It has **no human-approval ingestion or self-approval command**. Re-authoring any
+criterion/source invalidates the old binding. Pre-execution gold approval cannot
+close post-execution `SEMANTIC_REVIEW_PENDING` or substitute for response-bound
+claim-by-claim review. Injection resistance remains INCONCLUSIVE without evidence
+that the malicious passage actually reached model context; keywords alone do not
+decide behavior.
+
+For F09-B.2B, still required: actual Tài–Thắng gold approval, runtime provenance
+attestation, explicit transport support/adaptation, and target/batch/quota approval
+before any live dispatch. `LIVE_EVALUATION_PENDING`, `SEMANTIC_REVIEW_PENDING`,
+older browser/cloud/Google/Thắng-machine and F09-A.1 cleanup pending are unchanged.
+No DB/schema/runtime/UI changes or new browser acceptance are part of B.2A.
+
 **Current boundary, 18/10/2026:** live `--execute` is BLOCKED (exit 3) before
 DB/Storage/Gemini because this runner has no verified workspace principal.
 Offline/dry-run remain available. Live commands/transport descriptions below
