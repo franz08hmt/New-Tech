@@ -39,6 +39,28 @@ const record = (value) =>
 const nonBlank = (value) =>
   typeof value === "string" && value.trim().length > 0;
 
+// Inline source markers follow AssistantService.validateCitations: a grounded
+// answer needs well-formed markers and their ID set must equal the returned
+// citation IDs. Syntax is stricter than production's count comparison: every
+// source-like [S...] text must be exactly [S<n>], as in legacy marker_syntax.
+// Whether a cited source supports the claim stays human-reviewed.
+const sourceLikeMarker = /\[S[^\]]*\]/g;
+const sourceMarker = /^\[S[1-9][0-9]*\]$/;
+function markerChecks(answer, citationIds) {
+  const sourceLike = [...answer.matchAll(sourceLikeMarker)].map(([m]) => m);
+  const referenced = new Set(
+    sourceLike.filter((m) => sourceMarker.test(m)).map((m) => m.slice(1, -1)),
+  );
+  const returned = new Set(citationIds);
+  return {
+    markerSyntax: sourceLike.every((m) => sourceMarker.test(m)),
+    markerPresence: referenced.size > 0,
+    markerCitationSet:
+      referenced.size === returned.size &&
+      [...referenced].every((id) => returned.has(id)),
+  };
+}
+
 function checkContent(contract, result) {
   const content = result.reviewOutput;
   const evidence = Array.isArray(result.evidence)
@@ -64,6 +86,19 @@ function checkContent(contract, result) {
       );
     return {
       responseStructure: structure,
+      // Refusals keep their own contract: no citations and no marker checks.
+      ...(cited
+        ? structure
+          ? markerChecks(
+              content.answer,
+              content.citations.map((c) => c.sourceId),
+            )
+          : {
+              markerSyntax: false,
+              markerPresence: false,
+              markerCitationSet: false,
+            }
+        : {}),
       answerability:
         structure &&
         content.answerable === cited &&
@@ -185,6 +220,11 @@ export function assessLocalCase(item, result) {
       structural: checks.responseStructure ?? "not_assessed",
       retrievalEvidence: checks.goldEvidenceCoverage ?? "not_assessed",
       citationScope: checks.citationScope ?? "not_assessed",
+      markerConsistency: Object.hasOwn(checks, "markerSyntax")
+        ? checks.markerSyntax &&
+          checks.markerPresence &&
+          checks.markerCitationSet
+        : "not_assessed",
       semanticCorrectness: "PENDING_HUMAN",
       semanticCompleteness: "PENDING_HUMAN",
       claimGrounding: "PENDING_HUMAN",

@@ -12,6 +12,7 @@ import {
   makeEvaluationPdf,
 } from "../scripts/rag-evaluation-lib.mjs";
 import { PdfTextExtractorService } from "../dist/documents/pdf-text-extractor.service.js";
+import { AssistantService } from "../dist/assistant/assistant.service.js";
 import * as evaluation from "../scripts/rag-evaluation-lib.mjs";
 import {
   validateLocalDefinition,
@@ -1225,7 +1226,9 @@ function requiredOutputObservation(scenario) {
           : scenario === "flashcards_valid"
             ? cards
             : {
-                answer: refusal ? "Not enough evidence." : "A grounded answer.",
+                answer: refusal
+                  ? "Not enough evidence."
+                  : "A grounded answer. [S1]",
                 answerable: !refusal,
                 citations: refusal
                   ? []
@@ -1384,4 +1387,228 @@ test("F09-A.1 expected errors and non-content cases do not require generated ans
     assert.equal(assessment.status, "PASS", scenario);
     assert.equal(assessment.dimensions.structural, "not_assessed", scenario);
   }
+});
+
+// F09-A.2: grounded RAG inline markers must agree with returned citations.
+function groundedMarkerObservation(
+  answer,
+  citationIds = ["S1"],
+  evidenceIds = ["S1", "S2", "S3"],
+) {
+  const { item, result } = requiredOutputObservation("rag_document");
+  result.evidence = evidenceIds.map((sourceId, index) => ({
+    sourceId,
+    file: `source-${sourceId}.pdf`,
+    page: index + 1,
+    // Keep gold evidence coverage satisfied so only marker checks can fail.
+    factIds: item.semanticExpected?.facts ?? [],
+  }));
+  result.reviewOutput = {
+    answer,
+    answerable: true,
+    citations: citationIds.map((sourceId) => ({
+      sourceId,
+      title: `source-${sourceId}.pdf`,
+      // A source outside the evidence still has a well-formed page number.
+      page: Math.max(evidenceIds.indexOf(sourceId), 0) + 1,
+    })),
+  };
+  return { item, result };
+}
+const markerPositives = {
+  "single valid marker": ["Synthetic claim. [S1]", ["S1"]],
+  "same source cited repeatedly": ["One [S1]. Two [S1]. Three [S1].", ["S1"]],
+  "several sources in a different order than citations": [
+    "First [S3]. Second [S1]. Third [S2].",
+    ["S1", "S2", "S3"],
+  ],
+  "ordinary brackets are not source markers": [
+    "See (S1), [1], [s1], {S1} and [note]. [S1]",
+    ["S1"],
+  ],
+};
+for (const [label, [answer, ids]] of Object.entries(markerPositives))
+  test(`F09-A.2 grounded RAG accepts ${label}`, () => {
+    const { item, result } = groundedMarkerObservation(answer, ids);
+    const assessment = assessLocalCase(item, result);
+    assert.equal(assessment.status, "PASS");
+    assert.equal(assessment.dimensions.markerConsistency, true);
+    assert.equal(assessment.dimensions.semanticCorrectness, "PENDING_HUMAN");
+    assert.equal(assessment.dimensions.claimGrounding, "PENDING_HUMAN");
+  });
+const markerNegatives = {
+  "missing markers": [
+    "Synthetic claim without any source marker.",
+    ["S1"],
+    "markerPresence",
+  ],
+  "marker outside returned citations": [
+    "Synthetic claim. [S999]",
+    ["S1"],
+    "markerCitationSet",
+  ],
+  "valid marker plus marker outside returned citations": [
+    "Synthetic claim. [S1] [S999]",
+    ["S1"],
+    "markerCitationSet",
+  ],
+  "returned citation that is never mentioned": [
+    "Synthetic claim. [S1]",
+    ["S1", "S2"],
+    "markerCitationSet",
+  ],
+  "malformed marker standing alone": [
+    "Synthetic claim. [S1, S999]",
+    ["S1"],
+    "markerSyntax",
+  ],
+  "valid marker beside a malformed marker": [
+    "Synthetic claim. [S1] [S1, S999]",
+    ["S1"],
+    "markerSyntax",
+  ],
+  "combined marker for two returned citations": [
+    "Synthetic claim. [S1, S2]",
+    ["S1", "S2"],
+    "markerSyntax",
+  ],
+  "empty marker": ["Synthetic claim. [S] [S1]", ["S1"], "markerSyntax"],
+  "zero source number": ["Synthetic claim. [S0] [S1]", ["S1"], "markerSyntax"],
+  "leading-zero source number": [
+    "Synthetic claim. [S01] [S1]",
+    ["S1"],
+    "markerSyntax",
+  ],
+  "descriptive source-like text": [
+    "Synthetic claim. [Source: handbook] [S1]",
+    ["S1"],
+    "markerSyntax",
+  ],
+  "nested bracket source-like text": [
+    "Synthetic claim. [S[S1]",
+    ["S1"],
+    "markerSyntax",
+  ],
+};
+for (const [label, [answer, ids, failedCheck]] of Object.entries(
+  markerNegatives,
+))
+  test(`F09-A.2 grounded RAG rejects ${label}`, () => {
+    const { item, result } = groundedMarkerObservation(answer, ids);
+    const assessment = assessLocalCase(item, result);
+    // A deterministic marker failure is a machine FAIL, never a pending review.
+    assert.equal(assessment.status, "FAIL");
+    assert.equal(assessment.checks[failedCheck], false);
+    assert.equal(assessment.dimensions.markerConsistency, false);
+    assert.equal(assessment.dimensions.semanticCorrectness, "PENDING_HUMAN");
+  });
+test("F09-A.2 marker syntax, set equality and evidence scope are separate machine checks", () => {
+  const { item, result } = groundedMarkerObservation(
+    "Synthetic claim. [S9]",
+    ["S9"],
+    ["S1"],
+  );
+  const assessment = assessLocalCase(item, result);
+  assert.equal(assessment.status, "FAIL");
+  // Markers equal the returned set and are well formed; only evidence scope is wrong.
+  assert.equal(assessment.checks.markerSyntax, true);
+  assert.equal(assessment.checks.markerPresence, true);
+  assert.equal(assessment.checks.markerCitationSet, true);
+  assert.equal(assessment.checks.citationScope, false);
+});
+test("F09-A.2 malformed source-like text is never counted as a valid marker", () => {
+  const { item, result } = groundedMarkerObservation(
+    "Synthetic claim. [S1, S999]",
+    ["S1"],
+  );
+  const { checks } = assessLocalCase(item, result);
+  assert.equal(checks.markerSyntax, false);
+  assert.equal(checks.markerPresence, false);
+  assert.equal(checks.markerCitationSet, false);
+});
+test("F09-A.2 a valid refusal needs neither citations nor markers", () => {
+  const { item, result } = requiredOutputObservation("rag_no_evidence");
+  const assessment = assessLocalCase(item, result);
+  assert.equal(assessment.status, "PASS");
+  assert.equal(assessment.dimensions.markerConsistency, "not_assessed");
+  assert.equal(Object.hasOwn(assessment.checks, "markerPresence"), false);
+});
+test("F09-A.2 marker checks fail safely when the answer is not text", () => {
+  for (const answer of [undefined, null, 123, {}, [], " \n "]) {
+    const { item, result } = groundedMarkerObservation("placeholder");
+    result.reviewOutput.answer = answer;
+    assert.doesNotThrow(() => assessLocalCase(item, result));
+    assert.equal(assessLocalCase(item, result).status, "FAIL");
+  }
+});
+test("F09-A.2 every grounded scenario shares the marker contract", () => {
+  for (const scenario of [
+    "rag_course",
+    "injection",
+    "usage_zero",
+    "usage_missing",
+    "usage_partial",
+    "privacy",
+  ]) {
+    // Usage scenarios also need telemetry, so assert the marker checks directly.
+    const { item, result } = requiredOutputObservation(scenario);
+    const valid = assessLocalCase(item, result);
+    assert.equal(valid.dimensions.markerConsistency, true, scenario);
+    result.reviewOutput.answer = "A grounded answer without markers.";
+    const missing = assessLocalCase(item, result);
+    assert.equal(missing.checks.markerPresence, false, scenario);
+    assert.equal(missing.dimensions.markerConsistency, false, scenario);
+    assert.equal(missing.status, "FAIL", scenario);
+  }
+});
+
+// The evaluator must not become a second, different citation contract.
+test("F09-A.2 evaluator marker verdict matches production validateCitations", () => {
+  const rag = {
+    citations: ["S1", "S2", "S3"].map((sourceId) => ({ sourceId })),
+  };
+  const production = (answer, citationIds) => {
+    try {
+      AssistantService.prototype.validateCitations.call(
+        { sourceMarkers: AssistantService.prototype.sourceMarkers },
+        { answer, citationIds, answerable: true },
+        rag,
+      );
+      return "ACCEPT";
+    } catch (error) {
+      return error.rejection;
+    }
+  };
+  // [answer, returned citation IDs, production verdict]
+  const table = [
+    ["A [S1]", ["S1"], "ACCEPT"],
+    ["A [S1] B [S1]", ["S1"], "ACCEPT"],
+    ["A [S3] B [S1] C [S2]", ["S1", "S2", "S3"], "ACCEPT"],
+    ["A (S1) [1] [s1] [S1]", ["S1"], "ACCEPT"],
+    ["A", ["S1"], "source_marker_missing"],
+    ["A [S999]", ["S1"], "source_marker_mismatch"],
+    ["A [S1] [S999]", ["S1"], "source_marker_mismatch"],
+    ["A [S1]", ["S1", "S2"], "source_marker_mismatch"],
+    ["A [S1] [S1, S999]", ["S1"], "source_marker_malformed"],
+    ["A [S1, S2]", ["S1", "S2"], "source_marker_malformed"],
+    ["A [S] [S1]", ["S1"], "source_marker_malformed"],
+    ["A [S0] [S1]", ["S1"], "source_marker_malformed"],
+    ["A [S01] [S1]", ["S1"], "source_marker_malformed"],
+    ["A [Source: x] [S1]", ["S1"], "source_marker_malformed"],
+  ];
+  for (const [answer, ids, verdict] of table) {
+    assert.equal(production(answer, ids), verdict, `production: ${answer}`);
+    const { item, result } = groundedMarkerObservation(answer, ids);
+    assert.equal(
+      assessLocalCase(item, result).status,
+      verdict === "ACCEPT" ? "PASS" : "FAIL",
+      `evaluator: ${answer}`,
+    );
+  }
+  // Production compares the counts of source-like and valid markers, so a nested
+  // "[S[S1]" slips through there. The evaluator is deliberately stricter: every
+  // source-like marker must be exactly [S<n>], as in legacy marker_syntax.
+  assert.equal(production("A [S[S1]", ["S1"]), "ACCEPT");
+  const { item, result } = groundedMarkerObservation("A [S[S1]", ["S1"]);
+  assert.equal(assessLocalCase(item, result).status, "FAIL");
 });

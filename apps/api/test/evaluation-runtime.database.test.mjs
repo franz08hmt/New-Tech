@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -131,6 +131,141 @@ test("F09-A authenticated Nest/PG17 runtime executes fixed cases with real RLS/a
   assert.deepEqual(negative.measurements, report.measurements);
   assert.equal(negative.measurements.accounting.sdkDispatchedCalls, 37);
   assert.equal(negative.measurements.accounting.persistedCalls, 37);
+
+  // F09-A.2 marker oracle at the same report boundary: keep every real HTTP,
+  // evidence, receipt and telemetry observation and change ONLY the grounded
+  // answer text. The service, citations and measurements are never replaced.
+  const grounded = new Set([
+    "rag_document",
+    "rag_course",
+    "injection",
+    "usage_zero",
+    "usage_missing",
+    "usage_partial",
+    "privacy",
+  ]);
+  const groundedRows = report.results.filter((row) => {
+    const scenario = definition.cases.find(
+      (c) => c.id === row.caseId,
+    )?.scenario;
+    return (
+      grounded.has(scenario) && typeof row.reviewOutput?.answer === "string"
+    );
+  });
+  assert.ok(groundedRows.length > 0, "runtime must observe grounded answers");
+  const firstMarker = (answer) => /\[S[1-9][0-9]*\]/.exec(answer)?.[0];
+  const markerMutations = [
+    {
+      id: "F09A2-M01-remove-all-markers",
+      expected: "FAIL",
+      change: (answer) =>
+        answer.replace(/\[S[^\]]*\]/g, "").trim() ||
+        "Synthetic unmarked answer.",
+    },
+    {
+      id: "F09A2-M02-marker-outside-returned-citations",
+      expected: "FAIL",
+      change: (answer) => answer.replace(/\[S[1-9][0-9]*\]/g, "[S999]"),
+    },
+    {
+      id: "F09A2-M03-valid-marker-plus-malformed-marker",
+      expected: "FAIL",
+      change: (answer) => `${answer} [S1, S999]`,
+    },
+    {
+      id: "F09A2-P01-repeat-existing-valid-marker",
+      expected: "PASS",
+      change: (answer) => `${answer} ${firstMarker(answer)}`,
+    },
+    {
+      id: "F09A2-P02-ordinary-brackets-are-not-markers",
+      expected: "PASS",
+      change: (answer) => `${answer} (see [1] and [note])`,
+    },
+  ];
+  const sha = (value) =>
+    createHash("sha256").update(JSON.stringify(value)).digest("hex");
+  const markerMatrix = markerMutations.map((mutation) => {
+    const mutatedIds = new Set(groundedRows.map((row) => row.caseId));
+    const results = report.results.map((row) => {
+      if (!mutatedIds.has(row.caseId)) return row;
+      const item = definition.cases.find((c) => c.id === row.caseId);
+      const mutated = structuredClone(row);
+      mutated.reviewOutput.answer = mutation.change(row.reviewOutput.answer);
+      // Everything except the answer text and its derived assessment is identical.
+      const { reviewOutput: before, assessment: _a, ...rest } = row;
+      const { reviewOutput: after, assessment: _b, ...kept } = mutated;
+      assert.deepEqual(
+        kept,
+        rest,
+        `${mutation.id} touched more than the answer`,
+      );
+      assert.deepEqual({ ...after, answer: 0 }, { ...before, answer: 0 });
+      mutated.assessment = assessLocalCase(item, mutated);
+      return mutated;
+    });
+    const derived = makeLocalReport({
+      runId: randomUUID(),
+      startedAt: new Date().toISOString(),
+      git: report.git,
+      definition,
+      manifestBytes,
+      selected: definition.cases,
+      results,
+      configuration: report.configuration,
+    });
+    const expectedFail = mutation.expected === "FAIL" ? groundedRows.length : 0;
+    assert.equal(derived.summary.counts.FAIL, expectedFail, mutation.id);
+    assert.equal(
+      derived.summary.counts.PASS,
+      report.summary.counts.PASS - expectedFail,
+      mutation.id,
+    );
+    assert.equal(derived.summary.counts.SKIP, report.summary.counts.SKIP);
+    assert.equal(derived.summary.qualityPasses, 0);
+    assert.deepEqual(derived.measurements, report.measurements, mutation.id);
+    assert.equal(derived.measurements.accounting.sdkDispatchedCalls, 37);
+    assert.equal(derived.measurements.accounting.persistedCalls, 37);
+    return {
+      mutationId: mutation.id,
+      expected: mutation.expected,
+      sourceRunId: report.runId,
+      mutatedField: "reviewOutput.answer",
+      counts: derived.summary.counts,
+      cases: groundedRows.map((row) => {
+        const mutatedRow = results.find((r) => r.caseId === row.caseId);
+        return {
+          sourceCaseId: row.caseId,
+          sourceAnswerSha256: sha(row.reviewOutput.answer),
+          mutatedAnswerSha256: sha(mutatedRow.reviewOutput.answer),
+          originalStatus: row.assessment.status,
+          mutatedStatus: mutatedRow.assessment.status,
+        };
+      }),
+    };
+  });
+  assert.ok(
+    markerMatrix.every((entry) =>
+      entry.cases.every(
+        (c) =>
+          c.originalStatus === "PASS" && c.mutatedStatus === entry.expected,
+      ),
+    ),
+  );
+  writeFileSync(
+    resolve(root, output, "marker-mutation-matrix.json"),
+    JSON.stringify(
+      {
+        derivedFromRunId: report.runId,
+        testMutation:
+          "Change only grounded reviewOutput.answer on real runtime observations",
+        matrix: markerMatrix,
+      },
+      null,
+      2,
+    ),
+    { flag: "wx" },
+  );
   console.log(
     JSON.stringify({
       evaluationReport: output,
@@ -138,6 +273,10 @@ test("F09-A authenticated Nest/PG17 runtime executes fixed cases with real RLS/a
       counts: report.summary.counts,
       attempted: report.summary.requestsAttempted,
       negativeCounts: negative.summary.counts,
+      markerMutations: markerMatrix.map((entry) => ({
+        id: entry.mutationId,
+        counts: entry.counts,
+      })),
     }),
   );
 });
