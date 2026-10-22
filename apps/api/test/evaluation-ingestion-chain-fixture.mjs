@@ -22,6 +22,7 @@ import { DatabaseService } from "../dist/database/database.service.js";
 import { AuthDatabaseService } from "../dist/database/auth-database.service.js";
 import { AUTH_ADAPTER, AUTH_CONFIG } from "../dist/auth/auth-config.js";
 import { GeminiService } from "../dist/assistant/gemini.service.js";
+import { RagRetrievalService } from "../dist/assistant/rag-retrieval.service.js";
 import { GeminiEmbeddingService } from "../dist/assistant/gemini-embedding.service.js";
 import { DocumentOcrService } from "../dist/documents/document-ocr.service.js";
 import { authFixture } from "./auth-fixture.mjs";
@@ -65,7 +66,12 @@ export async function openIngestionChain() {
   const storageLog = [];
   const storageHooks = { download: null, upload: null };
   // Fault injection at the SDK transport, called with the batch's texts.
-  const hooks = { embedding: null };
+  // queryVector(text) picks the vector a retrieval query is embedded to (so a
+  // test can make a question match a known chunk); generation(request, {evidence})
+  // is the synthetic model. Both default to off: queries then embed like any
+  // text and a generation attempt throws and is counted.
+  const hooks = { embedding: null, queryVector: null, generation: null };
+  const retrieved = { evidence: [] };
   let storageBase;
 
   async function close() {
@@ -248,9 +254,11 @@ export async function openIngestionChain() {
             );
             counters.embeddingInputs.push(texts.length);
             if (hooks.embedding) await hooks.embedding(texts);
+            const query = request.config?.taskType === "RETRIEVAL_QUERY";
             return {
               embeddings: texts.map((text) => ({
-                values: syntheticVector(text),
+                values:
+                  (query && hooks.queryVector?.(text)) || syntheticVector(text),
               })),
             };
           },
@@ -258,11 +266,22 @@ export async function openIngestionChain() {
       };
       app.get(GeminiService).client = {
         models: {
-          generateContent: async () => {
+          generateContent: async (request) => {
             counters.generation++;
+            if (hooks.generation)
+              return hooks.generation(request, {
+                evidence: retrieved.evidence,
+              });
             throw Error("GENERATION_FORBIDDEN_IN_THIS_CHAIN");
           },
         },
+      };
+      const retrieval = app.get(RagRetrievalService);
+      const retrieve = retrieval.retrieve.bind(retrieval);
+      retrieval.retrieve = async (...args) => {
+        const result = await retrieve(...args);
+        retrieved.evidence = result.evidence;
+        return result;
       };
       app.get(DocumentOcrService).client = {
         models: {

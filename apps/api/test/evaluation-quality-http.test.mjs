@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createHmac, randomBytes } from "node:crypto";
 import {
   mkdtemp,
   mkdir,
@@ -1090,5 +1091,297 @@ test("preflight reads its credentials from stdin JSON only, and never from argum
     );
   } finally {
     await api.close();
+  }
+});
+
+// ---- F09-B.2B.5: --execute with a named batch and its approval record ----------
+
+test("arguments: one named batch and its approval record, and no way to skip a prerequisite", () => {
+  const base = [
+    "--http-evaluation",
+    "--quality-suite",
+    SUITE,
+    "--mapping",
+    "m.json",
+    "--execute",
+  ];
+  const ok = parseQualityHttpArguments([
+    ...base,
+    "--batch",
+    "quality-batch-2",
+    "--approval",
+    "approval.json",
+    "--provenance-artifact",
+    "a.json",
+    "--expected-digest",
+    "a".repeat(64),
+    "--rerun-acknowledged",
+    "00000000-0000-4000-8000-000000000001",
+  ]);
+  assert.equal(ok.batch, "quality-batch-2");
+  assert.equal(ok.approval, "approval.json");
+  assert.deepEqual(ok.rerunAcknowledged, [
+    "00000000-0000-4000-8000-000000000001",
+  ]);
+  const bad = (more, label, prefix = base) =>
+    assert.throws(
+      () => parseQualityHttpArguments([...prefix, ...more]),
+      HttpEvaluationError,
+      label,
+    );
+  bad(["--batch", "quality-batch-1"], "batch without its approval");
+  bad(["--approval", "approval.json"], "approval without a batch");
+  for (const batch of [
+    "batch-1",
+    "quality-batch-0",
+    "quality-batch-01",
+    "quality-batch-1,quality-batch-2",
+    "all",
+    "*",
+  ])
+    bad(["--batch", batch, "--approval", "a.json"], batch);
+  bad(
+    ["--batch", "quality-batch-1", "--approval", "approval.txt"],
+    "approval must be json",
+  );
+  bad(
+    [
+      "--batch",
+      "quality-batch-1",
+      "--approval",
+      "a.json",
+      "--rerun-acknowledged",
+      "not-a-run",
+    ],
+    "run id",
+  );
+  const noExecute = [
+    "--http-evaluation",
+    "--quality-suite",
+    SUITE,
+    "--mapping",
+    "m.json",
+  ];
+  bad(
+    ["--batch", "quality-batch-1", "--approval", "a.json"],
+    "dry-run",
+    noExecute,
+  );
+  bad(
+    [
+      "--preflight",
+      "--credentials-stdin",
+      "--batch",
+      "quality-batch-1",
+      "--approval",
+      "a.json",
+    ],
+    "preflight",
+    noExecute,
+  );
+  bad(
+    ["--rerun-acknowledged", "00000000-0000-4000-8000-000000000001"],
+    "dry-run acknowledgement",
+    noExecute,
+  );
+  for (const flag of [
+    "--force-ready",
+    "--skip-provenance",
+    "--assume-equivalent",
+    "--approved",
+    "--verified",
+    "--approve-batch",
+    "--all-batches",
+    "--next-batch",
+    "--retry",
+    "--no-ledger",
+    "--ignore-ledger",
+  ])
+    bad([flag, "x"], flag);
+  bad(["--force-ready"], "bare switch");
+});
+
+// A test-owned signature check stands in for a trust mechanism that does not exist.
+const approvalKey = randomBytes(32);
+const signBinds = (binds) =>
+  createHmac("sha256", approvalKey).update(canonicalJson(binds)).digest("hex");
+const testAuthorize = async ({ approval, binding }) =>
+  approval.evidence?.signature === signBinds(binding)
+    ? { goldReview: { status: "verified" }, batch: { status: "verified" } }
+    : { goldReview: { status: "failed" }, batch: { status: "failed" } };
+
+async function executeFixture({ approvalOverride } = {}) {
+  const api = await healthyApi();
+  const request = auditRequest();
+  const artifact = await auditArtifact(request);
+  const observation = await auditArtifact(request, {
+    auditId: "88888888-8888-4888-8888-888888888888",
+  });
+  const { planQualitySuite } =
+    await import("../scripts/rag-evaluation-quality-plan.mjs");
+  const { batchBinding, BATCH_APPROVAL_SCHEMA } =
+    await import("../scripts/rag-evaluation-quality-executor.mjs");
+  const planned = await planQualitySuite({
+    manifestBytes,
+    mappingInput: mappingFile(),
+    target: { base: new URL(`${api.base}/api/`), origin: ORIGIN },
+    options: { batchSize: 2, timeoutMs: 45000, only: "RQ01,RQ02,RQ04" },
+  });
+  const binds = batchBinding(planned, "quality-batch-1");
+  const approval = approvalOverride?.(binds) ?? {
+    schema: BATCH_APPROVAL_SCHEMA,
+    binds,
+    evidence: { signature: signBinds(binds) },
+  };
+  const root = await workspace({
+    "approval.json": approval,
+    "artifact.json": artifact,
+    "observation.json": observation,
+  });
+  const flags = (extra = []) => [
+    ...args(api, [
+      "--only",
+      "RQ01,RQ02,RQ04",
+      "--batch-size",
+      "2",
+      "--execute",
+      "--credentials-stdin",
+      "--batch",
+      "quality-batch-1",
+      "--approval",
+      "approval.json",
+      "--provenance-artifact",
+      "artifact.json",
+      "--provenance-observation",
+      "observation.json",
+      "--expected-digest",
+      artifact.integrity.digest,
+      ...extra,
+    ]),
+  ];
+  return { api, root, flags, artifact };
+}
+
+test("--execute with a batch and approval but no authorizer is refused before credentials and network", async () => {
+  const f = await executeFixture();
+  try {
+    const realFetch = globalThis.fetch;
+    let touched = 0;
+    globalThis.fetch = () => (
+      touched++,
+      Promise.reject(new Error("network forbidden"))
+    );
+    let result;
+    try {
+      result = await run(f.root, f.flags(), {
+        credentials: async () => (
+          touched++,
+          { email: EMAIL, password: PASSWORD }
+        ),
+      });
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+    assert.equal(touched, 0);
+    assert.equal(f.api.requests.length, 0);
+    assert.equal(result.code, 3);
+    assert.match(result.text, /APPROVAL_AUTHORIZER_UNAVAILABLE/);
+    const report = JSON.parse(
+      await readFile(join(f.root, result.dir, "report.json"), "utf8"),
+    );
+    assert.equal(report.mode, "quality_http_execute_refused");
+    assert.equal(report.generationRequests, 0);
+    assert.equal(report.status, "REFUSED");
+    await assert.rejects(
+      access(join(f.root, "artifacts/rag-evaluation-quality-ledger")),
+    );
+  } finally {
+    await f.api.close();
+  }
+});
+
+test("--execute with a mismatching approval record is refused even with an authorizer", async () => {
+  const f = await executeFixture({
+    approvalOverride: (binds) => {
+      const wrong = structuredClone(binds);
+      wrong.batch.id = "quality-batch-2";
+      return {
+        schema: "rag-quality-batch-approval-v1",
+        binds: wrong,
+        evidence: { signature: signBinds(wrong) },
+      };
+    },
+  });
+  try {
+    const result = await run(f.root, f.flags(), {
+      authorize: testAuthorize,
+      targetEquivalence: async () => ({ status: "verified" }),
+      credentials: async () => {
+        throw new Error("credentials forbidden");
+      },
+    });
+    assert.equal(result.code, 3);
+    assert.match(result.text, /APPROVAL_BINDING_MISMATCH/);
+    assert.equal(f.api.requests.length, 0);
+  } finally {
+    await f.api.close();
+  }
+});
+
+test("--execute with injected test prerequisites runs exactly the named batch through the CLI", async () => {
+  const f = await executeFixture();
+  try {
+    const result = await run(f.root, f.flags(), {
+      authorize: testAuthorize,
+      targetEquivalence: async () => ({ status: "verified" }),
+    });
+    assert.equal(result.code, 0, result.text);
+    assert.match(
+      result.text,
+      /status=COMPLETED; generationRequests=2; semanticReview=pending; nextBatch=not_started/,
+    );
+    assert.equal(f.api.count("/api/assistant/chat", "POST"), 2);
+    const dir = join(f.root, result.dir);
+    const report = JSON.parse(await readFile(join(dir, "report.json"), "utf8"));
+    assert.equal(report.mode, "quality_http_execute_batch");
+    assert.deepEqual(
+      report.results.map((r) => r.caseId),
+      ["RQ01", "RQ02"],
+    );
+    assert.equal(report.nextBatch, "not_started");
+    assert.deepEqual((await readdir(dir)).sort(), [
+      "checkpoint-01.json",
+      "checkpoint-02.json",
+      "plan.json",
+      "quality-manifest.json",
+      "report.json",
+    ]);
+    // The same command again is stopped by the ledger and sends nothing more.
+    const again = await run(f.root, f.flags(), {
+      authorize: testAuthorize,
+      targetEquivalence: async () => ({ status: "verified" }),
+    });
+    assert.equal(again.code, 3);
+    assert.match(again.text, /PLAN_ALREADY_EXECUTED/);
+    assert.equal(f.api.count("/api/assistant/chat", "POST"), 2);
+  } finally {
+    await f.api.close();
+  }
+});
+
+test("--execute with an authorizer but no target-equivalence proof is refused before credentials", async () => {
+  const f = await executeFixture();
+  try {
+    const result = await run(f.root, f.flags(), {
+      authorize: testAuthorize,
+      credentials: async () => {
+        throw new Error("credentials forbidden");
+      },
+    });
+    assert.equal(result.code, 3);
+    assert.match(result.text, /TARGET_EQUIVALENCE_UNVERIFIED/);
+    assert.equal(f.api.requests.length, 0);
+  } finally {
+    await f.api.close();
   }
 });

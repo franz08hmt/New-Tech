@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { gitSnapshot } from "./evaluate-rag.mjs";
 import {
   ARGUMENT_REJECTED,
+  CREDENTIALS_UNAVAILABLE,
   HttpEvaluationError,
   createHttpTransport,
   readCredentialsFromStdin,
@@ -41,7 +42,13 @@ const VALUE_FLAGS = {
   "--provenance-observation": "provenanceObservation",
   "--expected-digest": "expectedDigest",
   "--approve-plan": "approvePlan",
+  "--batch": "batch",
+  "--approval": "approval",
+  "--rerun-acknowledged": "rerunAcknowledged",
 };
+const RUN_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const BATCH_ID = /^quality-batch-[1-9][0-9]*$/;
 
 /**
  * Strict, closed flag set. Anything that names a credential, a principal, a
@@ -109,10 +116,35 @@ export function parseQualityHttpArguments(values) {
     "expectedDigest",
   ];
   if (
-    options.action !== "preflight" &&
+    options.action === "dry_run" &&
     provenance.some((k) => options[k] !== undefined)
   )
     throw reject();
+  // One batch is named, with the approval record that binds it; neither is a
+  // switch that grants anything by itself (the executor checks the record).
+  const execution = ["batch", "approval", "rerunAcknowledged"];
+  if (
+    options.action !== "execute" &&
+    execution.some((k) => options[k] !== undefined)
+  )
+    throw reject();
+  if (
+    options.action === "execute" &&
+    (options.batch === undefined) !== (options.approval === undefined)
+  )
+    throw reject();
+  if (options.batch !== undefined && !BATCH_ID.test(options.batch))
+    throw reject();
+  if (
+    options.approval !== undefined &&
+    !options.approval.toLowerCase().endsWith(".json")
+  )
+    throw reject();
+  if (options.rerunAcknowledged !== undefined) {
+    const runs = options.rerunAcknowledged.split(",");
+    if (!runs.every((id) => RUN_ID.test(id))) throw reject();
+    options.rerunAcknowledged = runs.map((id) => id.toLowerCase());
+  } else options.rerunAcknowledged = [];
   if (
     options.expectedDigest !== undefined &&
     !HASH.test(options.expectedDigest)
@@ -229,7 +261,7 @@ export function evaluateProvenance({
 }
 
 const EXPECTED_PAGE = 50;
-async function checkCourseScopes(transport, scopes) {
+export async function checkCourseScopes(transport, scopes) {
   const entries = [];
   let courseIds = null;
   let listFailure = "COURSE_LIST_UNAVAILABLE";
@@ -296,7 +328,7 @@ async function checkCourseScopes(transport, scopes) {
 }
 
 /** The documents and course scopes the selected, supported requests actually use. */
-function neededScope(planned) {
+export function neededScope(planned) {
   const { plan, resolved } = planned;
   const bodies = plan.cases
     .filter((c) => c.support === "supported")
@@ -313,7 +345,7 @@ function neededScope(planned) {
   return { documents, scopes };
 }
 
-function classify(counters, method, path) {
+export function classify(counters, method, path) {
   if (method === "GET") counters.read++;
   else if (method === "POST" && /\/auth\/(login|logout)$/.test(path))
     counters.authLifecycle++;
@@ -415,11 +447,103 @@ export async function runQualityHttpEvaluation(values, deps = {}) {
     );
   };
 
+  /**
+   * One approved batch through the core executor. The CLI supplies no authorizer
+   * and no target-equivalence proof of its own: until a trusted mechanism exists
+   * and is injected, the executor refuses before any credential or request.
+   */
+  async function runBatch() {
+    const { executeQualityBatch } =
+      await import("./rag-evaluation-quality-executor.mjs");
+    let approval;
+    try {
+      approval = JSON.parse(
+        await readFile(inside(root, options.approval), "utf8"),
+      );
+    } catch (error) {
+      if (error instanceof HttpEvaluationError) throw error;
+      approval = "unreadable";
+    }
+    await mkdir(directory, { recursive: true });
+    await writeFile(
+      resolve(directory, "quality-manifest.json"),
+      manifestBytes,
+      { flag: "wx" },
+    );
+    await writeFile(
+      resolve(directory, "plan.json"),
+      JSON.stringify(planned.plan, null, 2) + "\n",
+      { flag: "wx" },
+    );
+    let saved = 0;
+    const outcome = await executeQualityBatch({
+      planned,
+      batchId: options.batch,
+      approval,
+      authorize: deps.authorize,
+      targetEquivalence: deps.targetEquivalence,
+      provenance: {
+        manifestBytes,
+        artifactText,
+        observationText,
+        expectedDigest: options.expectedDigest,
+      },
+      credentials: async () => {
+        if (!options.credentialsStdin && !deps.credentials)
+          throw new HttpEvaluationError(CREDENTIALS_UNAVAILABLE);
+        return deps.credentials
+          ? deps.credentials()
+          : readCredentialsFromStdin(deps.stdin ?? process.stdin);
+      },
+      fetchImpl: deps.fetchImpl,
+      ledgerDir:
+        deps.ledgerDir ??
+        resolve(root, "artifacts/rag-evaluation-quality-ledger"),
+      ledgerFs: deps.ledgerFs,
+      rerunAcknowledged: options.rerunAcknowledged,
+      runId,
+      onCheckpoint: async (snapshot) => {
+        await writeFile(
+          resolve(
+            directory,
+            `checkpoint-${String(++saved).padStart(2, "0")}.json`,
+          ),
+          JSON.stringify(snapshot, null, 2) + "\n",
+          { flag: "wx" },
+        );
+      },
+    });
+    exitCode = outcome.status === "COMPLETED" ? 0 : 3;
+    const final = {
+      ...outcome,
+      mode:
+        outcome.status === "REFUSED"
+          ? "quality_http_execute_refused"
+          : "quality_http_execute_batch",
+      generatedAt: report.generatedAt,
+      git: report.git,
+      exitCode,
+    };
+    await writeFile(
+      resolve(directory, "report.json"),
+      JSON.stringify(final, null, 2) + "\n",
+      { flag: "wx" },
+    );
+    write(
+      outcome.status === "REFUSED"
+        ? `Quality batch not executed: reason=${outcome.refusal.reason}; stage=${outcome.refusal.stage}; generationRequests=0; planSha256=${planned.planSha256}; report=${relative(root, directory)}\n`
+        : `Quality batch ${options.batch}: status=${outcome.status}; generationRequests=${outcome.generationRequests}; semanticReview=pending; nextBatch=not_started; report=${relative(root, directory)}\n`,
+    );
+    return exitCode;
+  }
+
   if (options.action === "dry_run") {
     await publish({ validation: "successful" });
     write(`${summarizePlan(planned)}; report=${relative(root, directory)}\n`);
     return 0;
   }
+  if (options.action === "execute" && options.batch !== undefined)
+    return runBatch();
   if (options.action === "execute") {
     exitCode = 3;
     await publish({
