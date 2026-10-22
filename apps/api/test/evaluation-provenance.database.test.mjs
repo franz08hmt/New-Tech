@@ -739,6 +739,80 @@ test("F09-B.2B.1 provenance audit on PG17 with a real Storage reader", async (t)
     },
   );
 
+  await t.test(
+    "a forged duplicate/omission cannot hide drift of a real indexed document",
+    async () => {
+      const artifact = await audit();
+      assert.equal(artifact.verdict, "OBSERVED_CONSISTENT");
+      const expectations = (observation) => ({
+        manifestBytes,
+        corpus,
+        target: request().target,
+        mapping: request().mapping,
+        scopes: request().scopes,
+        observation,
+      });
+      const rehash = (value) => {
+        const { integrity: _ignored, ...body } = value;
+        return {
+          ...body,
+          integrity: {
+            algorithm: "sha256-canonical-json",
+            digest: createHash("sha256")
+              .update(canonicalJson(body))
+              .digest("hex"),
+          },
+        };
+      };
+      // The policy copy's stored vector changes after the audit.
+      await admin.query(
+        "UPDATE document_chunks SET embedding=$2::vector(768) WHERE document_id=$1 AND source_page=1",
+        [POLICY_COPY, JSON.stringify([0, 0, 1, ...Array(765).fill(0)])],
+      );
+      const fresh = await audit();
+      assert.equal(fresh.verdict, "OBSERVED_CONSISTENT");
+      const honest = verifyProvenanceArtifact(artifact, expectations(fresh));
+      assert.equal(honest.status, "MISMATCH");
+      assert.ok(honest.reasons.includes("INDEX_FINGERPRINT_MISMATCH"));
+      // The same artifact with the drifted document replaced by a copy of another
+      // one keeps its length and, once re-hashed, its checksum; it must not bind.
+      const position = artifact.documents.findIndex(
+        (d) => d.documentId === POLICY_COPY,
+      );
+      assert.ok(position >= 0);
+      for (const source of [0, 1, 2].filter((i) => i !== position)) {
+        const forged = structuredClone(artifact);
+        forged.documents[position] = structuredClone(forged.documents[source]);
+        assert.equal(forged.documents.length, artifact.documents.length);
+        assert.equal(
+          verifyProvenanceArtifact(rehash(forged), expectations()).status,
+          "INVALID",
+        );
+        const withDrift = verifyProvenanceArtifact(
+          rehash(forged),
+          expectations(fresh),
+        );
+        assert.notEqual(withDrift.status, "BOUND");
+        assert.notEqual(withDrift.currentness, "matches_observation");
+      }
+      // A malformed fresh observation never reads as current.
+      const malformed = structuredClone(fresh);
+      malformed.documents[position] = structuredClone(malformed.documents[0]);
+      const result = verifyProvenanceArtifact(
+        artifact,
+        expectations(rehash(malformed)),
+      );
+      assert.equal(result.status, "MISMATCH");
+      assert.ok(result.reasons.includes("OBSERVATION_INVALID"));
+      await seedIndex(docs[2]);
+      assert.equal(
+        verifyProvenanceArtifact(artifact, expectations(await audit()))
+          .currentness,
+        "matches_observation",
+      );
+    },
+  );
+
   await t.test("the audit never issued a provider call", () => {
     // Every outbound request went to the Storage stand-in; nothing else exists to call.
     assert.ok(outbound.length > 0);

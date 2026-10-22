@@ -1107,3 +1107,202 @@ test("verifier: a forged verdict that contradicts the recorded conditions is inv
   );
   assert.notEqual(result.status, "BOUND");
 });
+
+// ---- F09-B.2B.1.1: the audited document set is one-to-one with the mapping ----
+
+const identities = (artifact) =>
+  artifact.documents.map((d) => `${d.file}|${d.documentId}`);
+const OUTSIDE_ID = "00000000-0000-4000-8000-0000000000e9";
+
+test("document set: a duplicate in place of a mapped document is invalid even re-hashed, at every position", async () => {
+  const artifact = await consistent();
+  assert.equal(artifact.documents.length, 3);
+  // Same length, one identity repeated and another dropped, for all ordered pairs.
+  for (const source of [0, 1, 2])
+    for (const target of [0, 1, 2]) {
+      if (source === target) continue;
+      const forged = structuredClone(artifact);
+      forged.documents[target] = structuredClone(forged.documents[source]);
+      assert.equal(forged.documents.length, artifact.documents.length);
+      assert.equal(new Set(identities(forged)).size, 2);
+      assert.equal(
+        verifyProvenanceArtifact(rehash(forged), expectations()).status,
+        "INVALID",
+        `copy ${source} over ${target}`,
+      );
+    }
+});
+
+test("document set: omission, surplus entries and out-of-scope documents are invalid even re-hashed", async () => {
+  const artifact = await consistent();
+  const reject = (mutate, label) => {
+    const forged = structuredClone(artifact);
+    mutate(forged);
+    assert.equal(
+      verifyProvenanceArtifact(rehash(forged), expectations()).status,
+      "INVALID",
+      label,
+    );
+  };
+  for (const index of [0, 1, 2])
+    reject((a) => a.documents.splice(index, 1), `omit ${index}`);
+  reject(
+    (a) => a.documents.push(structuredClone(a.documents[0])),
+    "append copy",
+  );
+  reject((a) => (a.documents = []), "empty");
+  reject((a) => {
+    const extra = structuredClone(a.documents[0]);
+    extra.documentId = OUTSIDE_ID;
+    a.documents.push(extra);
+  }, "outside id appended");
+  reject(
+    (a) => (a.documents[2].documentId = OUTSIDE_ID),
+    "outside id replaces",
+  );
+  reject((a) => (a.documents[2].file = BRIEF), "wrong file for an id");
+  reject(
+    (a) => (a.documents[2].documentId = a.documents[1].documentId),
+    "id reused",
+  );
+  reject(
+    (a) => delete a.documents[1].conditions.factPlacement,
+    "condition removed",
+  );
+  reject((a) => (a.documents[1].extra = 1), "unknown document field");
+  reject((a) => (a.documents[1] = null), "null entry");
+  reject((a) => (a.documents = {}), "not an array");
+});
+
+test("document set: order does not matter and two documents may share a file name", async () => {
+  const artifact = await consistent();
+  // Policy and its separately-courseed copy are two valid identities of one file.
+  assert.equal(
+    identities(artifact).filter((i) => i.startsWith(`${POLICY}|`)).length,
+    2,
+  );
+  assert.equal(
+    verifyProvenanceArtifact(artifact, expectations()).status,
+    "BOUND",
+  );
+  for (const order of [
+    [2, 1, 0],
+    [1, 0, 2],
+    [2, 0, 1],
+  ]) {
+    const reordered = structuredClone(artifact);
+    reordered.documents = order.map((i) => artifact.documents[i]);
+    const result = verifyProvenanceArtifact(
+      rehash(reordered),
+      expectations({ observation: artifact }),
+    );
+    assert.equal(result.status, "BOUND", order.join());
+    assert.equal(result.currentness, "matches_observation", order.join());
+  }
+  // A reordered fresh observation is matched by identity, not position.
+  const fresh = structuredClone(await consistent());
+  fresh.documents.reverse();
+  assert.equal(
+    verifyProvenanceArtifact(
+      artifact,
+      expectations({ observation: rehash(fresh) }),
+    ).currentness,
+    "matches_observation",
+  );
+});
+
+test("observation: a malformed document set cannot produce matches_observation", async () => {
+  const artifact = await consistent();
+  const check = (mutate, label) => {
+    const bad = structuredClone(artifact);
+    mutate(bad);
+    const result = verifyProvenanceArtifact(
+      artifact,
+      expectations({ observation: rehash(bad) }),
+    );
+    assert.equal(result.status, "MISMATCH", label);
+    assert.notEqual(result.currentness, "matches_observation", label);
+    assert.ok(result.reasons.includes("OBSERVATION_INVALID"), label);
+  };
+  check((a) => (a.documents[1] = structuredClone(a.documents[0])), "duplicate");
+  check((a) => a.documents.pop(), "omission");
+  check((a) => a.documents.push(structuredClone(a.documents[0])), "surplus");
+  check((a) => (a.documents[2].documentId = OUTSIDE_ID), "outside");
+  for (const observation of [null, "{not json", {}, [], 7]) {
+    const result = verifyProvenanceArtifact(
+      artifact,
+      expectations({ observation }),
+    );
+    assert.equal(result.status, "MISMATCH");
+    assert.notEqual(result.currentness, "matches_observation");
+  }
+});
+
+test("observation: drift at any document is detected, including one a forged artifact tried to omit", async () => {
+  const artifact = await consistent();
+  for (const [file, id] of [
+    [BRIEF, IDS[BRIEF]],
+    [POLICY, IDS[POLICY]],
+    [POLICY, POLICY_COPY],
+  ]) {
+    const drifted = await good();
+    drifted.chunks.find((c) => c.documentId === id).embeddingSha256 =
+      VECTOR_SHA(`drift-${id}`);
+    const fresh = await run(drifted);
+    assert.equal(fresh.verdict, "OBSERVED_CONSISTENT");
+    const honest = verifyProvenanceArtifact(
+      artifact,
+      expectations({ observation: fresh }),
+    );
+    assert.equal(honest.status, "MISMATCH", `${file} ${id}`);
+    assert.ok(honest.reasons.includes("INDEX_FINGERPRINT_MISMATCH"));
+    // The same drift behind a forged duplicate/omission can never be BOUND.
+    for (const other of [0, 1, 2]) {
+      const target = artifact.documents.findIndex((d) => d.documentId === id);
+      if (other === target) continue;
+      const forged = structuredClone(artifact);
+      forged.documents[target] = structuredClone(forged.documents[other]);
+      const result = verifyProvenanceArtifact(
+        rehash(forged),
+        expectations({ observation: fresh }),
+      );
+      assert.notEqual(result.status, "BOUND", `${id} masked by ${other}`);
+      assert.notEqual(result.currentness, "matches_observation");
+    }
+  }
+});
+
+test("document set: positive controls keep their meaning", async () => {
+  const artifact = await consistent();
+  const pinned = verifyProvenanceArtifact(
+    artifact,
+    expectations({
+      expectedDigest: artifact.integrity.digest,
+      observation: await consistent(),
+    }),
+  );
+  assert.equal(pinned.status, "BOUND");
+  assert.equal(pinned.authenticity, "digest_pinned");
+  assert.equal(pinned.currentness, "matches_observation");
+  // An unauthenticated checksum alone is still accepted as bound-at-audit-time.
+  assert.equal(
+    verifyProvenanceArtifact(artifact, expectations()).authenticity,
+    "unauthenticated",
+  );
+  const bad = await good();
+  bad.documents[1].processingStatus = "failed";
+  const inconsistent = await run(bad);
+  assert.equal(
+    verifyProvenanceArtifact(inconsistent, expectations()).status,
+    "NOT_CONSISTENT",
+  );
+});
+
+test("document set: an unknown condition key on an entry is invalid even re-hashed", async () => {
+  const forged = structuredClone(await consistent());
+  forged.documents[0].conditions.invented = { status: "verified" };
+  assert.equal(
+    verifyProvenanceArtifact(rehash(forged), expectations()).status,
+    "INVALID",
+  );
+});

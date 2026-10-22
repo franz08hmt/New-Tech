@@ -1050,11 +1050,68 @@ const ARTIFACT_KEYS = [
 ];
 const VERDICTS = ["OBSERVED_CONSISTENT", "INCONSISTENT", "INCONCLUSIVE"];
 
+const identities = (artifact) =>
+  artifact.documents.map((d) => JSON.stringify([d.file, d.documentId])).sort();
+
 const sameKeys = (value, keys) =>
   value &&
   typeof value === "object" &&
   !Array.isArray(value) &&
   Object.keys(value).sort().join() === [...keys].sort().join();
+
+const DOCUMENT_KEYS = [
+  "file",
+  "documentId",
+  "storageKeySha256",
+  "storage",
+  "index",
+  "conditions",
+  "verdict",
+];
+
+/**
+ * The audited documents must be exactly the identities the mapping and scopes
+ * imply: same cardinality, no repeated identity, none missing, none outside.
+ * An identity is the pair (file, documentId): a policy and its separately
+ * courseed copy share a file name and are two valid identities.
+ */
+function documentSetMatches(artifact) {
+  const key = (file, id) => JSON.stringify([file, id]);
+  const expected = new Set();
+  const addAll = (documents) => {
+    if (!documents || typeof documents !== "object" || Array.isArray(documents))
+      return false;
+    for (const [file, id] of Object.entries(documents)) {
+      if (typeof id !== "string" || !uuid.test(id)) return false;
+      expected.add(key(file, id));
+    }
+    return true;
+  };
+  if (!addAll(artifact.mapping?.documents)) return false;
+  if (!Array.isArray(artifact.scopes)) return false;
+  for (const scope of artifact.scopes)
+    if (!addAll(scope?.documents)) return false;
+  // One document id audits as one file, as the request builder enforces.
+  const expectedIds = [...expected].map((entry) => JSON.parse(entry)[1]);
+  if (new Set(expectedIds).size !== expected.size) return false;
+  if (!Array.isArray(artifact.documents)) return false;
+  const actual = [];
+  for (const entry of artifact.documents) {
+    if (!sameKeys(entry, DOCUMENT_KEYS)) return false;
+    if (!sameKeys(entry.conditions, CONDITION_NAMES)) return false;
+    if (typeof entry.file !== "string" || typeof entry.documentId !== "string")
+      return false;
+    actual.push(key(entry.file, entry.documentId));
+  }
+  // Three independent facts that together mean one-to-one: no identity is
+  // repeated, the counts agree, and every audited identity is an expected one.
+  // (Distinct + same count + subset leaves no expected identity uncovered.)
+  return (
+    new Set(actual).size === actual.length &&
+    actual.length === expected.size &&
+    actual.every((identity) => expected.has(identity))
+  );
+}
 
 function parseArtifact(input) {
   let artifact = input;
@@ -1093,19 +1150,8 @@ function parseArtifact(input) {
   )
     return { reason: "SCHEMA_REJECTED" };
   // The audited document set must be exactly the one the mapping and scopes imply.
-  const expectedPairs = new Set();
   try {
-    for (const [file, id] of Object.entries(artifact.mapping.documents))
-      expectedPairs.add(`${file}|${id}`);
-    for (const scope of artifact.scopes)
-      for (const [file, id] of Object.entries(scope.documents))
-        expectedPairs.add(`${file}|${id}`);
-    const actual = artifact.documents.map((d) => `${d.file}|${d.documentId}`);
-    if (
-      actual.length !== expectedPairs.size ||
-      actual.some((p) => !expectedPairs.has(p))
-    )
-      return { reason: "SCHEMA_REJECTED" };
+    if (!documentSetMatches(artifact)) return { reason: "SCHEMA_REJECTED" };
     if (artifact.documents.some((d) => !VERDICTS.includes(d.verdict)))
       return { reason: "SCHEMA_REJECTED" };
     if (deriveVerdict(artifact) !== artifact.verdict)
@@ -1217,6 +1263,15 @@ export function verifyProvenanceArtifact(input, expectations) {
       for (const part of ["manifest", "corpus", "mapping", "scopes"])
         if (canonicalJson(other[part]) !== canonicalJson(artifact[part]))
           reasons.push(`${part.toUpperCase()}_MISMATCH`);
+      // Both sides were validated to hold exactly the mapped identities; the
+      // sets are compared again so a gap can never be skipped by iteration.
+      const left = identities(artifact);
+      const right = identities(other);
+      if (
+        left.length !== right.length ||
+        left.some((identity, i) => identity !== right[i])
+      )
+        reasons.push("DOCUMENT_SET_MISMATCH");
       for (const mine of artifact.documents) {
         const theirs = other.documents.find(
           (d) => d.file === mine.file && d.documentId === mine.documentId,
