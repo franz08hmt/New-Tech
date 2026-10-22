@@ -4,6 +4,7 @@ import { promises as nodeFs } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { testArtifacts } from "./test-artifacts.mjs";
 import {
@@ -554,6 +555,437 @@ const ID_A = "11111111-1111-4111-8111-111111111111";
 const ID_B = "22222222-2222-4222-8222-222222222222";
 const ID_C = "33333333-3333-4333-8333-333333333333";
 const WRITES = ["open", "rename", "unlink", "link"];
+
+// F09-B.1.3: retain real filesystem evidence, including unsuccessful preparations.
+async function markerLedgerDirectory() {
+  const dir = fileURLToPath(
+    new URL(
+      `../../../artifacts/f09b13-marker-tests/${randomUUID()}/`,
+      import.meta.url,
+    ),
+  );
+  await mkdir(dir, { recursive: true });
+  return { dir, planSha256: "d".repeat(64) };
+}
+const markerPath = (path) =>
+  /(?:release|unknown)[.]\d+[.]json$/.test(String(path));
+const ioFailure = () =>
+  Object.assign(new Error("Synthetic marker I/O failure"), { code: "EIO" });
+
+for (const outcome of ["completed", "unknown_after_dispatch"]) {
+  test(`F09-B.1.3 ${outcome} a lost acknowledgement after link does not replay publication`, async () => {
+    const setup = await markerLedgerDirectory();
+    let publications = 0;
+    const fs = {
+      ...nodeFs,
+      link: async (from, to) => {
+        publications++;
+        await nodeFs.link(from, to);
+        throw ioFailure();
+      },
+    };
+    const lease = await createPlanLedger({ ...setup, fs }).reserve({
+      runId: ID_A,
+      acknowledged: [],
+    });
+    assert.deepEqual(await lease.finish({ outcome }), {
+      outcomeRecorded: true,
+      released: false,
+    });
+    assert.equal(publications, 1, "no retry on uncertain acknowledgement");
+    const reader = createPlanLedger(setup);
+    // The atomic on-disk commit, not a lost function return, determines state.
+    assert.equal(
+      (await reader.inspect())?.state ?? "released",
+      outcome === "completed" ? "released" : "finished_unknown",
+    );
+    await reader.reserve({ runId: ID_B, acknowledged: [ID_A] });
+    await assert.rejects(
+      reader.reserve({ runId: ID_C, acknowledged: [ID_A, ID_B] }),
+      { code: "HTTP_EVALUATION_PLAN_RESERVED" },
+    );
+    assert.equal(publications, 1);
+  });
+  for (const boundary of ["synced", "published"]) {
+    test(
+      `F09-B.1.3 real process crash ${boundary} for ${outcome} follows the publication commit point`,
+      { timeout: 15000 },
+      async (t) => {
+        const setup = await markerLedgerDirectory();
+        const child = spawn(
+          process.execPath,
+          [
+            fileURLToPath(
+              new URL(
+                "./fixtures/evaluation-marker-child.mjs",
+                import.meta.url,
+              ),
+            ),
+          ],
+          {
+            env: {
+              ...process.env,
+              F09_MARKER_CHILD: JSON.stringify({
+                ...setup,
+                runId: ID_A,
+                outcome,
+                boundary,
+              }),
+            },
+            stdio: ["ignore", "ignore", "ignore", "ipc"],
+          },
+        );
+        const exited = new Promise((r) => child.once("exit", r));
+        t.after(async () => {
+          if (child.exitCode === null && child.signalCode === null)
+            child.kill("SIGKILL");
+          await exited;
+        });
+        await new Promise((done, reject) => {
+          child.once("message", (message) => {
+            assert.equal(message.boundary, boundary);
+            done();
+          });
+          child.once("error", reject);
+          child.once("exit", (code) =>
+            reject(new Error(`Child exited before barrier: ${code}`)),
+          );
+        });
+        const kind = outcome === "completed" ? "release" : "unknown";
+        const names = await readdir(resolve(setup.dir, setup.planSha256));
+        assert.equal(
+          names.includes(`${kind}.0000000001.json`),
+          boundary === "published",
+        );
+        child.kill("SIGKILL");
+        await exited;
+        const reader = createPlanLedger(setup);
+        assert.equal(
+          (await reader.inspect())?.state ?? "released",
+          boundary === "synced"
+            ? "dispatching"
+            : outcome === "completed"
+              ? "released"
+              : "finished_unknown",
+        );
+        await assert.rejects(reader.precheck({ acknowledged: [] }));
+        // An unpublished preparation grants no recovery right: only the existing
+        // dead-process + explicit acknowledgement policy permits this takeover.
+        await reader.reserve({ runId: ID_B, acknowledged: [ID_A] });
+        await assert.rejects(
+          reader.reserve({ runId: ID_C, acknowledged: [ID_A, ID_B] }),
+          { code: "HTTP_EVALUATION_PLAN_RESERVED" },
+        );
+        assert.equal((await reader.inspect()).runId, ID_B);
+      },
+    );
+  }
+  test(`F09-B.1.3 ${outcome} synced and closed preparation is not published until exclusive link`, async () => {
+    const setup = await markerLedgerDirectory();
+    let reached, resume;
+    const gate = new Promise((r) => (reached = r)),
+      wait = new Promise((r) => (resume = r));
+    const fs = {
+      ...nodeFs,
+      link: async (from, to) => {
+        reached();
+        await wait;
+        return nodeFs.link(from, to);
+      },
+    };
+    const lease = await createPlanLedger({ ...setup, fs }).reserve({
+      runId: ID_A,
+      acknowledged: [],
+    });
+    const finishing = lease.finish({ outcome });
+    await gate;
+    const reader = createPlanLedger(setup);
+    try {
+      await assert.rejects(
+        reader.reserve({ runId: ID_B, acknowledged: [ID_A] }),
+        { code: "HTTP_EVALUATION_PLAN_RESERVED" },
+      );
+      assert.equal((await reader.inspect()).state, "dispatching");
+    } finally {
+      resume();
+      await finishing;
+    }
+    await reader.reserve({ runId: ID_B, acknowledged: [ID_A] });
+    await assert.rejects(
+      reader.reserve({ runId: ID_C, acknowledged: [ID_A, ID_B] }),
+      { code: "HTTP_EVALUATION_PLAN_RESERVED" },
+    );
+  });
+  for (const stage of [
+    "empty-write",
+    "partial-write",
+    "sync",
+    "close",
+    "publication",
+  ]) {
+    test(`F09-B.1.3 ${outcome} ${stage} failure cannot authorize a successor`, async () => {
+      const setup = await markerLedgerDirectory();
+      let preparedPath,
+        publicationState,
+        synced = false,
+        closed = false;
+      const fs = {
+        ...nodeFs,
+        open: async (path, ...args) => {
+          const handle = await nodeFs.open(path, ...args); // real wx creates an actual file
+          if (!markerPath(path)) return handle;
+          preparedPath = path;
+          return {
+            writeFile: async (text) => {
+              if (stage === "empty-write") throw ioFailure();
+              if (stage === "partial-write") {
+                await handle.writeFile(text.slice(0, 9));
+                throw ioFailure();
+              }
+              await handle.writeFile(text);
+            },
+            sync: async () => {
+              if (stage === "sync") throw ioFailure();
+              await handle.sync();
+              synced = true;
+            },
+            close: async () => {
+              await handle.close();
+              closed = true;
+              if (stage === "close") throw ioFailure();
+            },
+          };
+        },
+        link: async (from, to) => {
+          // Observe ordering without throwing: an assertion here would itself
+          // prevent an unsafe publish and hide a swallowed-sync mutation.
+          publicationState = { synced, closed };
+          if (stage === "publication") throw ioFailure();
+          return nodeFs.link(from, to);
+        },
+      };
+      const writer = createPlanLedger({ ...setup, fs });
+      const lease = await writer.reserve({ runId: ID_A, acknowledged: [] });
+      assert.deepEqual(await lease.finish({ outcome }), {
+        outcomeRecorded: true,
+        released: false,
+      });
+      assert.ok(preparedPath);
+      const bytes = await readFile(preparedPath, "utf8");
+      if (stage === "empty-write") assert.equal(bytes, "");
+      if (stage === "partial-write") assert.equal(bytes.length, 9);
+      const reader = createPlanLedger(setup);
+      await assert.rejects(
+        reader.reserve({ runId: ID_B, acknowledged: [ID_A] }),
+        (error) =>
+          [
+            "HTTP_EVALUATION_PLAN_RESERVED",
+            "HTTP_EVALUATION_LEDGER_UNAVAILABLE",
+          ].includes(error.code),
+      );
+      const names = await readdir(resolve(setup.dir, setup.planSha256));
+      assert.equal(names.filter((n) => n.startsWith("lock.")).length, 1);
+      assert.ok(
+        !names.includes(`${ID_B}.intent.json`),
+        "no successor may dispatch",
+      );
+      if (stage === "publication")
+        assert.deepEqual(publicationState, { synced: true, closed: true });
+    });
+  }
+  test(`F09-B.1.3 ${outcome} reader sees no publication while sync is pending`, async () => {
+    const setup = await markerLedgerDirectory();
+    let reached, resume;
+    const gate = new Promise((r) => (reached = r)),
+      wait = new Promise((r) => (resume = r));
+    const fs = {
+      ...nodeFs,
+      open: async (path, ...args) => {
+        const handle = await nodeFs.open(path, ...args);
+        if (!markerPath(path)) return handle;
+        return {
+          writeFile: (text) => handle.writeFile(text),
+          close: () => handle.close(),
+          sync: async () => {
+            reached();
+            await wait;
+            await handle.sync();
+          },
+        };
+      },
+    };
+    const writer = createPlanLedger({ ...setup, fs });
+    const lease = await writer.reserve({ runId: ID_A, acknowledged: [] });
+    const finishing = lease.finish({ outcome });
+    await gate;
+    const reader = createPlanLedger(setup);
+    try {
+      await assert.rejects(
+        reader.reserve({ runId: ID_B, acknowledged: [ID_A] }),
+        { code: "HTTP_EVALUATION_PLAN_RESERVED" },
+      );
+      assert.equal((await reader.inspect()).state, "dispatching");
+    } finally {
+      resume();
+      await finishing;
+    }
+    assert.equal(
+      (await reader.inspect())?.state ?? "released",
+      outcome === "completed" ? "released" : "finished_unknown",
+    );
+  });
+  for (const [label, damage] of [
+    ["empty", () => ""],
+    ["partial JSON", () => "{"],
+    ["null", () => "null"],
+    ["wrong kind", (m) => JSON.stringify({ ...m, kind: "other" })],
+    ["wrong sequence", (m) => JSON.stringify({ ...m, seq: 2 })],
+    ["wrong owner", (m) => JSON.stringify({ ...m, runId: ID_C })],
+    ["wrong plan", (m) => JSON.stringify({ ...m, planSha256: "f".repeat(64) })],
+    [
+      "legacy protocol",
+      (m) => {
+        const { publication, ...rest } = m;
+        return JSON.stringify(rest);
+      },
+    ],
+  ]) {
+    test(`F09-B.1.3 ${outcome} invalid ${label} marker fails closed`, async () => {
+      const setup = await markerLedgerDirectory();
+      const writer = createPlanLedger(setup);
+      const lease = await writer.reserve({ runId: ID_A, acknowledged: [] });
+      await lease.finish({ outcome });
+      const kind = outcome === "completed" ? "release" : "unknown";
+      const path = resolve(
+        setup.dir,
+        setup.planSha256,
+        `${kind}.0000000001.json`,
+      );
+      const original = JSON.parse(await readFile(path, "utf8"));
+      // Test-only corruption of actual bytes, never a production ledger write.
+      await writeFile(path, damage(original));
+      const reader = createPlanLedger(setup);
+      await assert.rejects(
+        reader.reserve({ runId: ID_B, acknowledged: [ID_A] }),
+        { code: "HTTP_EVALUATION_LEDGER_UNAVAILABLE" },
+      );
+      assert.equal(
+        (await readdir(resolve(setup.dir, setup.planSha256))).filter((n) =>
+          n.startsWith("lock."),
+        ).length,
+        1,
+      );
+    });
+  }
+  test(`F09-B.1.3 ${outcome} unreadable published marker fails closed`, async () => {
+    const setup = await markerLedgerDirectory();
+    const lease = await createPlanLedger(setup).reserve({
+      runId: ID_A,
+      acknowledged: [],
+    });
+    await lease.finish({ outcome });
+    const fs = {
+      ...nodeFs,
+      readFile: async (path, ...args) => {
+        if (markerPath(path)) throw ioFailure();
+        return nodeFs.readFile(path, ...args);
+      },
+    };
+    await assert.rejects(
+      createPlanLedger({ ...setup, fs }).reserve({
+        runId: ID_B,
+        acknowledged: [ID_A],
+      }),
+      { code: "HTTP_EVALUATION_LEDGER_UNAVAILABLE" },
+    );
+  });
+}
+
+test("F09-B.1.3 valid JSON copied without a published hard link cannot release", async () => {
+  const original = await markerLedgerDirectory();
+  const originalLease = await createPlanLedger(original).reserve({
+    runId: ID_A,
+    acknowledged: [],
+  });
+  await originalLease.finish({ outcome: "completed" });
+  const bytes = await readFile(
+    resolve(original.dir, original.planSha256, "release.0000000001.json"),
+  );
+  const copied = await markerLedgerDirectory();
+  await createPlanLedger(copied).reserve({ runId: ID_A, acknowledged: [] });
+  const base = resolve(copied.dir, copied.planSha256);
+  await mkdir(resolve(base, `.prepare.${ID_A}`));
+  await writeFile(
+    resolve(base, `.prepare.${ID_A}`, "release.0000000001.json"),
+    bytes,
+    { flag: "wx" },
+  );
+  await writeFile(resolve(base, "release.0000000001.json"), bytes, {
+    flag: "wx",
+  });
+  await assert.rejects(
+    createPlanLedger(copied).reserve({ runId: ID_B, acknowledged: [ID_A] }),
+    { code: "HTTP_EVALUATION_LEDGER_UNAVAILABLE" },
+  );
+});
+
+test("F09-B.1.3 exclusive publication cannot overwrite an existing marker", async () => {
+  const setup = await markerLedgerDirectory();
+  const collision = "Existing unrelated publication evidence";
+  const fs = {
+    ...nodeFs,
+    link: async (from, to) => {
+      await writeFile(to, collision, { flag: "wx" });
+      return nodeFs.link(from, to);
+    },
+  };
+  const lease = await createPlanLedger({ ...setup, fs }).reserve({
+    runId: ID_A,
+    acknowledged: [],
+  });
+  assert.equal((await lease.finish({ outcome: "completed" })).released, false);
+  assert.equal(
+    await readFile(
+      resolve(setup.dir, setup.planSha256, "release.0000000001.json"),
+      "utf8",
+    ),
+    collision,
+  );
+  await assert.rejects(
+    createPlanLedger(setup).reserve({ runId: ID_B, acknowledged: [ID_A] }),
+    { code: "HTTP_EVALUATION_LEDGER_UNAVAILABLE" },
+  );
+});
+
+test("F09-B.1.3 unreadable file identity or conflicting markers keep the plan closed", async () => {
+  const setup = await markerLedgerDirectory();
+  const lease = await createPlanLedger(setup).reserve({
+    runId: ID_A,
+    acknowledged: [],
+  });
+  await lease.finish({ outcome: "completed" });
+  const fs = {
+    ...nodeFs,
+    lstat: async () => {
+      throw ioFailure();
+    },
+  };
+  await assert.rejects(
+    createPlanLedger({ ...setup, fs }).reserve({
+      runId: ID_B,
+      acknowledged: [ID_A],
+    }),
+    { code: "HTTP_EVALUATION_LEDGER_UNAVAILABLE" },
+  );
+  await writeFile(
+    resolve(setup.dir, setup.planSha256, "unknown.0000000001.json"),
+    "{}",
+  );
+  await assert.rejects(
+    createPlanLedger(setup).reserve({ runId: ID_B, acknowledged: [ID_A] }),
+    { code: "HTTP_EVALUATION_LEDGER_UNAVAILABLE" },
+  );
+});
 
 /** Pauses a ledger right after its outcome file is written, before the first
  * further write: the point where a run is finishing but has not yet released. */

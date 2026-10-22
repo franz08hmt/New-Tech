@@ -17,6 +17,9 @@ import {
  *   release.<n>.json       marker: record n ended with every response received;
  *   unknown.<n>.json       marker: record n ended with an outcome unknown after
  *                          dispatch (or a runner exception);
+ *   .prepare.<runId>/     immutable marker preparations, including failed ones;
+ *                          a final marker is an exclusive hard link published
+ *                          only after its preparation was written, synced, closed;
  *   <runId>.intent.json    written and synced BEFORE the first generation POST;
  *   <runId>.outcome.json   completed or unknown_after_dispatch.
  *
@@ -30,8 +33,9 @@ import {
  * - I3 A marker is addressed to one record number and written by that record's
  *   owner, who knows its number; it can only affect that record. A superseded
  *   owner that finishes late therefore only annotates its own old record.
- * - I4 The latest record is active unless release.<n> exists. A crash leaves no
- *   marker, so the plan stays closed. Nothing is decided from a clock.
+ * - I4 Only a validated published marker affects the latest record. A prepared
+ *   file, corrupt/unreadable marker or failed publication cannot release it.
+ *   Nothing is decided from a clock.
  * - I5 Decisions use a directory listing that can only be stale in one direction:
  *   markers and records are only ever added, so a stale view can refuse a run that
  *   could have proceeded, never admit one that must wait; the exclusive create of
@@ -44,8 +48,9 @@ import {
  *   naming that run (the operator checks the server's own records first);
  * - a crash leaves record n with no marker; it can be taken over only with the
  *   acknowledgement AND proof the holder is gone (same host, pid not alive);
- * - a holder that is alive can never be taken over, with or without an
- *   acknowledgement; a refused or failed attempt before dispatch writes
+ * - an unfinished holder that is alive cannot be taken over, even with an
+ *   acknowledgement; a published finished_unknown uses the policy above.
+ *   A refused or failed attempt before dispatch writes
  *   release.<n> for its own record and leaves no history;
  * - any read or write failure, an unreadable or half-written record, or a record
  *   in the former single-file layout (active.json) refuses the dispatch.
@@ -56,6 +61,7 @@ const unavailable = () => new HttpEvaluationError(LEDGER_UNAVAILABLE);
 const reserved = () => new HttpEvaluationError(PLAN_RESERVED);
 const number = (n) => String(n).padStart(10, "0");
 const MAX_ATTEMPTS = 5;
+const MARKER_PUBLICATION = "synced-hardlink-v1";
 
 function processAlive(pid) {
   try {
@@ -75,6 +81,8 @@ export function createPlanLedger({
 }) {
   const planDir = resolve(dir, planSha256);
   const file = (name) => resolve(planDir, name);
+  const preparation = (kind, n, runId) =>
+    resolve(file(`.prepare.${runId}`), `${kind}.${number(n)}.json`);
 
   async function exclusive(path, text) {
     const handle = await fs.open(path, "wx");
@@ -122,18 +130,55 @@ export function createPlanLedger({
   async function holderOf(view) {
     // A reservation left by the former single-file layout is not understood here.
     if (view.names.has("active.json")) throw reserved();
-    if (
-      view.latest === 0 ||
-      view.names.has(`release.${number(view.latest)}.json`)
-    )
-      return null;
+    if (view.latest === 0) return null;
     const record = await readRecord(view.latest);
+    const released = view.names.has(`release.${number(view.latest)}.json`);
+    const unknown = view.names.has(`unknown.${number(view.latest)}.json`);
+    if (released && unknown) throw unavailable();
+    if (released || unknown) {
+      await validateMarker(released ? "release" : "unknown", record);
+      if (released) return null;
+    }
     return {
       ...record,
-      state: view.names.has(`unknown.${number(view.latest)}.json`)
-        ? "finished_unknown"
-        : "dispatching",
+      state: unknown ? "finished_unknown" : "dispatching",
     };
+  }
+  async function validateMarker(kind, record) {
+    try {
+      const path = file(`${kind}.${number(record.seq)}.json`);
+      const value = JSON.parse(await fs.readFile(path, "utf8"));
+      if (
+        !value ||
+        Array.isArray(value) ||
+        value.publication !== MARKER_PUBLICATION ||
+        value.planSha256 !== planSha256 ||
+        value.kind !== kind ||
+        value.seq !== record.seq ||
+        value.runId !== record.runId ||
+        typeof value.at !== "string" ||
+        !Number.isFinite(Date.parse(value.at))
+      )
+        throw unavailable();
+      // A JSON file alone is not proof of publication: it must still be the
+      // same regular file as the closed, synced preparation (NTFS file ID).
+      const [published, prepared] = await Promise.all([
+        fs.lstat(path, { bigint: true }),
+        fs.lstat(preparation(kind, record.seq, record.runId), { bigint: true }),
+      ]);
+      if (
+        !published.isFile() ||
+        !prepared.isFile() ||
+        published.ino === 0n ||
+        published.ino !== prepared.ino ||
+        published.dev !== prepared.dev ||
+        published.nlink < 2n ||
+        prepared.nlink < 2n
+      )
+        throw unavailable();
+    } catch {
+      throw unavailable();
+    }
   }
   async function history() {
     const ids = [];
@@ -165,11 +210,25 @@ export function createPlanLedger({
     return holder.host === hostname() && !isProcessAlive(holder.pid);
   }
   async function marker(kind, n, runId) {
+    const prepared = preparation(kind, n, runId);
+    await fs.mkdir(file(`.prepare.${runId}`), { recursive: true });
     await exclusive(
-      file(`${kind}.${number(n)}.json`),
-      JSON.stringify({ kind, seq: n, runId, at: new Date().toISOString() }) +
-        "\n",
+      prepared,
+      JSON.stringify({
+        publication: MARKER_PUBLICATION,
+        planSha256,
+        kind,
+        seq: n,
+        runId,
+        at: new Date().toISOString(),
+      }) + "\n",
     );
+    // Commit point: atomic, no-replace addition of the public name on the same
+    // filesystem. Do not rename (Windows replacement semantics), rewrite or
+    // remove anything. A crash after this link has published a complete marker;
+    // before it, only a preparation exists. Directory power-loss durability is
+    // not claimed: Node cannot fsync NTFS directories on this supported path.
+    await fs.link(prepared, file(`${kind}.${number(n)}.json`));
   }
 
   return {
@@ -288,7 +347,8 @@ export function createPlanLedger({
             );
             result.released = outcome === "completed";
           } catch {
-            /* No marker was written: the reservation stays and the plan is closed. */
+            /* No successful publication acknowledged. A valid public hard link
+             * is the commit record; absent/invalid publication keeps it closed. */
           }
           return result;
         },

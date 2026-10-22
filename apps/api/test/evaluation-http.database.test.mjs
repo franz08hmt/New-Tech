@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { promises as nodeFs } from "node:fs";
 import test from "node:test";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -398,6 +399,124 @@ test("F09-B.1 authenticated HTTP evaluation through the real Nest/PG17 stack", a
     "the winner released its reservation",
   );
 
+  // 12. Real SDK work is finished on the server, but a marker write fails after
+  // wx created its preparation. An acknowledged rerun must not dispatch again.
+  const markerFaults = [];
+  for (const [caseId, outcome] of [
+    ["E03", "completed"],
+    ["E07", "unknown_after_dispatch"],
+  ]) {
+    const plan = await run(`marker-plan-${caseId}`, "peer", ["--only", caseId]);
+    const markerHash = plan.report.planSha256;
+    let failedPreparation;
+    const ledgerFs = {
+      ...nodeFs,
+      open: async (path, ...args) => {
+        const handle = await nodeFs.open(path, ...args);
+        if (!/(?:release|unknown)[.]\d+[.]json$/.test(String(path)))
+          return handle;
+        failedPreparation = path;
+        return {
+          writeFile: async () => {
+            throw Object.assign(new Error("Synthetic EIO after real wx"), {
+              code: "EIO",
+            });
+          },
+          sync: () => handle.sync(),
+          close: () => handle.close(),
+        };
+      },
+    };
+    const beforeFault = await counters();
+    const invoke = [
+      "--only",
+      caseId,
+      "--execute",
+      "--credentials-stdin",
+      "--approve-plan",
+      markerHash,
+    ];
+    const result = await run(`marker-failed-${caseId}`, "peer", invoke, {
+      deps: {
+        ledgerFs,
+        provenanceVerifier: (input) => runtime.verifyCorpus(input.plan),
+        fetchImpl: async (...args) => {
+          const response = await globalThis.fetch(...args);
+          if (
+            outcome !== "unknown_after_dispatch" ||
+            !new URL(args[0]).pathname.endsWith("/assistant/chat")
+          )
+            return response;
+          return new Proxy(response, {
+            get(target, key) {
+              if (key === "text")
+                return async () => {
+                  await target.text();
+                  throw new Error("Synthetic loss of response body");
+                };
+              const value = Reflect.get(target, key, target);
+              return typeof value === "function" ? value.bind(target) : value;
+            },
+          });
+        },
+      },
+    });
+    assert.equal(
+      result.report.execution?.reservation,
+      "acquired",
+      JSON.stringify(result.report.results.map((r) => r.assessment.reason)),
+    );
+    assert.equal(result.report.execution.outcome, outcome);
+    assert.equal(result.report.execution.outcomeRecorded, true);
+    assert.equal(result.report.execution.released, false);
+    assert.equal(await readFile(failedPreparation, "utf8"), "");
+    const markerDir = resolve(root, retained, "ledger", markerHash);
+    const [intent] = (await readdir(markerDir)).filter((n) =>
+      n.endsWith(".intent.json"),
+    );
+    const priorRun = intent.slice(0, -".intent.json".length);
+    const afterFault = await counters();
+    assert.deepEqual(
+      {
+        embedding: afterFault.sdk.embedding - beforeFault.sdk.embedding,
+        generation: afterFault.sdk.generation - beforeFault.sdk.generation,
+        persisted: afterFault.persisted - beforeFault.persisted,
+        receipts: afterFault.receipts - beforeFault.receipts,
+      },
+      { embedding: 1, generation: 1, persisted: 2, receipts: 1 },
+    );
+    await assert.rejects(
+      run(
+        `marker-rerun-${caseId}`,
+        "peer",
+        [...invoke, "--rerun-acknowledged", priorRun],
+        {
+          deps: {
+            provenanceVerifier: (input) => runtime.verifyCorpus(input.plan),
+          },
+        },
+      ),
+      { code: "HTTP_EVALUATION_PLAN_RESERVED" },
+    );
+    assert.deepEqual(
+      await counters(),
+      afterFault,
+      "marker failure cannot trigger a duplicate dispatch",
+    );
+    assert.equal(
+      (await readdir(markerDir)).filter((n) => n.startsWith("lock.")).length,
+      1,
+    );
+    await noSecrets(result);
+    markerFaults.push({
+      caseId,
+      outcome,
+      rerun: "HTTP_EVALUATION_PLAN_RESERVED",
+      providerCalls: 2,
+      receipts: 1,
+    });
+  }
+
   const summary = {
     retained,
     steps,
@@ -407,6 +526,7 @@ test("F09-B.1 authenticated HTTP evaluation through the real Nest/PG17 stack", a
     },
     persistedProviderCalls: after.persisted - before.persisted,
     raceProviderCalls: afterRace.persisted - beforeRace.persisted,
+    markerFaults,
     raceChildren: raced.map((r) => r.out),
     receipts: after.receipts - before.receipts,
     statuses: status,
