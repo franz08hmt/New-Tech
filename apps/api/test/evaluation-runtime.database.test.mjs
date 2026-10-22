@@ -66,6 +66,13 @@ test("F09-A authenticated Nest/PG17 runtime executes fixed cases with real RLS/a
   assert.ok(pack.cases.some((c) => c.output.questions));
   assert.ok(pack.cases.some((c) => c.output.cards));
   assert.ok(pack.cases.some((c) => c.output.answer));
+  assert.ok(
+    pack.cases.some(
+      (c) =>
+        c.output.question ===
+        "What is the approved fictional project codename?",
+    ),
+  );
   assert.ok(pack.cases.every((c) => c.reviewer === "" && c.decision === null));
   const persisted = JSON.stringify({ report, pack });
   for (const sentinel of [
