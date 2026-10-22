@@ -44,8 +44,8 @@ quality / HTTP / reservation / provenance / planner 448/448; PG17 integration 6/
 (manager, viewer, foreign, revoked, expired sessions; wrong course sets; forged and
 drifted provenance; execute refusal with zero requests) with every table unchanged
 except Auth session bookkeeping (`pilot_sessions`, `pilot_auth_limits`), SDK and
-persisted provider calls and receipts unchanged. 29 mutants over planner,
-orchestrator and validator killed; one equivalent (the generation counter, which no
+persisted provider calls and receipts unchanged. 26 mutants over planner,
+orchestrator and validator: 25 killed, one equivalent (the generation counter, which no
 code path in this mode can increment). typecheck, build, format, `npm test`
 (457 + 1,272 + 544 = 2,273) and full `test:database` (499/499, 48 files, own guarded
 PG17) exit 0. Limits: the integration index is written with the production

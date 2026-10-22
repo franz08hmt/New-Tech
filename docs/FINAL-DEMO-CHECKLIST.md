@@ -446,7 +446,7 @@ the separate F08-B checkpoint below.
       http 16, provenance 40, focused 448/448; PG17 integration 6/6 across manager,
       viewer, foreign, revoked, expired sessions, wrong course sets, forged/drifted
       provenance, execute refusal; only Auth bookkeeping tables changed.
-- [x] 29 mutants killed (one equivalent). Source `1e1dd08`: typecheck, build, format,
+- [x] 26 mutants: 25 killed, one equivalent. Source `1e1dd08`: typecheck, build, format,
       `npm test` 2,273 (457+1,272+544), full `test:database` 499/499 in 48 files —
       new runs, exit 0.
 - [x] `F09-B.2B.2_CODE_VERIFIED + LOCAL_PREFLIGHT_VERIFIED + EXECUTION_BLOCKED`.
