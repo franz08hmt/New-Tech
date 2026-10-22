@@ -436,6 +436,24 @@ the separate F08-B checkpoint below.
 - [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
       cloud rollout, Google live and Thắng's machine are unchanged.
 
+## F09-B.2B.5 — one-batch executor (22/10/2026)
+
+- [x] Core executor for exactly one batch: exact approval binding (suite, plan, batch, order,
+      requests, target, limits), injected authorizer and target-equivalence, pinned and current
+      provenance, existing ledger keyed per batch with the intent before the first POST, one POST
+      per case, stop on blocking outcome, unknown outcome never replayed, no next batch.
+- [x] CLI `--execute --batch --approval` fail-closed: no authorizer or equivalence in the CLI, so
+      refused before credentials; no flag skips a prerequisite (source scan + parser tests).
+- [x] Unit 14/14 incl. two real processes (one dispatch) and a runner failure recorded unknown;
+      19 mutants killed. Nest/PG17 integration 8/8: positive control over HTTP with counters,
+      SDK calls, persisted usage and receipts reconciled; refused batch costs nothing; provider
+      outage stops the batch. Source `7a17db3`: typecheck/build/format exit 0, `npm test` 2,298,
+      `test:database` 520/520 in 50 files.
+- [ ] Not live: test authorizer/equivalence are fixtures, no human approval, no real model or
+      account. Needs approved gold, a trusted target-equivalence proof, a quota/budget decision
+      and a real audit. `GOLD_REVIEW_PENDING`, `LIVE_EVALUATION_PENDING`,
+      `SEMANTIC_REVIEW_PENDING` unchanged.
+
 ## F09-B.2B.4 — quality suite v2 draft (22/10/2026)
 
 - [x] `rag-quality-20261022-v2` drafted from the AI review (14 cases reworded or

@@ -1239,3 +1239,19 @@ and 512 DB tests were not re-run by this reviewer. No production source, suite o
 gold was changed, no human approval fabricated, and no real model call, credential
 read, cloud write or push performed. The review-owned disposable container was
 removed after checking its ownership label; legacy resources were untouched.
+
+## 2026-10-22 — F09-B.2B.5 one-batch executor
+
+AI assistance read the HTTP transport, planner, provenance verifier, evaluator and ledger, then
+wrote tests first (RED = missing module) and the executor. Two of my first test expectations were
+wrong, not the code (a policy scope the batch does not use cannot block it; a word match on
+"enforced"), and one two-process test was timing-dependent until its client deadline was set
+above the gate hold; all were corrected in the test. Mutation checks showed a CLI path that would
+have supplied a permissive default and a missing "authorizer alone is not enough" test; the
+second was added. The Nest/PG17 positive control reconciles request counters, SDK calls,
+persisted usage and receipts.
+
+Source `7a17db3`: unit 14/14, integration 8/8, `npm test` 2,298, full `test:database`
+520/520 (50 files, own guarded container), typecheck/build/format exit 0. No real model,
+account, secret, cloud write, push or deploy. The test authorizer is not a human approval;
+gold review, live evaluation and semantic review stay pending.

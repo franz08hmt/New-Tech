@@ -176,6 +176,15 @@ applies the AI review's corrections without touching v1, the corpus or any gold 
 `--quality-suite docs/evaluation-quality-cases-v2.json` on the quality mode. Approval
 still needs the reviewers named in the pack; the AI proposal is not an approval.
 
+F09-B.2B.5 (source `7a17db3`): `rag-evaluation-quality-executor.mjs` executes one named batch under an
+approval record that must bind suite, plan, batch, case order, target and limits exactly;
+authenticity and target equivalence come from injected dependencies, provenance must be bound,
+pinned and current, and the existing ledger (keyed per batch) records the intent before the first
+POST. One POST per case, no retry, no replay after an unknown outcome, no automatic next batch.
+`--execute --batch quality-batch-N --approval <file>` reaches it but, with no authorizer in the
+CLI, is refused before credentials. Verified only against synthetic Auth/Storage/model on
+Nest/PG17; see the context checkpoint for the counters and for what is still missing.
+
 **Current boundary, 18/10/2026:** live `--execute` is BLOCKED (exit 3) before
 DB/Storage/Gemini because this runner has no verified workspace principal.
 Offline/dry-run remain available. Live commands/transport descriptions below

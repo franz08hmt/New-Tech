@@ -911,3 +911,14 @@ upload and the chunk owners after processing, so a regression of the same kind f
 runtime. The source scan is demoted to a supplementary check and guarded against being
 vacuous, because it cannot see SQL in a helper. The earlier B.2B.3 text is corrected by a
 dated note and left in place.
+
+F09-B.2B.5 decision: separate "may this batch run" from "run this batch". The executor core
+only runs a batch whose approval record equals what it recomputes from the plan, and it
+delegates authenticity and target equivalence to injected dependencies, because no trust
+mechanism exists and a boolean in a file or on the command line proves nothing. The CLI
+injects nothing, so it stays closed. The existing ledger is reused unchanged and keyed per
+batch, so approval, reservation and history cannot spread across batches or plans. A request
+cap is not a provider-call cap and neither is a money cap; the report says so and does not
+turn unobserved usage into zero. A well-formed response is never a semantic pass. Synthetic
+fixtures exercise the code paths and are labelled as such; they are not approval or
+equivalence evidence.

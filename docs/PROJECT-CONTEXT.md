@@ -21,6 +21,76 @@ hoặc tự nhận D vì có STT. Bỏ F11 không bỏ responsive desktop/mobile
 phân quyền, CRUD/search, dashboard, privacy, ≥20 case chạy thật trước/sau cải
 tiến và bộ nộp cuối kỳ giữ nguyên. Phù hợp về phạm vi không có nghĩa đã đạt rubric.
 
+## F09-B.2B.5 — one-batch quality executor (22/10/2026)
+
+`F09-B.2B.5_CODE_VERIFIED + LOCAL_SYNTHETIC_EXECUTOR_VERIFIED + LIVE_EXECUTION_BLOCKED`,
+source `7a17db3`. `rag-evaluation-quality-executor.mjs` runs **exactly one named batch** of
+a quality suite; the live path stays closed because the two things it needs from outside
+do not exist yet.
+
+How it works. The approval record (`rag-quality-batch-approval-v1`) must have exactly the
+keys `schema`, `binds`, `evidence` and `binds` must equal, field for field, what the executor
+recomputes from the plan: suite revision and hash, plan hash, batch id/index/hash, case
+ids **and order**, each case's request hash, target base/origin, provenance-target
+identity, and the limits (client requests = batch size, the plan's timeout, sequential,
+zero retries). Anything else, including a self-declared `approved`/`verified` field, is
+refused. Authenticity is **not** decided by the record: an injected `authorize` must
+return `goldReview` and `batch` both `verified`, an injected `targetEquivalence` must
+return `verified`, and provenance must be bound, digest-pinned by the operator and
+current. There is no flag, boolean, environment variable or default that supplies a missing
+piece, and a source scan test says so. All of this happens before a credential is read.
+Then: ledger `precheck` (before credentials), authenticated reads of access, documents and
+the course sets the batch uses (only those), `reserve` — the intent is durable before the
+first POST and a ledger that cannot write blocks dispatch — and one POST per case in plan
+order, never repeated. A blocking outcome (quota, access, provider outage, transport) ends
+the batch and marks the rest NOT_ATTEMPTED; a cut-off or hung body is an unknown outcome,
+recorded as such, and is not replayed. The batch is never followed by another one.
+
+Ledger: the existing append-only ledger, keyed per batch by the hash of everything the
+approval binds, so an approval, a reservation and a history belong to one batch of one
+plan and nothing spreads to another. Recovery rules are the ledger's own and unchanged.
+
+Reporting: request caps and provider calls are separate (`providerCalls: "unknown"`,
+`monetaryBudget: "not_enforced"`, no hard budget is claimed); token and cost figures are
+`unobserved`, never zero; each case keeps the response hash, request id, receipt flag,
+latency and a failure kind (`contract`, `transport`, `access_or_quota`); the evaluator's
+machine checks never yield PASS without a human review, so `humanSemanticReview` stays
+`pending`. Injection cases stay INCONCLUSIVE over HTTP (no retrieval trace).
+
+CLI: `--execute --batch quality-batch-N --approval <file>` (plus the provenance flags and
+`--rerun-acknowledged`) goes through the executor, but the CLI passes no authorizer and no
+equivalence proof, so it refuses with `APPROVAL_AUTHORIZER_UNAVAILABLE` or
+`TARGET_EQUIVALENCE_UNVERIFIED` before any credential or request. Plain `--execute` is
+refused as before.
+
+Evidence (all synthetic). Unit 14/14, including two real processes racing for one batch
+(one dispatches), a runner failure mid-batch recorded as unknown, ledger write failure
+blocking dispatch, and 19 mutants of the executor/CLI wiring all killed. Nest/PG17
+integration 8/8: a refused batch costs the server nothing; a positive control sends batch 1
+(five cases: document, course and document∩course questions, one refusal) over HTTP to the
+real stack, where the real retrieval, admission, usage and receipt services run and only
+Auth upstream, Storage and the SDK transport (a model that answers from the retrieved
+evidence) are synthetic. Counters agree: five query embeddings and as many generations as
+answered requests; persisted provider calls = the two summed; five operations; receipts =
+responses that announced one; documents, chunks and base data unchanged; a second run and
+the next batch are refused or untouched; a provider timeout stops the batch after one case.
+Gates at `7a17db3`: typecheck/build/format exit 0, `npm test` 2,298 (457 + 1,297 + 544),
+full `test:database` 520/520 in 50 files — new runs.
+
+What this is not. The approval authorizer and the target-equivalence proof used in tests are
+test-owned (an HMAC check and a constant): they prove the executor honours its dependencies,
+not that any human approved anything or that any HTTP endpoint is the audited database. No
+real model, account, Storage or cloud was used; the improvement of the evaluator is not
+evidence that model quality improved. `GOLD_REVIEW_PENDING`, `LIVE_EVALUATION_PENDING` and
+`SEMANTIC_REVIEW_PENDING` are unchanged.
+
+Missing before any live batch: a human-approved gold (v1 or v2) and a trusted mechanism that
+turns that approval into the authorizer's verdict; a trusted target-equivalence proof; a
+decision on batch size, quota and budget (no hard monetary cap exists); a real audit with
+a maintenance credential and an out-of-band pinned digest; and the real Gemini key. The
+action that is truly the user's: approve gold, choose the target-equivalence design, and
+decide whether to spend quota.
+
 ## F09-B.2B.4 — quality suite v2 draft (22/10/2026)
 
 Revision `rag-quality-20261022-v2` (`docs/evaluation-quality-cases-v2.json`, source
