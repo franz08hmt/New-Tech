@@ -274,6 +274,109 @@ test("HTTP chat rejects a model citation that was not retrieved", async () => {
   assert.ok(!output.includes("Invented claim"));
 });
 
+// F09-A.3: a nested source marker is malformed syntax, not a valid citation.
+const nestedMarkerOutput = JSON.stringify({
+  answerable: true,
+  answer: "Nested private claim [S[S1]",
+  citationIds: ["S1"],
+});
+function receiptInserts() {
+  return fixture.database.query.mock.calls.filter((call) =>
+    String(call.arguments[0]).startsWith(
+      "INSERT INTO assistant_answer_receipts",
+    ),
+  ).length;
+}
+test("real SDK transport: a nested source marker is a safe 502 with no answer, citation or receipt", async () => {
+  let calls = 0;
+  mockTransport(async () => {
+    calls++;
+    return Response.json({
+      candidates: [
+        {
+          content: { role: "model", parts: [{ text: nestedMarkerOutput }] },
+        },
+      ],
+    });
+  });
+  await start(new GeminiService());
+  const response = await server.request(
+    "/assistant/chat",
+    json("POST", { message: "Private question" }),
+  );
+  assert.equal(response.status, 502);
+  const text = await response.text();
+  const body = JSON.parse(text);
+  assert.equal(body.code, "AI_UPSTREAM");
+  assert.equal(body.answer, undefined);
+  assert.equal(body.citations, undefined);
+  assert.equal(response.headers.get("x-assistant-answer-id"), null);
+  const output = text + logs.join();
+  for (const leaked of [
+    "Nested private claim",
+    "Private question",
+    "Private evidence",
+  ])
+    assert.ok(!output.includes(leaked), `must not expose ${leaked}`);
+  assert.ok(
+    logs.some(
+      (line) => JSON.parse(line).rejection === "source_marker_malformed",
+    ),
+  );
+  assert.equal(calls, 1);
+  assert.equal(receiptInserts(), 0);
+});
+test("HTTP document SSE rejects a nested source marker without releasing content or a receipt", async () => {
+  provider.generateStream = mock.fn(async function* () {
+    yield nestedMarkerOutput.slice(0, 30);
+    yield nestedMarkerOutput.slice(30);
+  });
+  await start();
+  const response = await server.request(
+    "/assistant/chat/stream",
+    json("POST", { message: "Private question", mode: "documents" }),
+  );
+  const text = await response.text();
+  const events = text
+    .trim()
+    .split(/\r?\n\r?\n/)
+    .map((frame) => JSON.parse(frame.replace(/^data: /, "")));
+  assert.deepEqual(
+    events.map((event) => event.type),
+    ["start", "status", "status", "error"],
+  );
+  assert.equal(events.at(-1).code, "AI_UPSTREAM");
+  assert.ok(!events.some((event) => ["delta", "done"].includes(event.type)));
+  assert.ok(!text.includes("Nested private claim"));
+  assert.ok(!(text + logs.join()).includes("Private question"));
+  assert.equal(receiptInserts(), 0);
+  assert.equal(provider.generate.mock.callCount(), 0);
+});
+test("HTTP document chat rejects a refusal that carries a malformed source-like marker", async () => {
+  provider.generate = mock.fn(async () =>
+    JSON.stringify({
+      answerable: false,
+      answer: "Nothing found [S1, S2]",
+      citationIds: [],
+    }),
+  );
+  await start();
+  const response = await server.request(
+    "/assistant/chat",
+    json("POST", { message: "Private question" }),
+  );
+  assert.equal(response.status, 502);
+  const text = await response.text();
+  assert.equal(JSON.parse(text).code, "AI_UPSTREAM");
+  assert.ok(!(text + logs.join()).includes("Nothing found"));
+  assert.ok(
+    logs.some(
+      (line) => JSON.parse(line).rejection === "unanswerable_with_citations",
+    ),
+  );
+  assert.equal(receiptInserts(), 0);
+});
+
 test("HTTP general chat bypasses document retrieval and returns no citations", async () => {
   provider.generate = mock.fn(
     async () => "HTTPS protects data in transit with TLS.",

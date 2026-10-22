@@ -33,6 +33,11 @@ import {
 } from "./assistant.types.js";
 import { StructuredAnswerStream } from "./structured-answer-stream.js";
 import {
+  isSourceId,
+  sameSourceIdSet,
+  scanSourceMarkers,
+} from "./source-markers.js";
+import {
   documentsQuestionPrompt,
   generalPrompt,
   PROMPT_VERSIONS,
@@ -361,11 +366,7 @@ export class AssistantService {
       const parsed = this.parseStructuredAnswer(parser.completeRaw);
       let answer: AssistantAnswer;
       if (!parsed.answerable) {
-        if (
-          parsed.citationIds.length > 0 ||
-          this.sourceMarkers(parsed.answer).length ||
-          [...parsed.answer.matchAll(/\[S[^\]]*\]/g)].length
-        )
+        if (this.refusalCarriesSources(parsed))
           throw new AssistantError("upstream", "unanswerable_with_citations");
         answer = this.response(
           UNANSWERABLE,
@@ -510,10 +511,7 @@ export class AssistantService {
     });
     const parsed = this.parseStructuredAnswer(raw);
     if (!parsed.answerable) {
-      if (
-        parsed.citationIds.length > 0 ||
-        this.sourceMarkers(parsed.answer).length
-      )
+      if (this.refusalCarriesSources(parsed))
         throw new AssistantError("upstream", "unanswerable_with_citations");
       const result = this.response(
         UNANSWERABLE,
@@ -791,9 +789,7 @@ export class AssistantService {
       record.answer.length > 8_000 ||
       !Array.isArray(record.citationIds) ||
       record.citationIds.length > 20 ||
-      record.citationIds.some(
-        (id) => typeof id !== "string" || !/^S[1-9][0-9]*$/.test(id),
-      )
+      record.citationIds.some((id) => !isSourceId(id))
     )
       throw new AssistantError("upstream", "answer_shape_invalid");
     const citationIds = record.citationIds as string[];
@@ -806,23 +802,28 @@ export class AssistantService {
     };
   }
 
+  /** A refusal carries no citation IDs and no source-like text, well formed or
+   * not; both document paths apply the same rule before the fixed refusal text
+   * replaces the model's wording. */
+  private refusalCarriesSources(parsed: StructuredAnswer) {
+    return (
+      parsed.citationIds.length > 0 ||
+      scanSourceMarkers(parsed.answer).sourceLike.length > 0
+    );
+  }
+
   private validateCitations(parsed: StructuredAnswer, rag: RagContext) {
     if (parsed.citationIds.length === 0)
       throw new AssistantError("upstream", "citation_ids_missing");
-    const markers = this.sourceMarkers(parsed.answer);
-    const sourceLikeMarkers = [...parsed.answer.matchAll(/\[S[^\]]*\]/g)];
-    const referenced = [...new Set(markers)];
-    // The same rules as ever, split only so the refusal can say which one.
-    // Malformed is checked before missing: "[S1, S2]" is an attempt to cite
-    // in the wrong form, not an answer that forgot to cite.
-    if (sourceLikeMarkers.length !== markers.length)
+    const scan = scanSourceMarkers(parsed.answer);
+    // Split only so the refusal can say which rule failed. Malformed is checked
+    // before missing: "[S1, S2]" is an attempt to cite in the wrong form, not
+    // an answer that forgot to cite.
+    if (scan.malformed)
       throw new AssistantError("upstream", "source_marker_malformed");
-    if (markers.length === 0)
+    if (scan.ids.length === 0)
       throw new AssistantError("upstream", "source_marker_missing");
-    if (
-      referenced.some((id) => !parsed.citationIds.includes(id)) ||
-      parsed.citationIds.some((id) => !referenced.includes(id))
-    )
+    if (!sameSourceIdSet(scan.ids, parsed.citationIds))
       throw new AssistantError("upstream", "source_marker_mismatch");
     const available = new Map(
       rag.citations.map((item) => [item.sourceId, item]),
@@ -831,10 +832,6 @@ export class AssistantService {
     if (citations.some((citation) => !citation))
       throw new AssistantError("upstream", "citation_not_in_evidence");
     return citations as RagCitation[];
-  }
-
-  private sourceMarkers(answer: string) {
-    return [...answer.matchAll(/\[(S[1-9][0-9]*)\]/g)].map((match) => match[1]);
   }
 
   private conversation(turns: ConversationTurn[]) {

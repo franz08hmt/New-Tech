@@ -6,6 +6,11 @@ import { assertTestDatabaseTarget } from "./test-database-target.mjs";
 import { parseStudyQuizOutput } from "../dist/study-coach/study-quiz-validation.js";
 import { parseStudyFlashcardsOutput } from "../dist/study-coach/study-flashcards-validation.js";
 import {
+  isSourceId,
+  sameSourceIdSet,
+  scanSourceMarkers,
+} from "../dist/assistant/source-markers.js";
+import {
   validateLocalDefinition,
   localGitSnapshot,
   makeLocalReport,
@@ -39,25 +44,21 @@ const record = (value) =>
 const nonBlank = (value) =>
   typeof value === "string" && value.trim().length > 0;
 
-// Inline source markers follow AssistantService.validateCitations: a grounded
-// answer needs well-formed markers and their ID set must equal the returned
-// citation IDs. Syntax is stricter than production's count comparison: every
-// source-like [S...] text must be exactly [S<n>], as in legacy marker_syntax.
-// Whether a cited source supports the claim stays human-reviewed.
-const sourceLikeMarker = /\[S[^\]]*\]/g;
-const sourceMarker = /^\[S[1-9][0-9]*\]$/;
-function markerChecks(answer, citationIds) {
-  const sourceLike = [...answer.matchAll(sourceLikeMarker)].map(([m]) => m);
-  const referenced = new Set(
-    sourceLike.filter((m) => sourceMarker.test(m)).map((m) => m.slice(1, -1)),
-  );
-  const returned = new Set(citationIds);
+// The marker/citation contract is the production one, read from the same pure
+// helper the assistant service uses (F09-A.3): a grounded answer needs
+// well-formed markers whose ID set equals the returned citation IDs, returned
+// IDs are well formed and unique, and a refusal carries no source-like text.
+// These are machine checks; whether a cited source supports the claim stays
+// human-reviewed.
+function groundedCitationChecks(answer, citationIds) {
+  const scan = scanSourceMarkers(answer);
   return {
-    markerSyntax: sourceLike.every((m) => sourceMarker.test(m)),
-    markerPresence: referenced.size > 0,
-    markerCitationSet:
-      referenced.size === returned.size &&
-      [...referenced].every((id) => returned.has(id)),
+    markerSyntax: !scan.malformed,
+    markerPresence: scan.ids.length > 0,
+    markerCitationSet: sameSourceIdSet(scan.ids, citationIds),
+    // The catalog is checked as returned: never normalised through a Set first.
+    citationIdFormat: citationIds.every(isSourceId),
+    citationIdsUnique: new Set(citationIds).size === citationIds.length,
   };
 }
 
@@ -86,10 +87,9 @@ function checkContent(contract, result) {
       );
     return {
       responseStructure: structure,
-      // Refusals keep their own contract: no citations and no marker checks.
       ...(cited
         ? structure
-          ? markerChecks(
+          ? groundedCitationChecks(
               content.answer,
               content.citations.map((c) => c.sourceId),
             )
@@ -97,8 +97,16 @@ function checkContent(contract, result) {
               markerSyntax: false,
               markerPresence: false,
               markerCitationSet: false,
+              citationIdFormat: false,
+              citationIdsUnique: false,
             }
-        : {}),
+        : {
+            // A refusal needs no citation, but must carry no source-like text
+            // at all: a marker nobody verified is not a harmless decoration.
+            refusalMarkerFree:
+              structure &&
+              scanSourceMarkers(content.answer).sourceLike.length === 0,
+          }),
       answerability:
         structure &&
         content.answerable === cited &&
@@ -224,6 +232,9 @@ export function assessLocalCase(item, result) {
         ? checks.markerSyntax &&
           checks.markerPresence &&
           checks.markerCitationSet
+        : (checks.refusalMarkerFree ?? "not_assessed"),
+      citationIdentity: Object.hasOwn(checks, "citationIdFormat")
+        ? checks.citationIdFormat && checks.citationIdsUnique
         : "not_assessed",
       semanticCorrectness: "PENDING_HUMAN",
       semanticCompleteness: "PENDING_HUMAN",

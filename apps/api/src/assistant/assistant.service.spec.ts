@@ -261,6 +261,79 @@ describe("AssistantService grounded orchestration", () => {
     expect(events.some((event) => event.type === "result")).toBe(false);
   });
 
+  // The streamed and non-streamed document paths share one citation contract.
+  it.each([
+    [
+      "nested source marker",
+      "Answer [S[S1]",
+      true,
+      ["S1"],
+      "source_marker_malformed",
+    ],
+    [
+      "grouped source marker",
+      "Answer [S1, S2]",
+      true,
+      ["S1"],
+      "source_marker_malformed",
+    ],
+    [
+      "marker outside the returned IDs",
+      "Answer [S1] [S2]",
+      true,
+      ["S1"],
+      "source_marker_mismatch",
+    ],
+    ["no marker", "Answer", true, ["S1"], "source_marker_missing"],
+    [
+      "unanswerable with a valid marker",
+      "Unknown [S1]",
+      false,
+      [],
+      "unanswerable_with_citations",
+    ],
+    [
+      "unanswerable with a malformed marker",
+      "Unknown [S1, S2]",
+      false,
+      [],
+      "unanswerable_with_citations",
+    ],
+    [
+      "unanswerable with a nested marker",
+      "Unknown [S[S1]",
+      false,
+      [],
+      "unanswerable_with_citations",
+    ],
+  ])(
+    "streams no content and rejects %s like the non-stream path",
+    async (_name, answer, answerable, citationIds, rejection) => {
+      const raw = JSON.stringify({ answerable, answer, citationIds });
+      const streamed = fixture();
+      streamed.generateStream.mockImplementationOnce(async function* () {
+        yield raw.slice(0, 20);
+        yield raw.slice(20);
+      });
+      const events: AssistantStreamResult[] = [];
+      await expect(async () => {
+        for await (const event of streamed.service.streamDocumentChat(
+          { message: "Question", mode: "documents" },
+          principal,
+        ))
+          events.push(event);
+      }).rejects.toMatchObject({ kind: "upstream", rejection });
+      expect(events.map((event) => event.type)).toEqual(["status", "status"]);
+      expect(JSON.stringify(events)).not.toContain(answer);
+
+      const plain = fixture();
+      plain.generate.mockResolvedValue(raw);
+      await expect(
+        plain.service.chat({ message: "Question" }, principal),
+      ).rejects.toMatchObject({ kind: "upstream", rejection });
+    },
+  );
+
   it("retains N1 context accounting in streamed no-evidence refusals without calling the provider", async () => {
     const f = fixture();
     const previous = await f.service.chat(
@@ -779,6 +852,26 @@ describe("AssistantService grounded orchestration", () => {
       "source_marker_malformed",
     ],
     [
+      // F09-A.3: counting source-like and valid matches let a valid-looking
+      // marker nested inside broken syntax slip through.
+      "nested source marker",
+      JSON.stringify({
+        answerable: true,
+        answer: "Answer [S[S1]",
+        citationIds: ["S1"],
+      }),
+      "source_marker_malformed",
+    ],
+    [
+      "nested source marker around the cited source",
+      JSON.stringify({
+        answerable: true,
+        answer: "Answer [Sx[S1] and [S1]",
+        citationIds: ["S1"],
+      }),
+      "source_marker_malformed",
+    ],
+    [
       "duplicate IDs",
       JSON.stringify({
         answerable: true,
@@ -793,6 +886,35 @@ describe("AssistantService grounded orchestration", () => {
         answerable: false,
         answer: "Unknown [S1]",
         citationIds: ["S1"],
+      }),
+      "unanswerable_with_citations",
+    ],
+    [
+      "unanswerable with an inline marker but no citation IDs",
+      JSON.stringify({
+        answerable: false,
+        answer: "Unknown [S1]",
+        citationIds: [],
+      }),
+      "unanswerable_with_citations",
+    ],
+    [
+      // F09-A.3: streaming already refused any source-like text in a refusal;
+      // the non-stream path must not treat malformed text differently.
+      "unanswerable with a malformed source-like marker",
+      JSON.stringify({
+        answerable: false,
+        answer: "Unknown [S1, S2]",
+        citationIds: [],
+      }),
+      "unanswerable_with_citations",
+    ],
+    [
+      "unanswerable with a nested source-like marker",
+      JSON.stringify({
+        answerable: false,
+        answer: "Unknown [S[S1]",
+        citationIds: [],
       }),
       "unanswerable_with_citations",
     ],

@@ -1394,6 +1394,7 @@ function groundedMarkerObservation(
   answer,
   citationIds = ["S1"],
   evidenceIds = ["S1", "S2", "S3"],
+  citations = undefined,
 ) {
   const { item, result } = requiredOutputObservation("rag_document");
   result.evidence = evidenceIds.map((sourceId, index) => ({
@@ -1406,13 +1407,21 @@ function groundedMarkerObservation(
   result.reviewOutput = {
     answer,
     answerable: true,
-    citations: citationIds.map((sourceId) => ({
-      sourceId,
-      title: `source-${sourceId}.pdf`,
-      // A source outside the evidence still has a well-formed page number.
-      page: Math.max(evidenceIds.indexOf(sourceId), 0) + 1,
-    })),
+    citations:
+      citations ??
+      citationIds.map((sourceId) => ({
+        sourceId,
+        title: `source-${sourceId}.pdf`,
+        // A source outside the evidence still has a well-formed page number.
+        page: Math.max(evidenceIds.indexOf(sourceId), 0) + 1,
+      })),
   };
+  return { item, result };
+}
+// A refusal observation: no citations, answerable=false; only the answer varies.
+function refusalMarkerObservation(answer) {
+  const { item, result } = requiredOutputObservation("rag_no_evidence");
+  result.reviewOutput.answer = answer;
   return { item, result };
 }
 const markerPositives = {
@@ -1530,7 +1539,8 @@ test("F09-A.2 a valid refusal needs neither citations nor markers", () => {
   const { item, result } = requiredOutputObservation("rag_no_evidence");
   const assessment = assessLocalCase(item, result);
   assert.equal(assessment.status, "PASS");
-  assert.equal(assessment.dimensions.markerConsistency, "not_assessed");
+  // F09-A.3: a refusal is now assessed for the absence of source markers.
+  assert.equal(assessment.dimensions.markerConsistency, true);
   assert.equal(Object.hasOwn(assessment.checks, "markerPresence"), false);
 });
 test("F09-A.2 marker checks fail safely when the answer is not text", () => {
@@ -1562,53 +1572,280 @@ test("F09-A.2 every grounded scenario shares the marker contract", () => {
   }
 });
 
-// The evaluator must not become a second, different citation contract.
-test("F09-A.2 evaluator marker verdict matches production validateCitations", () => {
-  const rag = {
-    citations: ["S1", "S2", "S3"].map((sourceId) => ({ sourceId })),
-  };
-  const production = (answer, citationIds) => {
-    try {
-      AssistantService.prototype.validateCitations.call(
-        { sourceMarkers: AssistantService.prototype.sourceMarkers },
-        { answer, citationIds, answerable: true },
-        rag,
-      );
-      return "ACCEPT";
-    } catch (error) {
-      return error.rejection;
-    }
-  };
-  // [answer, returned citation IDs, production verdict]
-  const table = [
-    ["A [S1]", ["S1"], "ACCEPT"],
-    ["A [S1] B [S1]", ["S1"], "ACCEPT"],
-    ["A [S3] B [S1] C [S2]", ["S1", "S2", "S3"], "ACCEPT"],
-    ["A (S1) [1] [s1] [S1]", ["S1"], "ACCEPT"],
-    ["A", ["S1"], "source_marker_missing"],
-    ["A [S999]", ["S1"], "source_marker_mismatch"],
-    ["A [S1] [S999]", ["S1"], "source_marker_mismatch"],
-    ["A [S1]", ["S1", "S2"], "source_marker_mismatch"],
-    ["A [S1] [S1, S999]", ["S1"], "source_marker_malformed"],
-    ["A [S1, S2]", ["S1", "S2"], "source_marker_malformed"],
-    ["A [S] [S1]", ["S1"], "source_marker_malformed"],
-    ["A [S0] [S1]", ["S1"], "source_marker_malformed"],
-    ["A [S01] [S1]", ["S1"], "source_marker_malformed"],
-    ["A [Source: x] [S1]", ["S1"], "source_marker_malformed"],
-  ];
-  for (const [answer, ids, verdict] of table) {
-    assert.equal(production(answer, ids), verdict, `production: ${answer}`);
-    const { item, result } = groundedMarkerObservation(answer, ids);
-    assert.equal(
-      assessLocalCase(item, result).status,
-      verdict === "ACCEPT" ? "PASS" : "FAIL",
-      `evaluator: ${answer}`,
-    );
-  }
-  // Production compares the counts of source-like and valid markers, so a nested
-  // "[S[S1]" slips through there. The evaluator is deliberately stricter: every
-  // source-like marker must be exactly [S<n>], as in legacy marker_syntax.
-  assert.equal(production("A [S[S1]", ["S1"]), "ACCEPT");
-  const { item, result } = groundedMarkerObservation("A [S[S1]", ["S1"]);
-  assert.equal(assessLocalCase(item, result).status, "FAIL");
+// F09-A.3: refusals, returned citation IDs and one contract for both layers.
+for (const [label, answer] of [
+  ["a valid marker", "No evidence was found. [S1]"],
+  ["a malformed grouped marker", "No evidence was found. [S1, S2]"],
+  ["a nested marker", "No evidence was found. [S[S1]"],
+  ["an empty source-like marker", "No evidence was found. [S]"],
+  ["a descriptive source-like marker", "No evidence was found. [Source: x]"],
+])
+  test(`F09-A.3 a refusal carrying ${label} is rejected`, () => {
+    const { item, result } = refusalMarkerObservation(answer);
+    const assessment = assessLocalCase(item, result);
+    assert.equal(assessment.status, "FAIL");
+    assert.equal(assessment.checks.refusalMarkerFree, false);
+    assert.equal(assessment.dimensions.markerConsistency, false);
+    // Deterministic contract failure, not a pending or inconclusive review.
+    assert.equal(assessment.dimensions.semanticCorrectness, "PENDING_HUMAN");
+  });
+test("F09-A.3 a refusal with ordinary brackets stays valid", () => {
+  const { item, result } = refusalMarkerObservation(
+    "No evidence was found (see S1), [1] and [note].",
+  );
+  const assessment = assessLocalCase(item, result);
+  assert.equal(assessment.status, "PASS");
+  assert.equal(assessment.checks.refusalMarkerFree, true);
 });
+for (const [label, mutate] of [
+  [
+    "an exact duplicate returned citation",
+    (citations) => citations.push(structuredClone(citations[0])),
+  ],
+  [
+    "a duplicate source ID with contradictory metadata",
+    (citations) =>
+      citations.push({ ...citations[0], title: "other.pdf", page: 2 }),
+  ],
+])
+  test(`F09-A.3 rejects ${label}`, () => {
+    const { item, result } = groundedMarkerObservation(
+      "Synthetic claim. [S1]",
+      ["S1"],
+    );
+    mutate(result.reviewOutput.citations);
+    const assessment = assessLocalCase(item, result);
+    assert.equal(assessment.status, "FAIL");
+    assert.equal(assessment.checks.citationIdsUnique, false);
+    assert.equal(assessment.dimensions.citationIdentity, false);
+    // The marker set still equals the unique returned IDs: only the catalog is wrong.
+    assert.equal(assessment.checks.markerCitationSet, true);
+  });
+test("F09-A.3 a source cited many times in the answer is not a duplicate citation", () => {
+  const { item, result } = groundedMarkerObservation(
+    "One [S1]. Two [S1]. Three [S1].",
+    ["S1"],
+  );
+  const assessment = assessLocalCase(item, result);
+  assert.equal(assessment.status, "PASS");
+  assert.equal(assessment.checks.citationIdsUnique, true);
+  assert.equal(assessment.dimensions.citationIdentity, true);
+});
+for (const sourceId of ["S0", "S01", "s1", "S1a", "1", "FOREIGN"])
+  test(`F09-A.3 rejects returned source ID ${sourceId} with the wrong format`, () => {
+    // Even if the evidence carries the same odd ID, it is not a valid source ID.
+    const { item, result } = groundedMarkerObservation(
+      "Synthetic claim. [S1]",
+      ["S1"],
+    );
+    result.reviewOutput.citations[0].sourceId = sourceId;
+    result.evidence[0].sourceId = sourceId;
+    const assessment = assessLocalCase(item, result);
+    assert.equal(assessment.status, "FAIL");
+    assert.equal(assessment.checks.citationIdFormat, false);
+  });
+
+const pipelinePrincipal = {
+  userId: "55555555-5555-4555-8555-555555555555",
+  workspaceId: "66666666-6666-4666-8666-666666666666",
+  role: "member",
+};
+const pipelineCatalog = ["S1", "S2", "S3"].map((sourceId, index) => ({
+  sourceId,
+  chunkId: `11111111-1111-4111-8111-11111111111${index + 1}`,
+  documentId: "22222222-2222-4222-8222-222222222222",
+  title: `source-${sourceId}.pdf`,
+  page: index + 1,
+  chunkIndex: index,
+}));
+// The compiled production service with only its provider/retrieval/database
+// boundaries replaced; parse, validation and refusal handling are the real ones.
+function pipelineService(raw) {
+  const provider = {
+    model: "synthetic-model",
+    status: () => ({}),
+    generate: async () => raw,
+    generateStream: async function* () {
+      yield raw.slice(0, 25);
+      yield raw.slice(25);
+    },
+  };
+  const rag = {
+    promptVersion: "rag-v1",
+    context: "BEGIN_RETRIEVED_EVIDENCE\n[]\nEND_RETRIEVED_EVIDENCE",
+    evidence: [],
+    citations: pipelineCatalog,
+  };
+  return new AssistantService(
+    provider,
+    { retrieve: async () => rag },
+    { authorize: async (verified) => verified },
+    { workspaceTransaction: async (_principal, work) => work({}) },
+  );
+}
+async function productionOutcome(raw, path) {
+  const service = pipelineService(raw);
+  const input = { message: "Question", mode: "documents" };
+  const events = [];
+  try {
+    if (path === "chat")
+      return {
+        verdict: "ACCEPT",
+        answer: await service.chat(input, pipelinePrincipal),
+        events,
+      };
+    let answer;
+    for await (const event of service.streamDocumentChat(
+      input,
+      pipelinePrincipal,
+    )) {
+      events.push(event.type);
+      if (event.type === "result") answer = event.answer;
+    }
+    return { verdict: "ACCEPT", answer, events };
+  } catch (error) {
+    return { verdict: error.rejection ?? `ERROR:${error.message}`, events };
+  }
+}
+const source = (id) => ({
+  sourceId: id,
+  title: `source-${id}.pdf`,
+  page: Math.max(["S1", "S2", "S3"].indexOf(id), 0) + 1,
+});
+// [name, model output, production verdict, citations to show the evaluator when
+// production rejects (default: the model's IDs mapped to the catalog)]
+const contractMatrix = [
+  ["valid single marker", ["Claim. [S1]", ["S1"]], "ACCEPT"],
+  ["repeated marker", ["One [S1]. Two [S1].", ["S1"]], "ACCEPT"],
+  [
+    "several sources in another order",
+    ["A [S3]. B [S1]. C [S2].", ["S1", "S2", "S3"]],
+    "ACCEPT",
+  ],
+  ["ordinary brackets", ["See (S1), [1], [s1], {S1}. [S1]", ["S1"]], "ACCEPT"],
+  ["missing marker", ["Claim.", ["S1"]], "source_marker_missing"],
+  [
+    "marker not in citations",
+    ["Claim. [S1] [S2]", ["S1"]],
+    "source_marker_mismatch",
+  ],
+  [
+    "citation never mentioned",
+    ["Claim. [S1]", ["S1", "S2"]],
+    "source_marker_mismatch",
+  ],
+  [
+    "marker outside the catalog",
+    ["Claim. [S999]", ["S1"]],
+    "source_marker_mismatch",
+  ],
+  [
+    "grouped marker",
+    ["Claim. [S1, S2]", ["S1", "S2"]],
+    "source_marker_malformed",
+  ],
+  ["empty marker", ["Claim. [S] [S1]", ["S1"]], "source_marker_malformed"],
+  ["zero marker", ["Claim. [S0] [S1]", ["S1"]], "source_marker_malformed"],
+  [
+    "leading-zero marker",
+    ["Claim. [S01] [S1]", ["S1"]],
+    "source_marker_malformed",
+  ],
+  [
+    "descriptive marker",
+    ["Claim. [Source: x] [S1]", ["S1"]],
+    "source_marker_malformed",
+  ],
+  ["nested marker", ["Claim. [S[S1]", ["S1"]], "source_marker_malformed"],
+  [
+    "nested marker beside a valid one",
+    ["Claim. [Sx[S1] [S1]", ["S1"]],
+    "source_marker_malformed",
+  ],
+  [
+    "citation outside evidence",
+    ["Claim. [S9]", ["S9"]],
+    "citation_not_in_evidence",
+  ],
+  [
+    "duplicate IDs, same metadata",
+    ["Claim. [S1]", ["S1", "S1"]],
+    "citation_ids_duplicate",
+  ],
+  [
+    "duplicate IDs, contradictory metadata",
+    ["Claim. [S1]", ["S1", "S1"]],
+    "citation_ids_duplicate",
+    [source("S1"), { ...source("S1"), title: "other.pdf", page: 2 }],
+  ],
+  ["clean refusal", ["No evidence was found.", [], false], "ACCEPT"],
+  [
+    "refusal with ordinary brackets",
+    ["Not found (S1) [1].", [], false],
+    "ACCEPT",
+  ],
+  [
+    "refusal with a valid marker",
+    ["Not found [S1].", [], false],
+    "unanswerable_with_citations",
+  ],
+  [
+    "refusal with a malformed marker",
+    ["Not found [S1, S2].", [], false],
+    "unanswerable_with_citations",
+  ],
+  [
+    "refusal with a nested marker",
+    ["Not found [S[S1].", [], false],
+    "unanswerable_with_citations",
+  ],
+  [
+    "refusal with citation IDs",
+    ["Not found.", ["S1"], false],
+    "unanswerable_with_citations",
+  ],
+];
+for (const [
+  name,
+  [answer, ids, answerable = true],
+  verdict,
+  shown,
+] of contractMatrix)
+  test(`F09-A.3 one citation contract, production and evaluator: ${name}`, async () => {
+    const raw = JSON.stringify({ answerable, answer, citationIds: ids });
+    const chat = await productionOutcome(raw, "chat");
+    const streamed = await productionOutcome(raw, "stream");
+    // Streamed and plain document answers must not differ silently.
+    assert.equal(chat.verdict, verdict, `chat: ${name}`);
+    assert.equal(streamed.verdict, verdict, `stream: ${name}`);
+    const accepted = verdict === "ACCEPT";
+    // No unverified content before the validated result, nothing on rejection.
+    assert.deepEqual(
+      streamed.events,
+      accepted ? ["status", "status", "result"] : ["status", "status"],
+    );
+    // What the evaluator sees: the accepted response, or what a leak would carry.
+    const text = accepted ? chat.answer.answer : answer;
+    const citations = accepted
+      ? chat.answer.citations.map(({ sourceId, title, page }) => ({
+          sourceId,
+          title,
+          page,
+        }))
+      : (shown ?? ids.map(source));
+    const { item, result } = answerable
+      ? groundedMarkerObservation(text, ids, ["S1", "S2", "S3"], citations)
+      : refusalMarkerObservation(text);
+    if (!answerable) result.reviewOutput.citations = citations;
+    const assessment = assessLocalCase(item, result);
+    assert.equal(
+      assessment.status,
+      accepted ? "PASS" : "FAIL",
+      `evaluator: ${name}`,
+    );
+    if (!accepted)
+      assert.ok(
+        Object.values(assessment.checks).includes(false),
+        "a named machine check must fail",
+      );
+  });
