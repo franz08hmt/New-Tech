@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { promises as nodeFs } from "node:fs";
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -123,6 +123,8 @@ async function env(t, apiOptions) {
     chats,
   };
 }
+const holderOf = (e, hash) =>
+  createPlanLedger({ dir: e.ledgerDir, planSha256: hash }).inspect();
 const attempted = (report) => report.results.filter((r) => r.attempted).length;
 const blockedWith = (report, codes) =>
   report.results.every(
@@ -227,10 +229,7 @@ test("F09-B.1.1 a rerun acknowledgement cannot overtake an active reservation", 
   release();
   const done = await active;
   assert.equal(attempted(done.report), 1);
-  assert.ok(
-    !(await e.files(hash)).includes("active.json"),
-    "released after completion",
-  );
+  assert.equal(await holderOf(e, hash), null, "released after completion");
 });
 
 test("F09-B.1.1 two simultaneous reruns of one historical run dispatch once", async (t) => {
@@ -267,8 +266,9 @@ test("F09-B.1.1 sequential reruns still need an acknowledgement; a normal run is
     ).status,
     "completed",
   );
-  assert.ok(
-    !names.includes("active.json"),
+  assert.equal(
+    await holderOf(e, first.hash),
+    null,
     "a completed run releases its reservation",
   );
   assert.equal(
@@ -322,7 +322,7 @@ for (const [label, faults, stage] of [
   ],
   [
     "taking the reservation",
-    { open: (p) => (p.endsWith("active.json") ? "EACCES" : undefined) },
+    { open: (p) => (/lock[.][0-9]+[.]json$/.test(p) ? "EACCES" : undefined) },
     "late",
   ],
 ])
@@ -339,7 +339,7 @@ for (const [label, faults, stage] of [
     if (stage === "late")
       assert.ok(outcome.report, "reported as blocked, not thrown");
     // A failed attempt leaves nothing that blocks a later clean run.
-    assert.ok(!(await e.files(hash)).includes("active.json"));
+    assert.equal(await holderOf(e, hash), null);
     assert.equal(attempted((await e.execute(["--only", "E04"])).report), 1);
   });
 
@@ -381,8 +381,9 @@ test("F09-B.1.1 a crash after dispatch keeps the intent and needs an acknowledge
     resolve(e.ledgerDir, hash, `${crashed}.intent.json`),
     "utf8",
   );
-  assert.ok(
-    (await e.files(hash)).includes("active.json"),
+  assert.equal(
+    (await holderOf(e, hash))?.runId,
+    crashed,
     "the reservation is not cleared",
   );
   assert.ok(
@@ -398,9 +399,10 @@ test("F09-B.1.1 a crash after dispatch keeps the intent and needs an acknowledge
   assert.equal(attempted(recovered.report), 1);
   assert.equal(e.chats(), 2);
   const after = await e.files(hash);
-  assert.ok(
-    after.some((name) => name.startsWith("superseded-")),
-    "superseded lock kept",
+  assert.equal(
+    after.filter((name) => name.startsWith("lock.")).length,
+    2,
+    "the superseded reservation record is kept",
   );
   assert.equal(
     await readFile(
@@ -421,8 +423,11 @@ test("F09-B.1.1 an unknown outcome after dispatch keeps its reservation until ac
     "unknown_after_dispatch",
   );
   const [runId] = await e.intents(first.hash);
-  const names = await e.files(first.hash);
-  assert.ok(names.includes("active.json"), "reservation retained, not expired");
+  assert.equal(
+    (await holderOf(e, first.hash))?.state,
+    "finished_unknown",
+    "reservation retained, not expired",
+  );
   const outcome = JSON.parse(
     await readFile(
       resolve(e.ledgerDir, first.hash, `${runId}.outcome.json`),
@@ -463,11 +468,12 @@ test("F09-B.1.1 only the owner of a reservation can release it", async (t) => {
   });
   // A late, confused finish by the superseded owner must not free the new lock.
   const late = await reservation.finish({ outcome: "completed" });
-  assert.equal(late.released, false);
-  assert.ok((await readdir(resolve(dir, planSha256))).includes("active.json"));
+  // It closes only its own, already superseded record; the plan stays held.
+  assert.equal(late.released, true);
+  assert.equal((await second.inspect())?.runId, takeoverRun);
   const done = await taken.finish({ outcome: "completed" });
   assert.equal(done.released, true);
-  assert.ok(!(await readdir(resolve(dir, planSha256))).includes("active.json"));
+  assert.equal(await second.inspect(), null);
 });
 
 test("F09-B.1.1 an exception after dispatch is an unknown outcome, never completed", async (t) => {
@@ -496,8 +502,9 @@ test("F09-B.1.1 an exception after dispatch is an unknown outcome, never complet
     await readFile(resolve(e.ledgerDir, hash, `${runId}.outcome.json`), "utf8"),
   );
   assert.equal(outcome.status, "unknown_after_dispatch");
-  assert.ok(
-    (await e.files(hash)).includes("active.json"),
+  assert.equal(
+    (await holderOf(e, hash))?.state,
+    "finished_unknown",
     "the reservation is kept",
   );
   assert.equal(
@@ -533,10 +540,323 @@ test("F09-B.1.1 the history is rechecked under the reservation, not trusted from
     !names.some((name) => name.startsWith(runB)),
     "no intent for the refused run",
   );
-  assert.ok(
-    !names.includes("active.json"),
+  assert.equal(
+    await ledgerB.inspect(),
+    null,
     "the refused run gave back its own reservation",
   );
+});
+
+// --- F09-B.1.2: a release can never touch a reservation it does not own ----------
+// Deterministic barriers on a real filesystem; no sleeps and no timing luck.
+
+const ID_A = "11111111-1111-4111-8111-111111111111";
+const ID_B = "22222222-2222-4222-8222-222222222222";
+const ID_C = "33333333-3333-4333-8333-333333333333";
+const WRITES = ["open", "rename", "unlink", "link"];
+
+/** Pauses a ledger right after its outcome file is written, before the first
+ * further write: the point where a run is finishing but has not yet released. */
+function pauseFinishAfterOutcome() {
+  let armed = false;
+  let fired = false;
+  let reached;
+  let resume;
+  const reachedPromise = new Promise((r) => (reached = r));
+  const resumePromise = new Promise((r) => (resume = r));
+  const wrapped = new Proxy(nodeFs, {
+    get(target, name) {
+      const original = target[name];
+      if (!WRITES.includes(name)) return original;
+      return async (path, ...rest) => {
+        const text = String(path);
+        if (armed && !fired && !text.endsWith(".outcome.json")) {
+          fired = true;
+          reached();
+          await resumePromise;
+        }
+        const result = await original.call(target, path, ...rest);
+        if (name === "open" && text.endsWith(".outcome.json")) armed = true;
+        return result;
+      };
+    },
+  });
+  return { fs: wrapped, reached: reachedPromise, resume };
+}
+/** Makes N callers arrive at the same exclusive create before any proceeds. */
+function rendezvous(count, matches) {
+  let arrived = 0;
+  const waiting = [];
+  return (base) =>
+    new Proxy(base, {
+      get(target, name) {
+        const original = target[name];
+        if (name !== "open") return original;
+        return async (path, ...rest) => {
+          if (matches(String(path))) {
+            arrived++;
+            if (arrived >= count) waiting.splice(0).forEach((r) => r());
+            else await new Promise((r) => waiting.push(r));
+          }
+          return original.call(target, path, ...rest);
+        };
+      },
+    });
+}
+async function twoLedgers(t, name) {
+  const e = await env(t);
+  const dir = resolve(e.directory, name);
+  return { e, dir, planSha256: "c".repeat(64) };
+}
+
+test("F09-B.1.2 a release paused at its last step cannot damage a successor that took over meanwhile", async (t) => {
+  const { dir, planSha256 } = await twoLedgers(t, "release-race");
+  const gate = pauseFinishAfterOutcome();
+  const a = createPlanLedger({ dir, planSha256, fs: gate.fs });
+  const leaseA = await a.reserve({ runId: ID_A, acknowledged: [] });
+  const finishing = leaseA.finish({ outcome: "completed" });
+  await gate.reached; // A has recorded its outcome and not yet released
+  // B is told A is gone and takes over with the operator acknowledgement.
+  const b = createPlanLedger({ dir, planSha256, isProcessAlive: () => false });
+  const leaseB = await b.reserve({ runId: ID_B, acknowledged: [ID_A] });
+  gate.resume();
+  await finishing; // the late release of A now runs
+  const holder = await b.inspect();
+  assert.equal(
+    holder?.runId,
+    ID_B,
+    "the reservation of B survived the release",
+  );
+  assert.equal(holder.state, "dispatching");
+  const names = await readdir(resolve(dir, planSha256));
+  assert.ok(names.includes(`${ID_B}.intent.json`), "the intent of B is intact");
+  // C, acknowledged for both earlier runs, is still refused while B is active.
+  const c = createPlanLedger({ dir, planSha256 });
+  await assert.rejects(
+    c.reserve({ runId: ID_C, acknowledged: [ID_A, ID_B] }),
+    (error) => error.code === "HTTP_EVALUATION_PLAN_RESERVED",
+  );
+  // B can still finish and release normally, and only then is the plan free.
+  assert.equal((await leaseB.finish({ outcome: "completed" })).released, true);
+  assert.equal(await b.inspect(), null);
+});
+
+test("F09-B.1.2 a live owner that is still finishing cannot be taken over, then hands over cleanly", async (t) => {
+  const { dir, planSha256 } = await twoLedgers(t, "live-finish");
+  const gate = pauseFinishAfterOutcome();
+  const a = createPlanLedger({ dir, planSha256, fs: gate.fs });
+  const leaseA = await a.reserve({ runId: ID_A, acknowledged: [] });
+  const finishing = leaseA.finish({ outcome: "completed" });
+  await gate.reached;
+  const b = createPlanLedger({ dir, planSha256 });
+  await assert.rejects(
+    b.reserve({ runId: ID_B, acknowledged: [ID_A] }),
+    (error) => error.code === "HTTP_EVALUATION_PLAN_RESERVED",
+  );
+  assert.equal((await b.inspect())?.runId, ID_A, "A still holds the plan");
+  gate.resume();
+  assert.equal((await finishing).released, true);
+  const leaseB = await b.reserve({ runId: ID_B, acknowledged: [ID_A] });
+  assert.equal((await b.inspect())?.runId, ID_B);
+  await leaseB.finish({ outcome: "completed" });
+  assert.equal(await b.inspect(), null);
+});
+
+test("F09-B.1.2 two acknowledged takeovers racing at the exclusive create produce one owner", async (t) => {
+  const { dir, planSha256 } = await twoLedgers(t, "takeover-race");
+  const first = createPlanLedger({ dir, planSha256 });
+  const leaseA = await first.reserve({ runId: ID_A, acknowledged: [] });
+  await leaseA.finish({ outcome: "unknown_after_dispatch" });
+  // Both contenders pause exactly at the creation of the successor record.
+  const meet = rendezvous(2, (p) => /lock[.]0*2[.]json$/.test(p));
+  const b = createPlanLedger({ dir, planSha256, fs: meet(nodeFs) });
+  const c = createPlanLedger({ dir, planSha256, fs: meet(nodeFs) });
+  const outcomes = await Promise.allSettled([
+    b.reserve({ runId: ID_B, acknowledged: [ID_A] }),
+    c.reserve({ runId: ID_C, acknowledged: [ID_A] }),
+  ]);
+  assert.equal(outcomes.filter((o) => o.status === "fulfilled").length, 1);
+  const loser = outcomes.find((o) => o.status === "rejected");
+  assert.equal(loser.reason.code, "HTTP_EVALUATION_PLAN_RESERVED");
+  const winner = (await first.inspect()).runId;
+  assert.ok([ID_B, ID_C].includes(winner));
+  const names = await readdir(resolve(dir, planSha256));
+  assert.equal(names.filter((n) => n.endsWith(".intent.json")).length, 2);
+  assert.ok(
+    names.includes(`${ID_A}.intent.json`),
+    "the superseded intent is kept",
+  );
+});
+
+test("F09-B.1.2 a late finish by a superseded owner writes only a marker for its own record", async (t) => {
+  const { dir, planSha256 } = await twoLedgers(t, "late-finish");
+  const a = createPlanLedger({ dir, planSha256 });
+  const leaseA = await a.reserve({ runId: ID_A, acknowledged: [] });
+  const b = createPlanLedger({ dir, planSha256, isProcessAlive: () => false });
+  const leaseB = await b.reserve({ runId: ID_B, acknowledged: [ID_A] });
+  const before = await readdir(resolve(dir, planSha256));
+  const lockB = before
+    .filter((n) => n.startsWith("lock."))
+    .sort()
+    .at(-1);
+  const bytes = await readFile(resolve(dir, planSha256, lockB), "utf8");
+  await leaseA.finish({ outcome: "completed" });
+  assert.equal(await readFile(resolve(dir, planSha256, lockB), "utf8"), bytes);
+  assert.equal((await b.inspect())?.runId, ID_B);
+  await leaseA.finish({ outcome: "unknown_after_dispatch" }).catch(() => {});
+  assert.equal(
+    (await b.inspect())?.runId,
+    ID_B,
+    "repeating it changes nothing",
+  );
+  await leaseB.finish({ outcome: "completed" });
+  assert.equal(await b.inspect(), null);
+});
+
+test("F09-B.1.2 transfer steps that fail keep the plan closed", async (t) => {
+  const { dir, planSha256 } = await twoLedgers(t, "transfer-faults");
+  const fault = (matches, code, names) =>
+    new Proxy(nodeFs, {
+      get(target, name) {
+        const original = target[name];
+        if (!names.includes(name)) return original;
+        return async (path, ...rest) => {
+          if (matches(String(path))) {
+            const error = new Error("synthetic I/O failure");
+            error.code = code;
+            throw error;
+          }
+          return original.call(target, path, ...rest);
+        };
+      },
+    });
+  // The release marker cannot be written: the run stays unreleased.
+  const a = createPlanLedger({
+    dir,
+    planSha256,
+    fs: fault((p) => /release[.]\d+[.]json$/.test(p), "EIO", ["open"]),
+  });
+  const leaseA = await a.reserve({ runId: ID_A, acknowledged: [] });
+  const finished = await leaseA.finish({ outcome: "completed" });
+  assert.equal(finished.released, false);
+  const reader = createPlanLedger({ dir, planSha256 });
+  assert.equal((await reader.inspect())?.runId, ID_A, "not silently released");
+  // The process of A is alive here, so an acknowledgement cannot reclaim it.
+  await assert.rejects(
+    reader.reserve({ runId: ID_B, acknowledged: [ID_A] }),
+    (error) => error.code === "HTTP_EVALUATION_PLAN_RESERVED",
+  );
+  // The successor record cannot be created: no partial owner appears.
+  const dir2 = resolve(dir, "second");
+  const x = createPlanLedger({ dir: dir2, planSha256 });
+  const leaseX = await x.reserve({ runId: ID_A, acknowledged: [] });
+  await leaseX.finish({ outcome: "unknown_after_dispatch" });
+  const blocked = createPlanLedger({
+    dir: dir2,
+    planSha256,
+    fs: fault((p) => /lock[.]0*2[.]json$/.test(p), "EACCES", ["open"]),
+  });
+  await assert.rejects(
+    blocked.reserve({ runId: ID_B, acknowledged: [ID_A] }),
+    (error) => error.code === "HTTP_EVALUATION_LEDGER_UNAVAILABLE",
+  );
+  assert.equal((await x.inspect())?.state, "finished_unknown");
+  // A record that cannot be read, or a half-written one, refuses instead of guessing.
+  const unreadable = createPlanLedger({
+    dir: dir2,
+    planSha256,
+    fs: fault((p) => /lock[.]0*1[.]json$/.test(p), "EIO", ["readFile"]),
+  });
+  await assert.rejects(
+    unreadable.reserve({ runId: ID_B, acknowledged: [ID_A] }),
+    (error) => error.code === "HTTP_EVALUATION_LEDGER_UNAVAILABLE",
+  );
+  await writeFile(resolve(dir2, planSha256, "lock.0000000002.json"), "");
+  await assert.rejects(
+    x.reserve({ runId: ID_C, acknowledged: [ID_A] }),
+    (error) => error.code === "HTTP_EVALUATION_LEDGER_UNAVAILABLE",
+  );
+});
+
+test("F09-B.1.2 a reservation in the former single-file layout is never reclaimed or ignored", async (t) => {
+  const { dir, planSha256 } = await twoLedgers(t, "legacy-layout");
+  await mkdir(resolve(dir, planSha256), { recursive: true });
+  await writeFile(
+    resolve(dir, planSha256, "active.json"),
+    JSON.stringify({ runId: ID_A, state: "dispatching", pid: 1 }),
+  );
+  const ledger = createPlanLedger({
+    dir,
+    planSha256,
+    isProcessAlive: () => false,
+  });
+  for (const attempt of [
+    () => ledger.precheck({ acknowledged: [ID_A] }),
+    () => ledger.reserve({ runId: ID_B, acknowledged: [ID_A] }),
+  ])
+    await assert.rejects(
+      attempt(),
+      (error) => error.code === "HTTP_EVALUATION_PLAN_RESERVED",
+    );
+  assert.ok(
+    !(await readdir(resolve(dir, planSha256))).some((n) =>
+      n.startsWith("lock."),
+    ),
+    "no record was created over an unreadable layout",
+  );
+});
+
+test("F09-B.1.2 two independent processes racing an acknowledged takeover dispatch once", async (t) => {
+  const e = await env(t, { chat: () => ({ socket: "partial_then_destroy" }) });
+  const first = await e.execute(["--only", "E04"]);
+  assert.equal(
+    first.report.results[0].response.outcome,
+    "unknown_after_dispatch",
+  );
+  const [unknownRun] = await e.intents(first.hash);
+  assert.equal((await holderOf(e, first.hash))?.state, "finished_unknown");
+  e.api.state.chat = () => ({ status: 200, body: refusal() });
+  e.api.state.loginBarrier = 2; // both processes authenticate, then race
+  const start = (label) => {
+    const argv = e.args([
+      "--only",
+      "E04",
+      "--execute",
+      "--credentials-stdin",
+      "--approve-plan",
+      first.hash,
+      "--rerun-acknowledged",
+      unknownRun,
+    ]);
+    const child = spawn(process.execPath, [childScript], {
+      env: {
+        PATH: process.env.PATH,
+        F09B11_CHILD: JSON.stringify({
+          args: argv,
+          email: EMAIL,
+          password: PASSWORD,
+          ledgerDir: e.ledgerDir,
+        }),
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let out = "";
+    child.stdout.on("data", (chunk) => (out += chunk));
+    child.stderr.on("data", () => {});
+    return new Promise((done) =>
+      child.on("close", () =>
+        done({ label, out: out.trim().split("\n").at(-1) }),
+      ),
+    );
+  };
+  const raced = await Promise.all([start("a"), start("b")]);
+  assert.equal(
+    e.chats(),
+    2,
+    `one original run plus exactly one takeover: ${JSON.stringify(raced)}`,
+  );
+  assert.equal((await e.intents(first.hash)).length, 2);
+  assert.equal(await holderOf(e, first.hash), null, "the winner released");
 });
 
 // --- Finding B: headers are not a completed response ---------------------------

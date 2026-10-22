@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { assertTestDatabaseTarget } from "../scripts/test-database-target.mjs";
 import { runHttpEvaluation } from "../scripts/rag-evaluation-http.mjs";
 import { HttpEvaluationError } from "../scripts/rag-evaluation-http-lib.mjs";
+import { createPlanLedger } from "../scripts/rag-evaluation-http-ledger.mjs";
 import { openEvaluationRuntime } from "./evaluation-runtime-fixture.mjs";
 
 // F09-B.1 against the real server stack: Nest guard/session/CSRF/membership,
@@ -388,8 +389,12 @@ test("F09-B.1 authenticated HTTP evaluation through the real Nest/PG17 stack", a
     1,
     "one durable execution intent",
   );
-  assert.ok(
-    !ledgerFiles.includes("active.json"),
+  assert.equal(
+    await createPlanLedger({
+      dir: resolve(root, retained, "ledger"),
+      planSha256: raceHash,
+    }).inspect(),
+    null,
     "the winner released its reservation",
   );
 
