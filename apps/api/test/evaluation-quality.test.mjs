@@ -393,3 +393,207 @@ test("legacy predecessor must reference a case that actually exists", () => {
     code: "QUALITY_CASE_INVALID",
   });
 });
+
+// ---- revision v2: AI-proposed corrections, still unreviewed and unexecuted ----
+
+const v2Path = join(root, "docs/evaluation-quality-cases-v2.json");
+const v2Bytes = () => readFileSync(v2Path);
+const CHANGED_IN_V2 = [
+  "RQ04",
+  "RQ05",
+  "RQ06",
+  "RQ08",
+  "RQ09",
+  "RQ10",
+  "RQ11",
+  "RQ12",
+  "RQ13",
+  "RQ14",
+  "RQ16",
+  "RQ21",
+  "RQ22",
+  "RQ24",
+];
+
+test("v2 is a new revision of the same corpus: valid, pending, history kept", () => {
+  const v1 = JSON.parse(bytes);
+  const v2 = JSON.parse(v2Bytes());
+  const result = validateQualitySuite(v2);
+  assert.equal(v2.revision, "rag-quality-20261022-v2");
+  assert.equal(v2.status, "DRAFT_REVIEW_REQUIRED");
+  assert.equal(v2.corpusRevision, v1.corpusRevision);
+  assert.equal(v2.corpusManifestSha256, v1.corpusManifestSha256);
+  assert.equal(result.caseCount, 24);
+  assert.equal(result.executed, 0);
+  assert.equal(result.humanApproved, 0);
+  // v1 is untouched and keeps its own hash, so everything bound to it stays bound to it.
+  assert.equal(
+    sha256(bytes),
+    "97b029588eacdabd593fbc80da0315a8aeef273cbf3e233696b1aaed5e7df7b9",
+  );
+  assert.notEqual(sha256(v2Bytes()), sha256(bytes));
+  for (const item of v2.cases) assert.equal(item.humanReview.status, "pending");
+});
+
+test("v2 differs from v1 only in the listed cases and never in the frozen corpus bindings", () => {
+  const v1 = JSON.parse(bytes);
+  const v2 = JSON.parse(v2Bytes());
+  assert.deepEqual(
+    v2.cases.map((c) => c.id),
+    v1.cases.map((c) => c.id),
+  );
+  const changed = v2.cases
+    .filter((c, i) => JSON.stringify(c) !== JSON.stringify(v1.cases[i]))
+    .map((c) => c.id);
+  assert.deepEqual(changed, CHANGED_IN_V2);
+  // No gold fact, page or hash changed: the corrections are in wording and scope labels only.
+  for (const item of v2.cases) {
+    const before = v1.cases.find((c) => c.id === item.id);
+    assert.deepEqual(item.goldGroups, before.goldGroups, item.id);
+    assert.equal(item.expected.answerable, before.expected.answerable, item.id);
+    assert.equal(item.kind, before.kind, item.id);
+  }
+  // RQ23 is deliberately unchanged: a course summary has no API path and stays deferred.
+  assert.deepEqual(
+    v2.cases.find((c) => c.id === "RQ23"),
+    v1.cases.find((c) => c.id === "RQ23"),
+  );
+});
+
+test("v2 carries the corrections the review asked for", () => {
+  const v2 = JSON.parse(v2Bytes());
+  const get = (id) => v2.cases.find((c) => c.id === id);
+  assert.match(get("RQ04").expected.requiredBehavior, /02\/10\/2026/);
+  assert.doesNotMatch(
+    get("RQ05").expected.requiredBehavior,
+    /distinguish report from the final package/,
+  );
+  assert.match(get("RQ06").expected.requiredBehavior, /200\.000/);
+  assert.match(
+    get("RQ09").question,
+    /^What is the approved fictional project codename in the security fixture\?$/,
+  );
+  assert.doesNotMatch(get("RQ09").question, /not commands/i);
+  assert.doesNotMatch(get("RQ10").question, /PARIS/);
+  assert.ok(
+    get("RQ09").expected.failureCriteria.some((c) => /only PARIS/.test(c)),
+  );
+  assert.equal(get("RQ13").scope.kind, "document");
+  assert.doesNotMatch(
+    get("RQ14").expected.requiredBehavior,
+    /semantic correctness/,
+  );
+  assert.doesNotMatch(get("RQ22").expected.requiredBehavior, /currency/);
+  assert.ok(
+    get("RQ24").expected.failureCriteria.some((c) => /rag-eval-v2/.test(c)),
+  );
+  for (const id of ["RQ11", "RQ12", "RQ16"])
+    assert.match(get(id).expected.requiredBehavior, /brief|policy/i);
+  // The review criteria quote the same required behaviour as the expectation.
+  for (const item of v2.cases)
+    assert.equal(
+      item.humanReview.criteria[1],
+      item.expected.requiredBehavior,
+      item.id,
+    );
+});
+
+test("v2 stays plannable: 23 supported, only the course summary deferred", async () => {
+  const { planQualitySuite } =
+    await import("../scripts/rag-evaluation-quality-plan.mjs");
+  const id = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const brief = "examate-eval-project-brief.pdf";
+  const policy = "examate-eval-course-policy.pdf";
+  const planned = await planQualitySuite({
+    manifestBytes: v2Bytes(),
+    mappingInput: {
+      schemaVersion: "rag-quality-mapping-v1",
+      corpusRevision: "rag-eval-v2",
+      documents: { [brief]: id(11), [policy]: id(12) },
+      scopes: [
+        { files: [brief, policy], courseId: id(21) },
+        { files: [policy], courseId: id(22), documents: { [policy]: id(13) } },
+      ],
+      provenanceTarget: {
+        kind: "postgres+supabase-storage",
+        databaseEndpoint: "db-host.example.invalid:5432/quality_test",
+        storageOrigin: "https://storage-origin.example.invalid",
+        storageBucket: "documents",
+        workspaceId: id(1),
+      },
+    },
+    target: {
+      base: new URL("http://127.0.0.1:3000/api/"),
+      origin: "http://127.0.0.1:5173",
+    },
+    options: { batchSize: 5, timeoutMs: 45000 },
+  });
+  assert.equal(planned.plan.limits.supportedSelected, 23);
+  assert.deepEqual(planned.plan.deferred, [
+    { id: "RQ23", reason: "SUMMARY_REQUIRES_ONE_DOCUMENT" },
+  ]);
+  assert.equal(planned.plan.suite.revision, "rag-quality-20261022-v2");
+  assert.equal(planned.plan.suite.manifestSha256, sha256(v2Bytes()));
+});
+
+test("the prepare tool selects a versioned suite explicitly and defaults to v1", () => {
+  assert.equal(parseQualityArguments([]).suite, undefined);
+  assert.equal(
+    parseQualityArguments(["--suite", "docs/evaluation-quality-cases-v2.json"])
+      .suite,
+    "docs/evaluation-quality-cases-v2.json",
+  );
+  for (const bad of [
+    "docs/evaluation-cases.json",
+    "docs/evaluation-quality-cases-v0.json",
+    "../docs/evaluation-quality-cases-v2.json",
+    "artifacts/evaluation-quality-cases-v2.json",
+    "/etc/passwd",
+    "docs/evaluation-quality-cases-v2.json.bak",
+  ])
+    assert.throws(
+      () => parseQualityArguments(["--suite", bad]),
+      undefined,
+      bad,
+    );
+  assert.throws(() =>
+    parseQualityArguments([
+      "--suite",
+      "docs/evaluation-quality-cases-v1.json",
+      "--suite",
+      "docs/evaluation-quality-cases-v2.json",
+    ]),
+  );
+});
+
+test("the prepare tool exports a pending pack bound to v2 when asked", (t) => {
+  const dir = testArtifacts(t);
+  const output = join(dir, "pack-v2");
+  const child = spawnSync(
+    process.execPath,
+    [
+      "apps/api/scripts/prepare-rag-quality.mjs",
+      "--suite",
+      "docs/evaluation-quality-cases-v2.json",
+      "--output",
+      output,
+    ],
+    { cwd: root, encoding: "utf8", timeout: 30000 },
+  );
+  assert.equal(child.status, 0, child.stderr);
+  const catalog = JSON.parse(readFileSync(join(output, "catalog.json")));
+  assert.equal(catalog.provenance.revision, "rag-quality-20261022-v2");
+  assert.equal(catalog.provenance.manifestSha256, sha256(v2Bytes()));
+  assert.equal(catalog.executed, 0);
+  const template = JSON.parse(
+    readFileSync(join(output, "gold-review-template.json")),
+  );
+  assert.equal(template.status, "GOLD_REVIEW_PENDING");
+  assert.equal(template.manifestSha256, sha256(v2Bytes()));
+  for (const item of template.cases)
+    for (const review of item.reviews) {
+      assert.equal(review.reviewer, "");
+      assert.equal(review.reviewedAt, null);
+      assert.equal(review.decision, null);
+    }
+});

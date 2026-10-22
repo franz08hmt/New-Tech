@@ -34,8 +34,9 @@ try {
     options.output ?? `artifacts/rag-quality-preparation/${id}`,
   );
   inside(artifacts, output);
+  // v1 stays the default; a later revision is chosen explicitly by versioned name.
   const bytes = await readFile(
-    new URL("../../../docs/evaluation-quality-cases-v1.json", import.meta.url),
+    resolve(root, options.suite ?? "docs/evaluation-quality-cases-v1.json"),
   );
   const definition = JSON.parse(bytes.toString("utf8"));
   const result = validateQualitySuite(definition);

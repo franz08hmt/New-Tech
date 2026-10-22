@@ -519,7 +519,7 @@ export function parseQualityArguments(args) {
     const flag = args[i],
       value = args[++i];
     requireThat(
-      ["--output", "--batch-size"].includes(flag) &&
+      ["--output", "--batch-size", "--suite"].includes(flag) &&
         !seen.has(flag) &&
         typeof value === "string" &&
         !value.startsWith("--"),
@@ -527,7 +527,14 @@ export function parseQualityArguments(args) {
     );
     seen.add(flag);
     if (flag === "--output") options.output = value;
-    else {
+    else if (flag === "--suite") {
+      // Only a versioned suite file under docs/, never an arbitrary path.
+      requireThat(
+        /^docs\/evaluation-quality-cases-v[1-9][0-9]*\.json$/.test(value),
+        "ARGUMENT",
+      );
+      options.suite = value;
+    } else {
       requireThat(/^(?:[1-9]|10)$/.test(value), "ARGUMENT");
       options.batchSize = Number(value);
     }
