@@ -111,6 +111,32 @@ this fix; no F09-B.2 or live/human semantic acceptance is implied.
 Thành viên đọc được tài liệu của workspace; chưa có PDF riêng từng người trong
 cùng workspace. Auth PASS không thay RAG/STT PASS. Máy Thắng cần bằng chứng riêng.
 
+## Phạm vi bổ sung theo Tài — 22/10/2026
+
+Nguồn đối chiếu trực tiếp ngày 22/10/2026:
+[Final Project Assignment 2026–2027](https://docs.google.com/document/d/1zxaqjKBBGjibOYuhw5xW6hEU1NbUayrr/edit).
+Đây là đề cuối kỳ, không dùng kế hoạch môn học tám tuần hoặc corpus giả lập
+để thay thế. Đã đọc mục 3, 4.1–4.2, 7, 9 và bảng capabilities/rubric.
+
+- F10 đã có STT: giữ và nghiệm thu implementation của Thắng; không triển khai TTS.
+- Bỏ F11 (PWA/install/offline shell) và F13 (WASM PoC) khỏi kế hoạch phát triển;
+  giữ ID lịch sử, không coi đã hoàn thành, không tự xóa code có sẵn. F14/F12
+  không bị bỏ theo quyết định này; F15 mở rộng ba tools vẫn đã bỏ.
+- Mục 3 cho phép web hoặc mobile và ít nhất một modern frontend feature:
+  streaming UI là lựa chọn thay PWA. TTS và WASM không phải yêu cầu bắt buộc.
+- Mục 7 vẫn yêu cầu responsive desktop/mobile. Mục 3 vẫn yêu cầu OAuth2/JWT,
+  role-based access, realtime/streaming và demo từ bản deployed hoặc containerized;
+  bỏ F11 không loại các nghĩa vụ đó.
+- Nhóm Tài–Thắng hai người cần ít nhất hai capabilities: hướng A (RAG) + C
+  (LLM JSON được validate schema và dùng trong logic ứng dụng) vẫn phù hợp về
+  phạm vi. Cần nghiệm thu cả hai; hai tools không đạt B (≥3 LLM-called tools).
+  Có STT không tự chứng minh D, vốn còn đòi kết quả được lưu và dùng bởi app.
+- Mục 4.2 đòi ≥20 case có expected, được chạy và báo pass rate trước/sau ít nhất
+  một cải tiến; số case đã soạn hoặc các test fixture xanh không thay nghĩa vụ
+  này. Guardrails, logging/cost/latency, fallback và bộ nộp giữ nguyên.
+- Đề không bắt buộc hai chữ ký gold của Tài/Thắng; đó là quy trình nội bộ hiện
+  hành, không được agent tự giả phê duyệt hoặc âm thầm bỏ gate.
+
 ## Phạm vi cập nhật theo Tài — 19/10/2026
 
 - F10 trong roadmap chỉ giữ STT của Thắng: hoàn thiện và nghiệm thu khi cần;

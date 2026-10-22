@@ -45,6 +45,11 @@ bỏ F15 mở rộng agent lên 3 tools, giữ phạm vi 2 tools ban đầu. Đi
 đáp ứng capability B (≥3 LLM-called tools); hướng capability là RAG + structured
 output/Study Coach, chưa được coi đã nghiệm thu. Xem [roadmap](docs/PROJECT-CONTEXT.md).
 
+Chốt bổ sung 22/10/2026: STT đã có, không triển khai TTS; bỏ F11 (PWA) và
+F13 (WASM PoC) khỏi kế hoạch. Giữ responsive mobile web, SSE và demo bằng
+Docker Compose hoặc bản deployed. Không tự bỏ F14; xem
+[đối chiếu rubric](docs/FINAL-REQUIREMENTS.md#phạm-vi-bổ-sung-theo-tài--22102026).
+
 App chỉ chạy **local**, dùng dữ liệu demo nhóm, không public/deploy.
 Auth bootstrap demo ngày 17/10 đã ghi nhận schema cloud 001–015 và membership;
 **chưa nghiệm thu đăng nhập thực tế trên máy Thắng** hoặc Auth extended.

@@ -174,7 +174,10 @@ Không train Whisper; chưa benchmark microphone/accuracy/latency thực.
 STT default off, audit còn finding; hướng dẫn kỹ thuật:
 [STT setup](STT-SETUP-VI.md). Theo chốt 19/10/2026, chỉ hoàn thiện STT khi cần;
 TTS ngoài phạm vi, không còn là tính năng phải phát triển.
-PWA/WASM/mobile app riêng là hướng tiếp theo, chưa gắn nhãn đã triển khai.
+Theo chốt bổ sung 22/10/2026, F11/PWA và F13/WASM đã bỏ khỏi kế hoạch; không
+nhận đã triển khai. Responsive mobile web, SSE và demo containerized/deployed
+vẫn bắt buộc. F14/native client chưa bị bỏ, không tự thay đổi phạm vi đó.
+Xem [đối chiếu đề cuối kỳ](FINAL-REQUIREMENTS.md#phạm-vi-bổ-sung-theo-tài--22102026).
 
 F15 mở rộng tool-using agent đã bỏ; chỉ giữ phạm vi 2 tools ban đầu, không thêm
 tool thứ ba. Không đánh đồng mode chat/SQL intent với LLM-called tool. Rubric B

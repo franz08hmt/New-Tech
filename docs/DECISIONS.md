@@ -1,5 +1,20 @@
 # Quyết định kiến trúc ExaMate
 
+## Điều chỉnh phạm vi theo Tài — 22/10/2026
+
+Tài xác nhận F10 đã có STT và không triển khai TTS, bỏ F11/PWA và F13/WASM
+khỏi roadmap để tập trung vào luồng AI và nghiệm thu cuối kỳ. Giữ ID lịch sử,
+không xóa source có sẵn hoặc tự bỏ F12/F14. F15 mở rộng ba tools vẫn đã bỏ.
+
+Đã đọc trực tiếp [đề cuối kỳ 2026–2027](https://docs.google.com/document/d/1zxaqjKBBGjibOYuhw5xW6hEU1NbUayrr/edit)
+ngày 22/10/2026: PWA là ví dụ modern frontend, có thể dùng streaming UI thay
+thế; TTS/WASM không bắt buộc. Với nhóm hai người, hướng A + C giữ đủ số
+capabilities về phạm vi nhưng cần nghiệm thu thực tế. Không tự nhận B với hai
+tools hoặc D chỉ vì có STT. Responsive mobile web, OAuth/JWT, role isolation,
+streaming, demo containerized/deployed, ≥20 evaluation case có kết quả trước/sau
+và bộ nộp vẫn giữ nguyên. Đối chiếu đầy đủ tại FINAL-REQUIREMENTS; đây là quyết
+định giảm roadmap nội bộ, không sửa rubric của giảng viên.
+
 ## ADR-001 — Google PKCE và JWT-backed BFF/session
 
 Ngày 18/10/2026. Quyết định code F01; cloud setup/live acceptance chưa thực hiện.

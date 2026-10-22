@@ -3,6 +3,24 @@
 Cập nhật 22/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
+## Chốt phạm vi theo Tài — 22/10/2026
+
+F10 đã có STT: giữ implementation của Thắng và nghiệm thu khi cần, không thêm
+TTS. Bỏ F11 (PWA/install/offline shell) và F13 (WASM PoC) khỏi roadmap triển
+khai; không xóa source hiện có hoặc đổi số các đợt. F15 mở rộng ba tools vẫn đã
+bỏ; F14 và F12 không bị bỏ bởi quyết định này.
+
+Đã đọc trực tiếp bản đề cuối kỳ 2026–2027 trên Drive ngày 22/10/2026, mục 3,
+4.1–4.2, 7, 9 và bảng capabilities/rubric; nguồn tại
+[FINAL-REQUIREMENTS](FINAL-REQUIREMENTS.md#phạm-vi-bổ-sung-theo-tài--22102026).
+PWA chỉ là một lựa chọn modern frontend; streaming UI là lựa chọn khác. TTS và
+WASM không phải yêu cầu bắt buộc. Nhóm hai người vẫn theo A (RAG) + C (schema-
+validated output được dùng trong logic Study Coach), không nhận B với hai tools
+hoặc tự nhận D vì có STT. Bỏ F11 không bỏ responsive desktop/mobile, kiểm browser
+375px, SSE/streaming hoặc demo containerized/deployed. Các nghĩa vụ OAuth/JWT,
+phân quyền, CRUD/search, dashboard, privacy, ≥20 case chạy thật trước/sau cải
+tiến và bộ nộp cuối kỳ giữ nguyên. Phù hợp về phạm vi không có nghĩa đã đạt rubric.
+
 ## F09-B.2B.4 — quality suite v2 draft (22/10/2026)
 
 Revision `rag-quality-20261022-v2` (`docs/evaluation-quality-cases-v2.json`, source
@@ -23,8 +41,8 @@ unless the corpus is rebuilt (a team decision; it would change every PDF hash).
 exports the pending pack (the default is still v1). The planner already accepts v2
 (23 supported, RQ23 deferred). Gates at `d1a95d1`: typecheck/build/format exit 0,
 `npm test` 2,279 (457 + 1,278 + 544). No DB suite was needed: no fixture or SQL changed.
-The shared final-project rubric (read 22/10/2026 from a fetch summary; verify against the
-source) asks for an evaluation set of at least 20 cases (normal, edge, should-refuse) with
+The shared final-project rubric (re-read directly via Drive on 22/10/2026; source in
+FINAL-REQUIREMENTS) asks for an evaluation set of at least 20 cases (normal, edge, should-refuse) with
 pass rates before and after at least one improvement, the first 10 cases at the mid-point
 demo, and weights AI Quality & Safety at 10%; it does not itself require a two-person
 gold sign-off, which is this project's own process.
@@ -1933,8 +1951,9 @@ không nhận là kết quả chạy mới của task sau.
 - Auth đã bootstrap demo theo [handoff đăng nhập](PILOT-DEMO-HANDOFF.md), nhưng
   không suy ra đăng nhập thực tế trên máy Thắng hoặc extended Auth acceptance đã đạt.
 - Tenant RLS/grants toàn app chưa rollout cloud; non-owner/RLS proof là DB disposable.
-- Budget AI (B3), semantic RAG/live eval qua Auth (B4), and PWA remain
-  incomplete. F08-B flashcards have a local code/automated checkpoint, with
+- Budget AI (B3) and semantic RAG/live eval qua Auth (B4) remain
+  incomplete. F11/PWA was removed from the plan on 22/10/2026, not completed.
+  F08-B flashcards have a local code/automated checkpoint, with
   browser and human semantic acceptance pending. `eval:rag` live remains
   BLOCKED before DB/Storage/Gemini.
 - STT audit còn 2 high/4 moderate package entries; remediation chưa xong. Không
@@ -1966,9 +1985,9 @@ chiếu lịch sử. Không chạy lại phần đã có hoặc biến kế ho�
 | F08 | N2 Study Coach: structured quiz/flashcards, nguồn, preview/xác nhận lưu, luyện tập/tiến độ cá nhân                         | F08-A and F08-B have separate code/automated local checkpoints; browser and human semantic review pending, F09 outstanding, so full F08 remains partial |
 | F09 | B4: ít nhất 20 case thực thi có expected, cùng corpus/gold trước/sau, human review/guardrails/fallback/latency/cost        | F09-A has authenticated local runtime contracts and bound readiness reports; live remains AUTH_REQUIRED/BLOCKED and human semantic review pending. Local fixture PASS does not satisfy the live-quality denominator. |
 | F10 | Chỉ STT của Thắng: hoàn thiện lỗi, bảo mật/dependency, accuracy/latency và nghiệm thu thực tế khi cần                      | Thu hẹp theo Tài ngày 19/10/2026; giữ implementation STT hiện có, không phát triển TTS, không chuyển ownership                                                   |
-| F11 | PWA/mobile thật: manifest/install/update/offline shell, Android và giới hạn iOS                                            | Pending; không cache dữ liệu riêng hoặc tự queue write                                                                                                           |
+| F11 | Đã bỏ khỏi kế hoạch: PWA/install/update/offline shell                                                                      | Tài chốt 22/10/2026; không triển khai mới. Responsive desktop/mobile web và kiểm browser vẫn bắt buộc; không coi F11 đã hoàn thành. |
 | F12 | Registry/allowlist nhiều model, lựa chọn kiểm soát, benchmark quality–latency–cost                                         | Pending; đổi embedding/re-index cần quyết định riêng                                                                                                             |
-| F13 | WASM PoC có profiling/benchmark, cancel/fallback/license; chỉ tích hợp nếu chứng minh lợi ích                              | Nhánh mở rộng, không bắt buộc rubric; tác vụ cụ thể chưa chốt                                                                                                    |
+| F13 | Đã bỏ khỏi kế hoạch: WASM PoC                                                                                            | Tài chốt 22/10/2026; không triển khai mới, không coi đã hoàn thành hoặc tự xóa source có sẵn. |
 | F14 | Native client tái sử dụng API: OAuth/deep link, secure storage, build/thiết bị                                             | Nhánh mở rộng, không bắt buộc rubric; stack chưa chốt                                                                                                            |
 | F15 | Đã bỏ khỏi kế hoạch phát triển: không mở rộng tool-using agent lên 3 tools                                                 | Theo Tài ngày 19/10/2026; chỉ giữ phạm vi 2 tools ban đầu, không tự thêm tool thứ ba hoặc nhận đạt capability B của rubric                                       |
 | F16 | Compose E2E/traceability, ít nhất 3 ADR, AI_USAGE, PDF 10–20 trang, slide tối đa 15 trang, video 3–5 phút, live change/Q&A | Pending bộ nộp; ADR-001–004 đã ghi, không nhận đã hoàn thành đầu ra F16                                                                                          |

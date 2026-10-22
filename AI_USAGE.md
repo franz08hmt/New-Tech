@@ -1218,3 +1218,24 @@ and Thắng, not an approval, and carries no reviewer, time or decision. The val
 instead; RQ23 stays deferred. The shared final rubric was read through a fetch summary and
 should be checked against the original. Source `d1a95d1`: typecheck/build/format exit 0,
 `npm test` 2,279. No provider call, secret, cloud write, push or deploy.
+
+## 2026-10-22 — Independent review and scope update
+
+Codex reviewed the blank-baseline fix and quality-suite v2 draft, then recorded
+Tài's explicit scope decision: existing STT only, no TTS; remove F11/PWA and
+F13/WASM from the development plan, retain responsive mobile web, SSE and the
+containerized/deployed demo requirement. F15 remains removed; F12/F14 are not
+implicitly removed. The final-project assignment was located and read directly
+through the read-only Drive connector; its source and section mapping are in
+FINAL-REQUIREMENTS. The eight-week course plan was not substituted for the final
+rubric. Documentation-and-ADRs guidance was used to preserve the rationale and
+agent handoff rather than claim global persistent memory or rubric acceptance.
+
+Fresh checks on source HEAD b2aad43 before these Markdown-only changes: API build
+exit 0; related Node regressions 465/465; guarded disposable PG17 chain plus the
+previous independent blank-baseline oracle 14/14 (including chain 13/13). The
+previous 12-document/12-chunk failure is now closed. Full 2,279 application tests
+and 512 DB tests were not re-run by this reviewer. No production source, suite or
+gold was changed, no human approval fabricated, and no real model call, credential
+read, cloud write or push performed. The review-owned disposable container was
+removed after checking its ownership label; legacy resources were untouched.

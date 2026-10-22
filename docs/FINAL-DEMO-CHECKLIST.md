@@ -3,6 +3,13 @@
 Đọc [README](../README.md), [hướng dẫn học](FINAL-STUDY-GUIDE-VI.md) và
 [context](PROJECT-CONTEXT.md). Checklist này là kế hoạch; ô trống không phải PASS.
 
+Phạm vi chốt 22/10/2026: F10 giữ STT hiện có, không TTS; F11 (PWA) và F13
+(WASM PoC) đã bỏ khỏi kế hoạch, không phải tính năng đã hoàn tất. F15 mở rộng
+ba tools vẫn đã bỏ; không tự bỏ F14. Theo
+[rubric đã đối chiếu](FINAL-REQUIREMENTS.md#phạm-vi-bổ-sung-theo-tài--22102026),
+vẫn cần responsive desktop/mobile, streaming/SSE, demo containerized/deployed,
+hai capabilities A + C có bằng chứng và ≥20 case chạy trước/sau cải tiến.
+
 ## F07 — hội thoại riêng đã lưu (local automated evidence)
 
 - [x] Hội thoại thuộc `(workspace_id,user_id)` đã xác minh; Manager không mặc
@@ -127,6 +134,8 @@ admission.
 - [ ] Theo phạm vi chốt 19/10/2026: không hứa TTS hoặc agent 3 tools; chỉ giữ
       STT và phạm vi 2 tools ban đầu. Không nhận capability B của rubric đạt;
       A (RAG) và C (Study Coach/structured output F08) cần bằng chứng riêng.
+- [ ] Theo chốt bổ sung 22/10/2026: không đưa F11/PWA hoặc F13/WASM vào cam kết
+      demo; vẫn kiểm mobile web/375px và SSE trên bản containerized/deployed.
 - [ ] Kiểm key/quota/model ở backend và mạng; không quay Dashboard keys/.env.
 - [ ] Có video dự phòng gắn ngày/revision, nói rõ là bản ghi, không giả live.
 

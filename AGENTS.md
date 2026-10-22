@@ -32,6 +32,12 @@ LogiRoute/Python hay hướng dẫn của project khác. App local tại 127.0.0
   F15 lên 3 tools, chỉ duy trì phạm vi 2 tools ban đầu. Không tự nhận đạt rubric
   capability B (đòi ít nhất 3 LLM-called tools). Xem context để phân biệt F10
   với R10/SSE và bằng chứng tool calling; không xóa chức năng SSE.
+- Chốt bổ sung của Tài 22/10/2026: F10 đã có STT, giữ và nghiệm thu implementation
+  đó, không thêm TTS; bỏ F11 (PWA/install/offline shell) và F13 (WASM PoC) khỏi
+  roadmap triển khai. Không xóa source đang có hoặc đánh số lại các đợt. F14
+  chưa có quyết định bỏ. Vẫn bắt buộc responsive desktop/mobile, SSE/streaming
+  và demo containerized/deployed; bỏ PWA không bỏ nghiệm thu mobile web.
+  Rubric và nguồn đã đối chiếu được ghi trong FINAL-REQUIREMENTS.
 
 ## Kiểm và bàn giao
 
