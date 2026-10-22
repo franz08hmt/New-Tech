@@ -3,6 +3,59 @@
 Cập nhật 22/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
+## F09-B.2B.3 — upload → ingestion → audit → preflight on one runtime (22/10/2026)
+
+Closes the persistence gap left by B.2B.1/B.2B.2, whose fixtures wrote the index
+with the production extractor/chunker but not through the ingestion service. New
+test-only slice: `test/evaluation-ingestion-chain-fixture.mjs` and
+`test/evaluation-ingestion-chain.database.test.mjs` (historic fixtures untouched,
+no production change, no endpoint).
+
+Real in the chain: Nest app and guards, Auth/CSRF/Origin, non-owner NOBYPASSRLS
+business/Auth LOGINs on PG17 with RLS, the public `POST /documents` upload,
+`DocumentsService`, the real `StorageService` (HTTP, private-bucket check), PDF.js
+extraction, the chunker, `POST /documents/:id/process` and
+`DocumentIngestionService`, `GeminiEmbeddingService` batching, admission and usage
+telemetry, the provenance auditor/verifier and the quality preflight. Synthetic:
+the Auth upstream; the remote Storage (a loopback server that keeps the bytes it is
+sent and returns exactly those bytes per key); the SDK transport under the
+embedding/generation/OCR services (OCR is switched off and any OCR or generation
+dispatch would throw and be counted). Only users, memberships and the two courses
+are seeded. Brief, policy and a separate policy copy for the policy-only course are
+uploaded through the API; their ids come from the responses. A static check proves
+the fixture and the happy path contain no document/chunk writes; direct SQL appears
+only below a marked NEGATIVE-CORRUPTION section, to damage data on purpose.
+
+`F09-B.2B.3_CODE_VERIFIED + LOCAL_INGESTION_AUDIT_PREFLIGHT_VERIFIED +
+EXECUTION_BLOCKED`, source `acd2b3c`. Observed by phase: setup — no document, no
+operation; upload — three objects in the stand-in, byte-equal to the PDFs, no
+provider call, no operation; denied upload (viewer, other workspace) reached no
+Storage; processing — chunks and pages equal the production pipeline's output for the
+bytes, every stored vector is the embedding of that chunk's own text, embedding
+calls = the real per-document batch count with inputs summing to the chunk total,
+three `document_index` operations and as many provider-call rows as SDK calls,
+no generation, no OCR, no receipt. Denied processing (viewer 403, other workspace
+404) made no SDK or Storage call but the usage layer records each as an operation
+with outcome `rejected` and zero provider calls (existing behaviour, now
+documented). From the post-indexing baseline, two audits and the preflights changed
+no table except Auth bookkeeping (`pilot_sessions`, `pilot_auth_limits`) and no
+counter. Audit: OBSERVED_CONSISTENT; verifier BOUND with a pinned digest and a
+second audit; preflight verifies Auth, scopes, course sets and provenance evidence
+while gold approval, target equivalence, metadata-only corpus provenance and
+admission stay unverified and execution blocked; `--execute` refused with zero
+fetches. Failure paths: wrong or unreadable Storage bytes, an unprocessed/failed
+document (retry through the endpoint recovers), damaged chunks (missing, wrong text,
+wrong page) caught and replaced by a real re-index without duplicating rows, vector
+drift and damaged text against an older artifact (`MISMATCH`).
+
+What this does not prove: the audit alone cannot show that a vector came from its
+chunk's text (the test shows it only because the synthetic transport is
+deterministic); same-fixture agreement is not equivalence of any other HTTP target
+with the audited database/Storage, so `targetEquivalence` stays unverified; real
+Storage, real Auth, real Gemini and a real maintenance role were not used. RQ23
+remains deferred; gold review, live evaluation, semantic review and browser/cloud/
+Google/Thắng-machine items remain pending.
+
 ## F09-B.2B.2 — quality-suite dry-run and authenticated preflight (22/10/2026)
 
 Completed checklist: (1) a pure planner for `rag-quality-20261022-v1`

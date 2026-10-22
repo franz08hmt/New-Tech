@@ -1174,3 +1174,20 @@ PG17 integration 6/6, `npm test` 2,273, full `test:database` 499/499 (48 files, 
 guarded container), typecheck/build/format exit 0. No provider or model call, real
 account, secret, cloud write, push or deploy. Execution is refused; live evaluation,
 semantic review and the earlier browser/cloud/Google/Thắng-machine items stay pending.
+
+## 2026-10-22 — F09-B.2B.3 ingestion-service chain
+
+AI assistance read the upload, Storage, ingestion, embedding and usage code and the
+earlier fixtures, then built a new test-only chain fixture and integration test. The
+first runs showed real behaviour rather than a missing module: refused processing
+requests still record `rejected` usage operations (the test and docs now state it), and
+a test-side name clash (a TDZ error) was fixed. Mutating the compiled ingestion and
+upload services (six faults) was used to confirm the chain catches persistence bugs;
+all six were killed. The audit alone cannot show that a vector came from its chunk's
+text; the test shows it only because the synthetic transport is deterministic.
+
+Source `acd2b3c`: chain 12/12, focused 492/492, `npm test` 2,273, full
+`test:database` 511/511 (49 files, own guarded PG17 container), typecheck/build/format
+exit 0. No production change, provider or model call, real account, secret, cloud
+write, push or deploy. Execution stays refused; the AI gold review remains AI judgement
+and gold approval, live evaluation and semantic review stay pending.

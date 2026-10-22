@@ -871,3 +871,18 @@ and two matching declared values prove nothing. Quality mode can plan and prefli
 only: execute is refused before any credential, request or record, readiness and
 authorization are constants, and generation is counted from the wire rather than
 asserted. No maintenance credential enters the evaluator or API process.
+
+F09-B.2B.3 decision: the persistence claim is tested with the real services, not
+asserted. A new chain fixture keeps the historic runtime fixtures unchanged and
+replaces only what lives outside the process: the Auth upstream, the remote Storage
+(a stand-in that stores and returns the exact bytes per key, so a wrong object is
+visible), and the SDK transport, whose embedding calls are counted by batch and whose
+generation and OCR paths fail loudly. Documents are created by the upload route and
+indexed by the processing endpoint; the test source is scanned so that direct writes
+to documents or chunks exist only in a marked negative section. Side effects are
+accounted per phase from a post-indexing baseline, so upload and processing keep their
+legitimate effects and the audit and preflight are shown to add none beyond Auth
+bookkeeping. Call counts are derived from the real chunk and batch sizes. The refused
+requests that the usage layer records as `rejected` operations are reported as they
+are rather than hidden. Same-fixture agreement is not treated as target equivalence,
+and no production code was changed to make the chain run.

@@ -427,6 +427,40 @@ the separate F08-B checkpoint below.
 - [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
       cloud rollout, Google live and Thắng's machine are unchanged.
 
+## F09-B.2B.3 — upload → ingestion → audit → preflight chain (22/10/2026)
+
+- [x] Documents created by the public upload route and indexed by the processing
+      endpoint/`DocumentIngestionService` (real Nest, RLS, StorageService, PDF.js,
+      chunker, embedding batching, admission, usage); only Auth upstream, remote
+      Storage stand-in (keeps and returns the received bytes) and SDK transport are
+      synthetic. No direct document/chunk write on the happy path (static scan).
+- [x] Persisted chunks/pages equal the production pipeline's output for the stored
+      bytes; each vector is the embedding of its own chunk text; embedding calls equal
+      the real batch count; no generation, OCR or receipt in the chain.
+- [x] Audit OBSERVED_CONSISTENT, verifier BOUND (pinned digest + second audit),
+      preflight verified Auth/scopes/course sets/provenance evidence; gold approval,
+      target equivalence, corpus provenance (metadata) and admission unverified;
+      execution blocked; `--execute` refused with zero fetches.
+- [x] Negative: viewer/other-workspace denials make no SDK or Storage call (recorded
+      as `rejected` operations, 0 provider calls); wrong/unreadable Storage bytes; a
+      failed or unprocessed document is not consistent and recovers by retry; damaged
+      chunks caught and replaced by a real re-index without duplicates; drift against an
+      older artifact is `MISMATCH`.
+- [x] RED→GREEN: real behaviour REDs while building (denied requests do record
+      operations; test-side TDZ bug fixed), plus 6 production-service mutants in the
+      compiled ingestion/upload services (page, text, index, vector alignment, stale
+      chunks, upload bytes) all killed by the chain test.
+- [x] Source `acd2b3c`: typecheck, build, format; focused 492/492 (provenance, planner,
+      quality-http, quality, evaluation, HTTP, reservation, ingestion); chain 12/12;
+      `npm test` 2,273 (unchanged: DB-only slice); full `test:database` 511/511 in 49
+      files — new runs, exit 0.
+- [x] `F09-B.2B.3_CODE_VERIFIED + LOCAL_INGESTION_AUDIT_PREFLIGHT_VERIFIED +
+      EXECUTION_BLOCKED`.
+- [ ] Still not proven: real Storage/Auth/Gemini, the real maintenance role, target
+      equivalence of any HTTP endpoint with the audited database/Storage. Execution,
+      `GOLD_REVIEW_PENDING`, `LIVE_EVALUATION_PENDING`, `SEMANTIC_REVIEW_PENDING`,
+      browser/cloud/Google/Thắng-machine and F09-A.1 cleanup pending unchanged.
+
 ## F09-B.2B.2 — quality-suite dry-run and preflight (22/10/2026)
 
 - [x] Planner: exact manifest bytes/hash, mapping per course file set, DTO-validated

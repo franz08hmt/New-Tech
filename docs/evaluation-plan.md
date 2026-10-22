@@ -151,6 +151,17 @@ observation, not a semantic PASS, a live evaluation or permission to run; each f
 execution still needs gold approval, a trusted target-equivalence proof, current
 pinned provenance and its own batch approval.
 
+F09-B.2B.3 (source `acd2b3c`): `evaluation-ingestion-chain.database.test.mjs` runs the
+whole preparation chain on one disposable runtime — upload API, processing endpoint
+and ingestion service, maintenance audit, verifier, quality preflight, execute
+refusal — with only Auth upstream, remote Storage and the SDK transport synthetic.
+Re-run (disposable PG17 with a guarded `TEST_DATABASE_URL`, after
+`npm run build --workspace @examate/api` and `node apps/api/scripts/prepare-runtime-roles.mjs`):
+`node --test apps/api/test/evaluation-ingestion-chain.database.test.mjs`. It shows that a
+quality-suite preflight and a provenance audit work on data the services themselves
+persisted; it is not a live evaluation, and a controlled execution would still need
+the blockers listed in the context checkpoint.
+
 **Current boundary, 18/10/2026:** live `--execute` is BLOCKED (exit 3) before
 DB/Storage/Gemini because this runner has no verified workspace principal.
 Offline/dry-run remain available. Live commands/transport descriptions below
