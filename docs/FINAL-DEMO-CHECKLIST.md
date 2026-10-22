@@ -427,6 +427,34 @@ the separate F08-B checkpoint below.
 - [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
       cloud rollout, Google live and Thắng's machine are unchanged.
 
+## F09-B.1.1 — atomic plan reservation and cut-off bodies (22/10/2026)
+
+- [x] Reviewer oracle 0/3 RED then 3/3. New suite RED observed before the fix
+      (14 of 15 ledger/concurrency tests failed with a stub, a body read with no
+      deadline hung, 5 runner/preflight body tests failed).
+- [x] One generation per approved plan across processes: exclusive per-plan
+      reservation, history rechecked under it, durable execution intent before the
+      first POST. Real Nest/PG17 race of two OS processes: 1 dispatch, 1 embedding +
+      1 generation SDK call, 2 persisted calls, 1 receipt, 1 intent.
+- [x] Recovery policy: pre-dispatch refusal leaves no history; active holder blocks
+      even an acknowledged rerun; completed run releases; crash or unknown outcome
+      keeps the reservation until `--rerun-acknowledged` names it (no lease or
+      timeout); takeover keeps superseded evidence; ledger I/O errors refuse.
+- [x] A body cut after valid headers, or never finished, is `unknown_after_dispatch`
+      (`before_response`/`response_body`), stops the run, no retry or re-login, rest
+      NOT_ATTEMPTED; complete-but-malformed JSON stays a separate contract FAIL; no
+      raw response, cookie or credential in errors or reports.
+- [x] 23 new tests, transport suite 55/55; 16 mutations killed (3 first needed new
+      tests or a seam). Positive controls: normal run, sequential rerun guard.
+- [x] Gates at `7814f7d`: typecheck, build, format exit 0; `npm test` exit 0, 457 +
+      1,093 + 544 = 2,094; `npm run test:database` exit 0, 479/479 in 46 files.
+      Clean report: `artifacts/f09b-http-integration-cdd7b486-7b4c-437b-b476-3fd8ef68ef6c`.
+      Own container/volume removed.
+- [ ] Reservation is local to one filesystem/host; Windows only exercised; a live
+      pid is not proof a provider stopped. Live evaluation, human review, browser,
+      cloud/Google/Thắng-machine and RESOURCE_CLEANUP_BLOCKED (F09-A.1) unchanged;
+      F09-B.2 not started.
+
 ## F09-B.1 — authenticated HTTP evaluation transport (22/10/2026)
 
 - [x] Separate `--http-evaluation` mode; legacy `--execute`/`--transport http` still

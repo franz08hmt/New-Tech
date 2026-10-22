@@ -79,6 +79,20 @@ operator's secret store and is piped by the operator; the two frozen PDFs ingest
 that account's workspace with a mapping of document IDs; and a provenance path
 (F09-B.2) that proves stored bytes and index content match the corpus manifest.
 
+Reruns and recovery (F09-B.1.1): an approved plan has one active generation run.
+Once a run dispatched, another execute of the same plan is refused unless
+`--rerun-acknowledged <runId>[,<runId>...]` names every earlier run. A running or
+crashed plan is held by `artifacts/rag-evaluation-http-ledger/<planSha256>/active.json`
+(with `<runId>.intent.json` and `<runId>.outcome.json`); nothing expires. After a
+crash or an outcome unknown after dispatch, an operator checks the run is really gone
+and the server's own usage records, then reruns naming that run; its reservation moves
+to `superseded-*` and its intent stays. While the holder is alive, naming it does not
+help. If the ledger cannot be read or written the run is refused. A stuck
+`takeover.json` (a crash during a takeover) must be removed by hand. A body that stops
+after valid headers is recorded as `outcome: unknown_after_dispatch` with
+`transportPhase` and ends the run; a complete body that is not JSON is `bodyStatus:
+invalid_json` and the case FAILs without stopping the run.
+
 Proposed F09-B.2: (a) author and freeze a new manifest of at least 20 live quality
 cases (the v3 manifest has 9), covering document, course, no-evidence, Vietnamese,
 injection and summary, with gold facts and pages reviewed by Tài and Thắng before any

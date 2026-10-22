@@ -72,6 +72,14 @@ admission stay unverified over HTTP, which blocks quality execution). Evidence a
 the transport only; live evaluation and semantic review remain pending and whole
 F09 is not accepted.
 
+F09-B.1.1 closes two review findings in that transport: an approved plan has one
+active generation run across processes (atomic reservation, durable intent, crash
+and unknown-outcome evidence kept until an operator acknowledges) and a response whose
+body was cut off after the headers is an unknown outcome that stops the run. Evidence
+at `7814f7d`: 23 new tests including a real two-process race against Nest/PG17,
+2,094 application and 479 PG17 tests. Live evaluation and semantic review remain
+pending.
+
 Thành viên đọc được tài liệu của workspace; chưa có PDF riêng từng người trong
 cùng workspace. Auth PASS không thay RAG/STT PASS. Máy Thắng cần bằng chứng riêng.
 

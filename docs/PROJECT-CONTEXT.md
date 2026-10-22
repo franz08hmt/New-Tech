@@ -5,6 +5,84 @@ Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong 
 
 ## F07 contract and local implementation
 
+## F09-B.1.1 — atomic plan reservation and cut-off response bodies (22/10/2026)
+
+Base `baab703` (F09-B.1 code `6eafdeb`); source commit `7814f7d`. Two review
+findings in the HTTP evaluation adapter, both reproduced first (reviewer oracle
+0/3, then my own suite).
+
+Finding A, root cause: the ledger was listed once before Auth/preflight and every
+run later wrote its own `<plan>.<runId>.json`, so two runs of one approved plan both
+saw an empty ledger and both dispatched; a sequential rerun guard proved nothing
+about concurrency. Fix (`rag-evaluation-http-ledger.mjs`, existing filesystem only,
+no dependency): `<ledger>/<planSha256>/active.json` is created with exclusive `wx`,
+so one run holds a plan across processes; under that reservation the history is read
+again and the acknowledgement checked, and `<runId>.intent.json` is written and
+synced before the first POST; an outcome file follows. Dry run and preflight never
+touch it, and a run blocked before dispatch (provenance, Auth, scope) takes nothing.
+Policy: before dispatch a refused or failed attempt removes only its own reservation
+and leaves no history; while a run is active its reservation is held and even an
+acknowledged rerun is refused while the holder process is alive; a run whose every
+response was fully received records `completed` and releases it; a crash or an
+outcome unknown after dispatch keeps the reservation (no lease, no timeout, no
+clearing) until a rerun names that run with `--rerun-acknowledged`, and a run that
+never finished may be taken over only if its holder is provably gone (same host, pid
+not alive); the old reservation moves to `superseded-*` and its intent stays. Every
+earlier run must be acknowledged for a rerun, so one acknowledgement cannot start two
+reruns. Takeovers are serialised by a second exclusive file. Only the owner can
+release, and a superseded owner's late finish touches nothing. Any read or write
+error refuses the dispatch (only a missing directory means "no history"). Entries
+written by F09-B.1 in the flat layout still count as history.
+
+Finding B, root cause: `response.text().catch(() => "")` made a body that was cut,
+reset or never finished look like an empty body, so a 200 with a half body carried no
+blocking reason and the next generation was sent; the deadline was only the abort
+signal passed to fetch. Fix (`rag-evaluation-http-lib.mjs`): one deadline is raced
+against both the connection and the whole body (it holds even if the body ignores the
+signal); a failure before the response or while reading the body throws
+`NETWORK_OR_TIMEOUT` tagged `before_response`/`response_body`; the runner records
+`outcome: unknown_after_dispatch` with `transportPhase`, stops, and leaves the rest
+NOT_ATTEMPTED with no retry and no re-login; a body that arrived completely but is not
+JSON is `bodyStatus: invalid_json`, a contract FAIL on a known answer, and the run
+continues. A session cookie sent with login headers is remembered so it is closed even
+if the body never arrives; Auth, readiness and logout body failures fail that stage
+safely. No raw response, header or cookie enters an error or report. A runner
+exception after dispatch is an unknown outcome and keeps the reservation.
+
+Evidence: reviewer oracle 0/3 RED then 3/3. RED of the new suite: with the ledger
+module stubbed, 14 of the 15 tests that ran failed (a control for different plans
+passed), a body that ignores the abort signal hung until cancelled, and 5 runner and
+preflight body tests failed. GREEN: 23/23 new tests (concurrent runs in one process,
+two independent processes, a real SIGKILL crash, unknown outcome, owner-only release,
+history recheck, ledger faults, loopback servers cutting the body after valid headers
+or never finishing it, malformed but complete JSON, Auth-stage body cuts, sequential
+reruns and a normal run as positive controls) and the earlier transport suite 55/55.
+16 mutations of the ledger and transport were applied: 13 were killed at once, two
+survived (history not rechecked under ownership, a runner exception recorded as
+completed) and one pattern did not apply; I added a deterministic recheck test and a
+`deps.runCases` seam with an exception test, repaired the pattern, and all 16 are now
+killed. On the real Nest/PG17 stack two separate OS processes raced one plan: one
+dispatch (exit 2), the other blocked (exit 3), exactly 1 embedding + 1 generation SDK
+call, 2 persisted provider calls, 1 receipt and 1 execution intent, reservation
+released. The earlier F09-B.1 integration steps still pass; clean tree `7814f7d`
+(dirty=false): `artifacts/f09b-http-integration-cdd7b486-7b4c-437b-b476-3fd8ef68ef6c`.
+
+Gates on a tree identical to `7814f7d` (no file changed after they started): typecheck,
+build, format exit 0; `npm test` exit 0 with 457 API Vitest + 1,093 API Node + 544 Web
+= 2,094 (2,071 before); guarded `npm run test:database` exit 0, 479/479 in 46 files on
+an owned PG17. Shared runner and F09-A fixture were not changed. Only
+`examate-f09b11-pg17-20261022` and its volume were removed; F09-A.1 resources and SOP
+containers were untouched.
+
+Limits: the reservation is local to one machine and filesystem (another host's
+reservation is never taken over; a network share is not assumed to give exclusive
+create); no directory fsync is done on Windows; a live holder pid only prevents two
+runners, it is not proof that a provider request stopped; a crash during the short
+takeover leaves `takeover.json`, which keeps the plan closed until an operator removes
+it. Exclusive-create behaviour was exercised on Windows only. No live model, real
+account, cloud, browser, human review or F09-B.2 work; `LIVE_EVALUATION_PENDING` and
+`SEMANTIC_REVIEW_PENDING` remain.
+
 ## F09-B.1 — authenticated HTTP evaluation transport and readiness (22/10/2026)
 
 Base `7e64f41`; source commit `6eafdeb`. `evaluate-rag.mjs --http-evaluation`

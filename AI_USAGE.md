@@ -1013,3 +1013,21 @@ cases for the planned 20. Gates at `6eafdeb`: 2,071 application tests and 479 PG
 tests, exit 0. The AI created, used and removed only its own labeled container and
 volume. No real account, provider, cloud call, human review or browser acceptance
 was produced, and no secret was requested or handled.
+
+## 2026-10-22 — F09-B.1.1 plan reservation and response body failures
+
+AI assistance reproduced the reviewer's three failing oracles, traced them to a
+check-then-write ledger and to a swallowed body error, and wrote the tests first:
+a shared loopback fake API, in-process and two-process races, a real SIGKILL crash,
+ledger fault injection, and servers that cut or hang the body after valid headers.
+RED was observed with a stub ledger (one hung test had to be cancelled and its run
+restarted). It then added an exclusive per-plan reservation with a durable intent and
+a recovery policy that never expires by time, and a single deadline over the whole
+response. Of 16 mutations 13 were killed at first; two survivors exposed missing
+tests (history recheck, runner exception) and were closed with a deterministic test
+and a small `deps.runCases` seam, and one inapplicable mutant pattern was repaired. An
+AI edit script lost a backslash twice and was redone with the editing tool. The real
+two-process race against Nest/PG17 shows one generation. Gates at `7814f7d`: 2,094
+application tests and 479 PG17 tests, exit 0. The AI created and removed only its own
+container and volume. No live model, real account, cloud call, human review or browser
+result was produced, and no secret was handled.

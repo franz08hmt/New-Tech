@@ -750,3 +750,18 @@ Generation is one POST per case with no retry and no silent re-login; an outcome
 unknown after dispatch ends the run, and a plan that began generating cannot run
 again without naming its prior runs. `runCases` gained an optional stop rule whose
 default is the historical one.
+
+F09-B.1.1 decision: "an approved plan runs once" is enforced by an atomic,
+cross-process reservation, not by reading a ledger. The reservation is an exclusive
+file on the existing filesystem (no database, no lock service, no dependency); the
+history and the acknowledgement are checked again under it, and the execution intent
+is written and synced before the first generation POST. Nothing expires by time: a
+crash or an outcome unknown after dispatch keeps the reservation until an operator
+names that run, because a lease running out is not evidence that a provider stopped;
+only a run that never finished and whose holder is provably gone on this host can be
+taken over, and the superseded record is kept. A ledger that cannot be read or written
+refuses the dispatch. A response is complete only when its body has been read to the
+end under the same deadline as the request: a cut or unfinished body is an unknown
+outcome after dispatch that stops the run and is never retried, and it is kept apart
+from a fully received body that is not valid JSON, which is a contract failure of a
+known answer.
