@@ -669,3 +669,31 @@ a later explicit confirm/cancel; confirmed/terminal states are accepted as read,
 and a failed read keeps unknown-outcome writes locked. Messages use safe
 code/status categories, not raw exceptions. This is a frontend lifecycle fix;
 ownership, idempotency, retention, schema and admission are unchanged.
+
+## ADR-011 — Authenticated local evaluation without a runtime bypass
+
+F09-A adds a test-owned local adapter to the existing evaluation CLI. Its only
+target is guarded disposable PG17; it creates synthetic identities then uses
+real password/session HTTP verification and the normal Nest application.
+Principals are never accepted from CLI/body/header as verified identities.
+Business/Auth LOGINs are separate, non-owner/NOBYPASSRLS, capability checked;
+maintenance is limited to seed/observer/assertion/cleanup. Providers are replaced
+at SDK transport and Auth upstream boundaries, with external requests blocked.
+Production services, authorization, retrieval, admission and telemetry remain
+real. No debug endpoint, new grant, migration or live execution unlock is added.
+
+Report schema 4 is additive; historical v3/corpus/gold remain readable and
+unchanged. Manifests/runs pin hashes and distinguish executed local contracts,
+references, blockers and unattempted cases. A source-backed protocol correction
+has its own manifest revision and replacement ID; failed earlier runs are kept.
+Local batches stay bounded (10 scenarios/20 synthetic calls), retries are zero,
+and the old live caps are unchanged. SDK counters are reconciled with persisted
+telemetry, but missing records stay unknown rather than proving free work.
+Decimal estimates remain grouped by stored currency/pricing version.
+
+Human packs bind exact run/report/manifest/corpus/output/expected/source pages,
+retain blank human reviewer/decision fields and are explicitly synthetic
+readiness evidence. Structural/citation/evidence checks cannot establish factual
+or pedagogical correctness. Live quality evaluation remains blocked until its
+own verified runtime Auth adapter/operational approval exists; F09-A does not
+authorize paid calls, cloud writes, human signatures or F10 work.

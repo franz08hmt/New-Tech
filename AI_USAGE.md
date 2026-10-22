@@ -888,3 +888,44 @@ API Node + 544 Web = 1,807 passing, fail/skip/cancelled 0), build and format.
 Build retains the Vite >500 kB chunk advisory. Full DB gate was not rerun for
 this frontend-only fix; no resource cleanup outside test-process teardown was
 needed and SOP containers were untouched.
+
+## 2026-10-21–22 — F09-A authenticated evaluation foundation
+
+AI assistance inspected the existing v3 evaluation/corpus/offline/report/human
+binding paths and Auth/runtime/Study Coach integrations. It added a separate
+guarded local mode and fixed-case manifest revision, reused the existing corpus
+and report status machinery, and wired real session/Nest/PG17/RLS/retrieval/
+admission/telemetry with only external Auth/SDK/Storage boundaries synthetic.
+No model, prompt, retrieval algorithm, quota, grant, migration or UI was changed.
+
+Observed RED→GREEN includes missing-target mode, altered source-page binding
+and LF/CRLF source reproducibility. Focused self-tests pass 53/53, integration
+1/1. At clean `97f8f82`, 33 local contract scenarios pass with two references
+SKIP; all 37 SDK attempts match persisted telemetry. These are not twenty live
+quality cases. Initial fixture failures and local-v1's incorrect 400-vs-existing-
+404 protocol oracle were retained, not erased/regraded. V2 replaces its case ID
+and pins the predecessor without changing semantic facts/pages/gold.
+
+Further observed RED→GREEN corrections preserve unknown token totals as null
+and align the injection scenario's actual question with its unchanged codename
+oracle. The real wrapper input is asserted; synthetic questions are included
+in the human pack, private sentinel questions are excluded. The corrected
+focused Nest/PG17 run again executes 33 PASS plus 2 unexecuted references SKIP.
+Initial failures remain in ignored artifacts, including an interrupted gate
+whose format check caught a test edit made during that run; the files were
+formatted before final verification.
+
+Reports omit credentials/tokens/signed URLs/account mapping/private sentinels.
+Eleven synthetic RAG/Quiz/Flashcards review templates include exact output and
+source/rubric binding with blank reviewer/decision. The user/human reviewer must
+assess their semantic usefulness; AI has not signed a human verdict. Live
+readiness remains Auth-blocked before paid work, and browser/semantic/cloud/
+Google/remote-machine acceptance is not advanced. Full F08/F09 remains partial.
+
+Final-source `6c32842` verification ran sequentially with all five exits 0:
+typecheck, full application suite (405 API Vitest + 874 API Node + 544 Web =
+1,823), build, format, and 478/478 PG17 tests across 45 files. No failures,
+skips or cancellations in those suites; the local evaluation report separately
+has 33 contract PASS and 2 reference SKIP. Logs retain the exact commands and
+revision under `artifacts/f09a-gates-6c32842`. Browser tools are not exposed,
+so no browser result or human semantic judgment has been signed by AI.

@@ -427,6 +427,80 @@ the separate F08-B checkpoint below.
 - [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
       cloud rollout, Google live and Thắng's machine are unchanged.
 
+## F09-A — authenticated evaluation readiness (21–22/10/2026)
+
+- [x] Versioned local-v1/local-v2 manifest, unchanged historical v3/E01–E24 and
+      rag-eval-v2 corpus/gold. Run/report/manifest/corpus/output/source-page binding;
+      reviewer and semantic decisions are blank. Exact source pinning supports
+      Git LF/CRLF conversion without accepting other edits.
+- [x] Real Nest HTTP with database-backed sessions/CSRF/membership, separate
+      non-owner/NOBYPASSRLS business/Auth LOGINs, production RLS/retrieval,
+      wrappers, admission, receipts, Quiz/Flashcards and telemetry. Only Auth
+      upstream/SDK/Storage boundaries are synthetic. Maintenance is seed/assertion/
+      observer/cleanup only. No public debug endpoint, new grant or migration.
+- [x] Clean-source run at `97f8f82`: 33 executable contract cases PASS, 0 FAIL/
+      BLOCKED/NOT_ATTEMPTED, 2 reference-only cases SKIP. Run ID
+      `396385d1-bc5e-4ba5-8f1d-a15edc3a6cbb`, retained under
+      `artifacts/f09a-source-97f8f82`. SDK calls 37 = persisted calls 37;
+      declared bounded batches have 10/10/10/3 cases and 9/20/6/2 calls.
+      Local contracts do not count toward twenty live quality cases.
+- [x] Cases F09A-001–033 (F09A-105 replaces retired F09A-005 in v2) cover scope,
+      authentication/owner/role isolation, actual evidence/citation context,
+      structured Quiz/Flashcards and malformed/forged output, injection presence,
+      provider/admission failures, zero/missing/partial usage, no-AI save/practice,
+      idempotency and privacy. F09A-034/035 are unexecuted browser/live references.
+- [x] Focused self-tests 53/53 and runtime HTTP/PG17 suite 1/1. RED→GREEN observed
+      for missing-target mode (unsupported exit 1 → explicit BLOCKED/3), altered
+      human-pack source pages (not rejected → binding rejection), and unchanged
+      LF/CRLF source checkout (rejected → accepted, other edits still rejected).
+- [x] Additional RED→GREEN: no observed token sample is null rather than false
+      zero (`8dc5b06`); injection's actual SDK question matches the frozen codename
+      oracle (`6c32842`). The mismatch initially failed and retained its report;
+      the corrected focused Nest/PG17 suite passes 1/1 with 33 contract PASS and
+      2 reference SKIP. Human readiness output includes the synthetic question,
+      while the private sentinel remains excluded.
+- [x] Initial failures are preserved: fixture setup rate limit/invalid SQL probes/
+      state/parameter/syntax errors; local-v1 last run 32 PASS/1 FAIL/2 SKIP from
+      an incorrect HTTP-400 protocol oracle for foreign-document access. V2 uses
+      new F09A-105 and the existing source-defined 404; semantic gold unchanged.
+      Nothing was regraded or deleted to hide those runs.
+- [x] Existing live runner remains blocked before DB/Storage/provider. Explicit
+      readiness probe exited 3, LIVE_EVALUATION_AUTH_REQUIRED, one NOT_ATTEMPTED
+      and zero provider calls; report at `artifacts/f09a-live-readiness-97f8f82-exit`.
+- [x] Re-run commands: `node --test apps/api/test/evaluation.test.mjs`;
+      guarded `node --test apps/api/test/evaluation-runtime.database.test.mjs`;
+      `npm run eval:f09a:local -- --output artifacts/<new-directory>` after
+      disposable PG17/runtime-role preparation. See evaluation-plan for exact
+      modes, selection/dependency behavior and report interpretation.
+- [x] Final-source application gates at `6c32842`: `npm run typecheck` exit 0;
+      `npm test` exit 0, API Vitest 405/405 + API Node 874/874 + Web 544/544 =
+      1,823 passed, 0 fail/skip/cancelled. Logs and command/revision/exit records
+      are retained in `artifacts/f09a-gates-6c32842`. Earlier gate logs are
+      retained too; the `8dc5b06` run stopped at a format failure caused by an
+      in-flight test edit, which was formatted before this final run.
+- [x] `npm run build` and `npm run format:check` at `6c32842` both exit 0;
+      the existing Vite >500 kB chunk advisory remains, without changing build
+      limits or dependencies.
+- [x] Guarded `npm run test:database` at `6c32842` exit 0: 45 serial files,
+      478/478 pass, fail/skip/cancelled 0. This includes the formal F09-A
+      integration test (1/1), whose retained report is
+      `artifacts/f09a-integration-00a52b36-9495-4a61-ac64-71067dc00cde` with
+      33 contract PASS, 0 FAIL/BLOCKED/NOT_ATTEMPTED, 2 references SKIP.
+      SDK attempts and persisted telemetry match. Counts/commands/revisions/
+      exit codes are in `artifacts/f09a-gates-6c32842/results.json` and
+      `database-counts.json`; these are fresh results, not earlier F08 counts.
+- [x] `F09-A_CODE_VERIFIED` and `LOCAL_INTEGRATION_VERIFIED` apply to the
+      guarded synthetic runtime contract scope above. A final clean-tree rerun
+      can be reproduced with `npm run eval:f09a:local -- --output
+      artifacts/<new-final-run>`; report metadata records the exact HEAD/dirty
+      state. Later documentation-only commits do not change verified source.
+- [ ] Eleven synthetic human-readiness templates have output and source pages,
+      rubric and exact response binding, but no named reviewer/semantic decision.
+      They are not live educational-quality evidence.
+- [ ] LIVE_EVALUATION_BLOCKED and SEMANTIC_REVIEW_PENDING. No UI changed and no
+      browser automation is exposed; pending whole F05/F06/F08 browser acceptance,
+      cloud/Google live/Thắng's machine remain unchanged. F09/F10 not accepted.
+
 ## F06.2 — synchronized dashboard refresh
 
 The toolbar refresh uses one generation across overview, the selected cost

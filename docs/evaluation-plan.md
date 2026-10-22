@@ -8,6 +8,110 @@ Integrating authenticated live evaluation is still B4; no semantic PASS is
 implied by old runs, offline results or status=ready. Historical manifest, gold
 and artifacts are unchanged. Current product status: [context](PROJECT-CONTEXT.md).
 
+## F09-A — authenticated local readiness, 21–22/10/2026
+
+The additive `--local-integration` mode uses the current Nest application,
+password/session/CSRF verification, active membership, separate real non-owner
+business/Auth LOGINs, PostgreSQL 17 RLS, retrieval, provider wrappers, admission,
+receipts and telemetry. It creates only marked disposable test databases and
+roles. Maintenance is confined to synthetic seeding, assertions/observer and
+cleanup; all evaluated responses go through HTTP and the business capability.
+Auth upstream, Storage and SDK transports are synthetic; no whole Assistant,
+Quiz/Flashcards service or repository is replaced. The adapter accepts no
+principal, workspace, arbitrary base URL or live execute option. Missing/unsafe
+TEST_DATABASE_URL is BLOCKED before importing the runtime fixture; no root
+environment is loaded (the existing DB safety guard only compares its target
+against DATABASE_URL). External fetch origins and Storage are blocked.
+
+The separate schema-4 manifests are `evaluation-cases-f09a.json` (local-v1) and
+`evaluation-cases-f09a-v2.json` (default). Both pin exact v3 manifest bytes and
+the unchanged rag-eval-v2 corpus. Local-v1 is retained with failed reports:
+F09A-005 incorrectly expected HTTP 400 for a foreign document. Existing
+`RagRetrievalService.documentInScope` returns 404 DOCUMENT_NOT_FOUND; local-v2
+retires that ID and introduces F09A-105 for this protocol oracle. No semantic
+expected, fact/page gold or historical E01–E24 meaning was changed. Separate
+fixture failures (login rate-limit bucket reuse, nonexistent ACL-probe column,
+invalid processing-state setup, a syntax edit and inferred SQL parameter type)
+were corrected without relaxing production guards. Their runs remain retained.
+
+There are **33 executable local contract scenarios**, plus two **test references**.
+Default execution uses four declared batches of at most ten cases and twenty
+synthetic SDK calls each; there are no retries. Legacy live caps (ten cases,
+existing provider cap) are unchanged. The fixture seeds frozen page text as
+indexed evidence; it does not claim new PDF extraction or indexing coverage.
+Cases cover grounded/no-evidence RAG, course/intersection/tenant scope,
+session/role/owner denial, valid and invalid Quiz/Flashcards, actual injection
+context observation, quota/unavailable/timeout/malformed output, admission
+denial, true zero/missing/partial usage, no-AI save/read/practice and privacy.
+Semantic expected facts/pages and rubrics are frozen before execution. A local
+contract PASS never enters the live PDF-quality denominator.
+The inherited summary field `requestsAttempted` counts invoked scenarios here,
+not individual HTTP requests: one scenario may perform several reads/writes.
+Local `latencyMs`/`httpMs` is scenario wall time including harness observation,
+not pure single-request latency; stored operation/provider durations stay
+separate. None of these timings measures a live model.
+For this local mode only, exit 0 means the selected executable contracts passed;
+reference-only SKIP rows do not change that exit code. FAIL exits 1 and blocked
+or unattempted work exits 3. The legacy live/offline semantic status and exit
+rules below remain unchanged. Read mode, counts and semanticReview together;
+local exit 0 never certifies semantic quality.
+
+```powershell
+# Supply only a guarded, dedicated PG17 loopback *_test target in TEST_DATABASE_URL.
+# Do not copy a cloud DATABASE_URL here. The parent disposable DB is operator-owned.
+npm run build --workspace @examate/api
+node apps/api/scripts/prepare-runtime-roles.mjs
+npm run eval:f09a:local -- --output artifacts/my-new-f09a-run
+# Optional bounded subset; dependencies are explicit, never silently generated:
+npm run eval:f09a:local -- --only F09A-001,F09A-002 --output artifacts/my-new-f09a-subset
+# Historical protocol-oracle revision, expected to retain its F09A-005 failure:
+npm run eval:f09a:local -- --revision f09a-local-v1 --output artifacts/my-new-f09a-v1
+node --test apps/api/test/evaluation.test.mjs
+node --test apps/api/test/evaluation-runtime.database.test.mjs
+```
+
+Every new directory retains its manifest snapshot, per-case checkpoints,
+report and human-review template. Report v4 records run/time/Git SHA/dirty,
+manifest/base and corpus hashes (predecessor is pinned in the manifest snapshot), model/retrieval configuration,
+selected/attempted/reference cases, SDK and persisted operation/call counters,
+prompt versions, evidence/fact coverage, citation scope, safe outcomes, fixture
+HTTP/operation/provider durations, usage coverage and exact decimal costs grouped
+by currency/pricing version. Missing telemetry/usage/pricing stays unknown;
+telemetry remains best-effort, not billing or quota accounting. No credentials,
+cookie, draft token, signed URL, account mapping or private question sentinel
+enters the report. Outputs and source text in the human pack are synthetic only.
+Source pinning accepts only LF/CRLF checkout variants of the same text, so Git's
+line-ending conversion does not break reruns. Other whitespace/content changes
+still fail. Per-run manifest/report/response hashes stay exact for their bytes.
+Embedding vectors and SDK answers are fixed synthetic fixtures; actual runtime
+SQL runs, but semantic retrieval/ranking quality is not being measured.
+
+Human-review packs bind run/report/manifest/corpus/response and exact source pages,
+expected facts and evidence. They include RAG, Quiz and Flashcards output, rubric,
+and blank reviewer/decision/notes fields. Changing source text or response breaks
+binding. They are **synthetic readiness templates**, not live semantic evidence;
+no reviewer is invented. Citation existence does not establish claim grounding.
+Injection without the malicious passage in actual provider input is INCONCLUSIVE.
+Fixture latency is not live latency or SLA. Selected references are SKIP;
+BLOCKED/NOT_ATTEMPTED and unexecuted rows never become execution/quality PASS.
+
+Fresh source run `396385d1-bc5e-4ba5-8f1d-a15edc3a6cbb` at clean `97f8f82`
+is retained at `artifacts/f09a-source-97f8f82`: 33 contract PASS, 0 FAIL/BLOCKED,
+2 references SKIP, 37 SDK calls matching 37 persisted calls. Four batch call
+counts are 9/20/6/2. Eleven synthetic review templates remain unsigned. A separate
+legacy live-readiness probe at `artifacts/f09a-live-readiness-97f8f82-exit`
+exited **3**, LIVE_EVALUATION_AUTH_REQUIRED, one NOT_ATTEMPTED, zero provider calls.
+These are earlier source-checkpoint results, separate from final gate evidence
+in FINAL-DEMO-CHECKLIST. At `6c32842`, the injection request was corrected to ask
+the frozen codename question; an SDK-input assertion first observed RED on the
+duration question, then GREEN. The human template includes the actual synthetic
+question so the expected fact and output can be reviewed together. The private
+sentinel question remains omitted. Gold/source facts were not changed.
+Token aggregates without any observed samples remain null, distinct from an
+observed valid zero string. These are separate evidence modes. Authenticated
+local success does not unlock
+live execution or finish the required twenty live quality cases/human review.
+
 Manifest schema/report v3; corpus **rag-eval-v2**. The JSON manifest is authoritative. E01–E14 previously disagreed with the prose plan; the original plan and v2 cases are preserved in [evaluation-history](evaluation-history/plan-before-phase4.md). Do not merge historical IDs/statuses across revisions as if the questions/gold were identical. The legacy exported `evaluateLiveResult` still reads old structural results; only v3 is executable by the runner.
 
 ## Frozen synthetic corpus

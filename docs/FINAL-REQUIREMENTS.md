@@ -22,6 +22,20 @@ Trạng thái không phải lời hứa production-ready.
 | F08-A | Evidence-grounded quiz from a ready document: preview, explicit save, ownership, reopen, server grading and personal progress | `StudyCoachService`, `StudyCoachPanel`, migration 023, runtime capability v23, Study Coach HTTP/PG17 tests | F08-A.2 lifecycle review remains its own checkpoint; F08-B current full `npm test` also includes quiz regressions (1,778 total suite-wide). Browser acceptance and semantic-quality review pending. See FINAL-DEMO-CHECKLIST. |
 | F08-B | Evidence-grounded private flashcards: explicit preview/save, reopen, flip/self-rating, idempotent review and personal progress | `/api/study-coach/flashcards`, `StudyFlashcardsService`/`StudyFlashcardsPanel`, migration 024, runtime capability v24, F03/F04/F06 operation integration and PG17 suites | F08-B.1 adds visible confirm/cancel rejection and explicit GET recovery, with managed RED→GREEN regressions; see current gate evidence in FINAL-DEMO-CHECKLIST. Original PG17 477/477 is historical, not rerun for this frontend-only fix. Browser acceptance and human semantic review pending; F09 and full F08 remain incomplete. |
 
+F09-A traceability: `evaluate-rag --local-integration`,
+`rag-evaluation-local[-lib].mjs`, `evaluation-runtime-fixture.mjs`,
+`evaluation-runtime.database.test.mjs` and schema-4 manifest local-v2 provide
+33 authenticated local runtime contract scenarios plus two unexecuted
+references. Frozen semantic facts/pages and historical v3 cases remain intact.
+Reports bind Git/run/manifest/corpus/response/source evidence and distinguish
+contract correctness from pending semantic review. This does not fulfill the
+twenty live quality cases, human review, browser acceptance or all of F09.
+At source `6c32842`, fresh five gates exit 0 (1,823 application tests and
+478 PG17 tests); F09-A_CODE_VERIFIED and LOCAL_INTEGRATION_VERIFIED describe
+this synthetic runtime scope only. Live evaluation and semantic review remain
+blocked/pending respectively.
+See evaluation-plan and FINAL-DEMO-CHECKLIST for fresh execution evidence.
+
 Thành viên đọc được tài liệu của workspace; chưa có PDF riêng từng người trong
 cùng workspace. Auth PASS không thay RAG/STT PASS. Máy Thắng cần bằng chứng riêng.
 

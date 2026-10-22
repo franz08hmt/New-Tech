@@ -1,9 +1,74 @@
 # ExaMate — context hiện tại cho Tài, Thắng và agent
 
-Cập nhật 21/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
+Cập nhật 22/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
 ## F07 contract and local implementation
+
+## F09-A — authenticated evaluation foundation (21–22/10/2026)
+
+Source checkpoint `97f8f82` adds `evaluate-rag --local-integration`, reusing the
+existing v3 summary/status/corpus machinery and test-owned disposable DB/Auth
+patterns. It accepts no principal/workspace/base URL, never loads live runtime
+configuration, and retains the old live AUTH_REQUIRED blocker. HTTP uses the
+actual Nest guards/session/CSRF, membership, non-owner business/Auth LOGINs,
+RLS, retrieval, wrappers, admission, receipts, Study Coach and telemetry. Only
+Auth upstream, SDK and Storage boundaries are synthetic. Maintenance seeds
+frozen pages and observes/asserts metadata; it does not answer runtime requests.
+No runtime endpoint, schema, migration, grant, prompt/model or RAG algorithm
+changed. Implementation checklist: provenance/binding → authenticated adapter
+→ fixed manifest cases → retained reports/human pack → automated gates/docs.
+
+The original manifest v3/E01–E24 and rag-eval-v2 PDFs/facts are unchanged. New
+schema-4 manifests preserve local-v1 and default to local-v2. V1 retained its
+protocol-oracle failure: F09A-005 expected 400 for foreign document access;
+source already correctly returns 404 DOCUMENT_NOT_FOUND. V2 introduces
+F09A-105 and pins its predecessor hash; no semantic facts/expected changed.
+All initial failed/blocked reports remain under ignored `artifacts/f09a-*`.
+Early fixture defects (shared login-email rate bucket, invalid ACL column,
+processing-state setup, one syntax edit and inferred parameter type) are test
+infrastructure corrections, not product/semantic findings.
+
+Clean-source run `396385d1-bc5e-4ba5-8f1d-a15edc3a6cbb`, stored at
+`artifacts/f09a-source-97f8f82`, executed 33 local contract scenarios: 33 PASS,
+0 FAIL/BLOCKED/NOT_ATTEMPTED, 2 references SKIP. Four batches used 9/20/6/2
+synthetic SDK calls, matching 37 persisted calls. The live-quality denominator
+is zero. Eleven review templates bind output/evidence/source pages to the run,
+report, manifest and corpus, with reviewer/decision blank. Local-v1's last run
+retains 32 contract PASS/1 FAIL/2 SKIP; it is not regraded as v2. A live-readiness
+probe exited 3, one NOT_ATTEMPTED, LIVE_EVALUATION_AUTH_REQUIRED, zero paid work.
+
+RED→GREEN: the missing-target local CLI initially returned unsupported-mode
+exit 1 instead of explicit BLOCKED/3; the new guarded mode passes. A source-page
+tamper in a review pack initially escaped binding, then was rejected after
+binding exact source/evidence/expected fields. Focused evaluation self-tests
+pass 53/53 and the separate Nest/PG17 integration test passes 1/1; their counts
+are not 54 live quality cases. A further RED→GREEN at `266c41a` fixes source
+hash compatibility with Git LF/CRLF checkouts, while preserving exact per-run
+report/response binding and rejection of other source changes. A missing token
+sample now remains null, while an observed zero remains decimal string "0";
+the regression was RED before `8dc5b06`. At `6c32842`, the injection scenario
+sends the codename question matching its frozen expected fact and asserts that
+exact question in actual SDK input. Its previous question mismatch was observed
+RED (including subsequent conservative admission denials), then GREEN through
+Nest/PG17. Human templates now include the synthetic question, excluding the
+private sentinel. No expected fact/gold changed. Full final gate counts are in
+FINAL-DEMO-CHECKLIST.
+
+Final code checkpoint `6c32842` passed all five gates sequentially: typecheck,
+test (405 API Vitest + 874 API Node + 544 Web = 1,823), build, format, and PG17
+database (478/478 across 45 files), all exit 0, fail/skip/cancelled 0. Logs and
+revision/exit records are at `artifacts/f09a-gates-6c32842`; the integrated run
+again has 33 contract PASS/2 reference SKIP. Later docs-only commits preserve
+this source. The Vite >500 kB chunk advisory remains.
+
+Readiness statuses are distinct: F09-A_CODE_VERIFIED,
+LOCAL_INTEGRATION_VERIFIED (synthetic runtime contracts only),
+LIVE_EVALUATION_BLOCKED, SEMANTIC_REVIEW_PENDING. No UI changed; no browser tool
+is exposed, and pending F05/F06/F08 browser acceptance is not advanced. F09 still
+needs authenticated, authorized live-model execution under approved separate
+setup, at least twenty quality cases across explicitly bound batches, and named
+human review against unchanged gold. See evaluation-plan for commands/limits.
 
 ## F08-B — Flashcards implementation checklist and contract
 
@@ -1083,7 +1148,7 @@ chiếu lịch sử. Không chạy lại phần đã có hoặc biến kế ho�
 | F06 | Dashboard AI cho admin đúng workspace: request/provider calls, token/cost/latency/lỗi/từ chối và filters                   | Local code/API/PG17 implementation and automated verification in this checkpoint; browser acceptance pending; not billing or F04 quota ledger                    |
 | F07 | N1 lưu bền, mở lại/xóa, retention/quyền; receipt/history/reset/account isolation                                           | Local implementation and automated verification complete; browser acceptance pending. F08-A is a separate partial feature, not part of F07 acceptance             |
 | F08 | N2 Study Coach: structured quiz/flashcards, nguồn, preview/xác nhận lưu, luyện tập/tiến độ cá nhân                         | F08-A and F08-B have separate code/automated local checkpoints; browser and human semantic review pending, F09 outstanding, so full F08 remains partial |
-| F09 | B4: ít nhất 20 case thực thi có expected, cùng corpus/gold trước/sau, human review/guardrails/fallback/latency/cost        | Chưa nghiệm thu semantic/live; live runner còn BLOCKED, principal CLI hay HTTP chưa chốt                                                                         |
+| F09 | B4: ít nhất 20 case thực thi có expected, cùng corpus/gold trước/sau, human review/guardrails/fallback/latency/cost        | F09-A has authenticated local runtime contracts and bound readiness reports; live remains AUTH_REQUIRED/BLOCKED and human semantic review pending. Local fixture PASS does not satisfy the live-quality denominator. |
 | F10 | Chỉ STT của Thắng: hoàn thiện lỗi, bảo mật/dependency, accuracy/latency và nghiệm thu thực tế khi cần                      | Thu hẹp theo Tài ngày 19/10/2026; giữ implementation STT hiện có, không phát triển TTS, không chuyển ownership                                                   |
 | F11 | PWA/mobile thật: manifest/install/update/offline shell, Android và giới hạn iOS                                            | Pending; không cache dữ liệu riêng hoặc tự queue write                                                                                                           |
 | F12 | Registry/allowlist nhiều model, lựa chọn kiểm soát, benchmark quality–latency–cost                                         | Pending; đổi embedding/re-index cần quyết định riêng                                                                                                             |
