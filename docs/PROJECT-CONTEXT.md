@@ -5,6 +5,84 @@ Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong 
 
 ## F07 contract and local implementation
 
+## F09-B.1.2 — append-only plan ledger: a release cannot touch a successor (22/10/2026)
+
+Base `61e74a5` (F09-B.1.1 code `7814f7d`); source commit `d09dfbb`. An independent
+review found that F09-B.1.1's claim "only the owner can release, and a superseded
+owner's late finish touches nothing" was incomplete, and reproduced it with a
+deterministic barrier on a real filesystem.
+
+Root cause: `finish({completed})` checked the owner once, rewrote `active.json` as
+`finished` and then unlinked `active.json`. After the `finished` state was published an
+acknowledged run B could take over and create its own `active.json`; A's pending unlink
+then deleted B's reservation, and a third acknowledged run C could reserve while B was
+still active. The same read-then-write-a-shared-path shape also existed in the
+rewrite of `active.json` and in giving back a reservation after a pre-dispatch refusal.
+Re-reading the run ID just before `unlink` would only shrink the window.
+
+Fix (`rag-evaluation-http-ledger.mjs`, filesystem only): the ledger has no shared
+mutable path any more. `<ledger>/<planSha256>/` is append-only: a reservation is the
+record `lock.<n>.json`, created exclusively and never changed; `release.<n>.json` and
+`unknown.<n>.json` are markers; `<runId>.intent.json` and `.outcome.json` stay.
+Invariants: (I1) no operation deletes, renames or overwrites a ledger file; (I2) the
+reservation is the highest record and ownership passes only by exclusively creating
+record n+1, which one creator can win, so acquisition and takeover are the same atomic
+step and the separate `takeover.json` guard is gone; (I3) a marker is addressed to one
+record number and written by that record's owner, so a run finishing late can only
+annotate its own superseded record; (I4) the latest record is active unless its
+`release` marker exists, and a crash leaves no marker so the plan stays closed; (I5) a
+listing may be stale only toward refusing, because records and markers are only added.
+Policy is unchanged: acknowledgement never overtakes a live holder, an unknown outcome
+or crash needs `--rerun-acknowledged` (and a dead holder for a run that never
+finished), a refused attempt before dispatch closes only its own record, nothing
+expires, intent is written and synced before the first POST, and a read or write
+error, an unreadable or half-written record, or a ledger in the former `active.json`
+layout refuses the dispatch. A finish whose marker cannot be written leaves the
+reservation held. Different plans use different directories and never block each other.
+The B.1.1 text below that mentions `active.json`, `takeover.json` and `superseded-*`
+describes the previous layout and is superseded by this section.
+
+Evidence: the reviewer's oracle (barrier at the unlink of `active.json`) can no longer
+reach its interleaving because that operation does not exist (its tests are cancelled
+by timeout), so an equivalent oracle with the same actors and assertions, barriered at
+the first write after the outcome file, was kept in `artifacts/f09b12-20261022`: RED
+0/2 on the previous ledger and 2/2 now. Tracked tests use deterministic barriers, no
+sleeps: a release paused at its last step while a successor takes over (B survives, C
+is refused, B releases normally); a live owner still finishing cannot be taken over and
+then hands over; two acknowledged takeovers meeting at the exclusive create produce one
+owner; a late finish writes only its own marker and leaves the successor's bytes
+unchanged; failures of the marker write, the successor create, a record read, a
+half-written record and the former layout all keep the plan closed; two independent
+OS processes racing an acknowledged takeover of an unknown outcome dispatch once.
+RED with the previous ledger (plus a read-only `inspect` shim): the interleaving test
+failed with the reservation of B lost, and layout-dependent assertions failed; the
+suite is 30/30 now and the three F09-B.1 oracles 3/3. 14 mutations of the protocol (a
+marker for the latest record, non-exclusive create, takeover of a live holder, takeover
+without acknowledgement, ignored or misused unknown marker, the oldest record as the
+reservation, no give-back, no history recheck, former layout ignored, no intent,
+failed marker reported as released, unreadable record as free, no retry after losing
+the race) were all killed; one survived at first (former layout) and a test was added.
+Real Nest/PG17 integration: two OS processes raced one plan, one dispatch (exit 2), the
+other blocked (exit 3), 1 embedding + 1 generation SDK call, 2 persisted provider calls,
+1 receipt, one intent, `lock.1` + `release.1`; clean tree `d09dfbb` (dirty=false):
+`artifacts/f09b-http-integration-eb4025aa-9fda-4216-9685-bcdfc6e8fb12`.
+
+Gates on a tree identical to `d09dfbb` (no file changed after they started): typecheck,
+build and format exit 0; `npm test` exit 0 with 457 API Vitest + 1,100 API Node + 544
+Web = 2,101 (2,094 before); guarded full `npm run test:database` exit 0, 479/479 in 46
+files on an owned PG17. The HTTP/Nest/PG17 integration was also run on its own. Only
+`examate-f09b12-pg17-20261022` and its volume were removed; F09-A.1 resources and SOP
+containers were untouched.
+
+Limits: the reservation is local to one machine and filesystem (exclusive create on a
+network share is not assumed; another host's record is never taken over); only
+Windows/NTFS was exercised; no directory fsync on Windows; a crash between creating a
+record and writing it leaves an unreadable record that refuses the plan until an
+operator repairs it; a live holder pid only prevents two runners, it is not proof that
+a provider request stopped; the plan directory grows by a few small files per run and
+nothing is pruned. No live model, real account, cloud, browser, human review or F09-B.2
+work; `LIVE_EVALUATION_PENDING` and `SEMANTIC_REVIEW_PENDING` remain.
+
 ## F09-B.1.1 — atomic plan reservation and cut-off response bodies (22/10/2026)
 
 Base `baab703` (F09-B.1 code `6eafdeb`); source commit `7814f7d`. Two review

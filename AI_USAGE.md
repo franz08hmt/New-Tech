@@ -1031,3 +1031,21 @@ two-process race against Nest/PG17 shows one generation. Gates at `7814f7d`: 2,0
 application tests and 479 PG17 tests, exit 0. The AI created and removed only its own
 container and volume. No live model, real account, cloud call, human review or browser
 result was produced, and no secret was handled.
+
+## 2026-10-22 — F09-B.1.2 append-only plan ledger
+
+The AI had claimed in F09-B.1.1 that only the owner could release a reservation; an
+independent review showed a late unlink could remove a successor's reservation. AI
+assistance reproduced the reviewer's barrier test (0/2), traced the same
+read-then-write-a-shared-path pattern to three operations, rejected re-reading the run
+ID before the unlink as a mere narrowing, and replaced the single `active.json` with an
+append-only record scheme. The reviewer's oracle could no longer reach its interleaving
+(it barriers on an operation that no longer exists), so an equivalent oracle was written
+and checked against both ledgers. Seven tracked regressions use deterministic barriers
+on a real filesystem plus two real processes; RED was observed with a temporary read-only
+shim on the previous ledger. Of 14 mutations one survived and led to a new test. Two AI
+edits lost a backslash in a regex and were corrected. The final claim rests on the
+protocol invariants and on those tests, not on timing. Gates at `d09dfbb`: 2,101
+application tests and 479 PG17 tests, exit 0. Only its own container and volume were
+removed. No live model, real account, cloud call, human review or browser result was
+produced, and no secret was handled.

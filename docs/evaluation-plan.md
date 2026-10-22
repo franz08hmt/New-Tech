@@ -82,13 +82,18 @@ that account's workspace with a mapping of document IDs; and a provenance path
 Reruns and recovery (F09-B.1.1): an approved plan has one active generation run.
 Once a run dispatched, another execute of the same plan is refused unless
 `--rerun-acknowledged <runId>[,<runId>...]` names every earlier run. A running or
-crashed plan is held by `artifacts/rag-evaluation-http-ledger/<planSha256>/active.json`
-(with `<runId>.intent.json` and `<runId>.outcome.json`); nothing expires. After a
-crash or an outcome unknown after dispatch, an operator checks the run is really gone
-and the server's own usage records, then reruns naming that run; its reservation moves
-to `superseded-*` and its intent stays. While the holder is alive, naming it does not
-help. If the ledger cannot be read or written the run is refused. A stuck
-`takeover.json` (a crash during a takeover) must be removed by hand. A body that stops
+crashed plan is held in `artifacts/rag-evaluation-http-ledger/<planSha256>/`, which is
+append-only (F09-B.1.2): `lock.<n>.json` records created exclusively and never
+changed, `release.<n>.json` / `unknown.<n>.json` markers written by the run that owns
+record n, and `<runId>.intent.json` / `<runId>.outcome.json`. The highest record is the
+reservation unless its `release` marker exists; nothing expires and nothing is deleted.
+After a crash or an outcome unknown after dispatch, an operator checks the run is really
+gone and the server's own usage records, then reruns naming that run; that run creates
+the next record and the old one stays as evidence. While the holder is alive, naming it
+does not help. If the ledger cannot be read or written, or a record is unreadable or
+half-written, the run is refused (inspect and repair the plan directory by hand). A
+ledger left in the former single-file layout (`active.json`, from F09-B.1.1) is refused
+and must be resolved by hand. A body that stops
 after valid headers is recorded as `outcome: unknown_after_dispatch` with
 `transportPhase` and ends the run; a complete body that is not JSON is `bodyStatus:
 invalid_json` and the case FAILs without stopping the run.

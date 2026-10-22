@@ -80,6 +80,13 @@ at `7814f7d`: 23 new tests including a real two-process race against Nest/PG17,
 2,094 application and 479 PG17 tests. Live evaluation and semantic review remain
 pending.
 
+F09-B.1.2 corrects an incomplete claim of that checkpoint: a release could still
+delete a successor's reservation. The plan ledger is now append-only (records are only
+created, ownership passes by creating the next record, markers are addressed to the
+writer's own record). Evidence at `d09dfbb`: deterministic-barrier regressions, a
+real two-process race against Nest/PG17 with one generation, 2,101 application and 479
+PG17 tests. Live evaluation and semantic review remain pending.
+
 Thành viên đọc được tài liệu của workspace; chưa có PDF riêng từng người trong
 cùng workspace. Auth PASS không thay RAG/STT PASS. Máy Thắng cần bằng chứng riêng.
 

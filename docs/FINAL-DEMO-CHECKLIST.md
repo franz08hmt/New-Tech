@@ -427,6 +427,30 @@ the separate F08-B checkpoint below.
 - [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
       cloud rollout, Google live and Thắng's machine are unchanged.
 
+## F09-B.1.2 — append-only plan ledger (22/10/2026)
+
+- [x] Finding from review: a completed run's late `unlink` of `active.json` removed a
+      successor's reservation and let a third run reserve. Corrects the incomplete
+      "only the owner can release" claim of F09-B.1.1.
+- [x] Fix: no shared mutable path. Reservation = exclusively created `lock.<n>.json`,
+      ownership passes only by creating record n+1, release/unknown are markers for the
+      owner's own record; nothing is deleted, renamed or overwritten.
+- [x] RED: reviewer oracle 0/2 and an equivalent barrier oracle 0/2 on the previous
+      ledger (2/2 now); tracked interleaving test failed with the reservation lost.
+- [x] 30/30 reservation tests (7 new, deterministic barriers on a real filesystem, two
+      real processes racing a takeover); 14 mutations killed (one needed a new test).
+      Policy of F09-B.1.1 unchanged; faults at every transfer step keep the plan closed.
+- [x] Nest/PG17 integration: one dispatch from two processes, 1 embedding + 1
+      generation, 2 persisted calls, 1 receipt. Clean report:
+      `artifacts/f09b-http-integration-eb4025aa-9fda-4216-9685-bcdfc6e8fb12`.
+- [x] Gates at `d09dfbb`: typecheck, build, format exit 0; `npm test` exit 0, 457 +
+      1,100 + 544 = 2,101; full `npm run test:database` exit 0, 479/479 in 46 files.
+      Own container/volume removed.
+- [ ] Local filesystem/host only, Windows exercised only; a live pid is not proof a
+      provider stopped. Live evaluation, human review, browser, cloud/Google/
+      Thắng-machine and RESOURCE_CLEANUP_BLOCKED (F09-A.1) unchanged; F09-B.2 not
+      started.
+
 ## F09-B.1.1 — atomic plan reservation and cut-off bodies (22/10/2026)
 
 - [x] Reviewer oracle 0/3 RED then 3/3. New suite RED observed before the fix

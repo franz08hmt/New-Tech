@@ -765,3 +765,15 @@ end under the same deadline as the request: a cut or unfinished body is an unkno
 outcome after dispatch that stops the run and is never retried, and it is kept apart
 from a fully received body that is not valid JSON, which is a contract failure of a
 known answer.
+
+F09-B.1.2 decision (supersedes the single-file reservation of F09-B.1.1): an ownership
+protocol must not release or transfer through a shared mutable name. The plan ledger
+is append-only: a reservation is an exclusively created record `lock.<n>.json`,
+ownership passes only by exclusively creating record n+1, and a finishing run writes a
+release or unknown marker addressed to its own record number. Checking the owner just
+before an unlink was rejected because it only narrows the window between the read and
+the delete. Nothing is deleted, renamed or overwritten, so history, outcomes and
+superseded records are kept, a late finish cannot affect a successor, and a crash or a
+failed marker write keeps the plan closed. Stale listings can only cause a refusal.
+Policy (no lease, acknowledgement for unknown or crashed runs, a live holder is never
+taken over, ledger errors refuse) is unchanged.
