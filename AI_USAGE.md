@@ -929,3 +929,24 @@ skips or cancellations in those suites; the local evaluation report separately
 has 33 contract PASS and 2 reference SKIP. Logs retain the exact commands and
 revision under `artifacts/f09a-gates-6c32842`. Browser tools are not exposed,
 so no browser result or human semantic judgment has been signed by AI.
+
+## 2026-10-22 — F09-A.1 evaluator required-output regression
+
+AI assistance read the independent missing-output oracle, added 78 managed
+contract regressions and a negative report derived from real Nest/PG17 runtime
+observations, then implemented scenario-owned output checks. Quiz/Flashcards
+reuse pure production validators; no runtime service, prompt/model, corpus/gold,
+manifest, migration or privilege changed. Observed RED: managed 24 pass/54 fail,
+review oracle 0/3 pass, integration negative count 0 FAIL vs expected 3. GREEN:
+78 new cases, 131 evaluation tests, reviewer oracle 3/3, integration 1/1. The
+normal runtime report remains 33 PASS/2 reference SKIP; the negative derivative
+has 30 PASS/3 FAIL/2 SKIP with identical 37 SDK/persisted calls and measurements.
+An interim positive-refusal fixture omitted its expected reason code; completing
+that observation fixed its one failure without changing assertions or gold.
+Raw logs/reports are retained. No human reviewer or semantic verdict was
+invented, no UI/browser acceptance was performed, and live/cloud/Google/remote
+machine pending states are unchanged. Final gates are recorded in the checklist.
+At source `89d7276`, fresh sequential typecheck/test/build/format/database gates
+all exit 0: 405 API Vitest + 952 API Node + 544 Web = 1,901 application tests;
+478 PG17 tests across 45 files; fail/skip/cancelled 0. The Vite chunk advisory
+remains. F09-A.1_CODE_VERIFIED applies only to this evaluator contract fix.

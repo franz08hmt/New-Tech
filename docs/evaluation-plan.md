@@ -10,6 +10,29 @@ and artifacts are unchanged. Current product status: [context](PROJECT-CONTEXT.m
 
 ## F09-A — authenticated local readiness, 21–22/10/2026
 
+F09-A.1 (`89d7276`) makes required-output assessment scenario-driven. Grounded
+RAG must include a nonblank answer, boolean answerability and a nonempty typed
+citation array in observed evidence; receipt and gold evidence are separate
+checks. No-evidence refusal still needs a nonblank answer, false answerability
+and an explicit empty citation array. Quiz/Flashcards must be the expected type,
+with three English items matching this fixed fixture's request; pure production
+validators enforce text/options/index/duplicate/source-ID contracts. No output
+is invented to satisfy a validator. Unknown/malformed required output is FAIL
+with `LOCAL_CONTRACT_CHECK_FAILED`, not semantic-review pending or an exception.
+Structural dimension comes from the actual content validation; for expected
+errors/non-content scenarios it is `not_assessed`, never the HTTP status.
+The existing injection-INCONCLUSIVE regression now supplies a valid response
+before withholding context observation; its INCONCLUSIVE assertion is unchanged.
+
+The formal runtime DB test retains a separate `negative-output-report.json`:
+it removes only the RAG/Quiz/Flashcards output from real observations, expects
+3 FAIL rather than PASS, and asserts identical accounting/usage/latency to the
+original report. It never changes services or calls AI again for the mutation.
+Run provenance and `derivedFromRunId` identify the synthetic negative derivative;
+the original report is unchanged. Manifest/corpus/gold revisions and old report
+bytes are preserved; this enforces existing case promises rather than regrading
+history or introducing a new quality rubric.
+
 The additive `--local-integration` mode uses the current Nest application,
 password/session/CSRF verification, active membership, separate real non-owner
 business/Auth LOGINs, PostgreSQL 17 RLS, retrieval, provider wrappers, admission,

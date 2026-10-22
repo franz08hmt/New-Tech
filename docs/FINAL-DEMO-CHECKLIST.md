@@ -427,6 +427,45 @@ the separate F08-B checkpoint below.
 - [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
       cloud rollout, Google live and Thắng's machine are unchanged.
 
+## F09-A.1 — fail-closed required response content (22/10/2026)
+
+- [x] RED before implementation: 78 managed cases ran, 24 pass/54 fail;
+      reviewer oracle 3/3 failed. Missing required output yielded false PASS;
+      malformed arrays/fields could throw. Real Nest/PG17 negative report
+      asserted 3 FAIL but observed 0. Logs: `artifacts/f09a1-20261022/*red.log`.
+- [x] GREEN at source `89d7276`: new regressions 78/78, evaluation self-tests
+      131/131, independent oracle 3/3, runtime integration 1/1; no skips/cancels.
+      A first interim GREEN run had one positive-refusal fixture failure because
+      its expected NO_RELEVANT_EVIDENCE reason was absent; the observation was
+      completed without changing any assertion, gold or production behavior.
+- [x] Normal integration remains 33 contract PASS/2 references SKIP. Removing
+      only three required outputs from those observations produces 30 PASS/
+      3 FAIL/2 SKIP; all measurement fields, including 37 SDK calls and 37
+      persisted calls, remain identical. Focused retained report:
+      `artifacts/f09a-integration-893b7004-b90d-41d0-b0a3-9391315728c5`.
+- [x] Re-run after API build: `node --test --test-name-pattern=F09-A.1
+      apps/api/test/evaluation.test.mjs`; full `node --test
+      apps/api/test/evaluation.test.mjs`; guarded `node --test
+      apps/api/test/evaluation-runtime.database.test.mjs`.
+- [x] Source `89d7276`: `npm run typecheck`, `npm test` and `npm run build`
+      each exit 0. Full application tests: API Vitest 405/405 + API Node 952/952
+      + Web 544/544 = 1,901 pass, fail/skip/cancelled 0. Build retains the Vite
+      >500 kB chunk advisory. Command/revision/exit records and logs:
+      `artifacts/f09a1-20261022/gates-89d7276`.
+- [x] `npm run format:check` at `89d7276` exit 0; no dependency, production
+      source, manifest/corpus/gold, schema, grants or RLS changes.
+- [x] Guarded `npm run test:database` at `89d7276` exit 0: 478/478 tests in
+      45 serial files, fail/skip/cancelled 0. Its evaluation report is retained
+      under `artifacts/f09a-integration-c103dcb5-077f-4ad2-b949-682e1b7df017`,
+      including the separate negative-output report. All five final gates
+      passed sequentially; these are new F09-A.1 counts, not F09-A history.
+- [x] F09-A.1_CODE_VERIFIED for evaluator/runtime contract scope. Final docs-only
+      commits preserve the verified source; rerunning the managed runtime test
+      on clean HEAD records its exact Git SHA/dirty state in the retained report.
+- [ ] No new UI/browser acceptance or human semantic review is claimed.
+      LIVE_EVALUATION_BLOCKED, SEMANTIC_REVIEW_PENDING and previous browser/
+      cloud/Google/remote-machine pending remain unchanged. F09-B not started.
+
 ## F09-A — authenticated evaluation readiness (21–22/10/2026)
 
 - [x] Versioned local-v1/local-v2 manifest, unchanged historical v3/E01–E24 and

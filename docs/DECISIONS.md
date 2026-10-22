@@ -697,3 +697,11 @@ readiness evidence. Structural/citation/evidence checks cannot establish factual
 or pedagogical correctness. Live quality evaluation remains blocked until its
 own verified runtime Auth adapter/operational approval exists; F09-A does not
 authorize paid calls, cloud writes, human signatures or F10 work.
+
+F09-A.1 clarification: required response contracts are chosen by scenario, not
+by optional observed fields. Pure production artifact validators are reused for
+the projected Quiz/Flashcards payload, with explicit RAG/refusal checks. Missing
+or malformed required output is a machine FAIL; structural correctness cannot
+fall back to HTTP status. Non-content/error scenarios remain distinct, and
+semantic correctness still requires human review. Negative reports mutate only
+copied observations and preserve original telemetry/accounting and run linkage.

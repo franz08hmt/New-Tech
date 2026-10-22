@@ -5,6 +5,43 @@ Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong 
 
 ## F07 contract and local implementation
 
+## F09-A.1 — required-output evaluator fix (22/10/2026)
+
+Source `89d7276` fixes an evaluator false PASS, not a demonstrated production
+RAG/Quiz/Flashcards defect. `assessLocalCase` previously selected checks by
+fields that happened to exist, so absent output skipped content validation and
+HTTP success could stand in for structural correctness. Scenario-owned contracts
+now require grounded RAG, explicit no-evidence refusal, Quiz or Flashcards as
+appropriate. Expected errors and non-content Auth/capability/admission/workspace/
+read-save-practice cases do not acquire a generated-content requirement.
+
+RAG checks typed nonblank answer, answerability, citation shape/scope, receipt
+and gold evidence independently. Quiz/Flashcards reuse the pure production
+validators on the observed payload (the frozen fixture requests three items in
+English); the opposite artifact cannot substitute. Malformed/missing output
+returns FAIL / LOCAL_CONTRACT_CHECK_FAILED with false machine checks, retaining
+provider/usage observations. Non-content structural dimension is not_assessed,
+never HTTP success. Semantic dimensions remain pending human review.
+
+Observed RED: managed regressions 24 pass/54 fail (78 total), independent review
+oracle 0/3 pass, and real Nest/PG17 negative report had 0 FAIL instead of 3 after
+only three outputs were removed. GREEN: 78/78 new regressions, 131/131 full
+evaluation self-tests, review oracle 3/3, runtime integration 1/1. Normal runtime
+report stays 33 contract PASS/2 reference SKIP; derived negative report is
+30 PASS/3 FAIL/2 SKIP with identical 37 SDK/persisted calls and measurements.
+All logs are retained in `artifacts/f09a1-20261022`; final gate results are in
+FINAL-DEMO-CHECKLIST. No corpus/gold/manifest, production service, migration,
+grant, RLS, model or prompt changed. Previous reports remain historical bytes;
+they are not regraded. Live, human semantic and previous browser pending states
+remain unchanged; this fix does not start F09-B.
+
+F09-A.1_CODE_VERIFIED: all five gates ran sequentially on `89d7276`, exit 0.
+Full application tests passed 405 API Vitest + 952 API Node + 544 Web = 1,901;
+PG17 passed 478/478 across 45 files, fail/skip/cancelled 0. Build retains the
+existing >500 kB chunk advisory. Logs, command/revision/exit records and summed
+DB counts are at `artifacts/f09a1-20261022/gates-89d7276`. No new UI/browser or
+semantic acceptance is claimed; later docs-only commits leave this source intact.
+
 ## F09-A — authenticated evaluation foundation (21–22/10/2026)
 
 Source checkpoint `97f8f82` adds `evaluate-rag --local-integration`, reusing the

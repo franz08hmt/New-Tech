@@ -36,6 +36,16 @@ this synthetic runtime scope only. Live evaluation and semantic review remain
 blocked/pending respectively.
 See evaluation-plan and FINAL-DEMO-CHECKLIST for fresh execution evidence.
 
+F09-A.1 closes evaluator false PASS for absent/malformed required response
+content. Scenario contracts, production Quiz/Flashcards validators and explicit
+RAG/refusal checks replace output-presence-driven checks; HTTP success is not
+structural correctness. Managed evaluation regressions and derived negative
+runtime reports cover the failure without altering production services/gold.
+This is evaluator verification, not live semantic or browser acceptance.
+F09-A.1_CODE_VERIFIED at source `89d7276`: five gates exit 0, 1,901 application
+tests and 478 PG17 tests, with new evidence in FINAL-DEMO-CHECKLIST. Live and
+human review remain blocked/pending; whole F09 is not accepted.
+
 Thành viên đọc được tài liệu của workspace; chưa có PDF riêng từng người trong
 cùng workspace. Auth PASS không thay RAG/STT PASS. Máy Thắng cần bằng chứng riêng.
 
