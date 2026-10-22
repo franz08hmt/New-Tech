@@ -3,6 +3,57 @@
 Cập nhật 22/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
+## F09-B.2B.2 — quality-suite dry-run and authenticated preflight (22/10/2026)
+
+Completed checklist: (1) a pure planner for `rag-quality-20261022-v1`
+(`rag-evaluation-quality-plan.mjs`): exact manifest bytes, a per-course-file-set
+mapping, request shapes validated against the assistant's own DTO, batches and a
+reproducible plan hash; (2) a separate quality mode of the evaluator
+(`rag-evaluation-quality-http.mjs`, flags `--http-evaluation --quality-suite`):
+dry-run, authenticated preflight over the existing cookie/CSRF/Origin transport,
+and a refusal of `--execute`; (3) the existing provenance verifier consumed as
+separate conditions; (4) unit, Nest/PG17 integration and mutation evidence.
+Legacy v3 / F09-A / ten-live-case runner unchanged; no new endpoint.
+
+`F09-B.2B.2_CODE_VERIFIED + LOCAL_PREFLIGHT_VERIFIED + EXECUTION_BLOCKED`, source
+`1e1dd08`. Support matrix from what the API accepts: 23 of 24 cases have a valid
+request shape (document question, course question, document∩course question, one-
+document summary); RQ23 is deferred `SUMMARY_REQUIRES_ONE_DOCUMENT` (the service
+summarizes one document and has no course summary), never relabelled as a question.
+The manifest's own `transport` metadata is a v1 draft and is not edited; the plan
+records the API-derived support. A course holds exactly one file set, so the
+two-PDF course and the policy-only course are mapped separately and the latter holds
+its own policy copy (same name, different id); mapping onto a shared course id is
+rejected (also now in the audit validator).
+
+Preflight reports separately: target, auth/session, membership, document scope and
+Assistant configuration (existing), exact course document sets through the server's
+own read API (`courses`, `documents/search?course=`), provenance artifact binding,
+provenance authenticity (digest pinned by the operator, never read from the
+artifact), provenance currentness (a fresh observation from a separate maintenance
+boundary), gold approval (always `GOLD_REVIEW_PENDING`), target equivalence (always
+unverified: nothing the HTTP surface returns identifies the audited database or
+Storage, and two client-declared values are not proof), plus the existing metadata-
+only corpus-provenance and admission conditions and the blocked execution path.
+`qualityExecutionReady`, `complete` and `executionAuthorized` are constant false;
+`generationRequests` is observed (0). The evaluator never holds the maintenance
+credential: it only reads artifact files an operator provides.
+
+Verified: planner 17/17, quality-http 16/16, provenance 40/40, focused evaluation /
+quality / HTTP / reservation / provenance / planner 448/448; PG17 integration 6/6
+(manager, viewer, foreign, revoked, expired sessions; wrong course sets; forged and
+drifted provenance; execute refusal with zero requests) with every table unchanged
+except Auth session bookkeeping (`pilot_sessions`, `pilot_auth_limits`), SDK and
+persisted provider calls and receipts unchanged. 29 mutants over planner,
+orchestrator and validator killed; one equivalent (the generation counter, which no
+code path in this mode can increment). typecheck, build, format, `npm test`
+(457 + 1,272 + 544 = 2,273) and full `test:database` (499/499, 48 files, own guarded
+PG17) exit 0. Limits: the integration index is written with the production
+extractor/chunker, not through the ingestion service; no real target, account,
+cloud or paid provider; verifier results are point-in-time. Execution, a trusted
+target-equivalence proof, gold approval and post-response semantic review remain
+open and are not started.
+
 ## F09-B.2B.1.1 — document-set completeness fix (22/10/2026)
 
 Defect (found by an independent reviewer, reproduced): `parseArtifact` only

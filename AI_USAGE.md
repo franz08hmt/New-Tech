@@ -1155,3 +1155,22 @@ integration 14/14, `npm test` 2,239, full `test:database` 493/493 (47 files,
 own guarded PG17 container), typecheck/build/format exit 0. No provider or model
 call, secret, cloud write, push or deploy. Not wired to execute; gold review,
 live evaluation and semantic review remain pending.
+
+## 2026-10-22 — F09-B.2B.2 quality-suite dry-run and preflight
+
+AI assistance read the HTTP evaluation transport, the quality preparation, the
+provenance verifier and the assistant DTO/routing, then wrote tests first (RED =
+missing modules) for a pure planner and a quality mode of the evaluator, and
+implemented them. Details worth recording: the shared validator originally let two
+course file sets map onto one course id (fixed with a RED test); the dry-run test
+first failed because Node reads ordinary environment variables when it starts git,
+so it now watches secret-bearing names only; mutation runs led to a re-hashed
+forged-plan test. The AI-assisted gold review of the 24 cases (done in chat in this
+session) is AI judgement, not Tài–Thắng approval; the plan carries GOLD_REVIEW_PENDING
+and nothing here records an approval.
+
+Source `1e1dd08`: planner 17, quality-http 16, provenance 40, focused 448/448,
+PG17 integration 6/6, `npm test` 2,273, full `test:database` 499/499 (48 files, own
+guarded container), typecheck/build/format exit 0. No provider or model call, real
+account, secret, cloud write, push or deploy. Execution is refused; live evaluation,
+semantic review and the earlier browser/cloud/Google/Thắng-machine items stay pending.

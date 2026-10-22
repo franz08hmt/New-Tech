@@ -852,3 +852,22 @@ defence-in-depth and documented as equivalent mutants. The fix is not allowed to
 require a pinned digest for every artifact or to reject unauthenticated ones: the
 checksum, pinned-digest and observation levels stay distinct, and nothing here
 grants gold approval or execution.
+
+F09-B.2B.2 decision: the draft quality suite gets its own planner and strict flag
+set instead of widening the legacy runner, so the ten-live-case validator and the
+legacy defaults are untouched. Request shapes are checked against the assistant's
+own DTO and routing rules, and support is derived from what the API accepts, not
+from the manifest's draft transport metadata (not edited). A course summary has no
+API path and is deferred, never turned into a question. Course scopes are mapped per
+file set and checked through the server's own read API, so a policy-only course
+holds its own policy copy and cannot share a course id with the two-PDF course.
+
+The evaluator consumes the existing verifier and keeps its answers apart: a bound
+artifact, an operator-pinned digest, a fresh observation from a separate
+maintenance boundary, gold approval and target equivalence are different facts.
+The artifact's own digest is never the pin. Target equivalence stays unverified
+because nothing the HTTP surface returns identifies the audited database/Storage,
+and two matching declared values prove nothing. Quality mode can plan and preflight
+only: execute is refused before any credential, request or record, readiness and
+authorization are constants, and generation is counted from the wire rather than
+asserted. No maintenance credential enters the evaluator or API process.

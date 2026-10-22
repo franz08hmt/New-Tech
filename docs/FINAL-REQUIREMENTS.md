@@ -130,3 +130,9 @@ check, verified on a disposable PG17 with synthetic Storage. It is point-in-time
 evidence, not approval: gold review, `qualityExecutionReady`, live evaluation and
 post-response semantic review are unchanged and pending, and it is not connected
 to execute.
+
+F09-B.2B.2 adds a quality-suite dry-run and authenticated preflight (own flags,
+planner and report) that consumes the provenance verifier as separate conditions.
+It plans 23 of 24 draft cases (RQ23 has no API path) and refuses to execute; it
+grants no gold approval, readiness or authorization, and is not a live evaluation or
+semantic review.

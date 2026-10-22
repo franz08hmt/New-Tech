@@ -124,6 +124,33 @@ checksum recompute and hid drift of B from the observation comparison. A
 malformed observation is `OBSERVATION_INVALID`, never `matches_observation`.
 Two documents with one file name but different ids remain valid.
 
+## F09-B.2B.2 — quality-suite dry-run and preflight (22/10/2026)
+
+Select the draft suite explicitly; the legacy runner's defaults are untouched:
+
+`node apps/api/scripts/evaluate-rag.mjs --http-evaluation --quality-suite docs/evaluation-quality-cases-v1.json --mapping <mapping.json> [--only RQ01,RQ02] [--batch-size 5] [--base-url <loopback>/api/] [--origin <loopback>]`
+
+(`npm run eval:f09b2b2:quality -- <same flags>` builds first.) Without `--preflight`
+it is a dry-run: no stdin, environment, network, Auth, Storage, DB, provider or
+execution record. With `--preflight --credentials-stdin` (JSON `{email,password}` on
+stdin) it logs in once, reads, and logs out; optional `--provenance-artifact`,
+`--provenance-observation` and `--expected-digest` (64 hex, from a record kept
+outside the artifact) feed the verifier. `--execute` is accepted only to be refused:
+exit 3, `generationRequests=0`, `executionAuthorized=false`, reason
+`QUALITY_SUITE_EXECUTION_NOT_IMPLEMENTED`, no credential read.
+
+Mapping file `rag-quality-mapping-v1`: `corpusRevision`, `documents` (file → id),
+`scopes` (one per course file set the suite uses: `files`, `courseId`, optional
+`documents` for a separate copy) and `provenanceTarget` (kind, database endpoint,
+Storage origin/bucket, workspace id; recorded only as hashes). Plan: manifest hash,
+mapping, scopes, targets, selection and order, batches (each ≤ batch size, default 5,
+max 10 — the dataset size of 24 is not the cap), contract versions; its SHA-256 is the
+plan hash. Reports: `artifacts/rag-evaluation-quality-http/run-*/` with
+`quality-manifest.json`, `plan.json`, `report.json`. A preflight pass is a readiness
+observation, not a semantic PASS, a live evaluation or permission to run; each future
+execution still needs gold approval, a trusted target-equivalence proof, current
+pinned provenance and its own batch approval.
+
 **Current boundary, 18/10/2026:** live `--execute` is BLOCKED (exit 3) before
 DB/Storage/Gemini because this runner has no verified workspace principal.
 Offline/dry-run remain available. Live commands/transport descriptions below

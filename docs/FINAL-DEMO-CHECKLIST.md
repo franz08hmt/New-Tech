@@ -427,6 +427,35 @@ the separate F08-B checkpoint below.
 - [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
       cloud rollout, Google live and Thắng's machine are unchanged.
 
+## F09-B.2B.2 — quality-suite dry-run and preflight (22/10/2026)
+
+- [x] Planner: exact manifest bytes/hash, mapping per course file set, DTO-validated
+      request shapes (document / course / intersection question, one-document
+      summary), batches ≤ cap (default 5) with dataset 24 ≠ cap, reproducible plan
+      hash covering manifest, mapping, scopes, targets, selection, batches, versions.
+      23 supported, RQ23 deferred `SUMMARY_REQUIRES_ONE_DOCUMENT`.
+- [x] Dry-run: no credential, `.env`, network, Auth, Storage, DB, provider or
+      execution record; stdout has no ids or secrets.
+- [x] Preflight over the existing session transport: reads and Auth lifecycle only,
+      one login, no retry; course sets via the server's read API; provenance artifact
+      binding / pinned authenticity / currentness reported separately; gold approval
+      and target equivalence unverified; `qualityExecutionReady`/`executionAuthorized`
+      constant false; `--execute` refused with `generationRequests=0`.
+- [x] RED→GREEN: module-missing RED for planner and orchestrator, extra RED/GREEN for
+      shared course ids (validator) and the dry-run env check; planner 17, quality-
+      http 16, provenance 40, focused 448/448; PG17 integration 6/6 across manager,
+      viewer, foreign, revoked, expired sessions, wrong course sets, forged/drifted
+      provenance, execute refusal; only Auth bookkeeping tables changed.
+- [x] 29 mutants killed (one equivalent). Source `1e1dd08`: typecheck, build, format,
+      `npm test` 2,273 (457+1,272+544), full `test:database` 499/499 in 48 files —
+      new runs, exit 0.
+- [x] `F09-B.2B.2_CODE_VERIFIED + LOCAL_PREFLIGHT_VERIFIED + EXECUTION_BLOCKED`.
+- [ ] No real target or account used. Index seeded with the production extractor /
+      chunker, not through the ingestion service. Execution, trusted target-
+      equivalence proof, `GOLD_REVIEW_PENDING`, `LIVE_EVALUATION_PENDING`,
+      `SEMANTIC_REVIEW_PENDING`, browser/cloud/Google/Thắng-machine and F09-A.1
+      cleanup pending unchanged.
+
 ## F09-B.2B.1.1 — document-set completeness fix (22/10/2026)
 
 - [x] Defect reproduced by reviewer oracle (2 RED): a re-hashed artifact with a
