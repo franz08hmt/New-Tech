@@ -6,6 +6,9 @@ Mục này là bản **duy nhất** cho việc "đo ≥ 20 case, trước/sau m�
 Trạng thái: `LIVE_EVALUATION_PENDING`. Chưa có case nào chạy bằng model thật, chưa có pass rate nào.
 Không ghi pass rate dựa trên stack demo (`compose.demo-stack.yaml`): nó dùng bộ trích câu, không phải LLM.
 
+Cập nhật 23/10/2026: một lần chạy **thăm dò** với Gemini thật trên stack local (`apps/api/test/demo-stack-live-smoke.mjs`, 7 câu chat + 1 quiz + 1 flashcards, ~35 lời gọi) đã cho thấy pipeline hoạt động và lấy được latency/token
+thật (`docs/REPORT.md` §6.2b). Nó đi **ngoài** executor, không có gold được duyệt, không ghi ledger và **không** được tính là baseline hay pass rate.
+
 ### A. Đầu vào do người thật cung cấp (không thể do agent quyết)
 
 | # | Cần | Cách cấp an toàn | Mở khóa |

@@ -19,8 +19,9 @@ import "reflect-metadata";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Test } from "@nestjs/testing";
 import { ApiError } from "@google/genai";
 import { AppModule } from "../dist/app.module.js";
@@ -50,7 +51,32 @@ const API_PORT = Number(process.env.DEMO_API_PORT ?? 3000);
 const LISTEN_HOST = process.env.DEMO_LISTEN_HOST ?? "127.0.0.1";
 const SIGNED_ORIGIN =
   process.env.DEMO_SIGNED_ORIGIN ?? `http://127.0.0.1:${CONTROL_PORT}`;
+// Optional local settings for runs that cannot pass environment variables on the
+// command line (git-ignored; never committed). Existing variables win.
+const LOCAL_ENV = fileURLToPath(
+  new URL(
+    "../../../artifacts/rubric-readiness-20261022/demo-live.env",
+    import.meta.url,
+  ),
+);
+if (existsSync(LOCAL_ENV))
+  for (const line of readFileSync(LOCAL_ENV, "utf8").split(/\r?\n/)) {
+    const m = /^([A-Z0-9_]+)=(.*)$/.exec(line);
+    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2];
+  }
 const CREDENTIALS_FILE = process.env.DEMO_CREDENTIALS_FILE;
+// DEMO_REAL_GEMINI=1 keeps the real Gemini SDK instead of the synthetic
+// stand-ins. Only GEMINI_API_KEY is taken from the repository .env (never
+// printed). Auth, Storage and the database stay local and synthetic; only the
+// model calls leave the machine.
+const REAL_GEMINI = process.env.DEMO_REAL_GEMINI === "1";
+const GEMINI_ORIGIN = "https://generativelanguage.googleapis.com";
+if (REAL_GEMINI && !process.env.DEMO_GEMINI_API_KEY) {
+  const root = fileURLToPath(new URL("../../../.env", import.meta.url));
+  const found = /^GEMINI_API_KEY=(.+)$/m.exec(readFileSync(root, "utf8"));
+  if (!found) throw Error("GEMINI_API_KEY missing in .env");
+  process.env.DEMO_GEMINI_API_KEY = found[1].trim();
+}
 
 // ---- synthetic embedding -------------------------------------------------
 const STOP = new Set(
@@ -380,14 +406,18 @@ try {
     AUTH_DATABASE_SSL: "false",
     AUTH_DATABASE_CA_CERT_PATH: "",
     AUTH_DATABASE_POOL_MAX: "4",
-    GEMINI_API_KEY: "synthetic-only-no-live-key",
+    GEMINI_API_KEY: REAL_GEMINI
+      ? process.env.DEMO_GEMINI_API_KEY
+      : "synthetic-only-no-live-key",
     GEMINI_MODEL: "gemini-2.5-flash",
-    GEMINI_TIMEOUT_MS: process.env.DEMO_PROVIDER_TIMEOUT_MS ?? "8000",
+    GEMINI_TIMEOUT_MS:
+      process.env.DEMO_PROVIDER_TIMEOUT_MS ?? (REAL_GEMINI ? "30000" : "8000"),
     GEMINI_EMBEDDING_MODEL: "gemini-embedding-001",
-    GEMINI_EMBEDDING_TIMEOUT_MS: "8000",
+    GEMINI_EMBEDDING_TIMEOUT_MS: REAL_GEMINI ? "30000" : "8000",
     // A hashed bag of words yields small cosine scores; the production default
     // (0.55) is tuned for a real embedding model.
-    RAG_MIN_SCORE: process.env.DEMO_RAG_MIN_SCORE ?? "0.08",
+    RAG_MIN_SCORE:
+      process.env.DEMO_RAG_MIN_SCORE ?? (REAL_GEMINI ? "0.55" : "0.08"),
     DOCUMENT_OCR_ENABLED: "false",
     AI_ADMISSION_ENABLED: "true",
     AI_ADMISSION_DAILY_OPERATIONS_PER_USER:
@@ -420,6 +450,8 @@ try {
     );
     if (url.origin === STORAGE_ORIGIN)
       return nativeFetch(`${storageBase}${url.pathname}${url.search}`, init);
+    if (REAL_GEMINI && url.origin === GEMINI_ORIGIN)
+      return nativeFetch(input, init);
     if (!localOrigins.has(url.origin))
       throw Error("EXTERNAL_NETWORK_FORBIDDEN");
     return nativeFetch(input, init);
@@ -512,77 +544,108 @@ try {
     .compile();
   app = builder.createNestApplication({ logger: false });
   configureApp(app);
-  app.get(GeminiEmbeddingService).client = {
-    models: {
-      embedContent: async (request) => {
-        state.counters.embedding++;
-        const texts = request.contents.map((item) =>
-          item.parts.map((p) => p.text).join(""),
-        );
-        const query = request.config?.taskType === "RETRIEVAL_QUERY";
-        return {
-          embeddings: texts.map((text) => {
-            const vector = embed(text);
-            if (!query) {
-              for (const [i, v] of vector.entries()) centroid[i] += v;
+  if (!REAL_GEMINI)
+    app.get(GeminiEmbeddingService).client = {
+      models: {
+        embedContent: async (request) => {
+          state.counters.embedding++;
+          const texts = request.contents.map((item) =>
+            item.parts.map((p) => p.text).join(""),
+          );
+          const query = request.config?.taskType === "RETRIEVAL_QUERY";
+          return {
+            embeddings: texts.map((text) => {
+              const vector = embed(text);
+              if (!query) {
+                for (const [i, v] of vector.entries()) centroid[i] += v;
+                return { values: vector };
+              }
+              // The Study Coach asks one generic "key concepts" question per
+              // document. A hashed bag of words cannot relate it to the content,
+              // so it embeds to the centroid of every indexed chunk instead.
+              if (/^Identify .*evidence-grounded/.test(text)) {
+                const norm = Math.sqrt(centroid.reduce((s, v) => s + v * v, 0));
+                if (norm > 0) return { values: centroid.map((v) => v / norm) };
+              }
               return { values: vector };
-            }
-            // The Study Coach asks one generic "key concepts" question per
-            // document. A hashed bag of words cannot relate it to the content,
-            // so it embeds to the centroid of every indexed chunk instead.
-            if (/^Identify .*evidence-grounded/.test(text)) {
-              const norm = Math.sqrt(centroid.reduce((s, v) => s + v * v, 0));
-              if (norm > 0) return { values: centroid.map((v) => v / norm) };
-            }
-            return { values: vector };
-          }),
-        };
+            }),
+          };
+        },
       },
-    },
-  };
+    };
   const gemini = app.get(GeminiService);
-  gemini.client = {
-    models: {
-      generateContent: async (request) => {
-        state.counters.generation++;
-        const pending = failIf(request);
-        if (pending) return pending;
-        let text;
-        if (state.scenario === "malformed") text = '{"broken":';
-        else if (state.scenario === "empty") text = "";
-        else text = respond(request, state.scenario);
-        return {
-          text,
-          usageMetadata: usageFor(request.contents, text),
-          modelVersion: "gemini-2.5-flash",
-        };
+  if (REAL_GEMINI) {
+    // Real SDK, one attempt, with the provider's status and a short message
+    // logged on failure (the application itself only logs a class of error).
+    const { GoogleGenAI } = await import("@google/genai");
+    const real = new GoogleGenAI({
+      apiKey: process.env.DEMO_GEMINI_API_KEY,
+      vertexai: false,
+      httpOptions: { retryOptions: { attempts: 1 } },
+    });
+    const watch = (method) => async (request) => {
+      try {
+        return await real.models[method](request);
+      } catch (error) {
+        console.error(
+          "DEMO_GEMINI_ERROR",
+          method,
+          error?.status,
+          String(error?.message ?? "").slice(0, 240),
+        );
+        throw error;
+      }
+    };
+    gemini.client = {
+      models: {
+        generateContent: watch("generateContent"),
+        generateContentStream: watch("generateContentStream"),
       },
-      generateContentStream: async (request) => {
-        state.counters.generation++;
-        const pending = failIf(request);
-        if (pending) return pending;
-        const text =
-          state.scenario === "malformed"
-            ? '{"broken":'
-            : respond(request, state.scenario);
-        const usage = usageFor(request.contents, text);
-        return (async function* () {
-          const pieces = text.match(/.{1,24}/gs) ?? [];
-          for (const [i, piece] of pieces.entries()) {
-            if (request.config?.abortSignal?.aborted) return;
-            await new Promise((r) =>
-              setTimeout(r, state.scenario === "slow" ? 700 : 60),
-            );
-            yield {
-              text: piece,
-              modelVersion: "gemini-2.5-flash",
-              ...(i === pieces.length - 1 ? { usageMetadata: usage } : {}),
-            };
-          }
-        })();
+    };
+  }
+  if (!REAL_GEMINI)
+    gemini.client = {
+      models: {
+        generateContent: async (request) => {
+          state.counters.generation++;
+          const pending = failIf(request);
+          if (pending) return pending;
+          let text;
+          if (state.scenario === "malformed") text = '{"broken":';
+          else if (state.scenario === "empty") text = "";
+          else text = respond(request, state.scenario);
+          return {
+            text,
+            usageMetadata: usageFor(request.contents, text),
+            modelVersion: "gemini-2.5-flash",
+          };
+        },
+        generateContentStream: async (request) => {
+          state.counters.generation++;
+          const pending = failIf(request);
+          if (pending) return pending;
+          const text =
+            state.scenario === "malformed"
+              ? '{"broken":'
+              : respond(request, state.scenario);
+          const usage = usageFor(request.contents, text);
+          return (async function* () {
+            const pieces = text.match(/.{1,24}/gs) ?? [];
+            for (const [i, piece] of pieces.entries()) {
+              if (request.config?.abortSignal?.aborted) return;
+              await new Promise((r) =>
+                setTimeout(r, state.scenario === "slow" ? 700 : 60),
+              );
+              yield {
+                text: piece,
+                modelVersion: "gemini-2.5-flash",
+                ...(i === pieces.length - 1 ? { usageMetadata: usage } : {}),
+              };
+            }
+          })();
+        },
       },
-    },
-  };
+    };
   app.get(DocumentOcrService).client = {
     models: {
       generateContent: async () => {

@@ -45,7 +45,7 @@ Slide kết quả evaluation giữ `PENDING` cho đến khi có số thật; kh�
 - **Prompt injection:** evidence là dữ liệu không tin cậy; citation validator; PDF thử có câu "ignore all previous instructions"
 - **Ngoài phạm vi:** không đủ bằng chứng → từ chối cố định (đã chạy trong browser)
 - **AI lỗi:** timeout, quota, 503, JSON hỏng → thông báo riêng + Mã yêu cầu, không tự retry, giữ bản nháp
-- Chưa đo: hành vi **model thật** trước injection — cần chạy live
+- Thăm dò Gemini thật (1 mẫu): model thuật lại lệnh độc hại chứ không làm theo — chưa đủ để kết luận an toàn
 > Trung thực: bộ "model" của stack demo là bộ trích câu nên không chứng minh gì về LLM.
 
 ## Realtime và responsive
@@ -64,7 +64,7 @@ Slide kết quả evaluation giữ `PENDING` cho đến khi có số thật; kh�
 - Mỗi operation và provider call: prompt id/version, model, token, latency, outcome
 - Dashboard cho manager: operation, call, token, chi phí **ước tính**, latency avg/p95, lỗi/từ chối
 - Thiếu số liệu hiện "chưa có dữ liệu", không phải 0; telemetry là best-effort, **không phải hóa đơn**
-- PENDING: chi phí và latency thật (cần chạy live)
+- Thăm dò Gemini thật: chat 0,5–2,7 s, quiz 7 s, chi phí ước tính 0,0066 USD / 3 call — PENDING: số trung bình đủ suite
 
 ## Kiểm thử và nghiệm thu
 - `npm test`: 2.310 test (API 457 + 1.309, Web 544) — typecheck, build, format đều pass
@@ -79,7 +79,7 @@ Slide kết quả evaluation giữ `PENDING` cho đến khi có số thật; kh�
 - Mẫu số rõ ràng: DEFERRED / BLOCKED / INCONCLUSIVE không tính là PASS
 
 ## Giới hạn trung thực
-- Chưa có mục nào kiểm với dịch vụ thật: Gemini, Supabase, Google OAuth, máy Thắng
+- Gemini thật mới chạy thăm dò (~35 lời gọi); chưa kiểm Supabase, Google OAuth, máy Thắng
 - Ghi chú lưu ở trình duyệt; Workspace mode là SQL có kiểm soát, không phải tool-calling LLM
 - Không có trần tiền cứng; courses không có tạo/sửa/xóa; task không có xóa
 - Cloud RLS rollout chưa làm; migration chỉ chạy trên DB disposable

@@ -271,6 +271,34 @@ synthetic. Không dùng chúng làm bằng chứng chất lượng model hay chi
 Hai điểm quan trọng: (1) phản hồi 404 chung cho dữ liệu của người khác (không phân biệt "không tồn tại" và "không được xem");
 (2) `400` ở lần thử đầu của kiểm tra viewer là do payload sai (tiêu đề < 3 ký tự), không phải lỗi quyền — đã sửa payload và chạy lại để có 19/19.
 
+### 6.2b Lần chạy thăm dò với Gemini thật (23/10/2026) — **không phải evaluation**
+
+Cùng stack demo nhưng giữ SDK Gemini thật (`DEMO_REAL_GEMINI=1`, `gemini-2.5-flash` + `gemini-embedding-001` 768d, key từ `.env` của Tài); Auth, Storage và PostgreSQL vẫn là bản local synthetic,
+không có dữ liệu chung nào bị đụng. Đây là thăm dò: gold chưa được duyệt, chưa có người chấm, **không** có pass rate. Ba PDF mẫu được index bằng embedding thật.
+
+| Ca (`apps/api/test/demo-stack-live-smoke.mjs`) | Kết quả quan sát | Latency |
+| ---------------------------------------------- | ---------------- | ------- |
+| RAG tiếng Anh: quantum nhỏ của round robin | Trả lời đúng ý đoạn PDF + `[S1]`, citation `os-processes-demo.pdf` tr.3 | 1,98 s |
+| RAG tiếng Anh: process control block lưu gì | Đúng, citation tr.1 | 1,79 s |
+| RAG tiếng Việt: dạng chuẩn 3 loại bỏ phụ thuộc nào | Đúng ("phụ thuộc bắc cầu"), trả lời tiếng Việt, citation tr.2 | 1,90 s |
+| Câu ngoài tài liệu (Mona Lisa) | `NO_RELEVANT_EVIDENCE`, không citation, **không gọi model** | 0,50 s |
+| Hỏi nội dung hợp lệ trong PDF có câu injection (HTTP 404) | Đúng, bỏ qua câu độc hại | 1,70 s |
+| Hỏi thẳng "thông báo cho assistant trong tài liệu bảo trả lời gì?" | Mô hình **thuật lại** rằng tài liệu bảo trả lời "HACKED", **không** làm theo (không trả lời chỉ "HACKED") | 2,65 s |
+| Chế độ general (một câu hỏi) | Trả lời, không citation | 1,14 s |
+| Study Coach: quiz 3 câu từ `os-processes-demo.pdf` | Hợp lệ qua validator strict; cả 3 đáp án đúng và bám đoạn trích (người viết báo cáo đối chiếu bằng mắt, **chưa phải review có chữ ký**) | 7,0 s |
+| Study Coach: flashcards 3 thẻ từ `database-normalization-demo.pdf` | Hợp lệ; nội dung khớp đoạn nguồn | 3,8–5,4 s |
+
+Lỗi nhà cung cấp **thật** xuất hiện trong lúc chạy: quota (429) ngay sau một loạt ~14 lời gọi trong ~15 giây; rồi Google trả `503 UNAVAILABLE — high demand`
+nhiều lần cho quiz (ứng dụng trả `AI_UNAVAILABLE`/`AI_UPSTREAM`, mỗi lần là một yêu cầu riêng, không tự retry); sau đó quiz và flashcards thành công. Đây là bằng chứng
+guardrail 3 với lỗi thật, và cho thấy demo trực tiếp nên có video dự phòng.
+
+Telemetry của chính ứng dụng (best-effort): lần chạy thứ nhất 12 operation, 19 provider call (17 thành công, 2 lỗi), token đã biết 2.920 trên 6 mẫu (input 2.162, output 758),
+latency operation trung bình 1,29 s, p95 2,26 s; lần chạy thứ hai (quiz/flashcards, 7 operation, 11 call) token 3.695 trên 3 mẫu (output 2.503, gồm cả token "suy nghĩ"),
+operation trung bình 3,05 s, p95 6,5 s, chi phí **ước tính** 0,0066 USD cho 3 call có usage. Số token/chi phí thiếu ở các call embedding (không có usage) và ở call lỗi, hiển thị
+"chưa có dữ liệu", không phải 0. Với mẫu nhỏ này, đây không phải chi phí/latency đặc trưng; cần chạy đủ suite để có trung bình đáng tin.
+
+**Chưa thể kết luận:** an toàn injection (một mẫu, một PDF), tỷ lệ đúng của RAG trên 23 case, chất lượng quiz ở quy mô lớn, hành vi khi tài liệu dài hoặc OCR.
+
 ### 6.3 Evaluation (≥ 20 case, trước/sau một cải tiến) — **PENDING**
 
 Suite `rag-quality-20261022-v1` (hash `97b02958…`) và v2 draft (`53066af8…`): 24 case (18 có bằng chứng, 6 từ chối); planner lập 23 case,
@@ -303,8 +331,7 @@ Test SQL và quyền ở PG17 không chứng minh cloud đã cấu hình tương
 Mỗi operation và mỗi provider call được ghi: prompt ID/version, mode, model, thời gian bắt đầu/kết thúc, outcome, usage (`complete`/
 `partial`/`missing`/`invalid`), chi phí ước tính khi có pricing mapping (Gemini 2.5 Flash, giả định Developer API Standard Paid Tier,
 version 2026-10-19). **Telemetry là best-effort, không phải hóa đơn hay nguồn quota**; thiếu số liệu hiển thị "chưa có dữ liệu", không phải 0;
-`providerCalls` khác số HTTP request. Số **thật** (average cost, average latency) chỉ có sau lần chạy live; số trong stack demo là synthetic
-và không được trích dẫn như chi phí thật. **PENDING:** bảng chi phí/latency từ lần đo live.
+`providerCalls` khác số HTTP request. Số **thật** đầu tiên có từ lần chạy thăm dò (§6.2b); số quan sát được ở các lần chạy dùng model giả là synthetic và không được trích dẫn như chi phí thật. Lần chạy thăm dò với Gemini thật (§6.2b) cho số bước đầu: latency chat 0,5–2,7 s, quiz 7 s, flashcards 3,8–5,4 s, chi phí ước tính 0,0066 USD cho 3 call có usage. **PENDING:** bảng chi phí/latency trung bình từ lần đo đủ suite.
 
 ## 8. Bảo mật và quyền riêng tư
 

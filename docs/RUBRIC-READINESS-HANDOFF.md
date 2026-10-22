@@ -13,6 +13,16 @@ vì cần người/tài khoản/quyền bên ngoài: (1) evaluation ≥ 20 case 
 | Đã chuẩn bị, chưa thực hiện | evaluation live, video, slide/báo cáo final, luyện live-change |
 | Bị chặn bởi đầu vào/quyền/phê duyệt | xem checklist dưới đây |
 
+## 0. Cập nhật sau khi Tài cấp `.env` (23/10/2026)
+
+Đã thăm dò **chỉ đọc** ba dịch vụ trong `.env` (không in secret): Gemini hợp lệ (gói standard, có "thinking token"); Storage bucket `study-documents` **private**, giới hạn 10 MiB; PostgreSQL 17.6 kết nối được bằng user
+`postgres` (owner, **bỏ qua RLS** — API sẽ từ chối khởi động bằng user này) với ledger **dừng ở migration 015**, 1 workspace, 3 membership, 5 tài liệu, 67 chunk. Sau đó chạy một lần **thăm dò Gemini thật** trên stack local
+(`apps/api/test/demo-stack-live-smoke.mjs`, khoảng 35 lời gọi): kết quả ở `docs/REPORT.md` §6.2b. Không có gì được ghi lên Supabase; không áp migration; không dùng dữ liệu chung của nhóm.
+
+Không làm dù đã được "toàn quyền": **duyệt gold** (cần chữ ký người thật, kể cả Thắng) và **áp migration 016–024 + tạo role lên Supabase** (khó hoàn tác, có thể làm máy chạy code cũ lỗi; cần sao lưu, thử trên bản restore local, rồi bạn duyệt riêng).
+Việc còn lại của bảng dưới: #6 đã có `.env` (thiếu role business/Auth non-owner và `AUTH_DATABASE_URL`), #7 đã cho phép gọi Gemini (thực tế đã tiêu khoảng 35 request).
+**Khuyến nghị an toàn:** `.env` đã đi qua cuộc trò chuyện này — xoay (rotate) key Gemini, secret key Supabase, mật khẩu DB `postgres` và `SESSION_ENCRYPTION_KEY` sau khi xong việc; mật khẩu DB trong `DATABASE_URL` còn chứa ký tự `@` chưa mã hóa.
+
 ## 1. Việc Tài/Thắng cần làm — một checklist, có thứ tự
 
 "Bắt buộc" = rubric hoặc demo thật không thể đạt nếu thiếu. Cung cấp credential **qua kênh riêng**, không dán vào chat/Git.

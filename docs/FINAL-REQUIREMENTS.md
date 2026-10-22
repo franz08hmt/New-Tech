@@ -62,6 +62,11 @@ và không chứng minh chất lượng model; dùng nó cho luồng UI, quyền
 | 9 README / báo cáo / slides / video | README chạy Docker + biến môi trường + tài khoản demo; báo cáo PDF 10–20 trang; ≤ 15 slide; video 3–5 phút | `README.md`, `docs/REPORT.md` (+PDF), `docs/SLIDES.md` (+PPTX/PDF), `docs/DEMO-AND-DEFENSE.md` | Báo cáo/slide: bản DRAFT; **video chưa ghi** | PREP | Tài + Thắng | Điền kết quả evaluation + phần Thắng; quay video từ stack **thật** (không dùng stack demo giả live) |
 | 10 Bảo vệ | Demo 8 phút; live change 10 phút; Q&A cá nhân 12 phút | `docs/DEMO-AND-DEFENSE.md` | Kịch bản, 3 bài sửa nhỏ có test, câu hỏi theo module | PREP | Tài + Thắng | Mỗi người tự luyện; không ai viết thay phần hiểu bài của người kia |
 
+**Cập nhật 23/10/2026 (sau khi Tài cấp `.env`):** đã có **một lần chạy thăm dò với Gemini thật** (model thật; Auth/Storage/PostgreSQL vẫn local synthetic) — xem `docs/REPORT.md` §6.2b.
+Với A (RAG), C (Study Coach), guardrail 1–3 và logging/cost/latency, trạng thái thêm `LIVE-MODEL (thăm dò)`: RAG tiếng Anh/Việt đúng và có citation, câu ngoài tài liệu bị từ chối không gọi model,
+một câu hỏi thẳng vào đoạn injection được model thuật lại chứ không làm theo, quiz và flashcards qua validator strict, lỗi quota và 503 thật từ Google được xử lý đúng. Đây **không** phải evaluation:
+chưa có gold được duyệt, chưa có chấm có chữ ký, chưa có pass rate; mức `LIVE` đầy đủ (Supabase thật, Google OAuth) vẫn chưa đạt.
+
 ## User stories (13) — acceptance criteria và traceability
 
 Cơ sở: rubric 5.1 (8–15 story); cập nhật từ `docs/USER-STORIES-FINAL-PROJECT-VI.md` (Thắng, 18/10/2026,
