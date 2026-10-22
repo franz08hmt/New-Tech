@@ -5,6 +5,73 @@ Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong 
 
 ## F07 contract and local implementation
 
+## F09-A.2 — grounded RAG source-marker consistency (22/10/2026)
+
+Base `704835f`; source commit `c487362`. This fixes an evaluator false PASS, not
+a demonstrated production RAG defect. `assessLocalCase` checked a grounded
+answer's text, answerability, citation shape and citation membership in
+evidence, but never compared the inline `[S<n>]` markers in `answer` with the
+returned citations. Independent review changed only the answer of a real
+Nest/PG17 observation: no markers, `[S999]` outside the returned set, and a valid
+marker beside malformed `[S1, S999]` all still returned PASS.
+
+All seven grounded scenarios now carry three independent machine checks next to
+the existing citation-scope check: `markerSyntax` (every source-like `[S...]`
+text is exactly `[S<n>]`), `markerPresence` (at least one valid marker) and
+`markerCitationSet` (the marker ID set equals the returned citation ID set; not a
+count and not only the first marker). Repeated markers, a different order and
+ordinary brackets such as `(S1)`, `[1]`, `[s1]` stay valid. Refusals keep their
+no-citation contract and get no marker check. A new `markerConsistency` dimension
+is true/false/`not_assessed`. A broken marker is a machine FAIL
+(`LOCAL_CONTRACT_CHECK_FAILED`), never SEMANTIC_REVIEW_PENDING/INCONCLUSIVE;
+whether a cited source supports a claim stays PENDING_HUMAN. Non-text answers
+fail safely without throwing. Only `rag-evaluation-local.mjs` changed, plus tests.
+
+Rule source is `AssistantService.validateCitations`. A managed parity test calls
+the compiled production method and the evaluator on 14 answers and requires the
+same verdict. One deliberate difference was observed by running production:
+it compares the counts of source-like and valid markers, so a nested `[S[S1]` is
+accepted there, while the evaluator rejects it (stricter, like legacy
+`marker_syntax`). Production was not changed; this is an observation for the
+team, not a claimed defect fix. Not addressed here: a refusal answer carrying a
+marker (production rejects it, the evaluator keeps the F09-A.1 refusal contract)
+and duplicate returned citation IDs.
+
+Observed RED before the fix: the 152-test evaluation run had 20 failures (131
+existing tests stayed green); negatives failed as `'PASS' !== 'FAIL'`, positives
+only because the new dimension did not exist. One new test (non-text answers) was
+already green as a regression control. The independent oracle ran 1 pass/3 RED.
+Five mutations of the fix were applied: four were caught at once, M5 (counting
+malformed text as a referenced marker) survived, so a 22nd test was added and
+then killed it. GREEN: 153/153 evaluation tests (131 earlier + 22 new), oracle
+4/4. Two first-draft test-helper defects (missing gold fact IDs, page 0 for an
+out-of-evidence source) were fixed in the tests, not in assertions or the evaluator.
+
+Runtime evidence on an owned disposable PG17 (`examate-f09a2-pg17-20261022`,
+volume `examate-f09a2-data-20261022`, label `examate.owner=f09a2-20261022`):
+integration 1/1; normal 33 PASS/2 reference SKIP; the F09-A.1 three-output
+negative still 30 PASS/3 FAIL/2 SKIP. A new `marker-mutation-matrix.json` changes
+only `reviewOutput.answer` of the 7 real grounded observations: removing all
+markers, `[S999]`, and valid-plus-malformed each give 26 PASS/7 FAIL/2 SKIP, while
+repeating a valid marker or adding ordinary brackets keep 33 PASS/0 FAIL. Evidence,
+receipt, telemetry and measurements are deep-equal to the source run; 37 SDK = 37
+persisted calls. With the previous evaluator the same test fails (M01 expects 7
+FAIL, observes 0). Clean-tree run at `c487362` (dirty=false):
+`artifacts/f09a-integration-f9bf239b-d105-41e2-b607-78d28dd39e12`; the matrix
+records mutation ID, source run ID and per-case source/mutated answer hashes.
+
+Gates ran on a working tree whose patch hash equals commit `c487362`: typecheck,
+build and format exit 0; `npm test` exit 0 with 405 API Vitest + 974 API Node +
+544 Web = 1,923 (1,901 + 22), fail/skip/cancelled 0; guarded `npm run
+test:database` exit 0, 478/478 across 45 files on the owned PG17. The 478 count
+is the full suite (the focused integration test is one of its files). Logs and
+exit records: `artifacts/f09a2-20261022`. Only the owned container and volume were
+removed after the run (exit 0); the F09-A.1 container/volume/credential file and
+SOP containers were not touched, so the earlier RESOURCE_CLEANUP_BLOCKED stays.
+No UI changed and no browser acceptance, live evaluation, human semantic review,
+cloud, Google or Thắng-machine pending state moved. F09-B is not started and
+whole F09 is not complete.
+
 ## F09-A.1 — required-output evaluator fix (22/10/2026)
 
 Source `89d7276` fixes an evaluator false PASS, not a demonstrated production

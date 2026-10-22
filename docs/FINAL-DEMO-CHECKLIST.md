@@ -427,6 +427,40 @@ the separate F08-B checkpoint below.
 - [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
       cloud rollout, Google live and Thắng's machine are unchanged.
 
+## F09-A.2 — grounded RAG marker consistency (22/10/2026)
+
+- [x] RED before the fix: 152 evaluation tests, 20 fail (131 earlier tests stayed
+      green); independent oracle 1 pass/3 RED (no markers, `[S999]`, valid plus
+      malformed `[S1, S999]`). Logs: `artifacts/f09a2-20261022/*red*.log`.
+- [x] GREEN at `c487362`: evaluation self-tests 153/153 (22 new), oracle 4/4. Of
+      the 22, 20 were RED, one was a green regression control and one was added to
+      kill surviving mutation M5. Production parity test: 14 answers, same verdict
+      as compiled `AssistantService.validateCitations`.
+- [x] Machine checks `markerSyntax`, `markerPresence`, `markerCitationSet` and
+      dimension `markerConsistency` for grounded scenarios; refusals unchanged.
+      Broken markers are FAIL, not semantic pending. Positive controls: repeated
+      marker, different source order, ordinary brackets.
+- [x] Nest/PG17 integration on an owned container: 1/1; normal 33 PASS/2 SKIP;
+      answer-only marker mutations of 7 real grounded observations give 26 PASS/
+      7 FAIL/2 SKIP (remove markers, `[S999]`, valid plus malformed) or 33 PASS
+      (repeat valid marker, ordinary brackets). Measurements identical, 37 SDK =
+      37 persisted calls. Clean-tree report:
+      `artifacts/f09a-integration-f9bf239b-d105-41e2-b607-78d28dd39e12`.
+- [x] Gates on a tree identical to `c487362`: `npm run typecheck`, `npm run build`,
+      `npm run format:check` exit 0; `npm test` exit 0, 405 API Vitest + 974 API
+      Node + 544 Web = 1,923; guarded `npm run test:database` exit 0, 478/478 in
+      45 files. fail/skip/cancelled 0. Records: `artifacts/f09a2-20261022/gates`.
+- [x] No production service, prompt, model, ranking, chunking, migration, grant,
+      RLS, corpus/gold, manifest or dependency changed. Own container/volume
+      removed; F09-A.1 resources and SOP containers untouched.
+- [ ] Observation, not fixed: production accepts nested `[S[S1]` because it
+      compares marker counts; the evaluator is stricter. Not covered here: a
+      refusal answer containing a marker, and duplicate returned citation IDs.
+- [ ] RESOURCE_CLEANUP_BLOCKED for F09-A.1 container/volume/credential file remains.
+- [ ] No UI/browser acceptance, live model evaluation or human semantic review is
+      claimed; cloud, Google and Thắng-machine pending are unchanged. F09-B is
+      not started and whole F09 is not complete.
+
 ## F09-A.1 — fail-closed required response content (22/10/2026)
 
 - [x] RED before implementation: 78 managed cases ran, 24 pass/54 fail;

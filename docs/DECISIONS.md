@@ -705,3 +705,16 @@ or malformed required output is a machine FAIL; structural correctness cannot
 fall back to HTTP status. Non-content/error scenarios remain distinct, and
 semantic correctness still requires human review. Negative reports mutate only
 copied observations and preserve original telemetry/accounting and run linkage.
+
+F09-A.2 clarification: grounded RAG assessment compares inline source markers
+with returned citations, following `AssistantService.validateCitations` rather
+than a new rule: every source-like `[S...]` text must be exactly `[S<n>]`, at
+least one marker must exist, and the marker ID set must equal the returned
+citation ID set; citations still have to belong to observed evidence. These are
+machine checks and a failure is FAIL, never semantic-pending; support of a claim
+by its source remains human review. Refusals keep their no-citation contract.
+Decision: the evaluator is stricter than production on one observed edge (nested
+`[S[S1]` passes production's count comparison); production was left unchanged
+because this task fixes the evaluator only. Marker mutations change only the
+answer text of copied real observations and keep evidence, receipt, telemetry and
+accounting identical.

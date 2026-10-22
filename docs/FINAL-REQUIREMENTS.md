@@ -46,6 +46,14 @@ F09-A.1_CODE_VERIFIED at source `89d7276`: five gates exit 0, 1,901 application
 tests and 478 PG17 tests, with new evidence in FINAL-DEMO-CHECKLIST. Live and
 human review remain blocked/pending; whole F09 is not accepted.
 
+F09-A.2 closes the grounded-RAG marker gap in the same evaluator: inline
+`[S<n>]` markers must be well formed, present, and equal as a set to the returned
+citations, in addition to citation scope. Production `validateCitations` is the
+rule source (a parity test compares verdicts). Marker failures are machine FAIL;
+claim support stays human-reviewed. Evidence: `c487362`, 1,923 application tests
+and 478 PG17 tests, answer-only mutations of real Nest/PG17 observations in
+FINAL-DEMO-CHECKLIST. Live, human, browser and whole-F09 acceptance unchanged.
+
 Thành viên đọc được tài liệu của workspace; chưa có PDF riêng từng người trong
 cùng workspace. Auth PASS không thay RAG/STT PASS. Máy Thắng cần bằng chứng riêng.
 

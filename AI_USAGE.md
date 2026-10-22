@@ -955,3 +955,23 @@ review blocked cleanup before execution, returning only "blocked by policy".
 AI did not retry deletion by another route; read-only checks confirmed owned
 container/volume and ignored disposable credentials remain (context records the
 exact markers). Code verification and outstanding cleanup are separate.
+
+## 2026-10-22 — F09-A.2 grounded RAG marker consistency
+
+AI assistance reproduced the independent marker oracle (1 pass/3 RED), read
+`AssistantService.validateCitations` and the legacy evaluation checks, wrote 22
+managed regressions first (20 RED) and then added three machine checks and a
+`markerConsistency` dimension to the grounded contract in
+`rag-evaluation-local.mjs`. A parity test runs the compiled production method;
+running it showed production accepts a nested `[S[S1]`, which the evaluator
+rejects, and this was recorded rather than fixed. Five mutations of the fix were
+tried; one survived and a further test killed it. Two test-helper mistakes of the
+AI's first draft were corrected in the tests. Real Nest/PG17 observations were
+mutated in the answer only and kept identical measurements (37 SDK = 37
+persisted calls). The 20-failure count includes tests that failed because the
+new dimension did not yet exist, not only the three oracle behaviours. Gates on a
+tree identical to `c487362`: 1,923 application tests and 478 PG17 tests, all
+exit 0. The AI created, used and removed only its own labeled container and
+volume, left F09-A.1 and SOP resources untouched, and did not change production
+services, prompts, models, migrations, corpus/gold or dependencies. No human
+reviewer, browser acceptance or live-model result was produced or invented.

@@ -24,6 +24,19 @@ errors/non-content scenarios it is `not_assessed`, never the HTTP status.
 The existing injection-INCONCLUSIVE regression now supplies a valid response
 before withholding context observation; its INCONCLUSIVE assertion is unchanged.
 
+F09-A.2 (`c487362`) adds inline-marker checks to every grounded scenario:
+`markerSyntax` (each source-like `[S...]` is exactly `[S<n>]`), `markerPresence`
+(at least one valid marker) and `markerCitationSet` (marker IDs equal returned
+citation IDs as sets), reported as `dimensions.markerConsistency`. Repeated
+markers, any source order and ordinary brackets stay valid; refusals need no
+markers. A failure is a machine FAIL, not a pending review. The formal runtime
+test also writes `marker-mutation-matrix.json`, changing only the grounded
+`reviewOutput.answer` of real observations (remove markers, `[S999]`, valid plus
+malformed, and two positive controls) with mutation ID, source run ID and answer
+hashes; evidence, receipt, telemetry and accounting stay identical. Existing
+reports are not regraded. Use the documented guarded PG17 target and
+`prepare-runtime-roles.mjs` before running it.
+
 The formal runtime DB test retains a separate `negative-output-report.json`:
 it removes only the RAG/Quiz/Flashcards output from real observations, expects
 3 FAIL rather than PASS, and asserts identical accounting/usage/latency to the
