@@ -185,6 +185,12 @@ POST. One POST per case, no retry, no replay after an unknown outcome, no automa
 CLI, is refused before credentials. Verified only against synthetic Auth/Storage/model on
 Nest/PG17; see the context checkpoint for the counters and for what is still missing.
 
+F09-B.2B.5.1 (source `3a628e6`) corrects the B.2B.5 note: before the fix the executor copied request hashes
+stored in the plan and used caller-supplied provenance bytes. It now re-hashes the suite bytes, recomputes
+every request hash, rebuilds the plan with the canonical planner and compares it, requires provenance bytes
+to equal the approved suite, and runs from an immutable private copy, all before the authorizer, credentials,
+network or ledger. Edited requests and cross-revision provenance are refused with explicit reasons.
+
 **Current boundary, 18/10/2026:** live `--execute` is BLOCKED (exit 3) before
 DB/Storage/Gemini because this runner has no verified workspace principal.
 Offline/dry-run remain available. Live commands/transport descriptions below

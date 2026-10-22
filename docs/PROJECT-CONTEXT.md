@@ -21,6 +21,53 @@ hoặc tự nhận D vì có STT. Bỏ F11 không bỏ responsive desktop/mobile
 phân quyền, CRUD/search, dashboard, privacy, ≥20 case chạy thật trước/sau cải
 tiến và bộ nộp cuối kỳ giữ nguyên. Phù hợp về phạm vi không có nghĩa đã đạt rubric.
 
+## F09-B.2B.5.1 — executor bound to the data it really sends (22/10/2026)
+
+`F09-B.2B.5.1_CODE_VERIFIED`, source `3a628e6`. **Correction to the B.2B.5 entry below
+(kept as written).** That entry said the approval `binds` "must equal what the executor
+recomputes from the plan". What it actually recomputed was the binding *from values stored
+in the plan object*: the per-case `requestSha256` was copied, not recomputed from the request.
+Two reviewer-reproduced defects followed. (A) After a valid approval, editing
+`plan.cases[0].request.body.message` while keeping the old hash still read the credential,
+sent the edited request and reported COMPLETED. (B) The provenance verifier ran on the
+`manifestBytes` the caller supplied and never compared them with the approved plan, so a v2
+plan and approval ran with a v1 artifact and v1 bytes.
+
+What is checked now, before the authorizer, any credential, network call or ledger write
+(refusals are returned as REFUSED with a reason): the exact suite bytes are re-hashed and must
+equal the suite metadata and the plan (`SUITE_BYTES_MISMATCH`); the suite is re-parsed from
+those bytes by the canonical loader and must equal the definition handed in
+(`SUITE_DEFINITION_MISMATCH`); every supported case's `requestSha256` is recomputed from its
+method/path/body (`PLAN_REQUEST_HASH_MISMATCH`); the canonical plan hash is recomputed
+(`PLAN_HASH_MISMATCH`); and the whole plan is rebuilt by the canonical planner
+(`assembleQualityPlan`, the same code that built it) from those bytes and the mapping and compared
+(`PLAN_BATCH_MISMATCH` / `PLAN_CONTENT_MISMATCH`) — so a plan whose hashes were all recomputed and
+whose approval was freshly signed is still refused if it is not what the suite produces. Provenance
+bytes, if supplied, must hash to the approved suite (`PROVENANCE_SUITE_MISMATCH`) and the verifier is
+always called with the plan's own verified bytes. The target, timeout, batch size and selection are
+free parameters of a plan, covered by the plan hash and by the approval, not by the rebuild: a
+re-hashed plan that points elsewhere is refused by the approval binding, not by the rebuild.
+
+After the checks the executor works only from a private, deep-frozen copy (plan, definition,
+resolved mapping, binding, suite bytes) and copies the provenance strings and acknowledgements it
+was given; callbacks receive clones. Changing the caller's plan, definition or approval while an
+authorizer, preflight or checkpoint callback is awaited changes nothing that is sent or used for
+evaluation; a callback that edits its snapshot cannot alter the run.
+
+Evidence. Reviewer oracle 3/3 (positive control and both negatives, previously 1/3). Executor
+unit 20/20 (was 14): edits to message/operation/documentId/courseId/mode/path/method/extra field/
+stored hash, fully re-hashed and re-signed forgeries, suite bytes/definition/metadata, v2 plan with v1
+provenance and the reverse, v2 with its own provenance still runs, mid-run mutation during the
+authorizer and after the first checkpoint, approval not spreading. 30 mutants (19 earlier, 11 new:
+each hash check, the rebuild, the definition and the sealed copy) all killed. Nest/PG17 integration
+8/8 on a fresh guarded container including an edited request and a foreign-revision provenance
+refused at no cost to the real server. Gates at `3a628e6`: typecheck/build/format exit 0,
+`npm test` 2,304 (457 + 1,303 + 544), full `test:database` 520/520 in 50 files — new runs.
+Not live: the authorizer and target-equivalence proof are still test-owned; no approval of any person
+is recorded; `GOLD_REVIEW_PENDING`, `LIVE_EVALUATION_PENDING` and `SEMANTIC_REVIEW_PENDING`
+are unchanged. The next useful step is the tool that records a person's gold approval so that an
+authorizer can verify it; it is not started.
+
 ## F09-B.2B.5 — one-batch quality executor (22/10/2026)
 
 `F09-B.2B.5_CODE_VERIFIED + LOCAL_SYNTHETIC_EXECUTOR_VERIFIED + LIVE_EXECUTION_BLOCKED`,

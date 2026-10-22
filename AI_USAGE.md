@@ -1255,3 +1255,17 @@ Source `7a17db3`: unit 14/14, integration 8/8, `npm test` 2,298, full `test:data
 520/520 (50 files, own guarded container), typecheck/build/format exit 0. No real model,
 account, secret, cloud write, push or deploy. The test authorizer is not a human approval;
 gold review, live evaluation and semantic review stay pending.
+
+## 2026-10-22 — F09-B.2B.5.1 executor binding fixes
+
+A reviewer showed that my earlier statement that the executor "recomputes the binding" was wrong: it copied
+request hashes stored in the plan and trusted caller-supplied provenance bytes. AI assistance reproduced both
+failures first (reviewer oracle 1/3, five new behavioural tests red), refactored the planner so its assembly can
+be reused, and added sealing: exact-byte hash, canonical re-parse, request-hash recomputation, plan rebuild and
+comparison, provenance-to-suite binding and an immutable private copy. One of my own test expectations was
+wrong (a re-hashed plan with a changed target is consistent; only the approval can refuse it) and was corrected in
+the test with the reason recorded. 30 mutants were run and killed.
+
+Source `3a628e6`: oracle 3/3, executor 20/20, integration 8/8, `npm test` 2,304, full `test:database` 520/520
+(50 files, own guarded container), typecheck/build/format exit 0. No real model, account, secret, cloud write, push
+or deploy; no approval is recorded for Tài or Thắng.

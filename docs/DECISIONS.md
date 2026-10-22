@@ -922,3 +922,12 @@ cap is not a provider-call cap and neither is a money cap; the report says so an
 turn unobserved usage into zero. A well-formed response is never a semantic pass. Synthetic
 fixtures exercise the code paths and are labelled as such; they are not approval or
 equivalence evidence.
+
+F09-B.2B.5.1 decision: an approval is only as good as the data it is compared with, so the executor
+verifies the data first and compares the approval to the verified data, never to values the plan merely
+stores. Verification reuses the canonical code (the suite loader and the planner's own assembly) instead of
+a second validator that could drift. After verification the run reads only a deep-frozen private copy and
+passes clones to callbacks, so a caller changing its objects mid-run cannot change what is sent. Provenance
+is tied to the approved suite by hash and verified with the plan's own bytes. Free plan parameters (target,
+timeout, batch size, selection) are not derivable from the suite; they are covered by the plan hash and the
+approval, and the B.2B.5 wording is corrected to say exactly that.

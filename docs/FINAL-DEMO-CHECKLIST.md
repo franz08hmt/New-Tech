@@ -436,6 +436,18 @@ the separate F08-B checkpoint below.
 - [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
       cloud rollout, Google live and Thắng's machine are unchanged.
 
+## F09-B.2B.5.1 — executor binding fixes (22/10/2026)
+
+- [x] Correction: B.2B.5 did not recompute request hashes (it copied them) and trusted caller-supplied
+      provenance bytes; an edited request still dispatched and a v2 plan ran with v1 provenance. Fixed:
+      suite bytes re-hashed and re-parsed, request hashes recomputed, plan rebuilt by the canonical
+      planner and compared, provenance bytes tied to the approved suite, immutable private copy for the run.
+- [x] RED on behaviour (five new tests failed; oracle 1/3) then GREEN: oracle 3/3, executor 20/20, 30
+      mutants killed, Nest/PG17 8/8. Source `3a628e6`: typecheck/build/format exit 0, `npm test` 2,304,
+      `test:database` 520/520 in 50 files — new runs.
+- [ ] Still not live: test-owned authorizer/equivalence, no recorded human approval, no real account.
+      `GOLD_REVIEW_PENDING`, `LIVE_EVALUATION_PENDING`, `SEMANTIC_REVIEW_PENDING` unchanged.
+
 ## F09-B.2B.5 — one-batch executor (22/10/2026)
 
 - [x] Core executor for exactly one batch: exact approval binding (suite, plan, batch, order,
