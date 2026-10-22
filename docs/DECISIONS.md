@@ -777,3 +777,22 @@ superseded records are kept, a late finish cannot affect a successor, and a cras
 failed marker write keeps the plan closed. Stale listings can only cause a refusal.
 Policy (no lease, acknowledgement for unknown or crashed runs, a live holder is never
 taken over, ledger errors refuse) is unchanged.
+
+F09-B.1.3 correction: append-only does not make a partially written marker valid.
+Creating a final marker with wx before its write/sync finishes exposed an unsafe
+reader decision. Keep reservations unchanged and publish markers in two phases:
+an exclusively created preparation is fully written, synced and closed; fs.link
+then adds the public name atomically without replacing anything. Both names stay
+immutable. Validation binds protocol/plan/kind/seq/runId/timestamp to the record
+and checks regular-file identity (nonzero inode/device and link count >=2).
+Parsing JSON alone would neither prove publication nor handle sync failures.
+
+The hard-link addition is the commit point, not the writer's return value. Before
+it, failures/preparations grant no release/unknown status; after it, a valid marker
+can be observed even if the process crashes or loses the link ACK. Never retry a
+write of uncertain outcome. Existing history acknowledgements/dead-process rules
+remain; unpublished files are not leases and are not auto-deleted. Legacy raw
+markers/corrupt public markers require investigation, not silent fallback. NTFS
+same-volume hard links were chosen over rename (replacement semantics) or copy
+(partial-file visibility). No directory fsync/power-loss, hostile-local-writer or
+network-share durability is certified. No schema/service/dependency is added.

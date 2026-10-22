@@ -87,6 +87,17 @@ writer's own record). Evidence at `d09dfbb`: deterministic-barrier regressions, 
 real two-process race against Nest/PG17 with one generation, 2,101 application and 479
 PG17 tests. Live evaluation and semantic review remain pending.
 
+F09-B.1.3 fixes the further marker-publication finding: a raw filename is not
+proof of a successful marker write. Synced/closed immutable preparations are
+published by exclusive hard link; reader verifies marker binding and file identity.
+Tracked real-file/crash/fault tests and Nest/PG17 rerun-denial evidence are in
+FINAL-DEMO-CHECKLIST. This changes only the filesystem ledger, not runtime Auth,
+RLS, admission, retrieval or corpus/gold. Process-crash evidence is not a power-loss
+or network-share durability claim; live and semantic evaluation remain pending.
+At source `122ca20`, fresh five gates exit 0: 2,142 application tests and 479
+PG17 tests. F09-B.1.3_CODE_VERIFIED / LOCAL_INTEGRATION_VERIFIED is scoped to
+this fix; no F09-B.2 or live/human semantic acceptance is implied.
+
 Thành viên đọc được tài liệu của workspace; chưa có PDF riêng từng người trong
 cùng workspace. Auth PASS không thay RAG/STT PASS. Máy Thắng cần bằng chứng riêng.
 

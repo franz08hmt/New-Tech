@@ -1049,3 +1049,29 @@ protocol invariants and on those tests, not on timing. Gates at `d09dfbb`: 2,101
 application tests and 479 PG17 tests, exit 0. Only its own container and volume were
 removed. No live model, real account, cloud call, human review or browser result was
 produced, and no secret was handled.
+
+## 2026-10-22 — F09-B.1.3 fail-closed marker publication
+
+AI assistance reproduced the actual post-wx marker-write fault before editing
+source: reviewer oracle 0/2 and 30 tracked RED tests. It kept the append-only
+reservation protocol and added synced/closed preparations followed by exclusive
+hard-link publication, with reader binding/file-identity validation. No runtime
+service, Auth, RLS/grant, migration, prompt/model, retrieval, corpus/gold or body
+deadline changed. Managed suites pass 126/126 (41 new); external oracles 7/7.
+Four mutants are killed after one ignore-sync survivor exposed a test interceptor
+assertion that masked the unsafe write; the assertion now observes after the
+operation. Every mutated source was restored and failure logs are retained.
+Real child-process SIGKILL barriers cover both sides of publication; that does not
+certify physical power-loss durability. Focused Nest/PG17 integration at clean
+`122ca20` passes; both actual-server marker EIO cases block rerun without additional
+SDK/persisted calls. An initial extra login hit the fixture owner's rate bucket;
+new cases use another authorized fixture member without changing Auth limits.
+No paid provider, real account, cloud, browser or semantic review was used. Live
+evaluation and existing acceptance/cleanup pending states are not advanced.
+Fresh final-source gates at `122ca20` all exit 0: typecheck, full application
+tests (457 API Vitest + 1,141 API Node + 544 Web = 2,142), build, format and
+479/479 PG17 tests in 46 files; fail/skip/cancelled 0. Build retains the chunk
+advisory. Source stayed unchanged during verification. Cleanup checked exact
+task/repo/date labels and the sole volume consumer, then removed only the newly
+created F09-B.1.3 container/volume; none remain. F09-A.1 resources and SOP were
+not touched; raw test/mutation/report evidence remains ignored and retained.

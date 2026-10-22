@@ -427,6 +427,49 @@ the separate F08-B checkpoint below.
 - [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
       cloud rollout, Google live and Thắng's machine are unchanged.
 
+## F09-B.1.3 — marker publication (22/10/2026)
+
+- [x] RED on baseline `8512024`: 30 tracked tests fail; reviewer marker-fault
+      oracle 0/2. Actual wx succeeded before empty/partial write or sync failed;
+      readers incorrectly admitted acknowledged successors by filename alone.
+- [x] Fix source `122ca20`: write/sync/close immutable preparation, then exclusive
+      hard-link publication. Reader checks JSON fields against reservation plus
+      source/public file identity. No overwrite, rename, delete, lease or repair.
+- [x] Focused managed suites: 126/126 (41 new tests); external marker/review/
+      adapted-release oracles 7/7. Real-file barriers, SIGKILL before/after publish,
+      close/sync/link/read errors, collisions, stale finish, successor protection
+      and post-publication lost ACK are covered. Body deadline tests stay green.
+- [x] Four mutations killed and source restored. Initial ignore-sync survivor
+      exposed a test assertion that itself blocked unsafe publication; assertion
+      moved outside interceptor. Logs/results, including the survivor, remain in
+      `artifacts/f09b13-20261022` (round 2 is 4/4 killed).
+- [x] Focused HTTP/Nest/PG17 integration 1/1 at clean `122ca20`; report path
+      `artifacts/f09b-http-integration-e9495410-dd06-4c4d-a87b-1bd819e342e3`.
+      Two-process race: 2 calls/1 receipt, one dispatch. Both marker EIO cases:
+      2 calls/1 receipt each; acknowledged rerun blocked, counters unchanged.
+      Runtime LOGINs non-owner/NOBYPASSRLS; only upstream Auth/SDK/Storage are
+      synthetic. Initial added fixture failed at LOGIN_RATE_LIMITED before
+      dispatch; using its other authorized actor fixed setup without Auth changes.
+- [x] Re-run: `node --test apps/api/test/evaluation-http-reservation.test.mjs
+      apps/api/test/evaluation-http.test.mjs`; guarded `node --test
+      apps/api/test/evaluation-http.database.test.mjs`. Build API and provision
+      disposable runtime roles first. No UI changed; no new browser claim.
+- [x] Source `122ca20`: typecheck, full `npm test`, build and format all exit 0.
+      Fresh application counts: 457 API Vitest + 1,141 API Node + 544 Web = 2,142
+      pass, fail/skip/cancelled 0. Vite retains its >500 kB chunk advisory.
+      Logs and command/revision/exit records: `artifacts/f09b13-20261022/gates-122ca20`.
+- [x] Fresh full `npm run test:database` at `122ca20`: exit 0, 479/479 pass in
+      46 serial files, fail/skip/cancelled 0. This is separate from focused 1/1
+      HTTP integration; `database-counts.json` records the summed runner counts.
+- [x] F09-B.1.3_CODE_VERIFIED / LOCAL_INTEGRATION_VERIFIED for the scoped local
+      protocol and synthetic runtime, not live quality or full F09 acceptance.
+      Only the marked F09-B.1.3 container/volume were removed after labels and
+      exclusive mount were checked; zero remain. Artifacts retained, F09-A.1
+      cleanup blocker and SOP resources untouched.
+- [ ] Windows/NTFS process-crash evidence only, not power-loss/network-share
+      durability. Live/semantic/browser/cloud/Google/Thắng-machine pending and
+      F09-A.1 RESOURCE_CLEANUP_BLOCKED unchanged. F09-B.2 not started.
+
 ## F09-B.1.2 — append-only plan ledger (22/10/2026)
 
 - [x] Finding from review: a completed run's late `unlink` of `active.json` removed a

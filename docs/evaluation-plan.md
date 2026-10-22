@@ -98,6 +98,28 @@ after valid headers is recorded as `outcome: unknown_after_dispatch` with
 `transportPhase` and ends the run; a complete body that is not JSON is `bodyStatus:
 invalid_json` and the case FAILs without stopping the run.
 
+F09-B.1.3 (`122ca20`) supersedes "marker exists" above: a preparation is written
+under `.prepare.<runId>/`, synced and closed, then published with an exclusive
+same-filesystem hard link at `release.<seq>.json` or `unknown.<seq>.json`. Readers
+validate protocol, plan/kind/seq/runId/timestamp and matching regular-file inode,
+device and link count with that immutable preparation. Empty/partial/unreadable,
+wrong-bound, copied (not linked), conflicting or legacy raw public markers fail
+closed; they are not repaired/deleted automatically. Reservation records, history,
+intent-before-POST, next-record takeover and body deadlines keep their contracts.
+
+| Boundary | State observed by a new reader | Recovery |
+| --- | --- | --- |
+| Before/while writing, syncing or closing preparation; link not created | No published marker; unfinished holder | Live holder blocks. A process crash permits only existing explicit acknowledgement + same-host dead-process policy. |
+| Write/sync/close error, or link error before entry creation | Preparation retained, no release/unknown status | No automatic retry, lease expiry or evidence deletion; holder remains unfinished. |
+| Atomic link created, process crashes or link ACK is lost | Fully prepared marker is committed if all validation succeeds | Completed: history acknowledgement for next run. Unknown: explicit operator acknowledgement after checking server evidence. Never replay the write/generation automatically. |
+| Public marker is corrupt, unreadable, wrong-bound or not linked to preparation | LEDGER_UNAVAILABLE | Operator investigation; no automatic repair or fallback to an empty ledger. |
+
+This protocol is exercised with real files and IPC/SIGKILL barriers on Windows
+NTFS, not a power-loss test. No directory-fsync or hardware-cache guarantee is
+claimed; no cross-host/network-filesystem guarantee. Old raw-marker plans cannot
+be silently reused under this protocol. Keep their evidence and resolve them as
+an explicit operator task rather than rewriting committed files.
+
 Proposed F09-B.2: (a) author and freeze a new manifest of at least 20 live quality
 cases (the v3 manifest has 9), covering document, course, no-evidence, Vietnamese,
 injection and summary, with gold facts and pages reviewed by Tài and Thắng before any

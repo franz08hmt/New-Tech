@@ -5,6 +5,71 @@ Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong 
 
 ## F07 contract and local implementation
 
+## F09-B.1.3 — fail-closed marker publication (22/10/2026)
+
+Base `8512024`, reviewed source `d09dfbb`; fix source `122ca20`. Finding: `wx`
+created a public release/unknown marker before write/sync completed. EIO left
+an empty/partial public file, and a reader trusted the filename and admitted an
+acknowledged successor while the holder was alive. A failed finish return did
+not keep the on-disk plan closed. This corrects that claim in B.1.2 below.
+
+Only marker publication changes. Write `.prepare.<runId>/<kind>.<seq>.json`
+exclusively, write all JSON, sync and close, then create the public marker by
+`fs.link` (same-filesystem exclusive hard link; no replace/rename/delete). The
+hard-link addition is the commit point. Immutable preparations, including failed
+ones, remain evidence. Readers validate publication protocol `synced-hardlink-v1`,
+plan/kind/seq/runId/timestamp against the reservation, and regular-file identity
+(same nonzero inode/device and link count >=2) between public/prepared paths.
+Unreadable, malformed, conflicting, unlinked-copy or legacy raw markers refuse
+with LEDGER_UNAVAILABLE. Old `active.json` stays blocked. No automatic migration
+or repair of historical ledger files is provided.
+
+Before publication, a preparation grants no release/unknown status: an unfinished
+live holder blocks even acknowledged runs. A crashed unfinished holder still
+needs explicit acknowledgement plus same-host proof it is dead. After publication,
+a completed run is released (history still requires acknowledgement), and published
+finished_unknown follows the existing explicit acknowledgement policy. A lost link
+ACK can return released=false despite a valid commit; inspect the published record,
+never retry the write or automatically replay a generation. Late finish still only
+annotates its own seq; ownership still transfers by exclusive next-record creation.
+
+Observed RED: 30 new tracked tests failed on baseline; reviewer EIO-after-real-wx
+oracle 0/2. GREEN: 41 new regressions and existing tests give 126/126 reservation/
+HTTP tests; 7 reviewer/adapted oracles pass. Four mutations killed: trust marker
+name, ignore publication error, ignore sync error, omit sequence binding. The sync
+mutant initially survived because a test interceptor assertion prevented the unsafe
+link; move that assertion outside the operation and it is killed. Source restored.
+Real process crashes use IPC barriers before/after publication (no sleeps/lease).
+
+Focused Nest/PG17 integration at clean `122ca20` passed 1/1, retained under
+`artifacts/f09b-http-integration-e9495410-dd06-4c4d-a87b-1bd819e342e3`:
+two processes still dispatch once (2 SDK/persisted calls, 1 receipt); each new
+completed/unknown marker EIO case has 1 embedding + 1 generation, 2 persisted
+calls, 1 receipt, empty preparation, and acknowledged rerun blocked with no new
+work. A first added integration run hit the owner's existing login rate bucket;
+it is retained. The new cases use another authorized fixture member, not weakened
+Auth. Final gate results are recorded in FINAL-DEMO-CHECKLIST.
+
+Scope: Windows/NTFS on D:, local same-host filesystem only. File sync plus atomic
+hard-link visibility is tested, including SIGKILL; directory fsync/power-loss,
+network shares and hostile filesystem modification are not certified. Runtime
+services, HTTP body deadlines, SQL/migrations/RLS, corpus/gold/model/prompt and
+UI remain unchanged. LIVE_EVALUATION_PENDING, SEMANTIC_REVIEW_PENDING, prior
+browser/cloud/Google/remote-machine pending and F09-A.1 cleanup blocker remain.
+No F09-B.2 work. Raw evidence is kept under `artifacts/f09b13-20261022` and
+`artifacts/f09b13-marker-tests`.
+
+F09-B.1.3_CODE_VERIFIED / LOCAL_INTEGRATION_VERIFIED (synthetic runtime only):
+five fresh sequential gates at `122ca20` exit 0: typecheck; `npm test` with
+457 API Vitest + 1,141 API Node + 544 Web = 2,142 pass; build; format; full
+guarded PG17 suite 479/479 in 46 files. Fail/skip/cancelled 0. Build retains
+the existing Vite >500 kB advisory. Command/SHA/exit logs and summed DB counts:
+`artifacts/f09b13-20261022/gates-122ca20`. Later documentation-only commits do
+not change verified source. After checking task/repo/date labels and exclusive
+mount, only `examate-f09b13-pg17-20261022` and its volume
+`examate-f09b13-data-20261022` were removed; zero owned containers/volumes remain.
+No F09-A.1 resource or SOP container was touched. Evidence artifacts remain.
+
 ## F09-B.1.2 — append-only plan ledger: a release cannot touch a successor (22/10/2026)
 
 Base `61e74a5` (F09-B.1.1 code `7814f7d`); source commit `d09dfbb`. An independent
