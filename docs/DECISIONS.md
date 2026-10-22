@@ -938,3 +938,12 @@ objects and a buffer only it holds, and verifies and uses that one buffer end to
 used as a claim about buffers. Mutation inside the window is answered by running on the data as it was
 at the call or refusing, never by combining the two, and the tests fix the order by running code to the
 first await rather than by timing. The B.2B.5.1 wording is corrected to say which stage it protected.
+
+Rubric-readiness decision (23/10/2026): browser acceptance without credentials uses a test-only demo stack
+(`apps/api/test/demo-stack-server.mjs`, `compose.demo-stack.yaml`) instead of a flag, a mock mode or a second product path. It runs the
+real application and replaces only the four things that need an account — Auth upstream, Storage, embedding and the model — with
+synthetic stand-ins that live in test code and are never imported by the application. Rejected: a "demo mode" switch in production code (it
+would be a bypass), editing `compose.yaml` (it must stay the real stack), and presenting synthetic answers as model output. The cost is that
+this stack proves UI, permission, error-handling and layout behaviour but nothing about model quality or cost; every document that reports
+its results says so. Chunk size and model choice still have no recorded rationale and no ADR; the report leaves them for the owners to
+write rather than inventing a history.

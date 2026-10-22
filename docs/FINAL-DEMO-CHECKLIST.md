@@ -10,6 +10,25 @@ ba tools vẫn đã bỏ; không tự bỏ F14. Theo
 vẫn cần responsive desktop/mobile, streaming/SSE, demo containerized/deployed,
 hai capabilities A + C có bằng chứng và ≥20 case chạy trước/sau cải tiến.
 
+## Browser acceptance trên stack demo — 23/10/2026 (không đổi các ô cũ bên dưới)
+
+Các mục "Browser … chưa kiểm" ở F07/F08/F05/F06 phía dưới là lịch sử và **giữ nguyên**. Lần chạy này dùng Chrome nhúng của Claude Desktop trên
+stack demo (Auth upstream, Storage, embedding, model **synthetic**; Nest/guards/PDF.js/chunker/retrieval/telemetry/PG17+RLS thật). Kết quả theo mục:
+
+| Mục cũ | Đã chạy trong browser | Còn chưa chạy |
+| ------ | --------------------- | ------------- |
+| F07 hội thoại | gửi/hoàn tất (hiện "Đã lưu cuộc trò chuyện"), hủy giữa luồng (bản nháp quay lại, không lưu nửa câu), lịch sử riêng theo người dùng (API) | mở lại hội thoại từ "Lịch sử đã lưu", tiếp tục, xóa, đổi hội thoại giữa chừng |
+| F08-A quiz | sinh → xem trước → lưu → reload → luyện tập → chấm 2/3 → tiến độ | xóa quiz, keyboard/focus, nhiều trang quiz |
+| F08-B flashcards | xem trước → lưu → lật/tự đánh giá → lưu lượt → tiến độ | xóa bộ thẻ, keyboard/focus |
+| F06 dashboard | manager xem tổng quan, token (2 mẫu), chi phí ước tính, thiếu = "chưa có dữ liệu" | lọc/phân trang chi tiết, làm mới khi đang mở chi tiết |
+| F05 search | Tasks: tìm, lọc trạng thái, sắp xếp mặc định, reload | Documents/Courses/Exams/Plans/Expenses/sidebar |
+| Mobile 375 px | 10 trang không tràn ngang; assistant bottom sheet; 375×520 composer cuộn và nút gửi tới được | keyboard/focus, thiết bị thật |
+| R10 SSE | general hiện chữ dần; qua nginx 40 ms → 4.266 ms; nút Dừng | documents/workspace mode (chỉ stream trạng thái theo thiết kế) |
+
+Ghi chú quan sát: khi Browser pane bị ẩn/hiện, panel Assistant đóng lại (cửa sổ mất focus → app kiểm tra lại phiên; thử `window.dispatchEvent(new Event("focus"))`
+trong khi hiển thị thì panel và bản nháp **vẫn còn**). Chưa xác định chính xác nguyên nhân đóng panel khi pane ẩn; không coi là lỗi sản phẩm đã tái hiện. Artifacts:
+`artifacts/rubric-readiness-20261022/` (ảnh `screens/`, `roles-check*.jsonl`, `gates-*.txt`, log) — git-ignored.
+
 ## F07 — hội thoại riêng đã lưu (local automated evidence)
 
 - [x] Hội thoại thuộc `(workspace_id,user_id)` đã xác minh; Manager không mặc

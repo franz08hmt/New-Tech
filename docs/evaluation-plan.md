@@ -1,5 +1,77 @@
 # ExaMate RAG evaluation — Phase 4
 
+## Live run — những gì còn thiếu, thứ tự chạy và mẫu kết quả (23/10/2026)
+
+Mục này là bản **duy nhất** cho việc "đo ≥ 20 case, trước/sau một cải tiến" của rubric 4.2.
+Trạng thái: `LIVE_EVALUATION_PENDING`. Chưa có case nào chạy bằng model thật, chưa có pass rate nào.
+Không ghi pass rate dựa trên stack demo (`compose.demo-stack.yaml`): nó dùng bộ trích câu, không phải LLM.
+
+### A. Đầu vào do người thật cung cấp (không thể do agent quyết)
+
+| # | Cần | Cách cấp an toàn | Mở khóa |
+| - | --- | ---------------- | ------- |
+| 1 | Chọn **một** revision (v1 hoặc v2) và duyệt gold | Điền `docs/GOLD-REVIEW-PACK.md` / `gold-review-template.json` | B2 |
+| 2 | Target thật: Supabase project, workspace, tài khoản đánh giá (member) **riêng**, `.env` runtime | Tự cấu hình `.env`/secrets ngoài chat; không dán vào chat/Git | B1, B5 |
+| 3 | Credential **maintenance chỉ đọc** cho audit (khác credential runtime) | Biến môi trường tạm hoặc stdin của người vận hành | B3 |
+| 4 | Cho phép gọi Gemini thật + trần: số request/batch, số batch, quota tài khoản, ngân sách | Ghi trong approval record của từng batch | B6 |
+| 5 | Người chấm ngữ nghĩa (human semantic review) cho từng response | Tờ chấm do công cụ sinh ra; người điền | B7 |
+
+### B. Thứ tự chạy
+
+1. **B1** Chuẩn bị target: upload hai PDF `examate-eval-project-brief.pdf`, `examate-eval-course-policy.pdf` (sinh bằng `npm run eval:f09b2a:prepare`) qua UI/API; gắn môn; index; tạo thêm môn chỉ chứa policy (RQ24 cần bản policy riêng vì một document chỉ có một `course_id`).
+2. **B2** Duyệt gold (người). Hash file case được ghi trong approval; đổi một byte là mất hiệu lực.
+3. **B3** Audit provenance **chỉ đọc** target thật → artifact + observation; ghim digest từ bản ghi ngoài artifact.
+4. **B4** `--quality-suite … --mapping …` (dry-run) lấy `planSha256`; rồi `--preflight --credentials-stdin`.
+5. **B5** Chứng minh target HTTP là đúng DB/Storage đã audit (không dùng hai giá trị tự khai trùng nhau).
+6. **B6** Approval record cho **từng** batch (≤ 5 request; 23 case lập kế hoạch thành 5 batch); chạy `--execute --batch quality-batch-N --approval <file>`; không tự sang batch kế; không replay outcome không rõ.
+7. **B7** Chấm ngữ nghĩa từng response (người). Machine check chỉ cho contract/citation/refusal, **không** cho PASS ngữ nghĩa.
+8. **B8** Ghi **baseline** (prompt/retrieval hiện hành, `rag-v1`).
+9. **B9** Phân tích case FAIL, chọn **một** cải tiến (mục D), tăng version prompt/config, ghi vào Git; chạy lại **đúng cùng suite, gold, corpus, mapping** (plan hash mới, approval mới).
+10. **B10** Điền bảng kết quả (mục E), kể cả khi điểm không tăng.
+
+### C. Cơ chế hiện có còn thiếu (cụ thể, tối thiểu)
+
+`--execute` hiện **luôn bị chặn**: CLI không có `authorize` và `targetEquivalence`. Thiếu đúng các mảnh sau;
+**không** cần PKI, dashboard phê duyệt hay hệ phân tán:
+
+| Thiếu | Tối thiểu cần làm | Ranh giới tin cậy |
+| ----- | ----------------- | ----------------- |
+| Ghi nhận phê duyệt gold | Công cụ đọc `gold-review-template.json` đã điền, kiểm hash manifest, yêu cầu `approve` cho mọi case chạy được từ đúng người được đặt tên, ghi một record gắn hash | Tin vào **người vận hành** đã đọc và chạy lệnh; file tự nó không phải bằng chứng, nên digest record được ghim bằng tham số do người gõ (cùng mẫu `--expected-digest`) |
+| `authorize` cho executor | Hàm đọc record trên + approval của batch, trả `goldReview` và `batch` đã verified | Như trên; không có hằng số "verified" |
+| Bằng chứng target-equivalence | Hàm so sánh tập `documentId` + metadata (trạng thái, số chunk, `indexed_at`) mà HTTP API trả với quan sát DB đã audit (UUID ngẫu nhiên, khó tình cờ trùng) | Chứng minh "API này đọc đúng DB này" ở mức quan sát; không chống được kẻ kiểm soát cả hai phía |
+| Chạy audit trên target thật | Wrapper CLI mỏng gọi `auditCorpusProvenance` với reader DB (maintenance, chỉ đọc) và Storage; hiện chỉ có thư viện + test, **chưa có lệnh** | Credential maintenance chỉ qua env/stdin của người vận hành, không ghi file |
+| Tờ chấm ngữ nghĩa theo response | Sinh tờ từ report: câu hỏi, gold, câu trả lời, citation, ô quyết định | Người chấm là bằng chứng; không có chấm tự động nào thành PASS |
+
+Không thêm cờ `--force/--skip/--assume`. Khi các mảnh này có đủ, bắt đầu từ batch 1 (5 case) và dừng sau mỗi batch để người xem kết quả.
+
+### D. Cải tiến AI — chọn **sau** baseline, không đoán trước
+
+Ứng viên (mỗi cái chỉ một thay đổi có phiên bản): (a) prompt RAG `rag-v2` (quy tắc trả lời chỉ từ evidence, nêu rõ khi thiếu một phần);
+(b) retrieval: `RAG_TOP_K`/`RAG_MIN_SCORE` hoặc làm lại câu hỏi follow-up; (c) trích câu hỏi đa tài liệu. Quy tắc:
+không sửa gold/case/evaluator sau khi thấy câu trả lời; sửa test hoặc evaluator **không** phải cải tiến chất lượng model;
+không khôi phục lỗi bảo mật để tạo baseline; báo cả trường hợp điểm không tăng.
+
+### E. Mẫu bảng kết quả (điền sau khi chạy thật; để trống = chưa đo)
+
+| Trường | Baseline | Sau cải tiến |
+| ------ | -------- | ------------ |
+| Source commit · prompt version · model/config | | |
+| Suite revision · hash · corpus/provenance binding · plan hash | | |
+| Mẫu số: lập kế hoạch / đã gửi / có phản hồi hợp lệ / chấm xong | | |
+| `PASS` · `FAIL` · `INCONCLUSIVE` · `BLOCKED` · `NOT_ATTEMPTED` · `DEFERRED` (RQ23) | | |
+| Tách riêng: contract/schema/citation hợp lệ · retrieval evidence · ngữ nghĩa đúng · refusal đúng · injection an toàn | | |
+| Latency (avg/p95), token, chi phí (`unobserved` nếu không quan sát — không điền 0) · giá quy đổi + nguồn + thời điểm | | |
+| Thời điểm · người/cơ chế chấm · đường dẫn bằng chứng đã khử nhạy cảm | | |
+
+`DEFERRED`, `BLOCKED`, `NOT_ATTEMPTED`, `INCONCLUSIVE` không được tính là PASS và vẫn nằm trong mẫu số khi tính tỷ lệ "đã đo".
+HTTP 200, JSON hợp lệ hoặc có citation **không** là PASS ngữ nghĩa. Case injection không có retrieval trace thì không kết luận
+retrieval an toàn. `providerCalls` là `unknown` và ngân sách tiền là `not_enforced` (hệ thống không cưỡng chế trần tiền).
+
+Study Coach (capability C) có phần ngữ nghĩa riêng. **Máy kiểm:** JSON strict, `sourceIds` thuộc evidence, 4 lựa chọn khác nhau,
+câu hỏi không trùng, `correctIndex` hợp lệ, JSON sai bị 422 và không lưu, chấm điểm/tiến độ ở server idempotent
+(`study-quiz-validation.spec.ts`, `study-coach*.database.test.mjs`). **Người kiểm:** câu hỏi có thật sự dựa trên tài liệu,
+đáp án đúng là đúng, distractor không đúng — cần mẫu quiz/flashcards sinh từ PDF thật rồi chấm tay (`SEMANTIC_REVIEW_PENDING`).
+
 ## F09-B.2A — draft quality suite and pre-execution gold review
 
 Separate schema `rag-quality-suite-v1`, revision `rag-quality-20261022-v1` lives

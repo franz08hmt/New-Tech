@@ -15,6 +15,11 @@ Folder `Final-Project` cũ còn WIP riêng; không reset, copy đè hoặc gom v
 3. **[Checklist demo cuối kỳ](docs/FINAL-DEMO-CHECKLIST.md):** kịch bản,
    bằng chứng, phân công và những điều không được tuyên bố quá mức.
 
+Bộ nộp và bảo vệ (23/10/2026, bản DRAFT): [ma trận rubric + user stories](docs/FINAL-REQUIREMENTS.md),
+[báo cáo](docs/REPORT.md), [slide](docs/SLIDES.md), [demo/video/bảo vệ](docs/DEMO-AND-DEFENSE.md),
+[gói duyệt gold](docs/GOLD-REVIEW-PACK.md) và [checklist bàn giao](docs/RUBRIC-READINESS-HANDOFF.md).
+PDF/PPTX dựng bằng `python scripts/build-submission-docs.py <thư-mục-xuất>`.
+
 Chỉ mở khi cần: [đăng nhập máy Thắng](docs/PILOT-DEMO-HANDOFF.md),
 [cấu hình Assistant](docs/ASSISTANT-SETUP.md), [STT](docs/STT-SETUP-VI.md),
 [đánh giá RAG](docs/evaluation-plan.md), [runbook quản trị](docs/PILOT-B1-RUNBOOK.md).
@@ -159,6 +164,18 @@ docker compose down
 
 Không in resolved Compose/env/log chứa credential. `down` không dùng `-v`;
 không xóa volume/stack của người khác.
+
+**Demo không cần credential (stack demo, 23/10/2026).** `compose.demo-stack.yaml` dựng Nest thật + PG17 disposable + nginx, với
+Auth upstream, Storage và "model" giả lập (không `.env`, không Supabase, không Gemini). Dùng để luyện demo, kiểm UI/quyền/lỗi và quay video
+dự phòng; **không** phải bằng chứng chất lượng model và không được gọi là "live".
+
+```powershell
+$env:DEMO_PASSWORD_SEED = '<chuỗi bạn chọn>'   # mật khẩu mỗi tài khoản: <chuỗi>-manager / -member / -viewer / -outsider
+docker compose -p examate-demo -f compose.demo-stack.yaml up -d --build   # http://127.0.0.1:8080, tài khoản manager@demo.test …
+docker compose -p examate-demo down                                       # dữ liệu nằm trong tmpfs, mất khi dừng
+```
+
+Công tắc lỗi AI và chi tiết: [DEMO-AND-DEFENSE](docs/DEMO-AND-DEFENSE.md). Stack thật vẫn là `compose.yaml` ở trên (cần `.env`/secrets của bạn).
 
 Bốn gates ứng dụng và gate DB riêng:
 

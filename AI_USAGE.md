@@ -6,6 +6,31 @@
 > [README](README.md). Giữ nguyên các ghi nhận review/test lịch sử; những câu
 > “chưa có AI/Auth/Git” bên dưới chỉ đúng tại checkpoint được ghi, không phải hiện tại.
 
+## Lỗi code do AI đã phát hiện và sửa (rubric 5.3, tổng hợp 23/10/2026)
+
+Các trường hợp dưới đây là mã do AI viết (Codex / Claude Code) đã **sai thật**, được người
+review hoặc test phát hiện, rồi sửa. Hash là commit sửa; file test là regression giữ lại.
+Văn bản do AI soạn không thay thế xác nhận của Tài/Thắng rằng họ hiểu từng mục; mỗi
+người phải tự giải thích được hai mục đầu khi bảo vệ.
+
+| # | Lỗi (AI viết sai điều gì) | Ai/phát hiện thế nào | Sửa ở | Regression |
+| - | ------------------------- | -------------------- | ----- | ---------- |
+| 1 | Bộ kiểm chứng provenance chỉ đếm tài liệu, nên tập tài liệu A/A/C (trùng một tài liệu, thiếu một tài liệu) vẫn qua | Reviewer độc lập chạy oracle `document-set` ngoài bộ test của AI; test cũ của AI không bắt được | `6207165` — `apps/api/scripts/rag-evaluation-provenance.mjs` | `apps/api/test/evaluation-provenance.test.mjs`, `evaluation-provenance.database.test.mjs` |
+| 2 | Executor tin `requestSha256` đã lưu trong plan thay vì tính lại từ request; plan v2 có thể ghép với provenance của v1 (hash/revision không bị ràng buộc) | Reviewer đổi request nhưng giữ hash → executor vẫn gửi; AI đã tuyên bố "executor recomputes binding" — **tuyên bố sai**, bị đính chính | `3a628e6` — `rag-evaluation-quality-executor.mjs`, `rag-evaluation-quality-plan.mjs` | `evaluation-quality-executor.test.mjs`, `evaluation-quality-executor.database.test.mjs` |
+| 3 | Bản sửa số 2 sao chép buffer của caller **sau** một `await`; caller đổi buffer trong lúc đó thì provenance cho bytes mới ghép với plan được duyệt cho bytes cũ (executor chạy hai POST và báo COMPLETED hash cũ) | Reviewer viết oracle đổi buffer ngay sau lời gọi; 4 test mới đỏ trước khi sửa | `da862cd` — snapshot đồng bộ trước `await` đầu tiên | `evaluation-quality-executor.test.mjs` (26 test, không dùng sleep) |
+| 4 | Evaluator cho PASS khi phần nội dung bắt buộc của response vắng/sai cấu trúc (HTTP 200 được coi là đúng) | Phát hiện khi review F09-A (chi tiết trong `docs/PROJECT-CONTEXT.md`) | `89d7276` — `rag-evaluation-local.mjs` | `evaluation.test.mjs`, `evaluation-runtime.database.test.mjs` |
+| 5 | Evaluator không kiểm marker `[S<n>]` khớp tập citation; refusal có thể mang text giống nguồn | Phát hiện khi review F09-A.2/A.3 (cùng nguồn) | `c487362` và các sửa kế tiếp | `evaluation.test.mjs` (ma trận 24 hàng parity với production `validateCitations`) |
+| 6 | Helper của chain test seed 12 tài liệu/12 chunk nên "baseline trống" là sai; quét mã tĩnh không thấy | Reviewer đọc DB sau khi helper chạy | `ff44b41` + `3808a9f` (đính chính tuyên bố cũ) | `evaluation-ingestion-chain.database.test.mjs` (assert DB) |
+
+Tuyên bố sai của chính AI cũng được giữ trong lịch sử docs kèm dòng đính chính (ví dụ
+B.2B.3 "no documents at setup", B.2B.5 "executor recomputes binding", B.2B.5.1 "works only
+from a private copy") — xem `docs/PROJECT-CONTEXT.md`, không xóa lịch sử.
+
+Với stack demo 23/10/2026 (`apps/api/test/demo-stack-server.mjs`), AI cũng viết sai hai chỗ và tự
+phát hiện bằng browser: refusal của "model" giả trả `answer: ""` (production yêu cầu `answer`
+không rỗng → `answer_shape_invalid`), và câu hỏi lấy nhầm `parts[0]` (page metadata) thay vì phần
+`Question:`; cả hai được sửa trong harness, không đổi production.
+
 ## 2026-09-13 — Homework 4 non-AI implementation
 
 Codex assisted with repository audit, Tasks validation/config/logs, Documents API and Supabase Storage adapter, tracked migrations, React integration, HTTP/frontend tests and Vietnamese study/evidence/demo documentation. No AI feature was added to the product. Human review is still pending. See docs/VERIFICATION.md for actual test results and unverified Supabase/Docker/persistence; the ZIP has no .git and no commit/push was performed. Students must review and explain the code before submission.
@@ -1282,3 +1307,15 @@ fixed in the test. Two mutants became equivalent once the snapshot was complete 
 Source `da862cd`: oracles 7/7, executor 26/26, integration 8/8, `npm test` 2,310, full `test:database`
 520/520 (50 files, own guarded container), typecheck/build/format exit 0. No real model, account, secret,
 cloud write, push or deploy; no approval recorded for Tài or Thắng.
+
+## 2026-10-23 — rubric-readiness pass (Claude Code)
+
+AI assistance built the demo stack harness, ran the browser acceptance, wrote the rubric matrix, user stories, report, slides,
+demo/defense guide and the gold review pack, and generated the PDF/PPTX through `scripts/build-submission-docs.py`. Defects of the AI's
+own work caught while doing it: the synthetic model's refusal returned an empty `answer` (production rejects it as
+`answer_shape_invalid`); it read `parts[0]` (page metadata) as the question; a first fixture login limit tripped during a long manual
+session; a `sed` replace on backticks corrupted two Markdown files (restored from Git / repaired with Node and re-verified by diff);
+and an unverified claim that v1 plans 22 cases was corrected after running the planner (both revisions plan 23 and defer RQ23).
+Human checks still required: Tài and Thắng must read and own the user stories, the report sections marked `ĐIỀN`, and the
+`GOLD_REVIEW_PENDING` decisions. No approval, signature, commit or confirmation was made for either of them; no real credential, paid model call,
+cloud write, push or deploy was used.

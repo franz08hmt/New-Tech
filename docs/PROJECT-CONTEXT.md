@@ -21,6 +21,33 @@ hoặc tự nhận D vì có STT. Bỏ F11 không bỏ responsive desktop/mobile
 phân quyền, CRUD/search, dashboard, privacy, ≥20 case chạy thật trước/sau cải
 tiến và bộ nộp cuối kỳ giữ nguyên. Phù hợp về phạm vi không có nghĩa đã đạt rubric.
 
+## Rubric-readiness pass — demo stack, browser acceptance and submission set (23/10/2026)
+
+Scope: make the product demonstrable and defensible without new credentials; no production source changed
+(`apps/api/src`, `apps/web/src`, migrations, RLS, grants and the evaluation executor are untouched since `c2ea870`).
+
+Added (all test harness, scripts or docs): `apps/api/test/demo-stack-server.mjs` (+ `-seed`, `-roles-check`, `-stream-check`,
+`-wait-db`, `fixtures/demo-pdfs`, `fixtures/make-demo-pdfs.mjs`), `compose.demo-stack.yaml`, `scripts/build-submission-docs.py`,
+`docs/{REPORT,SLIDES,DEMO-AND-DEFENSE,GOLD-REVIEW-PACK,RUBRIC-READINESS-HANDOFF}.md`, `docs/architecture.svg`; edited
+`docs/FINAL-REQUIREMENTS.md` (one rubric matrix + 13 user stories), `docs/evaluation-plan.md` (live-run runbook, missing mechanisms,
+result template), `AI_USAGE.md` (six AI-code defects with commit/test), `README.md`.
+
+The demo stack runs the real Nest app, guards, PDF.js, chunker, ingestion, retrieval, telemetry/admission and RLS on a disposable PG17
+with non-owner LOGINs; **Auth upstream, Storage, embedding and the "model" are synthetic** (hashed bag-of-words embeddings; an extractive
+responder that copies a sentence and builds cloze quizzes; a loopback Storage that also signs 60-second URLs). Nothing it prints is
+Gemini output. Browser results (Chrome in the Claude desktop app, 1440 and 375 px): login/reload/logout/two-tab logout/revoked session
+(draft kept, no replay); viewer read-only; account swap without leakage; Tasks create/update/search/filter/reload; three PDFs uploaded and
+indexed; RAG answer with citation opening the PDF at page 3 of 3; out-of-scope refusal; follow-up; quiz preview → save → reload → practice
+(2/3) → progress; flashcards review saved; general-mode SSE incremental and Stop; AI usage dashboard; quota / 503 / timeout / malformed
+errors with one model call per request; 10 pages without horizontal overflow at 375 px. The same stack in Docker (`compose.demo-stack.yaml`
+through nginx on 8080) passed login, RAG with citation, SSE (first chunk 40 ms, last 4,266 ms) and the role matrix (16/16 with the data
+present). `compose.yaml` itself: `config` and `build` exit 0; **not started** (no `.env`, no secrets, cloud has migrations 001–015 only).
+
+Not done and why: ≥ 20-case evaluation (needs real Gemini, a real target, approved gold, a per-batch approval and four missing pieces
+listed in `docs/evaluation-plan.md`); Google OAuth live; máy Thắng; STT accuracy; video. Findings: history scan for secrets found only
+placeholders and fixtures; `npm audit --omit=dev` reports 7 (3 high, 4 moderate), all through the STT dependency chain
+(`@huggingface/transformers` → sharp/onnxruntime-node/global-agent/roarr/sprintf-js) plus dev-server `vite`/`launch-editor`; no fix applied.
+
 ## F09-B.2B.5.2 — the sealing window closed (22/10/2026)
 
 `F09-B.2B.5.2_CODE_VERIFIED`, source `da862cd`. **Correction to F09-B.2B.5.1 below (kept as
