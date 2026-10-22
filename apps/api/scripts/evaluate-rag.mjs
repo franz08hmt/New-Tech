@@ -135,9 +135,27 @@ export function requestBody(item, mapping) {
   }
   return input;
 }
+// Reasons that end a run at once; anything else only counts toward two in a row.
+const DEFAULT_STOP_REASONS = [
+  "EVALUATION_BUDGET_EXHAUSTED",
+  "AI_QUOTA",
+  "AI_AUTHENTICATION",
+  "AI_NOT_CONFIGURED",
+  "HTTP_401",
+  "HTTP_403",
+  "HTTP_429",
+];
 export async function runCases(
   cases,
-  { request, save, mapping = { documents: {} }, mode = "live" },
+  {
+    request,
+    save,
+    mapping = { documents: {} },
+    mode = "live",
+    // A transport can stop on more outcomes (for example an unknown outcome
+    // after dispatch); the default list is the historical behaviour.
+    stopOn = (reason) => DEFAULT_STOP_REASONS.includes(reason),
+  },
 ) {
   const results = [];
   let stopped = null,
@@ -191,18 +209,7 @@ export async function runCases(
         assessment,
       });
       consecutive = reason ? consecutive + 1 : 0;
-      if (
-        [
-          "EVALUATION_BUDGET_EXHAUSTED",
-          "AI_QUOTA",
-          "AI_AUTHENTICATION",
-          "AI_NOT_CONFIGURED",
-          "HTTP_401",
-          "HTTP_403",
-          "HTTP_429",
-        ].includes(reason) ||
-        consecutive >= 2
-      )
+      if (stopOn(reason) || consecutive >= 2)
         stopped = `Circuit stopped after ${reason}; no automatic retry.`;
     }
     await save(results);
@@ -269,7 +276,7 @@ function parseArguments(values) {
     throw new Error("Invalid execution/budget/timeout options.");
   return options;
 }
-function gitSnapshot() {
+export function gitSnapshot() {
   try {
     return {
       head: execFileSync("git", ["rev-parse", "HEAD"], {
@@ -286,6 +293,24 @@ function gitSnapshot() {
   } catch {
     return { head: "unknown", dirty: "unknown" };
   }
+}
+export function humanReviewTemplate(report) {
+  return {
+    runId: report.runId,
+    manifestSha256: report.manifestSha256,
+    cases: report.results
+      .filter((r) => r.attempted && r.response?.httpStatus === 200)
+      .map((r) => ({
+        caseId: r.caseId,
+        responseSha256: sha256(JSON.stringify(r.response.body)),
+        reviewer: "",
+        notes: "",
+        factsCorrect: null,
+        complete: null,
+        abstentionCorrect: null,
+        claims: [],
+      })),
+  };
 }
 export function applyHumanReviews(previous, reviews, definition) {
   if (
@@ -323,6 +348,12 @@ export async function main(values = process.argv.slice(2)) {
   if (values.includes("--local-integration")) {
     const { runLocalEvaluation } = await import("./rag-evaluation-local.mjs");
     return runLocalEvaluation(values);
+  }
+  // Authenticated HTTP evaluation is its own mode; the unsafe legacy
+  // --execute/--transport http path below stays fail-closed.
+  if (values.includes("--http-evaluation")) {
+    const { runHttpEvaluation } = await import("./rag-evaluation-http.mjs");
+    return runHttpEvaluation(values);
   }
   const options = parseArguments(values),
     bytes = await readFile(jsonPath(root, options.cases)),
@@ -611,26 +642,7 @@ export async function main(values = process.argv.slice(2)) {
   );
   await writeFile(
     resolve(directory, "human-review-template.json"),
-    JSON.stringify(
-      {
-        runId: report.runId,
-        manifestSha256: report.manifestSha256,
-        cases: report.results
-          .filter((r) => r.attempted && r.response?.httpStatus === 200)
-          .map((r) => ({
-            caseId: r.caseId,
-            responseSha256: sha256(JSON.stringify(r.response.body)),
-            reviewer: "",
-            notes: "",
-            factsCorrect: null,
-            complete: null,
-            abstentionCorrect: null,
-            claims: [],
-          })),
-      },
-      null,
-      2,
-    ) + "\n",
+    JSON.stringify(humanReviewTemplate(report), null, 2) + "\n",
     { flag: "wx" },
   );
   process.stdout.write(

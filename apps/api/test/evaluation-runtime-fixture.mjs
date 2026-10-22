@@ -37,7 +37,14 @@ export async function openEvaluationRuntime() {
     origins = new Set();
   const marker = `ExaMate F09-A disposable ${randomUUID()}`;
   const counters = { embedding: 0, generation: 0 };
-  const state = { scenario: "", evidence: [], inContext: false, batchCalls: 0 };
+  const state = {
+    scenario: "",
+    evidence: [],
+    inContext: false,
+    batchCalls: 0,
+    // F09-B.1: questions the synthetic embedding boundary treats as no-evidence.
+    refusalQuestions: new Set(),
+  };
   const memory = {};
   async function close() {
     if (closed) return;
@@ -178,17 +185,21 @@ export async function openEvaluationRuntime() {
     function sdk(app) {
       app.get(GeminiEmbeddingService).client = {
         models: {
-          embedContent: async () => {
+          embedContent: async (request) => {
             permitSdk();
             counters.embedding++;
+            const question =
+              request?.contents
+                ?.at(-1)
+                ?.parts?.map((part) => part.text)
+                .join("") ?? "";
+            const noEvidence =
+              state.scenario === "rag_no_evidence" ||
+              (state.scenario === "http_adapter" &&
+                state.refusalQuestions.has(question));
             return {
               embeddings: [
-                {
-                  values:
-                    state.scenario === "rag_no_evidence"
-                      ? vector.map((v) => -v)
-                      : vector,
-                },
+                { values: noEvidence ? vector.map((v) => -v) : vector },
               ],
             };
           },
@@ -369,6 +380,12 @@ export async function openEvaluationRuntime() {
       sdk(app);
       await app.listen(0, "127.0.0.1");
       const base = await app.getUrl();
+      server.base = base;
+      // Synthetic login for the F09-B.1 adapter; the Auth upstream is a fixture.
+      server.credentials = {
+        email: `evaluation-fixture-${servers.length}@example.test`,
+        password: "synthetic-only",
+      };
       origins.add(base);
       const raw = (path, init = {}) =>
         globalThis.fetch(`${base}/api${path}`, init);
@@ -735,6 +752,71 @@ export async function openEvaluationRuntime() {
       },
       beginBatch() {
         state.batchCalls = 0;
+      },
+      /**
+       * F09-B.1: a real authenticated HTTP target (Nest guard, session, CSRF,
+       * membership, non-owner NOBYPASSRLS LOGINs, RLS, retrieval, admission,
+       * telemetry). Only Auth upstream, SDK and Storage are synthetic.
+       */
+      httpTarget(name) {
+        const server = { owner, peer, foreign, viewer, revoked, expired }[name];
+        if (!server) throw Error("UNKNOWN_HTTP_TARGET");
+        return {
+          baseUrl: `${server.base}/api/`,
+          origin: server.auth.config.origin,
+          credentials: { ...server.credentials },
+          mapping: {
+            corpusRevision: "rag-eval-v2",
+            documents: Object.fromEntries(
+              corpusDocuments.map((d, index) => [d.file, docIds[index]]),
+            ),
+          },
+          // A request over this actor's existing session, for forged-input checks.
+          request: (path, body) => server.request(path, body),
+        };
+      },
+      useHttpAdapterScenario({ refusalQuestions }) {
+        state.scenario = "http_adapter";
+        state.refusalQuestions = new Set(refusalQuestions);
+        state.batchCalls = 0;
+      },
+      sdkCounters: () => ({ ...counters }),
+      async persistedProviderCalls() {
+        return Number(
+          (
+            await fixture.admin.query(
+              "SELECT count(*)::int AS n FROM ai_usage_provider_calls",
+            )
+          ).rows[0].n,
+        );
+      },
+      async receiptCount() {
+        return Number(
+          (
+            await fixture.admin.query(
+              "SELECT count(*)::int AS n FROM assistant_answer_receipts",
+            )
+          ).rows[0].n,
+        );
+      },
+      // A permitted maintenance path of this test-owned fixture, not the runner's:
+      // the seeded chunks must equal the frozen page text.
+      async verifyCorpus(plan) {
+        for (const { file, id } of plan.documents) {
+          const document = corpusDocuments.find((d) => d.file === file);
+          const rows = (
+            await fixture.admin.query(
+              "SELECT content FROM document_chunks WHERE document_id=$1 ORDER BY source_page",
+              [id],
+            )
+          ).rows;
+          if (
+            rows.length !== document.pages.length ||
+            rows.some((row, index) => row.content !== document.pages[index])
+          )
+            return { status: "unverified" };
+        }
+        return { status: "verified", method: "test-owned maintenance seeding" };
       },
       async execute(item) {
         state.scenario = item.scenario;
