@@ -3,6 +3,39 @@
 Cập nhật 22/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
+## F09-B.2B.1.1 — document-set completeness fix (22/10/2026)
+
+Defect (found by an independent reviewer, reproduced): `parseArtifact` only
+checked that the audited list had the same length as the set implied by the
+mapping/scopes and that each entry belonged to it. Expected A/B/C against actual
+A/A/C passed. With the self-checksum recomputed the verifier accepted the
+artifact, the fresh-observation loop walked only `artifact.documents`, and drift
+in the omitted document B was never compared, so it could return `BOUND` and
+`matches_observation`.
+
+Invariant now enforced on the artifact **and** on a supplied observation, before
+any verdict or fingerprint comparison: the audited identities `(file,
+documentId)` are one-to-one with the identities implied by mapping+scopes — no
+repeated identity, equal count, every entry expected (so none is missing or
+outside). Identity is the pair, so a policy and its separately-courseed copy
+(same file, different id) stay valid. Each entry must also have the exact
+document and condition key sets; a structurally wrong artifact is `INVALID` even
+with a correct recomputed checksum. A malformed observation yields
+`MISMATCH` / `OBSERVATION_INVALID`, never `matches_observation`, and the two
+identity sets are compared again before per-document comparison. The
+unauthenticated/pinned/observation distinctions, bindings and statuses are
+unchanged; no digest is newly required and nothing grants readiness.
+
+`F09-B.2B.1.1_CODE_VERIFIED`, source `6207165`. Reviewer oracle 2/2 (RED before,
+GREEN after); regression RED 4 failing before the fix, 39/39 provenance unit tests
+after; focused evaluation/quality/HTTP/reservation/provenance 414/414; PG17
+provenance integration 14/14 (new real-data forgery case; red under a
+uniqueness-dropped mutant). typecheck, build, format, `npm test` (457 + 1,238 +
+544 = 2,239) and full `test:database` (493/493, 47 files, own guarded PG17)
+exit 0. Limits unchanged from B.2B.1: no real target audited; verifier not wired
+to execute; gold review, live evaluation, semantic review and the earlier
+browser/cloud/Google/Thắng-machine/F09-A.1 pending stay open.
+
 ## F09-B.2B.1 — read-only runtime provenance audit (22/10/2026)
 
 Completed checklist: (1) versioned artifact protocol

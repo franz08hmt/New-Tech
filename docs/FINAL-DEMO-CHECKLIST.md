@@ -427,6 +427,28 @@ the separate F08-B checkpoint below.
 - [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
       cloud rollout, Google live and Thắng's machine are unchanged.
 
+## F09-B.2B.1.1 — document-set completeness fix (22/10/2026)
+
+- [x] Defect reproduced by reviewer oracle (2 RED): a re-hashed artifact with a
+      duplicate replacing a mapped document passed, and drift of the omitted
+      document went unseen in observation comparison.
+- [x] Verifier now requires audited `(file, documentId)` identities one-to-one
+      with mapping+scopes for artifact and observation (distinct, equal count,
+      subset, exact key sets). Same-file-different-id (policy + copy) stays valid;
+      order is irrelevant; malformed observation is never `matches_observation`.
+- [x] RED 4 failing → 39/39 unit; oracle 2/2; positive controls (intact, pinned,
+      drift, inconsistent audit) kept; mutation: uniqueness, count, membership,
+      key-shape and file-only-identity mutants killed, 19 earlier mutants killed
+      again; two unreachable defence-in-depth guards are equivalent mutants.
+- [x] PG17 integration 14/14 incl. forged duplicate over a real drifted document
+      (red under a uniqueness-dropped mutant). Source `6207165`: typecheck,
+      build, format, focused 414/414, `npm test` 2,239 (457+1,238+544), full
+      `test:database` 493/493 in 47 files — new runs, not history. Exit 0.
+- [x] `F09-B.2B.1.1_CODE_VERIFIED`. Verifier still not wired to execute; no real
+      target audited; `GOLD_REVIEW_PENDING`, `LIVE_EVALUATION_PENDING`,
+      `SEMANTIC_REVIEW_PENDING` and browser/cloud/Google/Thắng-machine/F09-A.1
+      pending unchanged.
+
 ## F09-B.2B.1 — runtime provenance audit (22/10/2026)
 
 - [x] `apps/api/scripts/rag-evaluation-provenance.mjs`: versioned artifact

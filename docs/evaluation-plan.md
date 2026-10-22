@@ -115,6 +115,15 @@ Safe re-run on a disposable PG17 (guarded `TEST_DATABASE_URL`, loopback `*_test`
 `node apps/api/scripts/prepare-runtime-roles.mjs` then
 `node --test apps/api/test/evaluation-provenance.database.test.mjs`.
 
+F09-B.2B.1.1 (source `6207165`): the verifier requires the audited document
+list to be one-to-one with the `(file, documentId)` identities implied by the
+mapping and scopes, for the artifact and for a supplied `observation`: no
+repeat, same count, nothing missing or outside, exact entry/condition key sets.
+The earlier length-plus-membership check let A/A/C stand in for A/B/C after a
+checksum recompute and hid drift of B from the observation comparison. A
+malformed observation is `OBSERVATION_INVALID`, never `matches_observation`.
+Two documents with one file name but different ids remain valid.
+
 **Current boundary, 18/10/2026:** live `--execute` is BLOCKED (exit 3) before
 DB/Storage/Gemini because this runner has no verified workspace principal.
 Offline/dry-run remain available. Live commands/transport descriptions below

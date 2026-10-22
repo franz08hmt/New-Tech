@@ -838,3 +838,17 @@ force flag turns an artifact into readiness. Embeddings are bound by presence,
 declared model/dimension and a vector hash only; derivation from the chunk text
 is explicitly not claimed. Wiring into the HTTP runner, new-manifest execution and
 missing transport are separate, later and unstarted.
+
+F09-B.2B.1.1 decision: a set check that compares only a length and per-entry
+membership does not prove coverage, so the verifier validates the audited list as
+a one-to-one mapping on the identity `(file, documentId)` (distinct, equal
+count, subset), before trusting a verdict or comparing fingerprints, and does so
+for both the artifact and the observation. File name alone is not an identity: a
+policy and a separately-courseed copy are valid. The check was reduced to three
+non-redundant clauses so each is individually load-bearing under mutation; two
+guards that no reachable input can exercise (expected-id uniqueness inside an
+already-bound mapping, the second identity-set comparison) are kept as
+defence-in-depth and documented as equivalent mutants. The fix is not allowed to
+require a pinned digest for every artifact or to reject unauthenticated ones: the
+checksum, pinned-digest and observation levels stay distinct, and nothing here
+grants gold approval or execution.

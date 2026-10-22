@@ -1136,3 +1136,22 @@ is point-in-time evidence with a self-checksum, not approval: gold review, live
 evaluation and semantic review stay pending, and no real target was audited. The
 AI-assisted gold review of the 24 cases (done in chat in the same session) is AI
 judgement, not Tài–Thắng approval.
+
+## 2026-10-22 — F09-B.2B.1.1 verifier document-set fix
+
+An independent reviewer showed that the verifier's document-set check (equal
+length plus per-entry membership) let a re-hashed artifact repeat one document in
+place of another, and that the fresh-observation loop then never compared the
+omitted document. AI assistance reproduced the reviewer's oracle (2 RED), wrote
+tracked regressions first (4 RED), then replaced the check with a one-to-one
+validation on `(file, documentId)` for both artifact and observation. Mutation
+runs first showed single-clause mutants surviving because the clauses were
+redundant; the check was reduced to three non-redundant clauses and a missing
+test for unknown condition keys was added. Two guards no reachable input can hit
+are kept and disclosed as equivalent mutants. A PG17 real-data case was added.
+
+Source `6207165`: reviewer oracle 2/2, focused suites 414/414, provenance
+integration 14/14, `npm test` 2,239, full `test:database` 493/493 (47 files,
+own guarded PG17 container), typecheck/build/format exit 0. No provider or model
+call, secret, cloud write, push or deploy. Not wired to execute; gold review,
+live evaluation and semantic review remain pending.
