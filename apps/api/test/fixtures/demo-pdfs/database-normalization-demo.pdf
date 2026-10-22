@@ -1,0 +1,63 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 356 >>
+stream
+BT /F1 11 Tf 72 720 Td (Database Systems - Normalization. Normalization organizes the columns and tables) Tj
+0 -18 Td (of a relational database to reduce redundancy and prevent update anomalies. First) Tj
+0 -18 Td (normal form requires that every column holds a single atomic value and that each) Tj
+0 -18 Td (row can be identified by a primary key.) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 362 >>
+stream
+BT /F1 11 Tf 72 720 Td (Second normal form removes partial dependencies, which means that every non key) Tj
+0 -18 Td (attribute must depend on the whole primary key and not on only a part of a) Tj
+0 -18 Td (composite key. Third normal form removes transitive dependencies, so a non key) Tj
+0 -18 Td (attribute must not depend on another non key attribute.) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 336 >>
+stream
+BT /F1 11 Tf 72 720 Td (A transaction groups several database operations into one logical unit. The ACID) Tj
+0 -18 Td (properties describe atomicity, consistency, isolation and durability. Isolation) Tj
+0 -18 Td (levels such as read committed and serializable control which concurrent anomalies) Tj
+0 -18 Td (the database allows.) Tj ET
+endstream
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000127 00000 n 
+0000000197 00000 n 
+0000000323 00000 n 
+0000000730 00000 n 
+0000000856 00000 n 
+0000001269 00000 n 
+0000001395 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R >>
+startxref
+1782
+%%EOF

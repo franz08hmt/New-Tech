@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" width="1200" height="760" font-family="Arial, Helvetica, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3b4a3d"/></marker>
+    <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b4531c"/></marker>
+  </defs>
+  <rect width="1200" height="760" fill="#ffffff"/>
+  <text x="600" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#1f2a21">ExaMate AI — kiến trúc và luồng một request AI (RAG)</text>
+
+  <!-- browser -->
+  <rect x="30" y="70" width="230" height="300" rx="10" fill="#eef3ec" stroke="#3b4a3d" stroke-width="2"/>
+  <text x="145" y="98" text-anchor="middle" font-size="16" font-weight="bold">Trình duyệt (React/Vite)</text>
+  <text x="48" y="128" font-size="13">• Dashboard, Tasks, Exams, Plans,</text>
+  <text x="48" y="146" font-size="13">  Expenses, Documents (CRUD, search)</text>
+  <text x="48" y="168" font-size="13">• Assistant panel (SSE, citation,</text>
+  <text x="48" y="186" font-size="13">  source preview PDF #page=N)</text>
+  <text x="48" y="208" font-size="13">• Study Coach: quiz / flashcards</text>
+  <text x="48" y="230" font-size="13">• Dashboard sử dụng AI (manager)</text>
+  <text x="48" y="252" font-size="13">• STT: ghi âm → sửa → chèn câu hỏi</text>
+  <text x="48" y="282" font-size="12" fill="#555">Chỉ giữ cookie HttpOnly opaque +</text>
+  <text x="48" y="298" font-size="12" fill="#555">CSRF. Không giữ JWT, API key,</text>
+  <text x="48" y="314" font-size="12" fill="#555">signed URL lâu dài.</text>
+  <text x="48" y="344" font-size="12" fill="#555">Responsive: desktop + 375 px</text>
+
+  <!-- nginx -->
+  <rect x="300" y="190" width="110" height="60" rx="8" fill="#f4f0e6" stroke="#3b4a3d" stroke-width="2"/>
+  <text x="355" y="216" text-anchor="middle" font-size="14" font-weight="bold">nginx / Vite</text>
+  <text x="355" y="234" text-anchor="middle" font-size="12">proxy /api</text>
+
+  <!-- api -->
+  <rect x="450" y="70" width="330" height="470" rx="10" fill="#eef3ec" stroke="#3b4a3d" stroke-width="2"/>
+  <text x="615" y="98" text-anchor="middle" font-size="16" font-weight="bold">NestJS API (backend, ESM)</text>
+  <rect x="468" y="112" width="294" height="44" rx="6" fill="#fff" stroke="#3b4a3d"/>
+  <text x="615" y="132" text-anchor="middle" font-size="13" font-weight="bold">Guards: Origin · CSRF · cookie → principal</text>
+  <text x="615" y="148" text-anchor="middle" font-size="12">workspace + role lấy từ server, không từ client</text>
+  <rect x="468" y="164" width="140" height="62" rx="6" fill="#fff" stroke="#3b4a3d"/>
+  <text x="538" y="184" text-anchor="middle" font-size="13" font-weight="bold">Auth / BFF</text>
+  <text x="538" y="201" text-anchor="middle" font-size="11">login, Google PKCE,</text>
+  <text x="538" y="215" text-anchor="middle" font-size="11">refresh, logout</text>
+  <rect x="622" y="164" width="140" height="62" rx="6" fill="#fff" stroke="#3b4a3d"/>
+  <text x="692" y="184" text-anchor="middle" font-size="13" font-weight="bold">CRUD + search</text>
+  <text x="692" y="201" text-anchor="middle" font-size="11">tasks, exams, plans,</text>
+  <text x="692" y="215" text-anchor="middle" font-size="11">expenses, courses</text>
+  <rect x="468" y="236" width="140" height="62" rx="6" fill="#fff" stroke="#3b4a3d"/>
+  <text x="538" y="256" text-anchor="middle" font-size="13" font-weight="bold">Documents</text>
+  <text x="538" y="273" text-anchor="middle" font-size="11">upload, PDF.js, chunk,</text>
+  <text x="538" y="287" text-anchor="middle" font-size="11">embed, signed URL 60 s</text>
+  <rect x="622" y="236" width="140" height="62" rx="6" fill="#fff" stroke="#b4531c" stroke-width="2"/>
+  <text x="692" y="256" text-anchor="middle" font-size="13" font-weight="bold">Assistant (RAG)</text>
+  <text x="692" y="273" text-anchor="middle" font-size="11">retrieve → prompt →</text>
+  <text x="692" y="287" text-anchor="middle" font-size="11">validate citation</text>
+  <rect x="468" y="308" width="140" height="62" rx="6" fill="#fff" stroke="#b4531c" stroke-width="2"/>
+  <text x="538" y="328" text-anchor="middle" font-size="13" font-weight="bold">Study Coach</text>
+  <text x="538" y="345" text-anchor="middle" font-size="11">JSON schema → validate</text>
+  <text x="538" y="359" text-anchor="middle" font-size="11">→ preview → lưu → chấm</text>
+  <rect x="622" y="308" width="140" height="62" rx="6" fill="#fff" stroke="#3b4a3d"/>
+  <text x="692" y="328" text-anchor="middle" font-size="13" font-weight="bold">Speech (STT)</text>
+  <text x="692" y="345" text-anchor="middle" font-size="11">Whisper ONNX local,</text>
+  <text x="692" y="359" text-anchor="middle" font-size="11">mặc định tắt</text>
+  <rect x="468" y="380" width="294" height="64" rx="6" fill="#fff" stroke="#3b4a3d"/>
+  <text x="615" y="400" text-anchor="middle" font-size="13" font-weight="bold">Prompt registry · F04 admission · F03 telemetry</text>
+  <text x="615" y="418" text-anchor="middle" font-size="11">id + version prompt; trần thao tác/ngày; ghi operation, call,</text>
+  <text x="615" y="432" text-anchor="middle" font-size="11">token, latency, outcome (không lưu prompt/câu trả lời)</text>
+  <rect x="468" y="456" width="294" height="70" rx="6" fill="#fff" stroke="#3b4a3d"/>
+  <text x="615" y="476" text-anchor="middle" font-size="13" font-weight="bold">Admin dashboard AI (manager)</text>
+  <text x="615" y="494" text-anchor="middle" font-size="11">GET /api/admin/ai-usage: request, provider calls, token,</text>
+  <text x="615" y="508" text-anchor="middle" font-size="11">chi phí ước tính, latency avg/p95, lỗi/từ chối</text>
+
+  <!-- external -->
+  <rect x="860" y="70" width="310" height="100" rx="10" fill="#f4f0e6" stroke="#3b4a3d" stroke-width="2"/>
+  <text x="1015" y="98" text-anchor="middle" font-size="15" font-weight="bold">PostgreSQL 17 + pgvector (Supabase)</text>
+  <text x="1015" y="120" text-anchor="middle" font-size="12">bảng nghiệp vụ, chunks vector(768), RLS theo</text>
+  <text x="1015" y="136" text-anchor="middle" font-size="12">workspace/user; LOGIN business ≠ LOGIN Auth;</text>
+  <text x="1015" y="152" text-anchor="middle" font-size="12">migration 001–024</text>
+
+  <rect x="860" y="190" width="310" height="70" rx="10" fill="#f4f0e6" stroke="#3b4a3d" stroke-width="2"/>
+  <text x="1015" y="218" text-anchor="middle" font-size="15" font-weight="bold">Supabase Storage (bucket private)</text>
+  <text x="1015" y="240" text-anchor="middle" font-size="12">PDF gốc; chỉ backend giữ khóa server</text>
+
+  <rect x="860" y="280" width="310" height="70" rx="10" fill="#f4f0e6" stroke="#3b4a3d" stroke-width="2"/>
+  <text x="1015" y="308" text-anchor="middle" font-size="15" font-weight="bold">Supabase Auth · Google OAuth</text>
+  <text x="1015" y="330" text-anchor="middle" font-size="12">xác minh email/mật khẩu và JWT</text>
+
+  <rect x="860" y="370" width="310" height="96" rx="10" fill="#fbeee4" stroke="#b4531c" stroke-width="2"/>
+  <text x="1015" y="398" text-anchor="middle" font-size="15" font-weight="bold">Google Gemini API (nhà cung cấp LLM)</text>
+  <text x="1015" y="420" text-anchor="middle" font-size="12">generation (GEMINI_MODEL) + embedding 768d</text>
+  <text x="1015" y="438" text-anchor="middle" font-size="12">nhận: câu hỏi, đoạn trích liên quan, ngữ cảnh hội thoại</text>
+  <text x="1015" y="454" text-anchor="middle" font-size="12">không nhận: credential, email, dữ liệu ngoài scope</text>
+
+  <rect x="860" y="486" width="310" height="52" rx="10" fill="#f4f0e6" stroke="#3b4a3d" stroke-width="2"/>
+  <text x="1015" y="508" text-anchor="middle" font-size="14" font-weight="bold">Whisper ONNX (máy cục bộ)</text>
+  <text x="1015" y="526" text-anchor="middle" font-size="12">âm thanh không rời máy</text>
+
+  <!-- arrows structural -->
+  <line x1="260" y1="220" x2="300" y2="220" stroke="#3b4a3d" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="410" y1="220" x2="450" y2="220" stroke="#3b4a3d" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="780" y1="120" x2="860" y2="120" stroke="#3b4a3d" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="780" y1="226" x2="860" y2="226" stroke="#3b4a3d" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="780" y1="312" x2="860" y2="312" stroke="#3b4a3d" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="780" y1="410" x2="860" y2="410" stroke="#b4531c" stroke-width="2.5" marker-end="url(#b)"/>
+  <line x1="780" y1="512" x2="860" y2="512" stroke="#3b4a3d" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- numbered flow -->
+  <g font-size="13" fill="#b4531c" font-weight="bold">
+    <circle cx="330" cy="168" r="12" fill="#b4531c"/><text x="330" y="173" text-anchor="middle" fill="#fff">1</text>
+    <circle cx="816" cy="148" r="12" fill="#b4531c"/><text x="816" y="153" text-anchor="middle" fill="#fff">3</text>
+    <circle cx="816" cy="388" r="12" fill="#b4531c"/><text x="816" y="393" text-anchor="middle" fill="#fff">5</text>
+  </g>
+
+  <rect x="30" y="560" width="1140" height="180" rx="10" fill="#fff" stroke="#b4531c" stroke-width="1.5"/>
+  <text x="48" y="586" font-size="15" font-weight="bold" fill="#b4531c">Luồng một request AI — hỏi tài liệu (mode documents)</text>
+  <text x="48" y="610" font-size="13">1. Trình duyệt gửi câu hỏi + scope (POST /api/assistant/chat/stream), kèm cookie, Origin và CSRF token.</text>
+  <text x="48" y="630" font-size="13">2. Guard xác minh phiên và vai trò; principal (workspace, user, role) lấy từ server. F04 giữ chỗ (admission) trước lời gọi provider đầu tiên.</text>
+  <text x="48" y="650" font-size="13">3. Embedding câu hỏi (Gemini) → tìm vector trong DB, đã lọc workspace/document/course; chỉ đoạn trong scope mới tới model; tối đa 6 đoạn, bỏ dưới ngưỡng điểm.</text>
+  <text x="48" y="670" font-size="13">4. Không có đoạn đạt ngưỡng → từ chối cố định, không gọi model. Có → đóng gói đoạn trích như dữ liệu không tin cậy (JSON, sourceId S1…).</text>
+  <text x="48" y="690" font-size="13">5. Một lời gọi generation có responseJsonSchema {answerable, answer, citationIds}; DB không bị giữ transaction trong lúc chờ.</text>
+  <text x="48" y="710" font-size="13">6. Backend kiểm lại JSON, citationIds ⊂ evidence, marker [Sn] khớp tập citation; sai → lỗi an toàn, không lưu. 7. Ghi telemetry (prompt id/version, token, latency).</text>
+  <text x="48" y="730" font-size="13">8. Trả kết quả + citation (tên file, trang). Nhấp citation → signed URL 60 s → PDF mở đúng #page=N; lượt hoàn tất mới được lưu làm lịch sử (receipt).</text>
+</svg>

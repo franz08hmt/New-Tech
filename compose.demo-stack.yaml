@@ -1,0 +1,84 @@
+# Local demo / backup-video stack. It needs no .env, Supabase project, Storage or
+# Gemini key: the Nest app and its guards are real, PostgreSQL 17 is disposable
+# (tmpfs, recreated on every start) and the Auth upstream, Storage and the model
+# are synthetic stand-ins (apps/api/test/demo-stack-server.mjs). Answers are
+# extractive copies of the PDF text, NOT model output; never present a recording
+# of this stack as a live Gemini run.
+#   DEMO_PASSWORD_SEED=<any string you choose> docker compose -p examate-demo -f compose.demo-stack.yaml up -d --build
+# Then open http://127.0.0.1:8080 and sign in as manager@demo.test, member@demo.test,
+# viewer@demo.test or outsider@demo.test; each password is "<seed>-<role>".
+name: examate-demo-stack
+services:
+  api:
+    build:
+      context: .
+      dockerfile: infra/test/oauth.Dockerfile
+    command:
+      [
+        "sh",
+        "-c",
+        "node apps/api/test/demo-stack-wait-db.mjs && node apps/api/scripts/prepare-runtime-roles.mjs && node apps/api/test/demo-stack-server.mjs",
+      ]
+    environment:
+      TEST_DATABASE_URL: postgresql://examate_test:local-test-only@127.0.0.1:5432/examate_test
+      DATABASE_SSL: "false"
+      DATABASE_CA_CERT_PATH: ""
+      DEMO_APP_ORIGIN: http://127.0.0.1:8080
+      DEMO_LISTEN_HOST: 0.0.0.0
+      DEMO_SIGNED_ORIGIN: http://127.0.0.1:3999
+      DEMO_SEED_DIR: /workspace/apps/api/test/fixtures/demo-pdfs
+      DEMO_PASSWORD_SEED: ${DEMO_PASSWORD_SEED:?set DEMO_PASSWORD_SEED to any string you choose}
+      PUBLIC_ORIGIN: http://127.0.0.1:8080
+      ALLOWED_ORIGINS: http://127.0.0.1:8080
+      TRUSTED_PROXY_IP: 172.30.250.10
+    volumes:
+      - ./infra/postgres:/workspace/infra/postgres:ro
+    ports:
+      # Signed PDF links and the scenario switch (loopback only).
+      - "127.0.0.1:3999:3999"
+    init: true
+    stop_grace_period: 25s
+    networks:
+      pilot:
+        ipv4_address: 172.30.250.20
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 3s
+      timeout: 2s
+      retries: 40
+  db:
+    image: pgvector/pgvector:0.8.7-pg17-bookworm@sha256:ac08538c6f8b9904c33c8224c5e5706dbe760aca29db1d096972b4052c22a75d
+    network_mode: service:api
+    depends_on:
+      api:
+        condition: service_started
+    environment:
+      POSTGRES_DB: examate_test
+      POSTGRES_USER: examate_test
+      POSTGRES_PASSWORD: local-test-only
+    tmpfs:
+      - /var/lib/postgresql/data:rw,size=512m,uid=999,gid=999
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:80"
+    networks:
+      pilot:
+        ipv4_address: 172.30.250.10
+networks:
+  pilot:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.250.0/24
