@@ -1,0 +1,2 @@
+# Demo PDFs must stay byte-exact: a CRLF rewrite would corrupt their xref offsets.
+apps/api/test/fixtures/demo-pdfs/*.pdf binary
