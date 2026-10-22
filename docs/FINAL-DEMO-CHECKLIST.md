@@ -427,6 +427,16 @@ the separate F08-B checkpoint below.
 - [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
       cloud rollout, Google live and Thắng's machine are unchanged.
 
+## F09-B.2B.4 — quality suite v2 draft (22/10/2026)
+
+- [x] `rag-quality-20261022-v2` drafted from the AI review (14 cases reworded or
+      relabelled, corpus and gold bindings identical, v1 untouched); prepare tool takes
+      `--suite` (default v1). Tests fix the changed-case list and the unchanged bindings.
+      Source `d1a95d1`: typecheck/build/format exit 0, `npm test` 2,279. Not executed.
+- [ ] Tài–Thắng review/approval of v2 (or of v1) still pending; `GOLD_REVIEW_PENDING`,
+      `LIVE_EVALUATION_PENDING`, `SEMANTIC_REVIEW_PENDING` unchanged. Rubric needs ≥20
+      cases and before/after pass rates: two real runs, hence a quota/budget decision.
+
 ## F09-B.2B.3.1 — blank baseline correction (22/10/2026)
 
 - [x] Correction: the B.2B.3 entry below said no documents existed at setup; the shared

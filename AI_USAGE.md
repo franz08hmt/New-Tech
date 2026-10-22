@@ -1207,3 +1207,14 @@ Source `ff44b41`: chain 13/13, `npm test` 2,273, full `test:database` 512/512 (4
 own guarded PG17), typecheck/build/format exit 0. No provider or model call, real account,
 secret, cloud write, push or deploy; gold review, live evaluation and semantic review stay
 pending and nothing is signed for Tài or Thắng.
+
+## 2026-10-22 — F09-B.2B.4 quality suite v2 draft
+
+At the user's request the AI turned its own gold-review findings into a v2 draft: wording and
+scope-label corrections in 14 cases, same corpus and gold bindings, plus a `--suite` option
+for the prepare tool. The v2 content is AI-authored and unreviewed; it is a proposal for Tài
+and Thắng, not an approval, and carries no reviewer, time or decision. The validator pins
+`minCitations` to 1, so the extra-source requirement is stated in the required behaviour
+instead; RQ23 stays deferred. The shared final rubric was read through a fetch summary and
+should be checked against the original. Source `d1a95d1`: typecheck/build/format exit 0,
+`npm test` 2,279. No provider call, secret, cloud write, push or deploy.

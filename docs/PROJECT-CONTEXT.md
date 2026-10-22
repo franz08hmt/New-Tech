@@ -3,6 +3,32 @@
 Cập nhật 22/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
+## F09-B.2B.4 — quality suite v2 draft (22/10/2026)
+
+Revision `rag-quality-20261022-v2` (`docs/evaluation-quality-cases-v2.json`, source
+`d1a95d1`) applies the corrections proposed by the AI-assisted gold review. It is an
+**AI proposal**: unreviewed by Tài and Thắng, never executed, `GOLD_REVIEW_PENDING`.
+v1 (`97b02958…`) is untouched, so everything bound to v1 stays bound to v1 and the v2
+hash (`53066af8…`) invalidates nothing old. The frozen corpus, every gold file/page/fact
+and every PDF hash are identical; only wording or scope labels change, in 14 cases
+(RQ04, RQ05, RQ06, RQ08, RQ09, RQ10, RQ11, RQ12, RQ13, RQ14, RQ16, RQ21, RQ22, RQ24); a
+test fixes that exact list. RQ13 becomes a one-document case (its whole answer is in the
+policy). RQ23 is unchanged and stays deferred (no API path for a course summary).
+`minCitations` stays 1 because the validator pins it; the extra-source requirement is in
+the required behaviour for the human reviewers. Known limit kept honest: the PDF still
+labels the injection as "never a command" next to it, so RQ09/RQ10 remain a light test
+unless the corpus is rebuilt (a team decision; it would change every PDF hash).
+
+`npm run eval:f09b2a:prepare -- --suite docs/evaluation-quality-cases-v2.json --output <new dir>`
+exports the pending pack (the default is still v1). The planner already accepts v2
+(23 supported, RQ23 deferred). Gates at `d1a95d1`: typecheck/build/format exit 0,
+`npm test` 2,279 (457 + 1,278 + 544). No DB suite was needed: no fixture or SQL changed.
+The shared final-project rubric (read 22/10/2026 from a fetch summary; verify against the
+source) asks for an evaluation set of at least 20 cases (normal, edge, should-refuse) with
+pass rates before and after at least one improvement, the first 10 cases at the mid-point
+demo, and weights AI Quality & Safety at 10%; it does not itself require a two-person
+gold sign-off, which is this project's own process.
+
 ## F09-B.2B.3.1 — blank baseline for the chain (22/10/2026)
 
 **Correction to the B.2B.3 checkpoint below (kept as written for history).** For source

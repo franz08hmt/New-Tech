@@ -169,6 +169,13 @@ only for them after processing. The earlier run had inherited twelve sample rows
 shared helper. Re-run command unchanged:
 `node --test apps/api/test/evaluation-ingestion-chain.database.test.mjs`.
 
+F09-B.2B.4 (source `d1a95d1`): `docs/evaluation-quality-cases-v2.json` is a draft revision that
+applies the AI review's corrections without touching v1, the corpus or any gold binding
+(14 cases reworded or relabelled; RQ23 unchanged and deferred). Select it with
+`--suite docs/evaluation-quality-cases-v2.json` on the prepare tool and
+`--quality-suite docs/evaluation-quality-cases-v2.json` on the quality mode. Approval
+still needs the reviewers named in the pack; the AI proposal is not an approval.
+
 **Current boundary, 18/10/2026:** live `--execute` is BLOCKED (exit 3) before
 DB/Storage/Gemini because this runner has no verified workspace principal.
 Offline/dry-run remain available. Live commands/transport descriptions below
