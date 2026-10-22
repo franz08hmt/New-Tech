@@ -1,4 +1,4 @@
-import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
@@ -19,7 +19,7 @@ import { sha256 } from "./rag-evaluation-corpus.mjs";
 import {
   ARGUMENT_REJECTED,
   HttpEvaluationError,
-  PLAN_ALREADY_EXECUTED,
+  LEDGER_UNAVAILABLE,
   PLAN_NOT_APPROVED,
   buildRunPlan,
   createHttpTransport,
@@ -30,6 +30,7 @@ import {
   selectHttpCases,
   validateHttpTarget,
 } from "./rag-evaluation-http-lib.mjs";
+import { createPlanLedger } from "./rag-evaluation-http-ledger.mjs";
 
 const defaultRoot = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -89,13 +90,18 @@ export async function runHttpEvaluation(values, deps = {}) {
 
   const ledgerDir =
     deps.ledgerDir ?? resolve(root, "artifacts/rag-evaluation-http-ledger");
+  let ledger;
   if (options.action === "execute") {
-    // A plan that already started generating is never run again by accident.
-    const prior = (await readdir(ledgerDir).catch(() => []))
-      .filter((name) => name.startsWith(`${planSha256}.`))
-      .map((name) => name.slice(planSha256.length + 1, -".json".length));
-    if (prior.some((id) => !options.rerunAcknowledged.includes(id)))
-      throw new HttpEvaluationError(PLAN_ALREADY_EXECUTED);
+    // Fail fast before any credential: a plan that already started generating,
+    // or one that another run holds, is not run again by accident. This is
+    // advisory; the atomic reservation below decides, and an unreadable ledger
+    // refuses the run instead of looking empty.
+    ledger = createPlanLedger({
+      dir: ledgerDir,
+      planSha256,
+      fs: deps.ledgerFs,
+    });
+    await ledger.precheck({ acknowledged: options.rerunAcknowledged });
   }
 
   const runId = randomUUID();
@@ -220,51 +226,83 @@ export async function runHttpEvaluation(values, deps = {}) {
         );
       else if (blocked) await save(notAttempted(blocked));
       else {
-        // Recorded before the first generation: a crash cannot hide that a run began.
-        await mkdir(ledgerDir, { recursive: true });
-        await writeFile(
-          resolve(ledgerDir, `${planSha256}.${runId}.json`),
-          JSON.stringify({ planSha256, runId, startedAt: report.generatedAt }) +
-            "\n",
-          { flag: "wx" },
-        );
-        const request = async (_item, input) => {
-          const started = performance.now();
+        // One reservation per approved plan across processes; the history is
+        // rechecked under it and the execution intent is durable before the
+        // first POST. A refusal here sends nothing.
+        let reservation;
+        try {
+          reservation = await ledger.reserve({
+            runId,
+            acknowledged: options.rerunAcknowledged,
+          });
+        } catch (error) {
+          const code =
+            error instanceof HttpEvaluationError
+              ? error.code
+              : LEDGER_UNAVAILABLE;
+          report.execution = { reservation: "not_acquired", reason: code };
+          await save(notAttempted(code));
+        }
+        if (reservation) {
+          const request = async (_item, input) => {
+            const started = performance.now();
+            try {
+              const reply = await transport.post("assistant/chat", input);
+              return {
+                httpStatus: reply.status,
+                body: reply.body,
+                bodyStatus: reply.bodyStatus,
+                requestId: reply.requestId,
+                receiptPresent: reply.receiptPresent,
+                latencyMs: Math.round(performance.now() - started),
+                observation: {
+                  allowedDocumentIds: [input.documentId],
+                  index: preflight.index,
+                },
+              };
+            } catch (error) {
+              // The server may have acted on it: the outcome is unknown, not failed.
+              return {
+                httpStatus: 0,
+                body: null,
+                transportError:
+                  error.code === "REDIRECT_REFUSED"
+                    ? "REDIRECT_REFUSED"
+                    : "NETWORK_OR_TIMEOUT",
+                outcome: "unknown_after_dispatch",
+                // Where the exchange stopped; never any response text.
+                transportPhase: error.phase ?? "before_response",
+                latencyMs: Math.round(performance.now() - started),
+              };
+            }
+          };
+          // Unknown until the run is shown to have ended with every response
+          // fully received; a crash or an exception never reads as completed.
+          let outcome = "unknown_after_dispatch";
           try {
-            const reply = await transport.post("assistant/chat", input);
-            return {
-              httpStatus: reply.status,
-              body: reply.body,
-              requestId: reply.requestId,
-              receiptPresent: reply.receiptPresent,
-              latencyMs: Math.round(performance.now() - started),
-              observation: {
-                allowedDocumentIds: [input.documentId],
-                index: preflight.index,
-              },
-            };
-          } catch (error) {
-            // The server may have acted on it: the outcome is unknown, not failed.
-            return {
-              httpStatus: 0,
-              body: null,
-              transportError:
-                error.code === "REDIRECT_REFUSED"
-                  ? "REDIRECT_REFUSED"
-                  : "NETWORK_OR_TIMEOUT",
-              outcome: "unknown_after_dispatch",
-              latencyMs: Math.round(performance.now() - started),
+            await (deps.runCases ?? runCases)(selected, {
+              request,
+              save,
+              mapping,
+              // Any blocking outcome ends the run: no second generation is sent
+              // while the first one may still be running or have been served.
+              stopOn: (reason) => Boolean(reason),
+            });
+            outcome = report.results.some(
+              (r) => r.response?.outcome === "unknown_after_dispatch",
+            )
+              ? "unknown_after_dispatch"
+              : "completed";
+          } finally {
+            const finished = await reservation.finish({ outcome });
+            report.execution = {
+              reservation: "acquired",
+              intentRecorded: true,
+              outcome,
+              ...finished,
             };
           }
-        };
-        await runCases(selected, {
-          request,
-          save,
-          mapping,
-          // Any blocking outcome ends the run: no second generation is sent
-          // while the first one may still be running or have been served.
-          stopOn: (reason) => Boolean(reason),
-        });
+        }
       }
     } finally {
       const closed = await transport.logout();

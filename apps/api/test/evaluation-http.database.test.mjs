@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import test from "node:test";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -320,6 +321,78 @@ test("F09-B.1 authenticated HTTP evaluation through the real Nest/PG17 stack", a
   );
   assert.deepEqual(await counters(), after, "no second generation");
 
+  // 11. F09-B.1.1: two independent processes race one approved plan against the
+  // real server. The guarantee is exactly one generation, whatever the timing.
+  const racePlan = await run("race-plan", "owner", ["--only", "E16"]);
+  const raceHash = racePlan.report.planSha256;
+  const childScript = fileURLToPath(
+    new URL("./fixtures/evaluation-http-child.mjs", import.meta.url),
+  );
+  const raceTarget = runtime.httpTarget("owner");
+  const raceMapping = await writeMapping(raceTarget, "race-mapping");
+  const beforeRace = await counters();
+  const racer = (label) =>
+    new Promise((done) => {
+      const child = spawn(process.execPath, [childScript], {
+        env: {
+          PATH: process.env.PATH,
+          F09B11_CHILD: JSON.stringify({
+            args: [
+              "--http-evaluation",
+              "--base-url",
+              raceTarget.baseUrl,
+              "--origin",
+              raceTarget.origin,
+              "--mapping",
+              raceMapping,
+              "--output",
+              `${retained}/race-${label}`,
+              "--only",
+              "E16",
+              "--execute",
+              "--credentials-stdin",
+              "--approve-plan",
+              raceHash,
+            ],
+            email: raceTarget.credentials.email,
+            password: raceTarget.credentials.password,
+            ledgerDir: resolve(root, retained, "ledger"),
+          }),
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let out = "";
+      child.stdout.on("data", (chunk) => (out += chunk));
+      child.stderr.on("data", () => {});
+      child.on("close", () =>
+        done({ label, out: out.trim().split("\n").at(-1) }),
+      );
+    });
+  const raced = await Promise.all([racer("a"), racer("b")]);
+  const afterRace = await counters();
+  assert.deepEqual(
+    {
+      embedding: afterRace.sdk.embedding - beforeRace.sdk.embedding,
+      generation: afterRace.sdk.generation - beforeRace.sdk.generation,
+      receipts: afterRace.receipts - beforeRace.receipts,
+    },
+    { embedding: 1, generation: 1, receipts: 1 },
+    `one run only: ${JSON.stringify(raced)}`,
+  );
+  assert.equal(afterRace.persisted - beforeRace.persisted, 2);
+  const ledgerFiles = await readdir(
+    resolve(root, retained, "ledger", raceHash),
+  );
+  assert.equal(
+    ledgerFiles.filter((name) => name.endsWith(".intent.json")).length,
+    1,
+    "one durable execution intent",
+  );
+  assert.ok(
+    !ledgerFiles.includes("active.json"),
+    "the winner released its reservation",
+  );
+
   const summary = {
     retained,
     steps,
@@ -328,6 +401,8 @@ test("F09-B.1 authenticated HTTP evaluation through the real Nest/PG17 stack", a
       generation: after.sdk.generation - before.sdk.generation,
     },
     persistedProviderCalls: after.persisted - before.persisted,
+    raceProviderCalls: afterRace.persisted - beforeRace.persisted,
+    raceChildren: raced.map((r) => r.out),
     receipts: after.receipts - before.receipts,
     statuses: status,
     preflightReadiness: manager.report.preflight.readiness,

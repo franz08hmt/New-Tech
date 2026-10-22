@@ -20,6 +20,8 @@ export const TARGET_INVALID = "HTTP_EVALUATION_TARGET_INVALID";
 export const CASE_OUT_OF_SCOPE = "HTTP_EVALUATION_CASE_OUT_OF_SCOPE";
 export const PLAN_NOT_APPROVED = "HTTP_EVALUATION_PLAN_NOT_APPROVED";
 export const PLAN_ALREADY_EXECUTED = "HTTP_EVALUATION_PLAN_ALREADY_EXECUTED";
+export const PLAN_RESERVED = "HTTP_EVALUATION_PLAN_RESERVED";
+export const LEDGER_UNAVAILABLE = "HTTP_EVALUATION_LEDGER_UNAVAILABLE";
 export const CREDENTIALS_UNAVAILABLE =
   "HTTP_EVALUATION_CREDENTIALS_UNAVAILABLE";
 
@@ -227,6 +229,7 @@ export function createHttpTransport({
   const cookieHeader = () =>
     [...jar].map(([name, value]) => `${name}=${value}`).join("; ");
   function absorb(response) {
+    let changed = false;
     for (const line of response.headers.getSetCookie?.() ?? []) {
       const pair = line.split(";")[0];
       const at = pair.indexOf("=");
@@ -235,8 +238,14 @@ export function createHttpTransport({
       const value = pair.slice(at + 1).trim();
       if (value) jar.set(name, value);
       else jar.delete(name);
+      changed = true;
     }
+    return changed;
   }
+  // A failure to finish the exchange, tagged with where it stopped. The message
+  // is the code only; no response text, header or cookie is ever attached.
+  const interrupted = (phase) =>
+    Object.assign(reject("NETWORK_OR_TIMEOUT"), { phase });
   async function send(method, path, body) {
     const url = new URL(path, base);
     if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname))
@@ -248,32 +257,76 @@ export function createHttpTransport({
       headers.Origin = origin;
       if (csrf) headers["X-CSRF-Token"] = csrf;
     }
+    // One deadline covers the whole exchange: connection, headers and the full
+    // body. It is raced explicitly so it holds even if fetchImpl or the body
+    // stream ignores the abort signal.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const deadline = new Promise((_, expire) =>
+      controller.signal.addEventListener(
+        "abort",
+        () => expire(new Error("deadline")),
+        {
+          once: true,
+        },
+      ),
+    );
+    deadline.catch(() => {});
+    const finish = () => clearTimeout(timer);
     let response;
     try {
-      response = await fetchImpl(url.href, {
-        method,
-        headers,
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-        redirect: "manual",
-        signal: AbortSignal.timeout(timeoutMs),
-      });
+      response = await Promise.race([
+        fetchImpl(url.href, {
+          method,
+          headers,
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+          redirect: "manual",
+          signal: controller.signal,
+        }),
+        deadline,
+      ]);
     } catch {
       // Whether the server received and acted on it is unknown; never retried.
-      throw reject("NETWORK_OR_TIMEOUT");
+      finish();
+      controller.abort();
+      throw interrupted("before_response");
     }
-    if (response.status >= 300 && response.status < 400)
+    if (response.status >= 300 && response.status < 400) {
+      finish();
+      controller.abort();
       throw reject("REDIRECT_REFUSED");
-    absorb(response);
-    const text = await response.text().catch(() => "");
-    let parsed = null;
+    }
+    // Headers alone are not a completed response. A session cookie may already
+    // exist, so remember to close it even if the body never arrives.
+    const cookiesChanged = absorb(response);
+    if (path === "auth/login" && cookiesChanged) opened = true;
+    let text;
     try {
-      parsed = JSON.parse(text);
+      text = await Promise.race([response.text(), deadline]);
     } catch {
-      /* A non-JSON body is reported as null, never echoed. */
+      // The body was cut off, reset or never finished: the exchange is not
+      // complete, so it is a transport failure and not an empty or bad answer.
+      finish();
+      controller.abort();
+      throw interrupted("response_body");
+    }
+    finish();
+    let parsed = null;
+    let bodyStatus = "empty";
+    if (text !== "") {
+      // A fully received body that is not JSON is a contract failure of the
+      // answer, kept apart from transport failures. It is never echoed.
+      try {
+        parsed = JSON.parse(text);
+        bodyStatus = "json";
+      } catch {
+        bodyStatus = "invalid_json";
+      }
     }
     return {
       status: response.status,
       body: parsed,
+      bodyStatus,
       requestId: safeId(response.headers.get("x-request-id")),
       receiptPresent: response.headers.has("x-assistant-answer-id"),
     };
