@@ -30,6 +30,7 @@ import { runQualityHttpEvaluation } from "../scripts/rag-evaluation-quality-http
 import { PdfTextExtractorService } from "../dist/documents/pdf-text-extractor.service.js";
 import { prepareDocumentPages } from "../dist/documents/document-chunker.js";
 import { geminiEmbeddingConfig } from "../dist/config/config.js";
+import { openDocumentsTenantFixture } from "./documents-tenant-fixture.mjs";
 import {
   BUCKET,
   openIngestionChain,
@@ -94,8 +95,30 @@ test("F09-B.2B.3 upload -> ingestion -> audit -> quality preflight on one runtim
   const courseBoth = await chain.seedCourse(A, "chain-both");
   const coursePolicy = await chain.seedCourse(A, "chain-policy");
   const setup = await chain.telemetry();
-  assert.deepEqual(setup.sdk.embeddingInputs, []);
-  assert.equal(setup.documentIndexOperations, 0);
+  // The baseline is blank: base data exists, but no document, chunk, provider
+  // call, operation or receipt does. Checked on the database, not inferred from
+  // source or from which helper the fixture happens to call.
+  assert.deepEqual(
+    (
+      await query(
+        "SELECT (SELECT count(*)::int FROM documents) AS documents, (SELECT count(*)::int FROM document_chunks) AS chunks",
+      )
+    )[0],
+    { documents: 0, chunks: 0 },
+  );
+  assert.deepEqual(setup, {
+    sdk: { embedding: 0, embeddingInputs: [], generation: 0, ocr: 0 },
+    operations: 0,
+    documentIndexOperations: 0,
+    providerCalls: 0,
+    receipts: 0,
+    chunks: 0,
+  });
+  for (const table of ["workspaces", "workspace_memberships", "courses"])
+    assert.ok(
+      (await query(`SELECT count(*)::int AS n FROM ${table}`))[0].n > 0,
+      `${table} is base data`,
+    );
 
   // ---- phase 1: upload through the public route -----------------------------
   const ids = {};
@@ -156,6 +179,15 @@ test("F09-B.2B.3 upload -> ingestion -> audit -> quality preflight on one runtim
           name,
         );
       assert.equal(chain.storage.objects.size, 3);
+      // The database holds exactly the three documents the API returned, no chunk.
+      assert.deepEqual(
+        (await query("SELECT id FROM documents")).map((r) => r.id).sort(),
+        Object.values(ids).sort(),
+      );
+      assert.equal(
+        (await query("SELECT count(*)::int AS n FROM document_chunks"))[0].n,
+        0,
+      );
       // Upload has side effects (Storage, rows) but makes no provider call.
       const after = await chain.telemetry();
       assert.deepEqual(after.sdk, before.sdk);
@@ -247,6 +279,20 @@ test("F09-B.2B.3 upload -> ingestion -> audit -> quality preflight on one runtim
         assert.equal(detail.index_quality.needs_ocr, false);
       }
       const after = await chain.telemetry();
+      assert.deepEqual(
+        (await query("SELECT id FROM documents")).map((r) => r.id).sort(),
+        Object.values(ids).sort(),
+      );
+      assert.deepEqual(
+        (await query("SELECT DISTINCT document_id FROM document_chunks"))
+          .map((r) => r.document_id)
+          .sort(),
+        Object.values(ids).sort(),
+      );
+      assert.equal(
+        (await query("SELECT count(*)::int AS n FROM document_chunks"))[0].n,
+        Object.values(processed).reduce((n, r) => n + r.chunk_count, 0),
+      );
       const chunkTotal = Object.values(processed).reduce(
         (n, r) => n + r.chunk_count,
         0,
@@ -805,7 +851,11 @@ test("F09-B.2B.3 upload -> ingestion -> audit -> quality preflight on one runtim
   );
 });
 
-test("this chain never inserts or updates documents or chunks outside the marked negative section", async () => {
+// A supplementary source check, not the proof. It only sees this file and the
+// chain fixture; SQL seeded by a helper they call is invisible to it. The proof
+// that nothing but the API created documents is the runtime assertion on the
+// database before upload, after upload and after processing, above.
+test("source check: no document or chunk write in the chain fixture or before the negative section", async () => {
   const marker = "NEGATIVE-CORRUPTION-BEGIN";
   const source = await readFile(fileURLToPath(import.meta.url), "utf8");
   const fixture = await readFile(
@@ -816,9 +866,50 @@ test("this chain never inserts or updates documents or chunks outside the marked
   );
   const writes =
     /(INSERT INTO|UPDATE|DELETE FROM)\s+(documents|document_chunks)\b/gi;
+  // Guard against a vacuous scan: the pattern must match known write text.
+  assert.equal("UPDATE documents SET x".match(writes)?.length, 1);
   assert.deepEqual([...fixture.matchAll(writes)], []);
   const at = source.indexOf(`// ${marker}`);
   assert.ok(at > 0);
   for (const match of source.matchAll(writes))
     assert.ok(match.index > at, "write before the marker: " + match[0]);
+  // The bootstrap helper is called in its blank mode, and only in that mode.
+  const calls = [...fixture.matchAll(/openDocumentsTenantFixture\(([^)]*)\)/g)];
+  assert.equal(calls.length, 1);
+  assert.match(calls[0][1], /seedDocuments:\s*false/);
+});
+
+test("the shared bootstrap keeps its default sample data and has a blank mode with the same base data", async () => {
+  assertTestDatabaseTarget(process.env.TEST_DATABASE_URL);
+  const counts = async (fixture) =>
+    (
+      await fixture.admin.query(
+        `SELECT (SELECT count(*)::int FROM documents) AS documents,
+                (SELECT count(*)::int FROM document_chunks) AS chunks,
+                (SELECT count(*)::int FROM workspaces) AS workspaces,
+                (SELECT count(*)::int FROM workspace_memberships) AS memberships,
+                (SELECT count(*)::int FROM courses) AS courses,
+                (SELECT count(*)::int FROM schema_migrations) AS migrations`,
+      )
+    ).rows[0];
+  const seeded = await openDocumentsTenantFixture();
+  let withSamples;
+  try {
+    withSamples = await counts(seeded);
+  } finally {
+    await seeded.close();
+  }
+  const blank = await openDocumentsTenantFixture({ seedDocuments: false });
+  let withoutSamples;
+  try {
+    withoutSamples = await counts(blank);
+  } finally {
+    await blank.close();
+  }
+  // Default behaviour is unchanged: twelve sample documents and chunks.
+  assert.equal(withSamples.documents, 12);
+  assert.equal(withSamples.chunks, 12);
+  // Blank mode removes only those; everything else is identical.
+  assert.deepEqual({ ...withSamples, documents: 0, chunks: 0 }, withoutSamples);
+  assert.ok(withoutSamples.migrations > 0 && withoutSamples.courses > 0);
 });

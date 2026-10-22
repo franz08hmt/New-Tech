@@ -34,7 +34,16 @@ export const tenantPrincipal = (
 export function documentsPolicy(write = false, remove = false) {
   return `documents.workspace_id=NULLIF(current_setting('examate.workspace_id',true),'')::uuid AND EXISTS(SELECT 1 FROM workspace_memberships m JOIN workspaces w ON w.id=m.workspace_id WHERE m.workspace_id=documents.workspace_id AND m.user_id=NULLIF(current_setting('examate.user_id',true),'')::uuid AND m.active AND w.active ${remove ? "AND m.role='manager'" : write ? "AND m.role IN ('manager','member')" : ""})`;
 }
-export async function openDocumentsTenantFixture({ migrationLimit } = {}) {
+/**
+ * seedDocuments (default true, unchanged) controls only the twelve sample
+ * documents and their chunks. With false the bootstrap keeps the same schema,
+ * migrations, capability roles, workspaces, memberships and courses but holds no
+ * document or chunk, for runs that must create every document through the API.
+ */
+export async function openDocumentsTenantFixture({
+  migrationLimit,
+  seedDocuments = true,
+} = {}) {
   const saved = { ...process.env },
     guard = (url) =>
       assertTestDatabaseTarget(url, { runtimeUrl: saved.DATABASE_URL ?? "" });
@@ -192,7 +201,9 @@ export async function openDocumentsTenantFixture({ migrationLimit } = {}) {
         "INSERT INTO courses(id,workspace_id,slug,name,code,detail,tone,cover,cover_alt) VALUES($1,$2,$3,$4,$5,'Synthetic Documents course','slate','/img/fixture.webp','Fixture cover')",
         [w.course, w.id, `docs-${i}`, `Synthetic course ${i}`, `DOC ${i}`],
       );
-      for (const kind of ["document", "unassigned", "legacy", "deleting"]) {
+      for (const kind of seedDocuments
+        ? ["document", "unassigned", "legacy", "deleting"]
+        : []) {
         const docId = w[kind];
         await admin.query(
           "INSERT INTO documents(id,workspace_id,name,media_type,storage_key,size_bytes,storage_status,course_id) VALUES($1,$2,$3,'application/pdf',$4,100,$5,$6)",

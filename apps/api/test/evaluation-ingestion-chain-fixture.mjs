@@ -164,7 +164,8 @@ export async function openIngestionChain() {
     await new Promise((r) => storageServer.listen(0, "127.0.0.1", r));
     storageBase = `http://127.0.0.1:${storageServer.address().port}`;
 
-    fixture = await openDocumentsTenantFixture();
+    // Blank bootstrap: no sample document or chunk exists before the first upload.
+    fixture = await openDocumentsTenantFixture({ seedDocuments: false });
     const runtimeUrls = [];
     for (const capability of ["examate_business", "examate_auth"]) {
       const role = `f09_${randomUUID().replaceAll("-", "").slice(0, 20)}`;
