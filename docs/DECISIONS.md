@@ -931,3 +931,10 @@ passes clones to callbacks, so a caller changing its objects mid-run cannot chan
 is tied to the approved suite by hash and verified with the plan's own bytes. Free plan parameters (target,
 timeout, batch size, selection) are not derivable from the suite; they are covered by the plan hash and the
 approval, and the B.2B.5 wording is corrected to say exactly that.
+
+F09-B.2B.5.2 decision: a snapshot is only a snapshot if it is complete before anything can interleave.
+The executor therefore copies every caller-owned input synchronously, before its first await, into
+objects and a buffer only it holds, and verifies and uses that one buffer end to end. Freezing is not
+used as a claim about buffers. Mutation inside the window is answered by running on the data as it was
+at the call or refusing, never by combining the two, and the tests fix the order by running code to the
+first await rather than by timing. The B.2B.5.1 wording is corrected to say which stage it protected.

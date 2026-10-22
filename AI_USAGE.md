@@ -1269,3 +1269,16 @@ the test with the reason recorded. 30 mutants were run and killed.
 Source `3a628e6`: oracle 3/3, executor 20/20, integration 8/8, `npm test` 2,304, full `test:database` 520/520
 (50 files, own guarded container), typecheck/build/format exit 0. No real model, account, secret, cloud write, push
 or deploy; no approval is recorded for Tài or Thắng.
+
+## 2026-10-22 — F09-B.2B.5.2 sealing window
+
+A reviewer showed that my "private copy" in the previous fix was taken after an await, so the window inside
+sealing was open. AI assistance reproduced it with the reviewer's oracle, wrote deterministic tests that mutate
+the caller's data immediately after the call (code runs synchronously to the first await, so no sleeps), then
+moved all copying into one synchronous step with a single private suite buffer. A test helper bug of mine
+(the planner keeps a reference to the buffer it is given, so my test mutated its own shared fixture) was
+fixed in the test. Two mutants became equivalent once the snapshot was complete and are recorded as such.
+
+Source `da862cd`: oracles 7/7, executor 26/26, integration 8/8, `npm test` 2,310, full `test:database`
+520/520 (50 files, own guarded container), typecheck/build/format exit 0. No real model, account, secret,
+cloud write, push or deploy; no approval recorded for Tài or Thắng.

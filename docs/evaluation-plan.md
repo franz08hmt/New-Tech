@@ -191,6 +191,13 @@ every request hash, rebuilds the plan with the canonical planner and compares it
 to equal the approved suite, and runs from an immutable private copy, all before the authorizer, credentials,
 network or ledger. Edited requests and cross-revision provenance are refused with explicit reasons.
 
+F09-B.2B.5.2 (source `da862cd`) corrects F09-B.2B.5.1: the earlier fix protected the executor after sealing
+but not during it. The caller's suite buffer, plan, mapping, definition, approval and provenance buffer are now
+copied synchronously before the first await; one private buffer is hashed, parsed, used for the canonical
+rebuild, kept and verified against, and is never exposed or re-copied. A change made during sealing is either
+ignored (the original snapshot runs) or refused; provenance for changed bytes is never paired with the
+approved plan.
+
 **Current boundary, 18/10/2026:** live `--execute` is BLOCKED (exit 3) before
 DB/Storage/Gemini because this runner has no verified workspace principal.
 Offline/dry-run remain available. Live commands/transport descriptions below

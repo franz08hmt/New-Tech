@@ -21,6 +21,45 @@ hoặc tự nhận D vì có STT. Bỏ F11 không bỏ responsive desktop/mobile
 phân quyền, CRUD/search, dashboard, privacy, ≥20 case chạy thật trước/sau cải
 tiến và bộ nộp cuối kỳ giữ nguyên. Phù hợp về phạm vi không có nghĩa đã đạt rubric.
 
+## F09-B.2B.5.2 — the sealing window closed (22/10/2026)
+
+`F09-B.2B.5.2_CODE_VERIFIED`, source `da862cd`. **Correction to F09-B.2B.5.1 below (kept as
+written).** That entry said the executor "works only from a private copy" after its checks. It
+protected the stage *after* sealing, not sealing itself: `sealPlanned` held a reference to the
+caller's suite buffer, hashed and parsed it, **awaited** the canonical rebuild, and only then
+copied the buffer. A caller could change the buffer during that await, so provenance made for
+the changed bytes could be paired with the plan approved for the original ones: reviewer
+oracle — a manifest with its final line feed replaced by a space (same JSON, other hash),
+artifacts made for the new bytes, buffer changed right after the call — COMPLETED, sent both
+POSTs and reported the old hash.
+
+Now everything the caller owns is copied in one synchronous step before the first await: the
+suite buffer (into a buffer only this module holds), the plan, the resolved mapping, the
+definition, the planned hash, the approval record and the provenance buffer. After that no
+caller object is read. That one private buffer is hashed, parsed by the canonical loader, used
+for the canonical rebuild, kept in the sealed copy and given to the provenance verifier, and is
+never copied again or handed to a callback. (Freezing a buffer is not what makes it immutable;
+owning a copy and never exposing it is.) Under a change made in that window the run uses the
+data that existed when it was called, or is refused (an artifact that fits only the changed
+bytes is refused as `PROVENANCE_ARTIFACT_FAILED`); it never mixes the two. The canonical
+planner, loader and verifier are unchanged, as are the ledger, Auth/RLS, corpus and gold.
+
+Evidence. Reviewer oracles 7/7 (the new seal-window oracle failed before). Executor unit 26/26
+(was 20): buffer changed right after the call with artifacts for the changed bytes (refused
+before credentials, network and ledger), original provenance with a changed buffer (completes on
+the original snapshot, report hash is the original), the provenance manifest buffer copied
+before the first await, resolved mapping, plan, definition and approval all changed in the window
+(one consistent snapshot, original requests sent), no buffer reachable from any callback or the
+report. The order is fixed by running code to the first await, not by sleeping. 24 snapshot and
+binding mutants killed (early copy removed or delayed, caller re-read after the rebuild,
+references kept); two mutants (using the verified snapshot's plan or definition in place of its
+clones) are equivalent because they are already equal after the checks. Nest/PG17 executor
+integration 8/8 on a fresh guarded container. Gates at `da862cd`: typecheck/build/format
+exit 0, `npm test` 2,310 (457 + 1,309 + 544), full `test:database` 520/520 in 50 files — new
+runs. The authorizer and target-equivalence proof remain test-owned; nothing records any
+person's approval; `GOLD_REVIEW_PENDING`, `LIVE_EVALUATION_PENDING` and
+`SEMANTIC_REVIEW_PENDING` are unchanged. The gold-approval recording tool is not started.
+
 ## F09-B.2B.5.1 — executor bound to the data it really sends (22/10/2026)
 
 `F09-B.2B.5.1_CODE_VERIFIED`, source `3a628e6`. **Correction to the B.2B.5 entry below

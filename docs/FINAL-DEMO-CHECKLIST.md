@@ -436,6 +436,18 @@ the separate F08-B checkpoint below.
 - [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
       cloud rollout, Google live and Thắng's machine are unchanged.
 
+## F09-B.2B.5.2 — sealing window (22/10/2026)
+
+- [x] Correction: B.2B.5.1 protected the run after sealing, not the await inside sealing; the caller's
+      buffer was copied after `await`, so provenance for changed bytes could meet the original plan.
+      Fixed by one synchronous snapshot (buffer, plan, mapping, definition, approval, provenance buffer)
+      before the first await and a single private buffer used for hash, parse, rebuild, seal and verify.
+- [x] RED (oracle 3/4 → 4/4; four new tests failed) then GREEN: executor 26/26, oracles 7/7, 24 snapshot
+      and binding mutants killed (2 equivalent), Nest/PG17 8/8. Source `da862cd`: typecheck/build/format
+      exit 0, `npm test` 2,310, `test:database` 520/520 in 50 files — new runs.
+- [ ] Not live: test-owned authorizer/equivalence, no recorded human approval, no real account.
+      `GOLD_REVIEW_PENDING`, `LIVE_EVALUATION_PENDING`, `SEMANTIC_REVIEW_PENDING` unchanged.
+
 ## F09-B.2B.5.1 — executor binding fixes (22/10/2026)
 
 - [x] Correction: B.2B.5 did not recompute request hashes (it copied them) and trusted caller-supplied
