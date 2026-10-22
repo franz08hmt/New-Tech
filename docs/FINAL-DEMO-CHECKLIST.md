@@ -427,6 +427,38 @@ the separate F08-B checkpoint below.
 - [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
       cloud rollout, Google live and Thắng's machine are unchanged.
 
+## F09-A.3 — one citation contract for runtime and evaluator (22/10/2026)
+
+- [x] RED before the fix: unit spec 5 fail/49, evaluation 22 fail/191, HTTP/SSE
+      3 fail/53 (nested marker returned 200 and SSE `done`), integration failed at
+      F09A3-R01; reviewer oracle 1 pass/3 RED. Logs: `artifacts/f09a3-20261022/*red*.log`.
+- [x] Production: pure `source-markers.ts` judges each source-like text whole
+      (nested/grouped/zero/leading-zero/descriptive rejected); both document
+      refusal paths reject any source-like text. Evaluator reads the same helper and
+      adds `refusalMarkerFree`, `citationIdFormat`, `citationIdsUnique`.
+- [x] GREEN at `d97c55d`: evaluation 191/191, assistant spec 49/49, helper 40/40,
+      HTTP/SSE 53/53, reviewer oracles 4/4 and 4/4, integration 1/1. 24-row matrix
+      over the real parse/validate/refusal path: plain, streamed and evaluator
+      verdicts agree on every row. No parity claim beyond the rows listed.
+- [x] Runtime evidence: real SDK transport (synthetic) nested marker gives 502
+      `AI_UPSTREAM`, no answer, citation, receipt or leaked text; SSE gives only
+      status events then `error`, never `delta`/`done`; malformed-marker refusal
+      gives 502.
+- [x] Nest/PG17 report boundary (one named field mutated): nested and duplicate
+      citations on 7 grounded cases 26 PASS/7 FAIL/2 SKIP; refusal markers 32 PASS/
+      1 FAIL/2 SKIP; positive controls 33 PASS; measurements identical, 37 SDK = 37
+      persisted. Clean report:
+      `artifacts/f09a-integration-e3ba65ef-d488-4c91-ac86-592dff2d8371`.
+- [x] Gates at `d97c55d`: typecheck, build, format exit 0; `npm test` exit 0, 457 +
+      1,015 + 544 = 2,016; guarded `npm run test:database` exit 0, 478/478 in 45
+      files, fail/skip/cancelled 0. Seven mutations all killed.
+- [x] Intentional behavior change: non-stream refusal with a malformed source-like
+      text is now 502 `unanswerable_with_citations` (was a fixed refusal 200),
+      matching streaming. Own container/volume removed.
+- [ ] RESOURCE_CLEANUP_BLOCKED for F09-A.1 resources remains. No UI/browser,
+      live model, human semantic, cloud, Google or Thắng-machine acceptance is
+      claimed. F09-B not started; whole F09 incomplete.
+
 ## F09-A.2 — grounded RAG marker consistency (22/10/2026)
 
 - [x] RED before the fix: 152 evaluation tests, 20 fail (131 earlier tests stayed
@@ -453,9 +485,8 @@ the separate F08-B checkpoint below.
 - [x] No production service, prompt, model, ranking, chunking, migration, grant,
       RLS, corpus/gold, manifest or dependency changed. Own container/volume
       removed; F09-A.1 resources and SOP containers untouched.
-- [ ] Observation, not fixed: production accepts nested `[S[S1]` because it
-      compares marker counts; the evaluator is stricter. Not covered here: a
-      refusal answer containing a marker, and duplicate returned citation IDs.
+- [x] Superseded by F09-A.3: the nested `[S[S1]` mismatch, refusal markers and
+      duplicate returned citation IDs listed here as open are closed there.
 - [ ] RESOURCE_CLEANUP_BLOCKED for F09-A.1 container/volume/credential file remains.
 - [ ] No UI/browser acceptance, live model evaluation or human semantic review is
       claimed; cloud, Google and Thắng-machine pending are unchanged. F09-B is

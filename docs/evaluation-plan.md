@@ -37,6 +37,16 @@ hashes; evidence, receipt, telemetry and accounting stay identical. Existing
 reports are not regraded. Use the documented guarded PG17 target and
 `prepare-runtime-roles.mjs` before running it.
 
+F09-A.3 (`d97c55d`) makes the evaluator read the production helper
+(`dist/assistant/source-markers.js`) instead of its own regexes. Grounded RAG also
+requires returned source IDs of the form `S<n>` that are unique as returned
+(`citationIdFormat`, `citationIdsUnique`, dimension `citationIdentity`); refusals
+must contain no source-like text at all (`refusalMarkerFree`, reported as
+`markerConsistency`); nested markers such as `[S[S1]` fail `markerSyntax`. The
+runtime test's matrix is now `citation-contract-mutation-matrix.json` (12
+mutations: answer or citation field only, with mutation ID, source run ID and
+field hashes). Historical reports stay as they are.
+
 The formal runtime DB test retains a separate `negative-output-report.json`:
 it removes only the RAG/Quiz/Flashcards output from real observations, expects
 3 FAIL rather than PASS, and asserts identical accounting/usage/latency to the

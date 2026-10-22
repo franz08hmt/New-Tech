@@ -718,3 +718,17 @@ Decision: the evaluator is stricter than production on one observed edge (nested
 because this task fixes the evaluator only. Marker mutations change only the
 answer text of copied real observations and keep evidence, receipt, telemetry and
 accounting identical.
+
+F09-A.3 decision (supersedes the F09-A.2 choice to leave production unchanged):
+one citation contract, implemented once in a pure helper that the assistant
+service and the evaluator both read. Source-like text is judged whole, so nested,
+grouped, zero, leading-zero and descriptive forms are malformed in production too.
+A grounded answer needs at least one marker, returned IDs that match `S<n>` and are
+unique (the array is checked as returned, never through a Set), and marker IDs equal
+to the returned IDs. A refusal carries no citation IDs and no source-like text at
+all, well formed or not, on both document paths; the evaluator checks the same.
+This tightens the non-stream refusal path to match streaming (it previously
+accepted a malformed source-like text and substituted the fixed refusal). Rejected
+output is HTTP 502/SSE `error`, never partial content. Sanitizing helpers (history
+marker stripping, stream marker filter) are not validators and keep their regexes.
+Machine contract failures stay FAIL; claim support stays human review.

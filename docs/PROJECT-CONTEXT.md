@@ -5,6 +5,92 @@ Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong 
 
 ## F07 contract and local implementation
 
+## F09-A.3 — one citation contract for runtime and evaluator (22/10/2026)
+
+Base `d614fea` (F09-A.2 code `c487362`); source commit `d97c55d`. Closes the three
+P2 findings from the independent F09-A.2 review. The first (refusal) and second
+(duplicate returned IDs) were evaluator gaps. The third was a real production
+mismatch: `AssistantService.validateCitations` compared the counts of source-like
+and valid markers, so `[S[S1]` for source S1 was accepted. Before the fix, public
+HTTP returned 200 and SSE ended in `done` with that answer (retained RED log
+`artifacts/f09a3-20261022/red-http.log`); this is no longer only a direct call of
+a private method. Nothing indicates an Auth or scope bypass.
+
+Final contract, applied by production and evaluator through one pure helper
+(`apps/api/src/assistant/source-markers.ts`, which the evaluator imports from
+`dist`):
+
+- Grounded (answerable): nonblank text answer; every source-like `[S...]` text is
+  judged whole and must be exactly `[S<n>]` (n starts at 1, no leading zero) so
+  grouped, empty, zero, leading-zero, descriptive and nested forms fail; at least
+  one valid marker; returned source IDs match `S<n>` and are unique, checked on
+  the array as returned and not through a Set; the marker ID set equals the
+  returned ID set; each citation belongs to the observed evidence. A marker
+  repeated in the answer is valid; ordinary brackets such as `(S1)`, `[1]`, `[s1]`
+  are not markers.
+- Refusal: answerable=false, no citation IDs and no source-like text at all, valid
+  or malformed. Both document paths now apply this; before, streaming did and the
+  non-stream path rejected only well-formed markers. A refusal that carries one
+  is rejected as `unanswerable_with_citations` (HTTP 502/`AI_UPSTREAM`, SSE
+  `error`) and a clean refusal stays valid. Intentional behavior change:
+  non-stream refusals with a malformed source-like text were previously accepted
+  and replaced by the fixed refusal text.
+- Machine failures are FAIL, never semantic pending or INCONCLUSIVE; a structurally
+  correct citation still says nothing about whether the claim is true.
+
+Evaluator checks added: `refusalMarkerFree`, `citationIdFormat`,
+`citationIdsUnique`, dimension `citationIdentity`; `markerConsistency` now also
+covers refusals (one F09-A.2 assertion changed from `not_assessed` to `true`
+because refusals are now assessed, a stricter contract). The three F09-A.2 marker
+checks keep their meaning.
+
+Observed RED: unit spec 5 fail/49; evaluation run 22 fail/191 (two positive
+controls failed only because the new checks did not exist yet); HTTP 3 fail/53
+(nested marker 200 and SSE `done`; malformed refusal 200); integration failed at
+F09A3-R01 against the previous evaluator. The 40-test helper spec is new and had
+no prior RED. GREEN: evaluation 191/191, assistant service spec 49/49, helper 40/40,
+HTTP/SSE 53/53, both earlier reviewer oracles 4/4, integration 1/1. A 24-row
+matrix drives the real parse, validate and refusal path with synthetic provider and
+retrieval boundaries for plain and streamed answers, then compares the evaluator on
+what production returned (or on what a leak would carry): production, streamed and
+evaluator verdicts agree on every row, including nested, duplicate IDs with the
+same and with contradictory metadata, and clean, valid-marker, malformed and nested
+refusals. Streamed rejections emit only status events. HTTP tests use the real SDK
+transport with synthetic responses (502, no answer/citation, no receipt, no leaked
+text) plus SSE and malformed-refusal cases. Seven mutations of the helper, service
+and evaluator were applied; all were killed (the first P1 attempt did not compile
+and was redone).
+
+Report boundary, on real Nest/PG17 observations changing one named field: normal
+33 PASS/2 SKIP; nested marker and duplicate returned citations (same or
+contradictory metadata) on the 7 grounded observations give 26 PASS/7 FAIL/2 SKIP;
+refusal with valid, malformed or nested marker gives 32 PASS/1 FAIL/2 SKIP; the
+positive controls (repeated marker, ordinary brackets, clean refusal with brackets)
+stay 33 PASS. Each FAIL names the failed machine check; evidence, receipt,
+telemetry and measurements are deep-equal and 37 SDK = 37 persisted calls. The
+earlier three-output negative stays 30 PASS/3 FAIL/2 SKIP. Clean tree at
+`d97c55d` (dirty=false): `artifacts/f09a-integration-e3ba65ef-d488-4c91-ac86-592dff2d8371`,
+`citation-contract-mutation-matrix.json` (it extends the F09-A.2 matrix and records
+mutation ID, source run ID and field hashes).
+
+Gates (no source file changed after they started; tree clean at commit):
+typecheck, build and format exit 0; `npm test` exit 0 with 457 API Vitest + 1,015
+API Node + 544 Web = 2,016 (1,923 before); guarded `npm run test:database` exit 0,
+478/478 in 45 files on an owned PG17. Logs and exit records:
+`artifacts/f09a3-20261022`. Only the owned container
+`examate-f09a3-pg17-20261022` and volume `examate-f09a3-data-20261022` were removed
+(exit 0); F09-A.1 resources and SOP containers were not touched, so that earlier
+RESOURCE_CLEANUP_BLOCKED stays.
+
+Not verified or not changed: no UI/browser acceptance (error text unchanged), live
+model evaluation, human semantic review, cloud, Google or Thắng-machine pending.
+`conversation-context.ts` and the stream marker filter keep their own source-like
+regexes because they sanitize rather than validate. `feedback-validation.ts` caps
+IDs at three digits while parsing accepts any `S<n>`; practical source counts are
+small and this was not changed. No model, prompt, retrieval, ranking, chunking,
+migration, grant, RLS, corpus/gold or dependency changed. F09-B is not started and
+whole F09 is not complete.
+
 ## F09-A.2 — grounded RAG source-marker consistency (22/10/2026)
 
 Base `704835f`; source commit `c487362`. This fixes an evaluator false PASS, not

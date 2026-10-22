@@ -975,3 +975,20 @@ exit 0. The AI created, used and removed only its own labeled container and
 volume, left F09-A.1 and SOP resources untouched, and did not change production
 services, prompts, models, migrations, corpus/gold or dependencies. No human
 reviewer, browser acceptance or live-model result was produced or invented.
+
+## 2026-10-22 — F09-A.3 shared citation contract
+
+AI assistance reproduced the reviewer contract oracle (1 pass/3 RED), mapped every
+production use of marker and refusal handling and found that the stream and
+non-stream refusal paths already differed. It wrote the failing tests first (unit,
+a 24-row production/stream/evaluator matrix, HTTP and SSE, report-boundary
+mutations), observed the RED results, then added a pure `source-markers.ts` helper,
+changed `validateCitations` and both refusal branches in the assistant service, and
+made the evaluator read the same helper. A tightening of non-stream refusals was
+introduced deliberately and documented as a behavior change. One AI-written test
+helper defect and one failed mutation attempt were corrected without altering
+assertions. Seven mutations were killed. Gates at `d97c55d`: 2,016 application
+tests and 478 PG17 tests, exit 0; the owned container and volume were removed and
+other task resources were untouched. No model, prompt, retrieval, migration,
+corpus/gold or dependency changed, and no human review, browser acceptance or live
+model result was produced.

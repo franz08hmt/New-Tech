@@ -54,6 +54,15 @@ claim support stays human-reviewed. Evidence: `c487362`, 1,923 application tests
 and 478 PG17 tests, answer-only mutations of real Nest/PG17 observations in
 FINAL-DEMO-CHECKLIST. Live, human, browser and whole-F09 acceptance unchanged.
 
+F09-A.3 makes that rule one shared contract for production and evaluator (pure
+`source-markers.ts`): each source-like text is judged whole (nested `[S[S1]`
+rejected in production, not only in the evaluator), returned citation IDs are
+well formed and unique, and a refusal carries no source-like text on either
+document path. Evidence at `d97c55d`: a 24-row production/streamed/evaluator
+matrix, HTTP and SSE rejection tests, answer-only mutations of real Nest/PG17
+observations, 2,016 application tests and 478 PG17 tests. Live, human, browser
+and whole-F09 acceptance unchanged.
+
 Thành viên đọc được tài liệu của workspace; chưa có PDF riêng từng người trong
 cùng workspace. Auth PASS không thay RAG/STT PASS. Máy Thắng cần bằng chứng riêng.
 
