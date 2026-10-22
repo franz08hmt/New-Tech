@@ -34,6 +34,7 @@
     "test": "npm run test --workspaces --if-present",
     "format:check": "npm run format:check --workspaces --if-present",
     "eval:f09a:local": "npm run build --workspace @examate/api && node apps/api/scripts/evaluate-rag.mjs --local-integration",
+    "eval:f09b2b2:quality": "npm run build --workspace @examate/api && node apps/api/scripts/evaluate-rag.mjs",
     "eval:f09b2a:prepare": "npm run build --workspace @examate/api && node apps/api/scripts/prepare-rag-quality.mjs"
   }
 }

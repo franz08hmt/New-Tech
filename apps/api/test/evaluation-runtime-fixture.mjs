@@ -19,6 +19,9 @@ import {
   tenants,
 } from "./documents-tenant-fixture.mjs";
 import { corpusDocuments } from "../scripts/rag-evaluation-corpus.mjs";
+import { makeEvaluationPdf } from "../scripts/rag-evaluation-lib.mjs";
+import { PdfTextExtractorService } from "../dist/documents/pdf-text-extractor.service.js";
+import { prepareDocumentPages } from "../dist/documents/document-chunker.js";
 import { ragConfig, geminiConfig } from "../dist/config/config.js";
 
 const vector = [1, ...Array(767).fill(0)];
@@ -773,6 +776,109 @@ export async function openEvaluationRuntime() {
           },
           // A request over this actor's existing session, for forged-input checks.
           request: (path, body) => server.request(path, body),
+        };
+      },
+      /**
+       * F09-B.2B.2: a quality-suite layout. The two PDFs sit in a course of their
+       * own, a separate policy copy sits in a policy-only course, and every index
+       * is what the production extractor and chunker produce from the PDF bytes.
+       * The chunks are written directly, so this does not exercise persistence
+       * through the ingestion service. Test-owned and disposable only.
+       */
+      async qualityTarget() {
+        const [brief, policy] = corpusDocuments;
+        const courseBoth = randomUUID();
+        const coursePolicy = randomUUID();
+        const copy = randomUUID();
+        for (const [id, slug] of [
+          [courseBoth, "quality-both"],
+          [coursePolicy, "quality-policy"],
+        ])
+          await fixture.admin.query(
+            "INSERT INTO courses(id,workspace_id,slug,name,code,detail,tone,cover,cover_alt) VALUES($1,$2,$3,$3,$3,'Quality scope','slate','/img/fixture.webp','Fixture')",
+            [id, A.id, slug],
+          );
+        await fixture.admin.query(
+          "INSERT INTO documents(id,workspace_id,name,media_type,storage_key,size_bytes,storage_status,course_id) VALUES($1,$2,$3,'application/pdf',$4,100,'stored',$5)",
+          [
+            copy,
+            A.id,
+            policy.file,
+            `fixture-quality/${copy}.pdf`,
+            coursePolicy,
+          ],
+        );
+        const members = [
+          [docIds[0], brief.file, courseBoth],
+          [docIds[1], policy.file, courseBoth],
+          [copy, policy.file, coursePolicy],
+        ];
+        const objects = new Map();
+        const extractor = new PdfTextExtractorService();
+        for (const [id, file, course] of members) {
+          const bytes = makeEvaluationPdf(
+            corpusDocuments.find((d) => d.file === file).pages,
+          );
+          const prepared = prepareDocumentPages(await extractor.extract(bytes));
+          await fixture.admin.query(
+            "DELETE FROM document_chunks WHERE document_id=$1",
+            [id],
+          );
+          for (const chunk of prepared.chunks)
+            await fixture.admin.query(
+              "INSERT INTO document_chunks(document_id,chunk_index,source_page,content,embedding,embedding_model,embedding_dimensions) VALUES($1,$2,$3,$4,$5::vector(768),'gemini-embedding-001',768)",
+              [
+                id,
+                chunk.chunkIndex,
+                chunk.sourcePage,
+                chunk.content,
+                JSON.stringify(vector),
+              ],
+            );
+          const q = prepared.quality;
+          await fixture.admin.query(
+            `UPDATE documents SET name=$2, course_id=$3, storage_key=$4, size_bytes=$5,
+               storage_status='stored', processing_status='ready', indexed_at=clock_timestamp(),
+               processing_error_code=NULL, total_page_count=$6, useful_text_page_count=$7,
+               low_text_page_count=$8, indexed_chunk_count=$9, skipped_page_numbers=$10::smallint[],
+               needs_ocr=$11, ocr_page_count=0, ocr_page_numbers='{}' WHERE id=$1`,
+            [
+              id,
+              file,
+              course,
+              `fixture-quality/${id}.pdf`,
+              bytes.length,
+              q.totalPageCount,
+              q.usefulTextPageCount,
+              q.lowTextPageCount,
+              prepared.chunks.length,
+              q.skippedPageNumbers,
+              q.needsOcr,
+            ],
+          );
+          objects.set(`fixture-quality/${id}.pdf`, bytes);
+        }
+        const url = new URL(fixture.admin.options.connectionString);
+        return {
+          objects,
+          pool: fixture.admin,
+          workspaceId: A.id,
+          databaseEndpoint: `${url.hostname}:${url.port}${url.pathname}`,
+          ids: { brief: docIds[0], policy: docIds[1], copy },
+          courses: { both: courseBoth, policyOnly: coursePolicy },
+          mapping: {
+            schemaVersion: "rag-quality-mapping-v1",
+            corpusRevision: "rag-eval-v2",
+            documents: { [brief.file]: docIds[0], [policy.file]: docIds[1] },
+            scopes: [
+              { files: [brief.file, policy.file], courseId: courseBoth },
+              {
+                files: [policy.file],
+                courseId: coursePolicy,
+                documents: { [policy.file]: copy },
+              },
+            ],
+          },
         };
       },
       useHttpAdapterScenario({ refusalQuestions }) {

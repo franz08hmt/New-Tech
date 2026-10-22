@@ -86,6 +86,11 @@ export async function fakeApi(options = {}) {
     cut: new Set(),
     chatGate: undefined,
     assistantStatus: "ready",
+    // F09-B.2B.2: documents beyond the two fixed ones (id -> file), the courses
+    // visible to the session, and the documents each course holds (id lists).
+    extraDocuments: {},
+    courses: [],
+    courseMembers: {},
     ...options,
   };
   const requests = [];
@@ -190,11 +195,34 @@ export async function fakeApi(options = {}) {
         ragEnabled: true,
         credentialsExposedToClient: false,
       });
+    if (url.pathname === "/api/courses" && req.method === "GET")
+      return json(
+        200,
+        state.courses.map((id) => ({ id, slug: `c-${id.slice(-4)}` })),
+      );
+    if (url.pathname === "/api/documents/search" && req.method === "GET") {
+      const course = url.searchParams.get("course");
+      const ids = state.courseMembers[course] ?? [];
+      const items = ids.map((id) => ({
+        id,
+        name:
+          state.extraDocuments[id] ??
+          Object.keys(documentIds).find((name) => documentIds[name] === id),
+        course_id: course,
+      }));
+      return json(200, {
+        items,
+        page: 1,
+        pageSize: Number(url.searchParams.get("pageSize") ?? 20),
+        total: state.courseTotal ?? items.length,
+        totalPages: 1,
+      });
+    }
     const doc = /^\/api\/documents\/([0-9a-f-]{36})$/.exec(url.pathname);
     if (doc && req.method === "GET") {
-      const file = Object.keys(documentIds).find(
-        (name) => documentIds[name] === doc[1],
-      );
+      const file =
+        state.extraDocuments[doc[1]] ??
+        Object.keys(documentIds).find((name) => documentIds[name] === doc[1]);
       if (!file || state.documents[file] === "missing")
         return json(404, { code: "DOCUMENT_NOT_FOUND", message: "none" });
       const document = corpusDocuments.find((d) => d.file === file);

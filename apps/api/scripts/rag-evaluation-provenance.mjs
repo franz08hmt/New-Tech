@@ -339,6 +339,12 @@ function parseRequest(request, { bindCorpus = true } = {}) {
         documents,
       };
     });
+    // A course holds exactly one of the manifest's file sets, so two sets cannot
+    // be mapped onto the same course.
+    if (
+      new Set(resolved.map((scope) => scope.courseId)).size !== resolved.length
+    )
+      throw reject();
     const pairs = new Map();
     for (const file of files)
       pairs.set(`${file}|${mapping.documents[file]}`, [
@@ -1323,3 +1329,11 @@ export function verifyProvenanceArtifact(input, expectations) {
       : "Intact and bound to the supplied manifest, corpus, target, mapping and scopes as of the audit. It says nothing about the state after the audit and grants no approval or execution.",
   );
 }
+
+/**
+ * The request validator and target binding the audit and the verifier already
+ * use, exposed so a planner can validate a mapping and bind a target with the
+ * same code instead of re-implementing it.
+ */
+export const validateProvenanceRequest = parseRequest;
+export const provenanceTargetBinding = targetBinding;

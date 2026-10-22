@@ -351,6 +351,16 @@ export async function main(values = process.argv.slice(2)) {
   }
   // Authenticated HTTP evaluation is its own mode; the unsafe legacy
   // --execute/--transport http path below stays fail-closed.
+  // A quality suite has its own planner and strict flags; it can plan and run a
+  // preflight but never generate.
+  if (
+    values.includes("--http-evaluation") &&
+    values.includes("--quality-suite")
+  ) {
+    const { runQualityHttpEvaluation } =
+      await import("./rag-evaluation-quality-http.mjs");
+    return runQualityHttpEvaluation(values);
+  }
   if (values.includes("--http-evaluation")) {
     const { runHttpEvaluation } = await import("./rag-evaluation-http.mjs");
     return runHttpEvaluation(values);

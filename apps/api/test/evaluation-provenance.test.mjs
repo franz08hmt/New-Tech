@@ -923,7 +923,7 @@ test("verifier: manifest, corpus, target, mapping and scopes must all match", as
     reasonsFor({ mapping: swapped }).reasons.includes("MAPPING_MISMATCH"),
   );
   const scopes = request().scopes;
-  scopes[1].courseId = COURSE_BOTH;
+  scopes[1].courseId = "00000000-0000-4000-8000-0000000000c9";
   assert.ok(reasonsFor({ scopes }).reasons.includes("SCOPES_MISMATCH"));
 });
 
@@ -1305,4 +1305,12 @@ test("document set: an unknown condition key on an entry is invalid even re-hash
     verifyProvenanceArtifact(rehash(forged), expectations()).status,
     "INVALID",
   );
+});
+
+test("two different course file sets can never share one course id", async () => {
+  const shared = request();
+  shared.scopes[1].courseId = shared.scopes[0].courseId;
+  await assert.rejects(run(await good(), { request: shared }), {
+    message: "REQUEST_INVALID",
+  });
 });
