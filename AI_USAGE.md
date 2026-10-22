@@ -950,3 +950,8 @@ At source `89d7276`, fresh sequential typecheck/test/build/format/database gates
 all exit 0: 405 API Vitest + 952 API Node + 544 Web = 1,901 application tests;
 478 PG17 tests across 45 files; fail/skip/cancelled 0. The Vite chunk advisory
 remains. F09-A.1_CODE_VERIFIED applies only to this evaluator contract fix.
+The final clean-tree runtime run at `77419b9` also passes. Automatic policy
+review blocked cleanup before execution, returning only "blocked by policy".
+AI did not retry deletion by another route; read-only checks confirmed owned
+container/volume and ignored disposable credentials remain (context records the
+exact markers). Code verification and outstanding cleanup are separate.

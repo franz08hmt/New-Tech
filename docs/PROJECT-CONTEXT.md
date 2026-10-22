@@ -42,6 +42,18 @@ existing >500 kB chunk advisory. Logs, command/revision/exit records and summed
 DB counts are at `artifacts/f09a1-20261022/gates-89d7276`. No new UI/browser or
 semantic acceptance is claimed; later docs-only commits leave this source intact.
 
+Clean-tree integration at `77419b9` is retained in
+`artifacts/f09a-integration-eec4c0a3-9410-48a0-8366-ffffc29d26ec` (normal 33
+PASS/2 reference SKIP; negative 30 PASS/3 FAIL/2 SKIP; identical 37/37 calls).
+Cleanup was rejected before execution by automatic policy review, reason only
+"blocked by policy"; no alternate deletion was attempted. Read-only checks
+confirm container `examate-f09a1-pg17-20261022`, exclusive volume
+`examate-f09a1-data-20261022`, and ignored disposable credential file
+`artifacts/f09a1-20261022/runtime-target.json` remain. Labels on container/volume:
+task F09-A.1, repo Final-Project-integration-20261018, created 2026-10-22.
+RESOURCE_CLEANUP_BLOCKED is separate from code verification; preserve other
+stacks and do not infer approval to bypass policy from this checkpoint.
+
 ## F09-A — authenticated evaluation foundation (21–22/10/2026)
 
 Source checkpoint `97f8f82` adds `evaluate-rag --local-integration`, reusing the

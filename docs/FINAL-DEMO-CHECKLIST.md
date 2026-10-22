@@ -462,6 +462,14 @@ the separate F08-B checkpoint below.
 - [x] F09-A.1_CODE_VERIFIED for evaluator/runtime contract scope. Final docs-only
       commits preserve the verified source; rerunning the managed runtime test
       on clean HEAD records its exact Git SHA/dirty state in the retained report.
+- [x] Clean-tree runtime test at `77419b9`: 1/1, normal 33 PASS/2 reference
+      SKIP, negative 30 PASS/3 FAIL/2 SKIP, 37 SDK = 37 persisted calls, secret
+      scan PASS. Report/negative report are in
+      `artifacts/f09a-integration-eec4c0a3-9410-48a0-8366-ffffc29d26ec`.
+- [ ] RESOURCE_CLEANUP_BLOCKED: automatic policy review rejected cleanup before
+      execution ("blocked by policy"). Read-only inspection confirms the marked
+      F09-A.1 container/volume and ignored disposable credential file remain;
+      names/labels are recorded in PROJECT-CONTEXT. No workaround was attempted.
 - [ ] No new UI/browser acceptance or human semantic review is claimed.
       LIVE_EVALUATION_BLOCKED, SEMANTIC_REVIEW_PENDING and previous browser/
       cloud/Google/remote-machine pending remain unchanged. F09-B not started.
