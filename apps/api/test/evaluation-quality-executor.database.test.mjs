@@ -268,6 +268,31 @@ test("F09-B.2B.5 one quality batch through the real Nest/PG17 stack", async (t) 
       planned: other,
     });
     assert.equal(stale.refusal.reason, "APPROVAL_BINDING_MISMATCH");
+    // A request edited after approval, with its stored hashes left as they were,
+    // never reaches the real server.
+    const edited = {
+      ...planned,
+      plan: structuredClone(planned.plan),
+      suite: { ...planned.suite, bytes: Buffer.from(planned.suite.bytes) },
+    };
+    edited.plan.cases[0].request.body.message += " (edited after approval)";
+    const tampered = await executeQualityBatch({
+      ...inputs(planned, "quality-batch-1"),
+      planned: edited,
+    });
+    assert.equal(tampered.refusal.reason, "PLAN_REQUEST_HASH_MISMATCH");
+    // Provenance that belongs to another revision of the suite is refused too.
+    const v2Bytes = await readFile(
+      join(root, "docs/evaluation-quality-cases-v2.json"),
+    );
+    const foreignRevision = await executeQualityBatch({
+      ...inputs(planned, "quality-batch-1"),
+      provenance: {
+        ...inputs(planned, "quality-batch-1").provenance,
+        manifestBytes: v2Bytes,
+      },
+    });
+    assert.equal(foreignRevision.refusal.reason, "PROVENANCE_SUITE_MISMATCH");
     const after = await states();
     assert.deepEqual(after.telemetry, before.telemetry);
     assert.deepEqual(changed(before.tables, after.tables), []);

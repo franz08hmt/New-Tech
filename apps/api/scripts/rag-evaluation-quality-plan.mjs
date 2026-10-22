@@ -218,6 +218,24 @@ export async function planQualitySuite({
 }) {
   const suite = loadQualitySuite(manifestBytes);
   const resolved = parseQualityMapping(mappingInput, suite);
+  return {
+    ...(await assembleQualityPlan({ suite, resolved, target, options })),
+    suite,
+    resolved,
+  };
+}
+
+/**
+ * The canonical assembly of a plan from a validated suite and mapping. The
+ * planner uses it, and so does anyone who must check that a plan they were handed
+ * is exactly what the planner would have produced from the same inputs.
+ */
+export async function assembleQualityPlan({
+  suite,
+  resolved,
+  target,
+  options,
+}) {
   const { batchSize, timeoutMs, only } = options;
   if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 10)
     throw fail("QUALITY_BATCH_INVALID");
@@ -298,7 +316,7 @@ export async function planQualitySuite({
     },
   };
   validateQualityPlan(plan);
-  return { plan, planSha256: sha256(canonicalJson(plan)), suite, resolved };
+  return { plan, planSha256: sha256(canonicalJson(plan)) };
 }
 
 /** Structural invariants that must hold however the plan was produced or edited. */

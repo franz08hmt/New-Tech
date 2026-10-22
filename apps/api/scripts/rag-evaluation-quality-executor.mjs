@@ -14,6 +14,10 @@ import {
   reportSummary,
 } from "./rag-evaluation-lib.mjs";
 import {
+  assembleQualityPlan,
+  loadQualitySuite,
+} from "./rag-evaluation-quality-plan.mjs";
+import {
   checkCourseScopes,
   classify,
   evaluateProvenance,
@@ -175,12 +179,100 @@ const failureKindOf = (reply, assessment, reason) => {
   return assessment.status === "FAIL" ? "contract" : "none";
 };
 
+function deepFreeze(value) {
+  if (value && typeof value === "object" && !Buffer.isBuffer(value)) {
+    for (const key of Object.keys(value)) deepFreeze(value[key]);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+/**
+ * Checks the plan against the data it claims to describe and returns a private,
+ * immutable copy of what was verified. Nothing is trusted because it is stored:
+ * the suite bytes are re-hashed and re-parsed with the canonical loader, every
+ * request hash is recomputed from the request itself, and the whole plan is
+ * rebuilt by the canonical planner from those bytes and compared. The caller's
+ * objects are not consulted again after this returns.
+ */
+async function sealPlanned(candidate) {
+  const refuse = (reason) => ({ reason });
+  try {
+    const bytes = candidate?.suite?.bytes;
+    if (!Buffer.isBuffer(bytes)) return refuse("SUITE_BYTES_MISMATCH");
+    const digest = sha256(bytes);
+    if (
+      candidate.suite.manifestSha256 !== digest ||
+      candidate.plan?.suite?.manifestSha256 !== digest
+    )
+      return refuse("SUITE_BYTES_MISMATCH");
+    let loaded;
+    try {
+      loaded = loadQualitySuite(Buffer.from(bytes));
+    } catch {
+      return refuse("SUITE_BYTES_MISMATCH");
+    }
+    // The definition used for evaluation must be the one in those exact bytes.
+    if (
+      canonicalJson(loaded.definition) !==
+      canonicalJson(candidate.suite.definition)
+    )
+      return refuse("SUITE_DEFINITION_MISMATCH");
+    const given = candidate.plan;
+    for (const item of given.cases) {
+      const request = item.request;
+      if (
+        item.support === "supported" &&
+        (!request || sha256(canonicalJson(request)) !== item.requestSha256)
+      )
+        return refuse("PLAN_REQUEST_HASH_MISMATCH");
+    }
+    if (sha256(canonicalJson(given)) !== candidate.planSha256)
+      return refuse("PLAN_HASH_MISMATCH");
+    const rebuilt = await assembleQualityPlan({
+      suite: loaded,
+      resolved: structuredClone(candidate.resolved),
+      target: { base: new URL(given.target.base), origin: given.target.origin },
+      options: {
+        batchSize: given.limits.batchSize,
+        timeoutMs: given.timeoutMs,
+        only:
+          given.selection.requested === "all"
+            ? undefined
+            : given.selection.requested.join(","),
+      },
+    });
+    if (rebuilt.planSha256 !== candidate.planSha256) {
+      const without = (plan) => canonicalJson({ ...plan, batches: null });
+      return refuse(
+        without(rebuilt.plan) === without(given)
+          ? "PLAN_BATCH_MISMATCH"
+          : "PLAN_CONTENT_MISMATCH",
+      );
+    }
+    return {
+      sealed: deepFreeze({
+        plan: structuredClone(rebuilt.plan),
+        planSha256: rebuilt.planSha256,
+        resolved: structuredClone(candidate.resolved),
+        suite: {
+          definition: structuredClone(loaded.definition),
+          manifestSha256: digest,
+          bytes: Buffer.from(bytes),
+        },
+      }),
+    };
+  } catch {
+    return refuse("PLAN_CONTENT_MISMATCH");
+  }
+}
+
 /**
  * Executes exactly one batch. Returns a report; expected refusals are returned as
  * REFUSED reports with the reason and the stage that stopped them.
  */
 export async function executeQualityBatch({
-  planned,
+  planned: callerPlanned,
   batchId,
   approval,
   authorize,
@@ -194,7 +286,27 @@ export async function executeQualityBatch({
   onCheckpoint = async () => {},
   runId = randomUUID(),
 }) {
-  const binding = batchBinding(planned, batchId);
+  // Copies of everything the caller could change while this function awaits.
+  const prov = {
+    manifestBytes: provenance?.manifestBytes,
+    artifactText: provenance?.artifactText,
+    observationText: provenance?.observationText,
+    expectedDigest: provenance?.expectedDigest,
+  };
+  const acknowledged = Array.isArray(rerunAcknowledged)
+    ? [...rerunAcknowledged]
+    : [];
+  const sealedResult = await sealPlanned(callerPlanned);
+  if (sealedResult.reason) return refusal(sealedResult.reason, "integrity");
+  const planned = sealedResult.sealed;
+  // Provenance must have been verified against the very bytes of the approved suite.
+  if (
+    prov.manifestBytes !== undefined &&
+    (!Buffer.isBuffer(prov.manifestBytes) ||
+      sha256(prov.manifestBytes) !== planned.suite.manifestSha256)
+  )
+    return refusal("PROVENANCE_SUITE_MISMATCH", "integrity");
+  const binding = deepFreeze(batchBinding(planned, batchId) ?? null);
   if (!binding) return refusal("BATCH_UNKNOWN", "binding");
 
   // 1. The approval record must have the exact shape and bind exactly this batch.
@@ -238,11 +350,11 @@ export async function executeQualityBatch({
 
   // 3. Evidence about the data the cases will be asked about.
   const evidence = evaluateProvenance({
-    manifestBytes: provenance.manifestBytes,
+    manifestBytes: planned.suite.bytes,
     resolved: planned.resolved,
-    artifactText: provenance.artifactText,
-    observationText: provenance.observationText,
-    expectedDigest: provenance.expectedDigest,
+    artifactText: prov.artifactText,
+    observationText: prov.observationText,
+    expectedDigest: prov.expectedDigest,
   });
   if (evidence.provenanceArtifact.status === "unverified")
     return refusal("PROVENANCE_ARTIFACT_NOT_PROVIDED", "provenance");
@@ -256,7 +368,7 @@ export async function executeQualityBatch({
   try {
     equivalence =
       typeof targetEquivalence === "function"
-        ? await targetEquivalence({ binding })
+        ? await targetEquivalence({ binding: structuredClone(binding) })
         : undefined;
   } catch {
     equivalence = undefined;
@@ -271,7 +383,7 @@ export async function executeQualityBatch({
     fs: ledgerFs,
   });
   try {
-    await ledger.precheck({ acknowledged: rerunAcknowledged });
+    await ledger.precheck({ acknowledged });
   } catch (error) {
     return refusal(
       error instanceof HttpEvaluationError ? error.code : LEDGER_UNAVAILABLE,
@@ -307,7 +419,7 @@ export async function executeQualityBatch({
     suite: planned.plan.suite,
     planSha256: planned.planSha256,
     bindingSha256: ledgerKeyOf(binding),
-    batch: binding.batch,
+    batch: structuredClone(binding.batch),
     // Which authority said yes is the injected authorizer's; a test authorizer is no evidence of human approval.
     approval: {
       binding: "exact",
@@ -368,10 +480,7 @@ export async function executeQualityBatch({
     // 6. Reserve the batch. The intent is durable before the first POST; if it
     // cannot be written nothing is sent.
     try {
-      reservation = await ledger.reserve({
-        runId,
-        acknowledged: rerunAcknowledged,
-      });
+      reservation = await ledger.reserve({ runId, acknowledged });
     } catch (error) {
       return refusal(
         error instanceof HttpEvaluationError ? error.code : LEDGER_UNAVAILABLE,
@@ -461,7 +570,7 @@ export async function executeQualityBatch({
         assessment,
       });
       report.generationRequests = counters.generation;
-      await onCheckpoint({ ...report, status: "IN_PROGRESS" });
+      await onCheckpoint(structuredClone({ ...report, status: "IN_PROGRESS" }));
       // Any blocking outcome ends the batch: no second generation is sent while the
       // first may still be running or have been served.
       if (reason)
