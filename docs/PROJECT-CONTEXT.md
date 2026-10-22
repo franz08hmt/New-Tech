@@ -5,6 +5,97 @@ Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong 
 
 ## F07 contract and local implementation
 
+## F09-B.1 — authenticated HTTP evaluation transport and readiness (22/10/2026)
+
+Base `7e64f41`; source commit `6eafdeb`. `evaluate-rag.mjs --http-evaluation`
+reaches the public API through the existing session, CSRF and Origin contract, so
+the server decides principal, workspace and role. It is a separate mode: the legacy
+`--execute`/`--transport http` path still ends at `createLiveHarness` with
+`LIVE_EVALUATION_AUTH_REQUIRED`, and the new mode rejects `--transport`,
+`--max-provider-calls` and `--offline`. No maintenance pool, service key, debug
+route or principal override exists; `--user-id`, `--workspace-id`, `--role`,
+`--email`, `--password`, `--token`, `--cookie` and any other unknown flag are
+rejected without echoing the value. First scope is live document-question RAG of
+the frozen v3 manifest: E01, E03, E04, E05, E06, E07, E15, E16. Summary, course and
+Study Coach cases are out of scope.
+
+Transport: loopback `127.0.0.1`/`localhost`/`[::1]` only, path `/api`, no userinfo,
+query or hash, validated before any credential is read; the Origin sent must equal
+the server's configured origin and be loopback. Cookies live in memory and go only
+to the validated base; request paths are fixed in code (never taken from a
+response); redirects are refused (`redirect: manual`); nothing is retried and a
+session is never silently re-established. Credentials are one JSON object on stdin
+(`{"email","password"}`, at most 4 KiB, refused on a terminal); no argv, URL,
+environment, `.env`, browser cookie or clipboard source. Tests inject the source.
+
+Modes: dry run validates and prints an approvable `planSha256` (no secret, no
+network); `--preflight --credentials-stdin` logs in, reads configuration and
+`GET /documents/:id`, sends no generation, index or upload, and logs out;
+`--execute --credentials-stdin --approve-plan <hash>` is a separate opt-in that
+needs that exact hash and `qualityExecutionReady`. A plan that already began
+generating is refused unless `--rerun-acknowledged <runId>` names every prior run
+(ledger entry written before the first generation). Preflight conditions are
+reported separately: target, authSession, membership (role only, no user or
+workspace ID), documentScope (name, stored/ready, page count: metadata only),
+assistantStatus (configuration only), corpusProvenance and admissionReadiness.
+HTTP cannot show PDF bytes, index content or server admission, so the last two are
+`unverified`; that makes `qualityExecutionReady=false` and the CLI's execute ends
+BLOCKED `CORPUS_PROVENANCE_UNVERIFIED` with zero generation requests. Only an
+injected verifier (the test fixture's own maintenance path) can satisfy it.
+`transportReady` is not readiness; `complete` also needs admission and stays false.
+
+Execution: one POST per case with CSRF and Origin; every blocking outcome ends the
+run (`runCases` gained an optional `stopOn`; its default is unchanged), a timeout is
+recorded as `unknown_after_dispatch` and is never resent, 401/403/429 never trigger
+a re-login. The client request cap (`maxRequests`, 10) is not a provider cap:
+`maxProviderCalls`/`actualProviderBudget` are the string `unknown` and the
+`telemetry` block says retrieval trace `unavailable` and provider calls, usage and
+cost `unobserved`. Structural/citation checks of F09-A.3 apply; with no trace and
+no chunk verification a case is at best REVIEW_REQUIRED, never PASS without a
+human review. Reports use schema 3 (`http_dry_run`, `http_preflight`,
+`http_execute`), checkpoints per case (`wx`) and refuse an existing directory.
+
+Evidence (this session, not history): the transport suite runs a loopback stand-in
+(55 tests), the integration test uses the real Nest guard/session/CSRF, separate
+non-owner NOBYPASSRLS business and Auth LOGINs, PG17 RLS, retrieval, admission,
+telemetry and receipts, with only Auth upstream, SDK and Storage synthetic. It shows
+a manager and a viewer pass preflight; another workspace gets
+`DOCUMENT_NOT_FOUND_IN_SCOPE` for every document; a revoked membership gives
+`WORKSPACE_ACCESS_DENIED`; an expired session `AUTH_INVALID`; a wrong Origin
+`CSRF_INVALID`; forged `workspaceId`/`userId`/`role`/`principal` fields return 400
+with no provider call; preflight and blocked execute leave SDK, usage and receipt
+counters unchanged; a verified execute of E01/E04/E15 gives three REVIEW_REQUIRED
+(exit 2), 3 embedding + 2 generation SDK calls, 5 persisted provider calls and 3
+receipts (the server's accounting, which the report does not claim to observe); the
+same plan cannot run twice. Clean tree `6eafdeb`, dirty=false:
+`artifacts/f09b-http-integration-d0a28420-a813-4119-98ce-4f19b06adeae`.
+
+RED and mutation: the new suite failed to load before the module existed (feature
+absent); the shared runner at `HEAD` sent a second request after the first unknown
+outcome (2 attempts, 1 expected). The first integration run was already GREEN, so no
+integration RED is claimed. 17 mutations of the adapter (non-loopback host,
+following redirects, ignoring provenance, no ledger, default stop rule, retrying a
+POST, silent re-login, login email in the report, dry-run reading credentials,
+preflight generating, unknown budget as zero, page count unchecked, `--role`
+accepted, no Origin, membership not required, no plan approval, identity in the
+body) were all killed; 3 valid integration mutations (document scope, provenance
+gate, ledger) were killed and one badly designed mutant was discarded.
+
+Gates on a tree identical to `6eafdeb` (no file changed after they started):
+typecheck, build and format exit 0; `npm test` exit 0 with 457 API Vitest + 1,070
+API Node + 544 Web = 2,071 (2,016 before); guarded `npm run test:database` exit 0,
+479/479 in 46 files on an owned PG17; legacy evaluation 191/191 including the
+fail-closed live tests, and the F09-A integration still 33 PASS/2 SKIP after the
+fixture gained `httpTarget` helpers. Only `examate-f09b1-pg17-20261022` and its
+volume were removed; F09-A.1 resources and SOP containers were not touched.
+
+Not verified: no live model, real account, cloud, browser or UI; corpus provenance
+and admission over real HTTP; human semantic review. The v3 manifest has only 9
+live cases, so the planned 20 quality cases need a new frozen manifest (F09-B.2).
+`LIVE_EVALUATION_PENDING` and `SEMANTIC_REVIEW_PENDING` stay; F09-B.1 supplies
+`F09-B.1_CODE_VERIFIED` and `LOCAL_INTEGRATION_VERIFIED` for the transport only.
+Whole F09 is not complete.
+
 ## F09-A.3 — one citation contract for runtime and evaluator (22/10/2026)
 
 Base `d614fea` (F09-A.2 code `c487362`); source commit `d97c55d`. Closes the three

@@ -427,6 +427,38 @@ the separate F08-B checkpoint below.
 - [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
       cloud rollout, Google live and Thắng's machine are unchanged.
 
+## F09-B.1 — authenticated HTTP evaluation transport (22/10/2026)
+
+- [x] Separate `--http-evaluation` mode; legacy `--execute`/`--transport http` still
+      fail closed (evaluation 191/191 incl. the live fail-closed tests). No principal,
+      workspace or role input; unknown or secret-looking flags rejected unechoed.
+- [x] Loopback-only target and origin validated before credentials; redirects
+      refused; credentials on stdin only (never argv/env/files); no secret or account
+      mapping in any report, log or stdout (scanned in unit, CLI and integration).
+- [x] Dry run (no secret, no network), read-only preflight, and a separate execute
+      needing the exact plan hash. Execute without verified corpus provenance is
+      BLOCKED with zero generation; the same plan cannot run twice silently.
+- [x] No retry or silent re-login: timeout after dispatch stops the run as
+      `unknown_after_dispatch`; 401/429 stop; partial runs keep checkpoints; existing
+      report directories are refused.
+- [x] Telemetry the HTTP surface cannot show stays `unknown`/`unobserved`; a case is
+      at most REVIEW_REQUIRED, `qualityPasses` 0.
+- [x] Real Nest/PG17 integration (1/1): manager and viewer preflight; cross-tenant,
+      revoked, expired, wrong-Origin and forged-identity cases; verified execute of
+      3 cases gives 3 embedding + 2 generation SDK calls = 5 persisted calls and 3
+      receipts. Clean report: `artifacts/f09b-http-integration-d0a28420-a813-4119-98ce-4f19b06adeae`.
+- [x] RED: suite failed to load (feature absent); HEAD's `runCases` sent a second
+      request after an unknown outcome. The first integration run was GREEN (no
+      integration RED). 17 unit and 3 integration mutations killed.
+- [x] Gates at `6eafdeb`: typecheck, build, format exit 0; `npm test` exit 0, 457 +
+      1,070 + 544 = 2,071; `npm run test:database` exit 0, 479/479 in 46 files;
+      fail/skip/cancelled 0. Own container/volume removed.
+- [ ] `LIVE_EVALUATION_PENDING`: no live model, real account, cloud or Google run.
+      Corpus provenance and admission are unverified over HTTP, so a real execute is
+      blocked until F09-B.2. `SEMANTIC_REVIEW_PENDING` and browser/cloud/Google/
+      Thắng-machine pending are unchanged; RESOURCE_CLEANUP_BLOCKED (F09-A.1) remains.
+      The frozen v3 manifest has 9 live cases, fewer than the 20 planned.
+
 ## F09-A.3 — one citation contract for runtime and evaluator (22/10/2026)
 
 - [x] RED before the fix: unit spec 5 fail/49, evaluation 22 fail/191, HTTP/SSE

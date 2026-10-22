@@ -63,6 +63,15 @@ matrix, HTTP and SSE rejection tests, answer-only mutations of real Nest/PG17
 observations, 2,016 application tests and 478 PG17 tests. Live, human, browser
 and whole-F09 acceptance unchanged.
 
+F09-B.1 adds the authenticated HTTP transport that a later live evaluation needs:
+Auth, CSRF, Origin and membership are enforced by the server, the runner supplies
+no identity, and readiness is reported per condition (corpus provenance and server
+admission stay unverified over HTTP, which blocks quality execution). Evidence at
+`6eafdeb`: 55 transport tests, a real Nest/PG17 integration, 2,071 application and
+479 PG17 tests. This is `F09-B.1_CODE_VERIFIED` / `LOCAL_INTEGRATION_VERIFIED` for
+the transport only; live evaluation and semantic review remain pending and whole
+F09 is not accepted.
+
 Thành viên đọc được tài liệu của workspace; chưa có PDF riêng từng người trong
 cùng workspace. Auth PASS không thay RAG/STT PASS. Máy Thắng cần bằng chứng riêng.
 

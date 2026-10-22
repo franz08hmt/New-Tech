@@ -47,6 +47,47 @@ runtime test's matrix is now `citation-contract-mutation-matrix.json` (12
 mutations: answer or citation field only, with mutation ID, source run ID and
 field hashes). Historical reports stay as they are.
 
+## F09-B.1 — authenticated HTTP evaluation (22/10/2026)
+
+`--http-evaluation` evaluates live document-question RAG (E01, E03, E04, E05, E06,
+E07, E15, E16 of the frozen v3 manifest) through the public API. It is separate
+from the legacy `--execute`/`--transport http`, which remains blocked. Design and
+conditions are in PROJECT-CONTEXT and DECISIONS. Commands (PowerShell; the
+credential JSON is never an argument):
+
+```powershell
+npm run build --workspace @examate/api
+# 1. Dry run: validates, prints planSha256. No secret is read, no request is sent.
+node apps/api/scripts/evaluate-rag.mjs --http-evaluation --mapping artifacts/my-mapping.json --only E01,E04,E15 --output artifacts/http-plan-1
+# 2. Preflight: read-only. Pipe the credential JSON from a protected file.
+Get-Content -Raw "$env:LOCALAPPDATA\examate\eval-login.json" | node apps/api/scripts/evaluate-rag.mjs --http-evaluation --preflight --credentials-stdin --mapping artifacts/my-mapping.json --only E01,E04,E15 --output artifacts/http-preflight-1
+# 3. Execute: only with the hash printed in step 1; blocked until provenance is verified.
+```
+
+The credential file is exactly `{"email":"...","password":"..."}`. The target defaults
+to `http://127.0.0.1:3000/api/` and the origin to `http://127.0.0.1:5173` (the server's
+configured origin); both must be loopback. The report lists each condition as
+`verified`, `failed` or `unverified` plus `transportReady`, `qualityExecutionReady`
+and `complete`. Exit codes: dry run 0; preflight 0, or 3 if a condition failed;
+execute follows the existing statuses (FAIL 1, BLOCKED/NOT_ATTEMPTED 3, REVIEW_REQUIRED
+2). Retrieval trace, chunk existence, provider calls, usage and cost are unknown over
+HTTP and are written as such; a case is at most REVIEW_REQUIRED before human review.
+
+Before any real execute an operator must provide, outside the chat: approval for the
+target, batch size and quota; a dedicated test account whose password stays in the
+operator's secret store and is piped by the operator; the two frozen PDFs ingested in
+that account's workspace with a mapping of document IDs; and a provenance path
+(F09-B.2) that proves stored bytes and index content match the corpus manifest.
+
+Proposed F09-B.2: (a) author and freeze a new manifest of at least 20 live quality
+cases (the v3 manifest has 9), covering document, course, no-evidence, Vietnamese,
+injection and summary, with gold facts and pages reviewed by Tài and Thắng before any
+run and a new corpus revision where needed; (b) a provenance attestation produced by
+an operator-run maintenance check (stored PDF SHA-256 and indexed page text against
+the manifest, bound to the mapped document IDs) that the runner verifies; (c) approved
+batches within the request cap, never counting fixture or reference cases in the
+quality denominator; (d) human semantic review of every attempted case.
+
 The formal runtime DB test retains a separate `negative-output-report.json`:
 it removes only the RAG/Quiz/Flashcards output from real observations, expects
 3 FAIL rather than PASS, and asserts identical accounting/usage/latency to the

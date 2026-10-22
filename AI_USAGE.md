@@ -992,3 +992,24 @@ tests and 478 PG17 tests, exit 0; the owned container and volume were removed an
 other task resources were untouched. No model, prompt, retrieval, migration,
 corpus/gold or dependency changed, and no human review, browser acceptance or live
 model result was produced.
+
+## 2026-10-22 — F09-B.1 authenticated HTTP evaluation transport
+
+AI assistance surveyed the legacy runner and its fail-closed harness, the session,
+CSRF and Origin contract and the F09-A fixtures, then designed a separate
+`--http-evaluation` mode: loopback-only target validated before any credential,
+stdin credentials, a cookie jar in memory, refused redirects, no retries, and
+dry-run, preflight and execute as separate opt-ins with an approvable plan hash and
+a ledger. It wrote the transport tests first (the suite failed because the module
+did not exist), implemented the adapter, extended the F09-A fixture with an HTTP
+target and wrote a Nest/PG17 integration test. The first integration run passed, so
+no integration RED is claimed. 17 unit and 3 valid integration mutations were killed;
+one badly designed mutant was discarded. One AI edit script lost a backslash and was
+redone with the editing tool, and one first-draft test of mapping/request-cap
+behavior was corrected to match the intended rejection. The AI observed that HTTP
+cannot show corpus provenance or server admission and made that block quality
+execution instead of assuming it, and noted that the frozen manifest has only 9 live
+cases for the planned 20. Gates at `6eafdeb`: 2,071 application tests and 479 PG17
+tests, exit 0. The AI created, used and removed only its own labeled container and
+volume. No real account, provider, cloud call, human review or browser acceptance
+was produced, and no secret was requested or handled.

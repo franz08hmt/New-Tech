@@ -732,3 +732,21 @@ accepted a malformed source-like text and substituted the fixed refusal). Reject
 output is HTTP 502/SSE `error`, never partial content. Sanitizing helpers (history
 marker stripping, stream marker filter) are not validators and keep their regexes.
 Machine contract failures stay FAIL; claim support stays human review.
+
+F09-B.1 decision: live evaluation goes through the public HTTP API as an
+authenticated client, never through the maintenance runner. The legacy
+`--execute`/`--transport http` path stays fail-closed; `--http-evaluation` is a
+separate mode so a flag cannot silently switch between them. The session, CSRF and
+Origin contract of the app is reused unchanged: the runner never supplies a
+principal, workspace or role, and no debug route or privilege is added. Credentials
+are one JSON object on stdin, read only after the target is validated and only in
+preflight/execute. Dry run, preflight and execute are separate opt-ins, and execute
+needs the exact plan hash and every quality-execution condition. Corpus provenance
+and server admission cannot be observed through permitted HTTP calls, so they are
+reported `unverified`, which blocks quality execution instead of being assumed; no
+endpoint exposing chunk text was added. The client request cap is not a provider
+cap and everything HTTP cannot show stays `unknown`/`unobserved`, never zero.
+Generation is one POST per case with no retry and no silent re-login; an outcome
+unknown after dispatch ends the run, and a plan that began generating cannot run
+again without naming its prior runs. `runCases` gained an optional stop rule whose
+default is the historical one.
