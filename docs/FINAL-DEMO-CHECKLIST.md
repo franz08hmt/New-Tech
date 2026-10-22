@@ -427,6 +427,24 @@ the separate F08-B checkpoint below.
 - [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
       cloud rollout, Google live and Thắng's machine are unchanged.
 
+## F09-B.2B.3.1 — blank baseline correction (22/10/2026)
+
+- [x] Correction: the B.2B.3 entry below said no documents existed at setup; the shared
+      bootstrap had seeded 12 documents and 12 chunks. The corpus PDFs were still
+      uploaded and indexed through the real services; production was not at fault.
+- [x] RED on the database (documents 12 / chunks 12), GREEN after the `seedDocuments`
+      option (default unchanged). Runtime assertions: 0/0 and no provider call before
+      upload; exactly the three API ids after upload; chunks only for them after
+      processing. Mutants (option ignored, default flipped) killed. Source scan kept
+      as supplementary and no longer claimed to prove the call graph.
+- [x] Source `ff44b41`: chain 13/13, oracle PASS, typecheck/build/format exit 0,
+      `npm test` 2,273, full `test:database` 512/512 in 49 files — new runs.
+- [ ] Blockers by owner: engineering (controlled-execution path on synthetic
+      boundaries); team decisions (gold, RQ23, target-equivalence design, live batch
+      and budget); real environment (audit of the real project, live run, browser/cloud/
+      Google/Thắng-machine). `GOLD_REVIEW_PENDING`, `LIVE_EVALUATION_PENDING`,
+      `SEMANTIC_REVIEW_PENDING` unchanged. Not F09 complete.
+
 ## F09-B.2B.3 — upload → ingestion → audit → preflight chain (22/10/2026)
 
 - [x] Documents created by the public upload route and indexed by the processing

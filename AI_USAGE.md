@@ -1191,3 +1191,19 @@ Source `acd2b3c`: chain 12/12, focused 492/492, `npm test` 2,273, full
 exit 0. No production change, provider or model call, real account, secret, cloud
 write, push or deploy. Execution stays refused; the AI gold review remains AI judgement
 and gold approval, live evaluation and semantic review stay pending.
+
+## 2026-10-22 — F09-B.2B.3.1 blank-baseline correction
+
+An independent review found that the B.2B.3 chain started with twelve sample documents
+and twelve chunks inherited from the shared tenant fixture, contradicting my report that
+setup held no documents. AI assistance reproduced it first as a failing runtime assertion
+on the database, added an explicit `seedDocuments` option (default unchanged), switched
+the chain to it and added database assertions for the exact id sets; two mutants of the
+helper confirmed the checks bite. While editing, a shell-escaped regex briefly turned the
+supplementary source scan into one that matched nothing; a non-vacuity guard now prevents
+that. No production code changed.
+
+Source `ff44b41`: chain 13/13, `npm test` 2,273, full `test:database` 512/512 (49 files,
+own guarded PG17), typecheck/build/format exit 0. No provider or model call, real account,
+secret, cloud write, push or deploy; gold review, live evaluation and semantic review stay
+pending and nothing is signed for Tài or Thắng.

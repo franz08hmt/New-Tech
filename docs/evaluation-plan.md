@@ -162,6 +162,13 @@ quality-suite preflight and a provenance audit work on data the services themsel
 persisted; it is not a live evaluation, and a controlled execution would still need
 the blockers listed in the context checkpoint.
 
+F09-B.2B.3.1 (source `ff44b41`) corrects the B.2B.3 note above: the chain now starts from
+a blank bootstrap (`openDocumentsTenantFixture({ seedDocuments: false })`) and asserts 0
+documents / 0 chunks before upload, exactly the three uploaded ids afterwards and chunks
+only for them after processing. The earlier run had inherited twelve sample rows from the
+shared helper. Re-run command unchanged:
+`node --test apps/api/test/evaluation-ingestion-chain.database.test.mjs`.
+
 **Current boundary, 18/10/2026:** live `--execute` is BLOCKED (exit 3) before
 DB/Storage/Gemini because this runner has no verified workspace principal.
 Offline/dry-run remain available. Live commands/transport descriptions below

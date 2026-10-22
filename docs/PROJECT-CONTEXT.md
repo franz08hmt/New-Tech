@@ -3,6 +3,57 @@
 Cập nhật 22/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
+## F09-B.2B.3.1 — blank baseline for the chain (22/10/2026)
+
+**Correction to the B.2B.3 checkpoint below (kept as written for history).** For source
+`acd2b3c` the chain fixture called `openDocumentsTenantFixture()`, whose bootstrap
+seeds twelve sample documents and twelve chunks (four per tenant). So "setup has no
+documents or chunks; only users, memberships and courses are seeded" and "setup — no
+document" were not true: the database held 12 documents and 12 chunks before the first
+upload, inserted by a helper the static source scan could not see. The three corpus
+PDFs were still created by the upload route and indexed by the processing endpoint,
+and the audited documents were still those three; production ingestion was not at
+fault. An independent reviewer reproduced it (oracle FAIL: documents=12, chunks=12).
+
+Fix (test infrastructure only): `openDocumentsTenantFixture` takes
+`{ seedDocuments }` (default `true`, unchanged for its 32 other callers); `false`
+keeps the schema, migrations, capability roles, workspaces, memberships and courses
+and drops only the sample documents/chunks. The chain uses `false` and now asserts on
+the database: before upload 0 documents, 0 chunks and zero provider calls, operations
+and receipts (with base data present); after upload exactly the three API-returned
+ids and 0 chunks; after processing no document or chunk outside those ids and a chunk
+total equal to the processing responses. The source scan stays only as a supplementary
+check (it is now guarded against matching nothing and requires the blank mode at the
+single call site); it is not the proof. A pin test keeps the default 12/12 and shows
+blank mode differs only in those rows.
+
+`F09-B.2B.3.1_CODE_VERIFIED`, source `ff44b41`. RED: the new runtime assertion failed
+with documents 12 / chunks 12 before the fix; GREEN after. Mutants killed: option
+ignored (chain and pin tests), default flipped to false (pin test). Chain 13/13,
+reviewer oracle PASS, typecheck/build/format exit 0, `npm test` 2,273
+(457 + 1,272 + 544), full `test:database` 512/512 in 49 files — new runs. The
+B.2B.3 conclusions otherwise stand (and `F09-B.2B.3_CODE_VERIFIED +
+LOCAL_INGESTION_AUDIT_PREFLIGHT_VERIFIED + EXECUTION_BLOCKED` now rests on a blank
+baseline). Not F09 complete.
+
+Remaining blockers, by who can act:
+- **Engineering agent (local, no real account):** a quality-suite controlled-execution
+  code path — ledger-backed, bound to the plan hash, one approved batch at a time,
+  provenance and preflight as hard prerequisites, tested against synthetic
+  Storage/Auth/SDK so it can be proven to dispatch nothing without approval; a v2 suite
+  revision once the decisions below exist; human-review ingestion that cannot self-
+  approve.
+- **Decisions or approvals only the team can give:** Tài–Thắng gold review and the
+  points raised by the AI review (RQ05, RQ09/RQ10, RQ14, RQ21–RQ23, `minCitations`,
+  the synthetic-vs-real and language rules, RQ23's fate); whether target equivalence
+  becomes a product feature (a trusted attestation the server can give) or a manual
+  operator procedure; batch size, quota and budget for any live run; who holds the
+  maintenance credential.
+- **Needs a real environment or account:** an audit of the real Supabase project with
+  a maintenance credential; real Storage/Auth/Gemini behaviour and quota; a live
+  batch; human semantic review of real answers; browser, cloud, Google and Thắng-
+  machine acceptance; F09-A.1 resource cleanup (blocked by policy).
+
 ## F09-B.2B.3 — upload → ingestion → audit → preflight on one runtime (22/10/2026)
 
 Closes the persistence gap left by B.2B.1/B.2B.2, whose fixtures wrote the index

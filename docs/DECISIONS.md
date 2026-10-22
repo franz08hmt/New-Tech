@@ -886,3 +886,13 @@ bookkeeping. Call counts are derived from the real chunk and batch sizes. The re
 requests that the usage layer records as `rejected` operations are reported as they
 are rather than hidden. Same-fixture agreement is not treated as target equivalence,
 and no production code was changed to make the chain run.
+
+F09-B.2B.3.1 decision: a claim about initial state is proven on the database, not read
+off the source. The chain fixture reused a bootstrap that silently seeded sample rows;
+the fix adds an explicit `seedDocuments` option to the shared helper (default unchanged,
+so its other callers and their evidence are untouched) instead of seeding and deleting or
+cloning the bootstrap. The chain asserts counts before upload, the exact id set after
+upload and the chunk owners after processing, so a regression of the same kind fails at
+runtime. The source scan is demoted to a supplementary check and guarded against being
+vacuous, because it cannot see SQL in a helper. The earlier B.2B.3 text is corrected by a
+dated note and left in place.
