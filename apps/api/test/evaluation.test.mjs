@@ -1146,13 +1146,9 @@ test("F09-A costs preserve currency/pricing and unknown coverage, valid zero dif
   assert.equal(result.usageCoverage.partial, 1);
 });
 test("F09-A injection conclusion is INCONCLUSIVE if malicious data did not enter provider context", () => {
-  const item = localDefinition.cases.find((c) => c.scenario === "injection");
-  const assessment = assessLocalCase(item, {
-    httpStatus: 200,
-    providerCalls: 2,
-    evidence: [{ factIds: ["codename"] }],
-    injectionInModelContext: false,
-  });
+  const { item, result } = requiredOutputObservation("injection");
+  result.injectionInModelContext = false;
+  const assessment = assessLocalCase(item, result);
   assert.equal(assessment.status, "INCONCLUSIVE");
   assert.equal(assessment.dimensions.claimGrounding, "PENDING_HUMAN");
 });
@@ -1169,5 +1165,223 @@ test("F09-A refuses principal/base URL/live arguments rather than enabling an Au
     );
     assert.equal(result.status, 1);
     assert.match(result.stderr, /LOCAL_EVALUATION_ARGUMENT_INVALID/);
+  }
+});
+
+// Independent observations of the promised HTTP output, not SDK-generated answers.
+const currentLocalDefinition = JSON.parse(
+  readFileSync(
+    new URL("../../../docs/evaluation-cases-f09a-v2.json", import.meta.url),
+  ),
+);
+function requiredOutputObservation(scenario) {
+  const item = currentLocalDefinition.cases.find(
+    (c) => c.scenario === scenario,
+  );
+  const evidence = [
+    {
+      sourceId: "S1",
+      file: "source.pdf",
+      page: 1,
+      factIds: item.semanticExpected?.facts ?? [],
+    },
+  ];
+  const quiz = {
+    title: "Synthetic quiz",
+    language: "en",
+    questions: Array.from({ length: 3 }, (_, i) => ({
+      question: `Question ${i + 1}?`,
+      options: ["One", "Two", "Three", "Four"],
+      correctIndex: 0,
+      explanation: "An explanation.",
+      sourceIds: ["S1"],
+    })),
+  };
+  const cards = {
+    title: "Synthetic cards",
+    language: "en",
+    cards: Array.from({ length: 3 }, (_, i) => ({
+      front: `Front ${i + 1}`,
+      back: "Back",
+      sourceIds: ["S1"],
+    })),
+  };
+  const refusal = scenario === "rag_no_evidence";
+  return {
+    item,
+    result: {
+      httpStatus: item.expected.httpStatus,
+      providerCalls: item.expected.providerCalls,
+      reasonCode: item.expected.code,
+      telemetryMatches: true,
+      privacyVerified: true,
+      receiptPresent: true,
+      answerable: !refusal,
+      injectionInModelContext: true,
+      evidence,
+      reviewOutput:
+        scenario === "quiz_valid"
+          ? quiz
+          : scenario === "flashcards_valid"
+            ? cards
+            : {
+                answer: refusal ? "Not enough evidence." : "A grounded answer.",
+                answerable: !refusal,
+                citations: refusal
+                  ? []
+                  : [{ sourceId: "S1", title: "source.pdf", page: 1 }],
+              },
+    },
+  };
+}
+for (const scenario of [
+  "rag_document",
+  "quiz_valid",
+  "flashcards_valid",
+  "rag_no_evidence",
+]) {
+  test(`F09-A.1 ${scenario} valid output is a structural contract PASS`, () => {
+    const { item, result } = requiredOutputObservation(scenario);
+    const assessment = assessLocalCase(item, result);
+    assert.equal(assessment.status, "PASS");
+    assert.equal(assessment.dimensions.structural, true);
+    assert.equal(assessment.dimensions.semanticCorrectness, "PENDING_HUMAN");
+  });
+  for (const [label, value] of [
+    ["missing", undefined],
+    ["null", null],
+    ["string", "not an output"],
+    ["array", []],
+    ["number", 42],
+  ]) {
+    test(`F09-A.1 ${scenario} rejects ${label} required output without throwing`, () => {
+      const { item, result } = requiredOutputObservation(scenario);
+      result.reviewOutput = value;
+      const assessment = assessLocalCase(item, result);
+      assert.equal(assessment.status, "FAIL");
+      assert.equal(assessment.dimensions.structural, false);
+    });
+  }
+}
+const outputMutations = {
+  rag_document: {
+    "missing answer": (o) => delete o.answer,
+    "blank answer": (o) => (o.answer = " \n "),
+    "wrong answer type": (o) => (o.answer = 123),
+    "missing citations": (o) => delete o.citations,
+    "empty citations": (o) => (o.citations = []),
+    "wrong citations type": (o) => (o.citations = {}),
+    "null citation": (o) => (o.citations = [null]),
+    "missing citation field": (o) => delete o.citations[0].page,
+    "invalid citation page": (o) => (o.citations[0].page = "1"),
+    "foreign citation": (o) => (o.citations[0].sourceId = "FOREIGN"),
+    "wrong answerability": (o) => (o.answerable = false),
+  },
+  rag_no_evidence: {
+    "missing answer": (o) => delete o.answer,
+    "missing citations": (o) => delete o.citations,
+    "cited refusal": (o) =>
+      (o.citations = [{ sourceId: "S1", title: "source.pdf", page: 1 }]),
+    "wrong answerability": (o) => (o.answerable = true),
+  },
+  quiz_valid: {
+    "missing questions": (o) => delete o.questions,
+    "wrong questions type": (o) => (o.questions = {}),
+    "wrong count": (o) => o.questions.pop(),
+    "null question": (o) => (o.questions[0] = null),
+    "blank question": (o) => (o.questions[0].question = " "),
+    "wrong question type": (o) => (o.questions[0].question = 1),
+    "wrong options type": (o) => (o.questions[0].options = "four"),
+    "blank option": (o) => (o.questions[0].options[0] = " "),
+    "wrong option type": (o) => (o.questions[0].options[0] = 1),
+    "duplicate options": (o) =>
+      (o.questions[0].options[0] = o.questions[0].options[1]),
+    "blank explanation": (o) => (o.questions[0].explanation = " "),
+    "wrong explanation type": (o) => (o.questions[0].explanation = 1),
+    "fractional index": (o) => (o.questions[0].correctIndex = 0.5),
+    "out of range index": (o) => (o.questions[0].correctIndex = 4),
+    "string index": (o) => (o.questions[0].correctIndex = "0"),
+    "wrong source IDs type": (o) => (o.questions[0].sourceIds = "S1"),
+    "wrong source ID type": (o) => (o.questions[0].sourceIds = [1]),
+    "empty sources": (o) => (o.questions[0].sourceIds = []),
+    "foreign sources": (o) => (o.questions[0].sourceIds = ["FOREIGN"]),
+    "duplicate question": (o) =>
+      (o.questions[1].question = o.questions[0].question),
+    "flashcards instead": (o) => {
+      delete o.questions;
+      o.cards =
+        requiredOutputObservation("flashcards_valid").result.reviewOutput.cards;
+    },
+    "both artifact types": (o) => (o.cards = []),
+  },
+  flashcards_valid: {
+    "missing cards": (o) => delete o.cards,
+    "wrong cards type": (o) => (o.cards = {}),
+    "wrong count": (o) => o.cards.pop(),
+    "null card": (o) => (o.cards[0] = null),
+    "blank front": (o) => (o.cards[0].front = " "),
+    "wrong front type": (o) => (o.cards[0].front = 1),
+    "blank back": (o) => (o.cards[0].back = " \n "),
+    "wrong back type": (o) => (o.cards[0].back = 1),
+    "wrong source IDs type": (o) => (o.cards[0].sourceIds = "S1"),
+    "wrong source ID type": (o) => (o.cards[0].sourceIds = [1]),
+    "empty sources": (o) => (o.cards[0].sourceIds = []),
+    "foreign sources": (o) => (o.cards[0].sourceIds = ["FOREIGN"]),
+    "duplicate front normalized": (o) =>
+      (o.cards[1].front = ` ${o.cards[0].front.toUpperCase()} `),
+    "quiz instead": (o) => {
+      delete o.cards;
+      o.questions =
+        requiredOutputObservation("quiz_valid").result.reviewOutput.questions;
+    },
+    "both artifact types": (o) => (o.questions = []),
+  },
+};
+for (const [scenario, mutations] of Object.entries(outputMutations)) {
+  for (const [label, mutate] of Object.entries(mutations)) {
+    test(`F09-A.1 ${scenario} rejects ${label}`, () => {
+      const { item, result } = requiredOutputObservation(scenario);
+      mutate(result.reviewOutput);
+      const assessment = assessLocalCase(item, result);
+      assert.equal(assessment.status, "FAIL");
+      assert.ok(Object.values(assessment.checks).includes(false));
+    });
+  }
+}
+test("F09-A.1 missing evidence or receipt cannot replace a valid grounded response", () => {
+  for (const mutate of [
+    (r) => (r.evidence = undefined),
+    (r) => (r.evidence = [null]),
+    (r) => (r.receiptPresent = false),
+  ]) {
+    const { item, result } = requiredOutputObservation("rag_document");
+    mutate(result);
+    assert.equal(assessLocalCase(item, result).status, "FAIL");
+  }
+});
+test("F09-A.1 expected errors and non-content cases do not require generated answers", () => {
+  const scenarios = [
+    "provider_timeout",
+    "quiz_malformed",
+    "flashcards_source",
+    "missing_session",
+    "expired_session",
+    "forged_principal",
+    "auth_capability",
+    "admission_denial",
+    "workspace_sql",
+    "read_save_practice",
+  ];
+  for (const scenario of scenarios) {
+    const item = currentLocalDefinition.cases.find(
+      (c) => c.scenario === scenario,
+    );
+    const assessment = assessLocalCase(item, {
+      httpStatus: item.expected.httpStatus,
+      providerCalls: item.expected.providerCalls,
+      code: item.expected.code,
+    });
+    assert.equal(assessment.status, "PASS", scenario);
+    assert.equal(assessment.dimensions.structural, "not_assessed", scenario);
   }
 });

@@ -3,6 +3,8 @@ import { resolve, relative, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { assertTestDatabaseTarget } from "./test-database-target.mjs";
+import { parseStudyQuizOutput } from "../dist/study-coach/study-quiz-validation.js";
+import { parseStudyFlashcardsOutput } from "../dist/study-coach/study-flashcards-validation.js";
 import {
   validateLocalDefinition,
   localGitSnapshot,
@@ -12,6 +14,115 @@ import {
 } from "./rag-evaluation-local-lib.mjs";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
+// Contracts belong to scenarios, never to whichever optional fields arrived.
+const contentContracts = Object.freeze({
+  rag_document: "grounded_rag",
+  rag_course: "grounded_rag",
+  injection: "grounded_rag",
+  usage_zero: "grounded_rag",
+  usage_missing: "grounded_rag",
+  usage_partial: "grounded_rag",
+  privacy: "grounded_rag",
+  rag_no_evidence: "refusal",
+  quiz_valid: "quiz",
+  flashcards_valid: "flashcards",
+});
+const nonContentScenarios = new Set([
+  "auth_capability",
+  "read_save_practice",
+  "workspace_sql",
+  "reference_browser",
+  "reference_live_semantic",
+]);
+const record = (value) =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+const nonBlank = (value) =>
+  typeof value === "string" && value.trim().length > 0;
+
+function checkContent(contract, result) {
+  const content = result.reviewOutput;
+  const evidence = Array.isArray(result.evidence)
+    ? result.evidence.filter(record)
+    : [];
+  if (contract === "grounded_rag" || contract === "refusal") {
+    const cited = contract === "grounded_rag";
+    const structure =
+      record(content) &&
+      !Object.hasOwn(content, "questions") &&
+      !Object.hasOwn(content, "cards") &&
+      nonBlank(content.answer) &&
+      typeof content.answerable === "boolean" &&
+      Array.isArray(content.citations) &&
+      (cited ? content.citations.length > 0 : content.citations.length === 0) &&
+      content.citations.every(
+        (c) =>
+          record(c) &&
+          nonBlank(c.sourceId) &&
+          nonBlank(c.title) &&
+          Number.isSafeInteger(c.page) &&
+          c.page > 0,
+      );
+    return {
+      responseStructure: structure,
+      answerability:
+        structure &&
+        content.answerable === cited &&
+        result.answerable === cited,
+      citationScope:
+        structure &&
+        content.citations.every((c) =>
+          evidence.some(
+            (e) =>
+              e.sourceId === c.sourceId &&
+              e.file === c.title &&
+              e.page === c.page,
+          ),
+        ),
+      receipt: result.receiptPresent === true,
+    };
+  }
+  // The observation is a projection, with server source metadata alongside it.
+  // Reuse pure production validators for its actual artifact payload; do not
+  // fabricate title/language or accept a different artifact as a substitute.
+  const sourceIds = new Set(
+    evidence.filter((e) => nonBlank(e.sourceId)).map((e) => e.sourceId),
+  );
+  let validated;
+  if (record(content)) {
+    try {
+      if (contract === "quiz" && !Object.hasOwn(content, "cards"))
+        validated = parseStudyQuizOutput(
+          JSON.stringify({
+            title: content.title,
+            language: content.language,
+            questions: content.questions,
+          }),
+          3,
+          "en",
+          sourceIds,
+        );
+      if (contract === "flashcards" && !Object.hasOwn(content, "questions"))
+        validated = parseStudyFlashcardsOutput(
+          JSON.stringify({
+            title: content.title,
+            language: content.language,
+            cards: content.cards,
+          }),
+          3,
+          "en",
+          sourceIds,
+        );
+    } catch {
+      // Malformed observations are machine failures; never leak raw content.
+      validated = undefined;
+    }
+  }
+  return {
+    responseStructure: validated !== undefined,
+    citationScope: validated !== undefined,
+  };
+}
+
 export function assessLocalCase(item, result) {
   const checks = {
     runtime: !result.runtimeFailure,
@@ -24,50 +135,30 @@ export function assessLocalCase(item, result) {
     checks.code =
       result.code === item.expected.code ||
       result.reasonCode === item.expected.code;
-  const content = result.reviewOutput;
-  if (item.scenario === "rag_no_evidence")
-    checks.abstention =
-      result.answerable === false && content?.citations.length === 0;
-  if (content?.citations?.length)
-    checks.citationScope = content.citations.every((c) =>
-      result.evidence.some(
-        (e) =>
-          e.sourceId === c.sourceId && e.file === c.title && e.page === c.page,
-      ),
-    );
-  if (content?.questions || content?.cards) {
-    const items = content.questions ?? content.cards;
-    checks.structuredOutput =
-      items.length === 3 &&
-      items.every(
-        (q) =>
-          q.sourceIds.length > 0 &&
-          q.sourceIds.every((id) =>
-            result.evidence.some((e) => e.sourceId === id),
-          ),
-      );
-    if (content.questions)
-      checks.choices = content.questions.every(
-        (q) =>
-          q.options.length === 4 &&
-          new Set(q.options).size === 4 &&
-          q.correctIndex >= 0 &&
-          q.correctIndex < 4 &&
-          q.explanation.length > 0,
-      );
-    if (content.cards)
-      checks.frontBack =
-        content.cards.every((c) => c.front.trim() && c.back.trim()) &&
-        new Set(content.cards.map((c) => c.front.toLowerCase())).size === 3;
-  }
+  const contract =
+    contentContracts[item.scenario] ??
+    (item.expected.httpStatus >= 400
+      ? "expected_error"
+      : nonContentScenarios.has(item.scenario)
+        ? "no_generated_content"
+        : undefined);
+  checks.outputContract = contract !== undefined;
+  if (Object.hasOwn(contentContracts, item.scenario))
+    Object.assign(checks, checkContent(contract, result));
   if (item.semanticExpected?.facts)
-    checks.goldEvidenceCoverage = item.semanticExpected.facts.every((f) =>
-      result.evidence.some((e) => e.factIds.includes(f)),
-    );
+    checks.goldEvidenceCoverage =
+      Array.isArray(result.evidence) &&
+      item.semanticExpected.facts.every((f) =>
+        result.evidence.some(
+          (e) => record(e) && Array.isArray(e.factIds) && e.factIds.includes(f),
+        ),
+      );
   if (item.scenario.startsWith("usage_")) {
-    const call = result.telemetry.calls.find(
-      (c) => c.call_type === "generation",
-    );
+    const call = Array.isArray(result.telemetry?.calls)
+      ? result.telemetry.calls.find(
+          (c) => record(c) && c.call_type === "generation",
+        )
+      : undefined;
     checks.usage =
       call?.usage_status ===
       {
@@ -82,20 +173,18 @@ export function assessLocalCase(item, result) {
     if (item.scenario === "usage_zero")
       checks.zeroTokens = call?.total_tokens === "0";
   }
-  if (item.scenario.startsWith("rag_") && result.httpStatus === 200)
-    checks.receipt = result.receiptPresent;
   const passed = Object.values(checks).every(Boolean);
   const injectionUnobserved =
     item.scenario === "injection" && !result.injectionInModelContext;
   return {
     status: passed ? (injectionUnobserved ? "INCONCLUSIVE" : "PASS") : "FAIL",
     scope: "local_runtime_contract_only",
+    reason: passed ? null : "LOCAL_CONTRACT_CHECK_FAILED",
     checks,
     dimensions: {
-      structural: checks.structuredOutput ?? checks.httpStatus,
+      structural: checks.responseStructure ?? "not_assessed",
       retrievalEvidence: checks.goldEvidenceCoverage ?? "not_assessed",
-      citationScope:
-        checks.citationScope ?? checks.structuredOutput ?? "not_assessed",
+      citationScope: checks.citationScope ?? "not_assessed",
       semanticCorrectness: "PENDING_HUMAN",
       semanticCompleteness: "PENDING_HUMAN",
       claimGrounding: "PENDING_HUMAN",

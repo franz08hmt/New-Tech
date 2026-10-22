@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { assertTestDatabaseTarget } from "../scripts/test-database-target.mjs";
-import { verifyLocalReviewBinding } from "../scripts/rag-evaluation-local-lib.mjs";
+import {
+  makeLocalReport,
+  verifyLocalReviewBinding,
+} from "../scripts/rag-evaluation-local-lib.mjs";
+import { assessLocalCase } from "../scripts/rag-evaluation-local.mjs";
 
 test("F09-A authenticated Nest/PG17 runtime executes fixed cases with real RLS/admission/telemetry", () => {
   assertTestDatabaseTarget(process.env.TEST_DATABASE_URL);
@@ -89,12 +93,51 @@ test("F09-A authenticated Nest/PG17 runtime executes fixed cases with real RLS/a
       false,
       `report must omit ${sentinel}`,
     );
+  // Negative oracle at the report boundary: retain real HTTP/evidence/telemetry
+  // observations and remove only the three promised outputs, never the service.
+  const manifestBytes = readFileSync(
+    resolve(root, "docs/evaluation-cases-f09a-v2.json"),
+  );
+  const definition = JSON.parse(manifestBytes);
+  const affected = new Set(["rag_document", "quiz_valid", "flashcards_valid"]);
+  const observations = report.results.map((row) => {
+    const item = definition.cases.find((c) => c.id === row.caseId);
+    if (!affected.has(item.scenario)) return row;
+    const missing = { ...row, reviewOutput: undefined };
+    return { ...missing, assessment: assessLocalCase(item, missing) };
+  });
+  const negative = makeLocalReport({
+    runId: randomUUID(),
+    startedAt: new Date().toISOString(),
+    git: report.git,
+    definition,
+    manifestBytes,
+    selected: definition.cases,
+    results: observations,
+    configuration: report.configuration,
+  });
+  negative.derivedFromRunId = report.runId;
+  negative.testMutation =
+    "Remove only required reviewOutput from three real runtime observations";
+  writeFileSync(
+    resolve(root, output, "negative-output-report.json"),
+    JSON.stringify(negative, null, 2),
+    { flag: "wx" },
+  );
+  assert.equal(negative.summary.counts.FAIL, 3);
+  assert.equal(negative.summary.counts.PASS, 30);
+  assert.equal(negative.summary.counts.SKIP, 2);
+  assert.equal(negative.summary.qualityPasses, 0);
+  assert.deepEqual(negative.measurements, report.measurements);
+  assert.equal(negative.measurements.accounting.sdkDispatchedCalls, 37);
+  assert.equal(negative.measurements.accounting.persistedCalls, 37);
   console.log(
     JSON.stringify({
       evaluationReport: output,
       mode: report.mode,
       counts: report.summary.counts,
       attempted: report.summary.requestsAttempted,
+      negativeCounts: negative.summary.counts,
     }),
   );
 });
