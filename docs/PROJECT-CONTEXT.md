@@ -3,6 +3,53 @@
 Cập nhật 22/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 
+## F09-B.2B.1 — read-only runtime provenance audit (22/10/2026)
+
+Completed checklist: (1) versioned artifact protocol
+`examate.rag-corpus-provenance` v1 and a pure verifier; (2) a read-only auditor
+over the stored Storage bytes and the PostgreSQL index of a target; (3) RED→GREEN
+unit tests plus a PG17 integration with a real SQL path and a real Storage HTTP
+reader against a loopback stand-in; (4) mutation checks and four application gates.
+Not wired to generation execute, the HTTP runner, the ledger or any new endpoint.
+
+`F09-B.2B.1_CODE_VERIFIED + LOCAL_PROVENANCE_AUDIT_VERIFIED` (synthetic fixture
+only; no real project, account or cloud was audited). Module
+`apps/api/scripts/rag-evaluation-provenance.mjs`. What one audit observes, at one
+point in time: workspace/name/Storage status of each mapped document; exact
+Storage bytes (SHA-256 against the frozen corpus, plus size metadata); the stored
+index compared chunk by chunk (index, source page, exact text) with the output of
+the **production** PDF extractor and chunker applied to those bytes; facts on
+their declared page (rule `whitespace-collapse-v1`); embedding presence, declared
+model/dimension and a vector hash; exact course document sets from
+`documents.course_id` (the two-PDF course and the policy-only course need
+separate mappings, and a policy-only course needs its own policy copy because a
+document has one course); optional workspace membership. State is read in a
+REPEATABLE READ, READ ONLY snapshot before and after the Storage reads (two reads
+per object); any difference gives INCONCLUSIVE, never consistent.
+
+Trust boundary: the artifact is self-describing evidence. Its integrity digest is
+a checksum, not a signature, so a forger can recompute it. The verifier therefore
+reports `authenticity` as `unauthenticated` unless the consumer pins the expected
+digest from a record kept outside the artifact, and `currentness` only when a
+fresh independent audit agrees. Statuses are `INVALID`, `MISMATCH`,
+`NOT_CONSISTENT`, `BOUND`; none grants gold approval, `qualityExecutionReady` or
+execution (always `GOLD_REVIEW_PENDING` / false / `NOT_AUTHORIZED`).
+
+Finding: the production pipeline keeps the PDF's line breaks, while the earlier
+F09-A/B.1 runtime fixture seeds one unwrapped page text per chunk. An index shaped
+like that fails this audit's exact comparison (by design); it was never what
+ingestion stores. Not proven: embeddings derived from the chunk text; any state
+after the audit; retrieval ranking or answer quality; accented-Vietnamese or OCR
+extraction; the real maintenance role's privileges; that a later evaluation calls
+the same target. The ingestion service transaction itself was not run: the
+integration seeds with the same production extractor/chunker, so it proves the
+audit against production output, not the ingestion service's persistence.
+
+Next inputs (nothing is run without them): maintenance DB URL and a Storage read
+credential for the target; workspace ID; document IDs for each corpus file (and a
+separate policy copy for the policy-only course); a pinned digest record.
+Verifier wiring, missing transport and new-manifest execution are not started.
+
 ## F09-B.2A — offline quality-suite preparation (22/10/2026)
 
 Completed checklist: (1) separate draft revision with 24 distinct authored quality

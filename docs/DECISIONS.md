@@ -814,3 +814,27 @@ validated; filled forms need maintainer verification in the later approval step.
 Machine source/page/hash checks do not certify educational correctness or convert
 synthetic examples into real lecturer requirements. No model/gold tuning based on
 observed model output took place; B.2A produces no model output.
+
+F09-B.2B.1 decision: runtime provenance is an observation, not a credential. The
+auditor compares what is actually stored (Storage bytes by SHA-256, index rows by
+chunk) with the output of the production extractor and chunker on those same bytes,
+instead of with expected data it generates itself; the earlier local fixture's
+unwrapped one-chunk-per-page index is therefore not accepted as production-shaped.
+Facts use one versioned rule (`whitespace-collapse-v1`) and nothing else is
+normalised, so a text change or a whitespace-only change is still caught by the
+exact chunk comparison.
+
+State is read in a REPEATABLE READ, READ ONLY snapshot before and after the Storage
+reads, never inside a transaction held during the download, and any difference or
+read failure is INCONCLUSIVE. The reader and Storage boundary are explicit
+parameters so a maintenance credential never enters the API process; no migration,
+grant or RLS was loosened, and the auditor has no provider, quota or write import.
+Documents that fail identity are not fetched.
+
+The artifact carries its own limits and fixed non-approvals. Its digest is a
+checksum, so the verifier reports `unauthenticated` unless the consumer pins the
+digest independently, and `currentness` only against a fresh audit. No boolean or
+force flag turns an artifact into readiness. Embeddings are bound by presence,
+declared model/dimension and a vector hash only; derivation from the chunk text
+is explicitly not claimed. Wiring into the HTTP runner, new-manifest execution and
+missing transport are separate, later and unstarted.

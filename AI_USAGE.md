@@ -1115,3 +1115,24 @@ and tool/test commit `1860cc8` were local only. No DB/browser gate was run becau
 only offline data/scripts/tests changed. No persistent test resources were made;
 own temporary test directories were removed and raw artifacts retained. Status
 is F09-B.2A_CODE_VERIFIED + GOLD_REVIEW_PENDING, not whole-F09 acceptance.
+
+## 2026-10-22 — F09-B.2B.1 runtime provenance audit
+
+AI assistance read the Storage, PDF extraction, chunking and ingestion code, then
+wrote the read-only auditor/verifier test-first (RED = missing module) and ran it
+against a disposable PG17 with a real Storage HTTP reader and a loopback Storage
+stand-in. It compared the stored index with the production pipeline's output for
+the stored bytes, which exposed that the earlier runtime fixture seeds unwrapped
+page text unlike real ingestion; that is recorded, not hidden. Mutation checks
+left one equivalent survivor (ordering flag) and led to three new tests; two
+defects were found and fixed during GREEN (errors after a deadline must report
+timeout; a corpus differing from the manifest must be a mismatch, not invalid
+expectations), plus a design change: documents failing identity are never fetched.
+
+Source cd99923: typecheck, build, format, npm test (2,232) and full test:database
+(492/492, 47 files, own guarded PG17 container) exit 0. No provider or model call,
+secret read, cloud write, push or deploy; the audit changed no table. The artifact
+is point-in-time evidence with a self-checksum, not approval: gold review, live
+evaluation and semantic review stay pending, and no real target was audited. The
+AI-assisted gold review of the 24 cases (done in chat in the same session) is AI
+judgement, not Tài–Thắng approval.

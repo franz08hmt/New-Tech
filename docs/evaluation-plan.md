@@ -74,10 +74,46 @@ that the malicious passage actually reached model context; keywords alone do not
 decide behavior.
 
 For F09-B.2B, still required: actual Tài–Thắng gold approval, runtime provenance
-attestation, explicit transport support/adaptation, and target/batch/quota approval
+attestation (B.2B.1 below supplies the audit code, not an audit of a real target),
+explicit transport support/adaptation, and target/batch/quota approval
 before any live dispatch. `LIVE_EVALUATION_PENDING`, `SEMANTIC_REVIEW_PENDING`,
 older browser/cloud/Google/Thắng-machine and F09-A.1 cleanup pending are unchanged.
 No DB/schema/runtime/UI changes or new browser acceptance are part of B.2A.
+
+## F09-B.2B.1 — runtime provenance audit (22/10/2026)
+
+`apps/api/scripts/rag-evaluation-provenance.mjs` audits, read-only, whether the
+documents mapped to the frozen `rag-eval-v2` corpus really hold its PDF bytes in
+Storage and an index equal to the production extractor/chunker output for those
+bytes. It exports `auditCorpusProvenance`, `verifyProvenanceArtifact`,
+`openReadOnlySnapshot`, `collectDatabaseObservation`, `createStorageObjectReader`
+and `READ_ONLY_QUERIES`. Callers inject the two read boundaries; the module has
+no provider, assistant, quota or write import (a static test enforces this) and
+is not connected to `--http-evaluation`, the ledger or `provenanceVerifier`.
+
+Inputs: exact manifest bytes (must validate and bind to the corpus), corpus
+manifest, target identity (DB endpoint, Storage origin/bucket, workspace; only
+hashes are recorded), the file→document mapping, one course mapping per course
+file set the manifest uses (RQ24 needs a policy-only course; a document has one
+`course_id`, so that course holds its own policy copy) and optional membership
+checks. Outputs a versioned artifact with per-condition verdicts
+(`verified`/`failed`/`inconclusive`/`not_checked`), `OBSERVED_CONSISTENT` /
+`INCONSISTENT` / `INCONCLUSIVE`, methods, `notProven`, trust notes and fixed
+approvals (`GOLD_REVIEW_PENDING`, not ready, not authorized).
+
+Verifying: `verifyProvenanceArtifact(artifact, {manifestBytes, corpus, target,
+mapping, scopes, expectedDigest?, observation?})`. Digest alone is not trust; pin
+the digest from an independent record and/or pass a fresh audit as `observation`.
+A pass is `BOUND` as of the audit; it is not readiness, approval or a guarantee
+that data stays the same. Objects of documents that fail identity are never
+fetched. Errors become fixed codes (`DATABASE_READ_FAILED`, `STORAGE_READ_FAILED`,
+`STORAGE_BUCKET_NOT_PRIVATE`, `AUDIT_TIMEOUT`, `INCOMPLETE_OBSERVATION`).
+
+Safe re-run on a disposable PG17 (guarded `TEST_DATABASE_URL`, loopback `*_test`):
+`node --test apps/api/test/evaluation-provenance.test.mjs` and, after
+`npm run build --workspace @examate/api`,
+`node apps/api/scripts/prepare-runtime-roles.mjs` then
+`node --test apps/api/test/evaluation-provenance.database.test.mjs`.
 
 **Current boundary, 18/10/2026:** live `--execute` is BLOCKED (exit 3) before
 DB/Storage/Gemini because this runner has no verified workspace principal.

@@ -427,6 +427,45 @@ the separate F08-B checkpoint below.
 - [ ] Human semantic review, full F08, F09, pending F05/F06 browser matrices,
       cloud rollout, Google live and Thắng's machine are unchanged.
 
+## F09-B.2B.1 — runtime provenance audit (22/10/2026)
+
+- [x] `apps/api/scripts/rag-evaluation-provenance.mjs`: versioned artifact
+      `examate.rag-corpus-provenance` v1 + verifier. Read-only: REPEATABLE READ /
+      READ ONLY snapshot before and after two Storage reads; no provider, quota,
+      receipt or write import (static test); not connected to execute/runner/ledger.
+- [x] Checks real data: Storage bytes SHA-256 and size; index vs the production
+      extractor/chunker on those bytes (count, index, page, exact text); facts on
+      declared page (`whitespace-collapse-v1`); embedding presence/model/dimension
+      + vector hash; exact course sets (two-PDF vs policy-only course); optional
+      membership. Foreign/renamed documents are never fetched.
+- [x] RED: first run failed on the missing module. Unit 32/32 (incl. missing/extra/
+      reordered/wrong-page/wrong-text/whitespace-only chunks, swapped mapping,
+      wrong workspace/course, not-ready/deleted, change during audit, timeouts,
+      leak-free errors, tampered/forged/mismatched artifacts). PG17 integration
+      13/13: real SQL + real Storage HTTP reader (404, public bucket, redirect,
+      oversize, hang/abort), every public table byte-identical before/after audit
+      (rows+md5), writes refused with SQLSTATE 25006, outbound requests only to
+      the loopback Storage stand-in, all Storage requests GET.
+- [x] 23 mutants: 22 killed; M8 (ordering flag) is an equivalent mutant because
+      exact index/page/text comparison already implies order. Three first survivors
+      (M9, M12, M20) led to new tests.
+- [x] Source `cd99923` gates exit 0: typecheck, build, format:check; `npm test`
+      457 Vitest + 1,231 Node + 544 Web = 2,232 (fail/skip/cancelled 0, was
+      2,200); full `test:database` 492/492 in 47 files on a guarded disposable
+      PG17 (was 479/46 history; not a new baseline for older work). Build chunk
+      advisory unchanged.
+- [x] Finding: the production pipeline keeps PDF line breaks; the earlier runtime
+      fixture seeds unwrapped page text, which this audit rejects by design.
+- [x] `F09-B.2B.1_CODE_VERIFIED + LOCAL_PROVENANCE_AUDIT_VERIFIED` on synthetic
+      fixture only. Safe re-run: see evaluation-plan F09-B.2B.1.
+- [ ] No real target audited. Needs maintenance DB URL + Storage read credential,
+      workspace ID, document IDs (and a separate policy copy for the policy-only
+      course) and a pinned digest record. Ingestion-service persistence itself was
+      not exercised (seeded with the same production extractor/chunker).
+- [ ] `GOLD_REVIEW_PENDING`, `LIVE_EVALUATION_PENDING`, `SEMANTIC_REVIEW_PENDING`,
+      missing transport, new-manifest execute and browser/cloud/Google/Thắng-
+      machine/F09-A.1 cleanup pending are unchanged.
+
 ## F09-B.2A — offline draft quality suite (22/10/2026)
 
 - [x] Separate `docs/evaluation-quality-cases-v1.json`, schema

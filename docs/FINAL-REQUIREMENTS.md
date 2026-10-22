@@ -122,3 +122,11 @@ cùng workspace. Auth PASS không thay RAG/STT PASS. Máy Thắng cần bằng c
   Với giới hạn 2 tools, không nhận B đạt rubric. Nhóm hướng đến A (RAG) +
   C (structured output/Study Coach F08), còn phải nghiệm thu riêng; JSON đơn
   thuần không chứng minh C. Không sửa rubric để làm khớp phạm vi đã giảm.
+
+F09-B.2B.1 adds a read-only runtime provenance audit and artifact verifier
+(`rag-evaluation-provenance.mjs`): exact Storage bytes, index-vs-production
+pipeline comparison, fact placement, exact course sets and a snapshot-consistency
+check, verified on a disposable PG17 with synthetic Storage. It is point-in-time
+evidence, not approval: gold review, `qualityExecutionReady`, live evaluation and
+post-response semantic review are unchanged and pending, and it is not connected
+to execute.
