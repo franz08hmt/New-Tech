@@ -63,9 +63,14 @@ check("manager role in session", manager.session.principal.role, "manager");
 check("viewer role in session", viewer.session.principal.role, "viewer");
 // A user with no membership never gets a principal.
 check(
+  "outsider login succeeds before access is checked",
+  outsider.loginStatus,
+  200,
+);
+check(
   "outsider has no workspace access",
-  outsider.loginStatus === 200 ? outsider.session.status : outsider.loginStatus,
-  outsider.loginStatus === 200 ? "no_access" : outsider.loginStatus,
+  outsider.session?.status,
+  "no_access",
 );
 
 const task = (title) => ({
@@ -175,5 +180,5 @@ check(
 
 if (failures.length) {
   console.log(JSON.stringify({ failed: failures }));
-  process.exit(1);
+  process.exitCode = 1;
 }

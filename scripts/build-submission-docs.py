@@ -33,7 +33,9 @@ code { font-family: monospace; font-size: 8.3pt; background-color: #eef3ec; }
 pre { font-family: monospace; font-size: 8pt; background-color: #eef3ec; padding: 4pt; }
 blockquote { margin: 4pt 0 6pt 0; padding: 3pt 8pt; background-color: #fbeee4; border-left: 3px solid #b4531c; }
 table { border-collapse: collapse; width: 100%; margin: 4pt 0 7pt 0; }
-th { font-size: 8.6pt; background-color: #dfe8dc; border: 1px solid #8ea592; padding: 2.5pt; text-align: left; }
+/* MuPDF Story can extend a table-header fill into the empty continuation area.
+   Use bold text/borders for print headers; keep all table content and pagination. */
+th { font-size: 8.6pt; font-weight: bold; border: 1px solid #8ea592; padding: 2.5pt; text-align: left; }
 td { font-size: 8.6pt; border: 1px solid #b9c7bb; padding: 2.5pt; vertical-align: top; }
 img { width: 100%; }
 """
