@@ -54,6 +54,7 @@ def markdown_to_pdf(source: Path, target: Path, out_dir: Path) -> int:
         extensions=["tables", "fenced_code", "sane_lists"],
     )
     archive = fitz.Archive(str(out_dir))
+    archive.add(str(source.parent))
     story = fitz.Story(html=html, user_css=CSS, archive=archive)
     raw = target.with_suffix(".raw.pdf")
     writer = fitz.DocumentWriter(str(raw))
@@ -70,7 +71,7 @@ def markdown_to_pdf(source: Path, target: Path, out_dir: Path) -> int:
     for number, pg in enumerate(doc, start=1):
         pg.insert_text(
             (46, pg.rect.height - 28),
-            f"ExaMate AI - bao cao DRAFT - trang {number}/{doc.page_count}",
+            f"ExaMate AI - DRAFT report - page {number}/{doc.page_count}",
             fontsize=7.5,
             color=(0.4, 0.4, 0.4),
         )

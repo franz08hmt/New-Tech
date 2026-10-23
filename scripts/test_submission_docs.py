@@ -13,6 +13,26 @@ spec.loader.exec_module(module)
 
 
 class SubmissionPdfTests(unittest.TestCase):
+    def test_report_resolves_images_relative_to_its_source(self):
+        with tempfile.TemporaryDirectory(prefix="examate-report-assets-") as directory:
+            root = Path(directory)
+            source_dir = root / "docs"
+            assets = source_dir / "assets"
+            assets.mkdir(parents=True)
+            output = root / "export"
+            output.mkdir()
+            image = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 40, 40), False)
+            image.clear_with(51)
+            image.save(str(assets / "evidence.png"))
+            source = source_dir / "report.md"
+            source.write_text("# Report\n\n![Evidence](assets/evidence.png)\n", encoding="utf-8")
+            target = output / "report.pdf"
+            module.markdown_to_pdf(source, target, output)
+            with fitz.open(target) as document:
+                self.assertEqual(document.page_count, 1)
+                self.assertGreater(len(document[0].get_images()), 0,
+                                   "source-relative evidence image must appear in exported PDF")
+
     def test_no_table_fill_below_last_body_text(self):
         with tempfile.TemporaryDirectory(prefix="examate-pdf-regression-") as directory:
             output = Path(directory)

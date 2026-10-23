@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1150" viewBox="0 0 1000 1150" font-family="Times New Roman, serif">
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="black"/></marker></defs><rect width="1000" height="1150" fill="white"/>
+<rect x="20" y="10" width="960" height="112" rx="10" fill="#f6f6f6" stroke="black" stroke-width="2"/>
+<text x="500.0" y="41" font-size="23" font-weight="bold" text-anchor="middle">Browser - React / Vite</text>
+<text x="500.0" y="70" font-size="20" text-anchor="middle">Academic records, Documents, Assistant, Study Coach and manager AI usage</text>
+<text x="500.0" y="95" font-size="20" text-anchor="middle">Opaque HttpOnly cookie + CSRF; no API keys / provider JWT in browser storage</text>
+<line x1="500" y1="122" x2="500" y2="172" stroke="black" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="20" y="172" width="960" height="91" rx="10" fill="#f6f6f6" stroke="black" stroke-width="2"/>
+<text x="500.0" y="203" font-size="23" font-weight="bold" text-anchor="middle">Nginx in Docker / Vite proxy in development</text>
+<text x="500.0" y="232" font-size="20" text-anchor="middle">Same-origin /api; trusted proxy hop; SSE buffering disabled</text>
+<line x1="300" y1="263" x2="300" y2="317" stroke="black" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="20" y="317" width="560" height="817" rx="12" fill="white" stroke="black" stroke-width="2"/>
+<text x="300" y="350" font-size="27" font-weight="bold" text-anchor="middle">NestJS API - server authority</text>
+<rect x="38" y="369" width="524" height="112" rx="10" fill="#f6f6f6" stroke="black" stroke-width="2"/>
+<text x="300.0" y="400" font-size="23" font-weight="bold" text-anchor="middle">Auth guard and workspace boundary</text>
+<text x="300.0" y="429" font-size="19" text-anchor="middle">Verified session, current membership, role and ownership</text>
+<text x="300.0" y="454" font-size="19" text-anchor="middle">Origin / CSRF on writes; no client-supplied principal</text>
+<rect x="38" y="498" width="250" height="120" rx="10" fill="#f6f6f6" stroke="black" stroke-width="2"/>
+<text x="163.0" y="529" font-size="23" font-weight="bold" text-anchor="middle">Auth / BFF</text>
+<text x="163.0" y="558" font-size="19" text-anchor="middle">Google PKCE, JWT checks</text>
+<text x="163.0" y="583" font-size="19" text-anchor="middle">refresh and logout</text>
+<rect x="312" y="498" width="250" height="120" rx="10" fill="#f6f6f6" stroke="black" stroke-width="2"/>
+<text x="437.0" y="529" font-size="23" font-weight="bold" text-anchor="middle">Records / search</text>
+<text x="437.0" y="558" font-size="19" text-anchor="middle">Scoped SQL, counts</text>
+<text x="437.0" y="583" font-size="19" text-anchor="middle">bounded pagination</text>
+<rect x="38" y="635" width="250" height="120" rx="10" fill="#f6f6f6" stroke="black" stroke-width="2"/>
+<text x="163.0" y="666" font-size="23" font-weight="bold" text-anchor="middle">Documents</text>
+<text x="163.0" y="695" font-size="19" text-anchor="middle">Upload, chunk, embed</text>
+<text x="163.0" y="720" font-size="19" text-anchor="middle">signed URL: 60 seconds</text>
+<rect x="312" y="635" width="250" height="120" rx="10" fill="#f6f6f6" stroke="black" stroke-width="2"/>
+<text x="437.0" y="666" font-size="23" font-weight="bold" text-anchor="middle">Assistant / RAG</text>
+<text x="437.0" y="695" font-size="19" text-anchor="middle">Retrieve, build prompt</text>
+<text x="437.0" y="720" font-size="19" text-anchor="middle">validate citations</text>
+<rect x="38" y="772" width="250" height="120" rx="10" fill="#f6f6f6" stroke="black" stroke-width="2"/>
+<text x="163.0" y="803" font-size="23" font-weight="bold" text-anchor="middle">Study Coach</text>
+<text x="163.0" y="832" font-size="19" text-anchor="middle">Strict JSON validation</text>
+<text x="163.0" y="857" font-size="19" text-anchor="middle">preview, save, practice</text>
+<rect x="312" y="772" width="250" height="120" rx="10" fill="#f6f6f6" stroke="black" stroke-width="2"/>
+<text x="437.0" y="803" font-size="23" font-weight="bold" text-anchor="middle">Speech / STT</text>
+<text x="437.0" y="832" font-size="19" text-anchor="middle">Whisper native worker</text>
+<text x="437.0" y="857" font-size="19" text-anchor="middle">temporary audio</text>
+<rect x="38" y="909" width="524" height="107" rx="10" fill="#f6f6f6" stroke="black" stroke-width="2"/>
+<text x="300.0" y="940" font-size="23" font-weight="bold" text-anchor="middle">Prompt registry + durable admission</text>
+<text x="300.0" y="969" font-size="19" text-anchor="middle">Versioned prompts; reserve before provider dispatch</text>
+<text x="300.0" y="994" font-size="19" text-anchor="middle">Telemetry is best effort, separate from the quota ledger</text>
+<rect x="38" y="1033" width="524" height="86" rx="10" fill="#f6f6f6" stroke="black" stroke-width="2"/>
+<text x="300.0" y="1064" font-size="23" font-weight="bold" text-anchor="middle">Manager AI usage dashboard</text>
+<text x="300.0" y="1093" font-size="19" text-anchor="middle">Operations, provider calls, known usage, cost and latency</text>
+<rect x="640" y="317" width="340" height="156" rx="10" fill="#f6f6f6" stroke="black" stroke-width="2"/>
+<text x="810.0" y="348" font-size="23" font-weight="bold" text-anchor="middle">PostgreSQL 17 / pgvector</text>
+<text x="810.0" y="377" font-size="20" text-anchor="middle">Workspace / owner RLS</text>
+<text x="810.0" y="402" font-size="20" text-anchor="middle">Business and Auth LOGINs</text>
+<text x="810.0" y="427" font-size="20" text-anchor="middle">non-owner, NOBYPASSRLS</text>
+<text x="810.0" y="452" font-size="20" text-anchor="middle">Managed profile 001-026</text>
+<rect x="640" y="494" width="340" height="122" rx="10" fill="#f6f6f6" stroke="black" stroke-width="2"/>
+<text x="810.0" y="525" font-size="23" font-weight="bold" text-anchor="middle">Private Storage</text>
+<text x="810.0" y="554" font-size="20" text-anchor="middle">PDF bytes; backend key only</text>
+<text x="810.0" y="579" font-size="20" text-anchor="middle">Fresh scoped signed access</text>
+<rect x="640" y="637" width="340" height="122" rx="10" fill="#f6f6f6" stroke="black" stroke-width="2"/>
+<text x="810.0" y="668" font-size="23" font-weight="bold" text-anchor="middle">Supabase Auth / Google</text>
+<text x="810.0" y="697" font-size="20" text-anchor="middle">PKCE identity verification</text>
+<text x="810.0" y="722" font-size="20" text-anchor="middle">Membership grants app access</text>
+<rect x="640" y="780" width="340" height="156" rx="10" fill="#f6f6f6" stroke="black" stroke-width="2"/>
+<text x="810.0" y="811" font-size="23" font-weight="bold" text-anchor="middle">Google Gemini API</text>
+<text x="810.0" y="840" font-size="20" text-anchor="middle">Embeddings: 768 dimensions</text>
+<text x="810.0" y="865" font-size="20" text-anchor="middle">Grounded JSON generation</text>
+<text x="810.0" y="890" font-size="20" text-anchor="middle">Only authorized evidence and</text>
+<text x="810.0" y="915" font-size="20" text-anchor="middle">bounded conversation context</text>
+<rect x="640" y="957" width="340" height="160" rx="10" fill="#f6f6f6" stroke="black" stroke-width="2"/>
+<text x="810.0" y="988" font-size="23" font-weight="bold" text-anchor="middle">Whisper ONNX / local</text>
+<text x="810.0" y="1017" font-size="20" text-anchor="middle">CPU q8; FFmpeg / ffprobe</text>
+<text x="810.0" y="1042" font-size="20" text-anchor="middle">Runs on the API host</text>
+<text x="810.0" y="1067" font-size="20" text-anchor="middle">No external speech provider</text>
+<text x="810.0" y="1092" font-size="20" text-anchor="middle">STT only; no TTS</text>
+<line x1="580" y1="395" x2="640" y2="395" stroke="black" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="580" y1="555" x2="640" y2="555" stroke="black" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="580" y1="698" x2="640" y2="698" stroke="black" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="580" y1="858" x2="640" y2="858" stroke="black" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="580" y1="1037" x2="640" y2="1037" stroke="black" stroke-width="2" marker-end="url(#arrow)"/>
+</svg>

@@ -1,0 +1,41 @@
+{
+  "schema": "examate-report-delivery-v1",
+  "pages": 19,
+  "language": "en",
+  "authoredStatus": "DRAFT",
+  "coverFieldsIntentionallyBlank": [
+    "class",
+    "instructor",
+    "second student name",
+    "second student ID"
+  ],
+  "sourceBaseHead": "4ec44c7892e0dfa0bbe7569d08789657a766aa5b",
+  "sourceBaseHadUncommittedChanges": true,
+  "buildMethod": "Retained authoring script; installed Word native TOC update and fixed-format PDF export. DOCX is editable.",
+  "refreshInstructions": "Edit the DOCX in Word. Update all fields/table of contents, then export to PDF. Keep docs/REPORT.md and this manifest consistent when revising substantive content.",
+  "files": {
+    "ExaMate-Report-20261023.docx": {
+      "sha256": "6ba18e2bc5847577fc5a460eea46183f2c64445f50f6304cb2ff349adf658a2f",
+      "bytes": 2994204
+    },
+    "ExaMate-Report-20261023.pdf": {
+      "sha256": "8020f52c3152028312369b61bb52f633a422e440638570a9bbef764bab41962a",
+      "bytes": 813578
+    },
+    "report-evidence.json": {
+      "sha256": "04503d1a666dd7df91315fcea16df25064e17c0adc57f62f8d4cdb48ddd733fe",
+      "bytes": 6889
+    }
+  },
+  "newApplicationGatesRun": false,
+  "newProviderCalls": 0,
+  "privateArtifactsPublished": false,
+  "reportChecks": "19 A4 pages; native TOC matches 17 section entries; all 13 stories and 20 evaluation rows present; prior-course material removed.",
+  "documentationVerification": {
+    "pythonCommand": "python -m unittest discover -s scripts -p test_submission_docs.py",
+    "testsPassed": 2,
+    "redRegression": "source-relative image missing from generic Markdown PDF export",
+    "finalExportChecksPassed": 18,
+    "applicationTestsRerun": false
+  }
+}
