@@ -218,7 +218,11 @@ export async function request<T>(
   const signal = init?.signal
     ? AbortSignal.any([init.signal, controller.signal])
     : controller.signal;
-  const timer = setTimeout(() => controller.abort(), 60000);
+  // Only local inference needs the longer deadline; ordinary API calls keep 60s.
+  const timer = setTimeout(
+    () => controller.abort(),
+    path === "/api/speech/transcriptions" ? 180000 : 60000,
+  );
   const cancel = () => controller.abort();
   if (init?.signal?.aborted) cancel();
   init?.signal?.addEventListener("abort", cancel, { once: true });

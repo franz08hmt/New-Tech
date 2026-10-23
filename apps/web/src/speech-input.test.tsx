@@ -454,6 +454,42 @@ describe("API cancellation", () => {
     expect(init?.headers).not.toHaveProperty("Content-Type");
     expect(init?.headers).toHaveProperty("X-CSRF-Token", "a".repeat(43));
   });
+  it.each([
+    ["/api/speech/transcriptions", 180000],
+    ["/api/speech/status", 60000],
+    ["/api/tasks", 60000],
+  ])(
+    "bounds %s without extending other API timeouts",
+    async (path, timeout) => {
+      configurePilotClient("a".repeat(43), true);
+      vi.useFakeTimers();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          (_path, init: RequestInit) =>
+            new Promise((_resolve, reject) => {
+              init.signal?.addEventListener(
+                "abort",
+                () => reject(init.signal?.reason),
+                { once: true },
+              );
+            }),
+        ),
+      );
+      try {
+        const pending = request(path, { method: "POST", body: new FormData() });
+        const rejected = expect(pending).rejects.toThrow(/timed out/);
+        const signal = vi.mocked(fetch).mock.calls[0][1]?.signal;
+        await vi.advanceTimersByTimeAsync(timeout - 1);
+        expect(signal?.aborted).toBe(false);
+        await vi.advanceTimersByTimeAsync(1);
+        await rejected;
+        expect(signal?.aborted).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
   it("also ignores a response body resolved after the caller aborted", async () => {
     configurePilotClient("a".repeat(43), true);
     let complete!: (body: unknown) => void;

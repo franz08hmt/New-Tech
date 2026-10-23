@@ -46,7 +46,9 @@ export class SpeechAdmissionInterceptor implements NestInterceptor {
       clearTimeout(timer);
       req.off("aborted", abort);
       res.off("close", closed);
-      release?.();
+      const relinquish = release;
+      release = undefined;
+      relinquish?.();
       cancelledUpload.complete();
     };
     const abort = () => {
@@ -70,7 +72,7 @@ export class SpeechAdmissionInterceptor implements NestInterceptor {
         cleanup();
         req.destroy();
       }
-    }, 45000);
+    }, 150000);
     if (req.aborted) abort();
     req.speechSignal = controller.signal;
     try {

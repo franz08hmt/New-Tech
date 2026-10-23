@@ -119,6 +119,7 @@ describe("local Whisper configuration", () => {
       device: "cpu",
       dtype: "q8",
       concurrency: 1,
+      timeoutMs: 120000,
     });
   });
   it("rejects remote providers, model swaps and unsupported runtime choices", () => {
@@ -138,9 +139,10 @@ describe("local Whisper configuration", () => {
     expect(speechConfig).toThrow("STT_MAX_CONCURRENT_REQUESTS");
   });
   it("rejects inference limits above the tested request deadline", () => {
-    vi.stubEnv("STT_TIMEOUT_MS", "30001");
+    vi.stubEnv("STT_TIMEOUT_MS", "120001");
     expect(speechConfig).toThrow("STT_TIMEOUT_MS");
-    vi.stubEnv("STT_TIMEOUT_MS", "30000");
+    vi.stubEnv("STT_TIMEOUT_MS", "120000");
+    expect(speechConfig().timeoutMs).toBe(120000);
     vi.stubEnv("STT_MODEL_LOAD_TIMEOUT_MS", "300001");
     expect(speechConfig).toThrow("STT_MODEL_LOAD_TIMEOUT_MS");
   });

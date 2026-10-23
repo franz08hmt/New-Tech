@@ -71,7 +71,7 @@ export function speechConfig(): SpeechConfig {
       5 * 1024 * 1024,
     ),
     maxDurationMs: positiveInteger("STT_MAX_DURATION_MS", 60000, 60000),
-    timeoutMs: positiveInteger("STT_TIMEOUT_MS", 30000, 30000),
+    timeoutMs: positiveInteger("STT_TIMEOUT_MS", 120000, 120000),
     modelLoadTimeoutMs: positiveInteger(
       "STT_MODEL_LOAD_TIMEOUT_MS",
       180000,

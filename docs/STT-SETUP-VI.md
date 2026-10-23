@@ -1,5 +1,9 @@
 # Nhập câu hỏi bằng giọng nói — STT local
 
+> Kiểm thực tế trên máy Tài/Docker ngày 23/10/2026 và giới hạn nghiệm thu:
+> [STT readiness](STT-READINESS-20261023.md). Bộ timeout hiện tại là 120/150/180
+> giây; mẫu tiếng Anh tổng hợp đạt, chưa thay cho thử mic và giọng Việt thật.
+
 > **Tích hợp 18/10/2026:** cài bằng `npm ci --ignore-scripts`; Docker cũng bỏ
 > lifecycle scripts để không tự tải CUDA. STT vẫn mặc định tắt. Runtime audit
 > còn advisory chưa xử lý; đọc [context và giới hạn](PROJECT-CONTEXT.md)
@@ -24,7 +28,7 @@ Bản tích hợp truyền cửa sổ 30 giây với overlap 5 giây cho Whisper
 31–60 giây không bị feature extractor mặc định bỏ phần cuối. Đây là cấu hình
 long-audio đã kiểm bằng contract test, chưa chứng minh chất lượng nối transcript
 hoặc tốc độ CPU thật. Timeout inference vẫn áp dụng: cho phép ghi tối đa 60 giây
-không đảm bảo mọi máy xử lý xong trong timeout mặc định 30 giây.
+không đảm bảo mọi máy xử lý xong trong timeout 120 giây.
 
 ## Chuẩn bị model
 
@@ -69,7 +73,7 @@ weights khi khởi động hoặc khi nhận audio.
    STT_MODEL_DIR=artifacts/stt-models
    STT_MAX_AUDIO_BYTES=5242880
    STT_MAX_DURATION_MS=60000
-   STT_TIMEOUT_MS=30000
+   STT_TIMEOUT_MS=120000
    STT_MODEL_LOAD_TIMEOUT_MS=180000
    STT_MAX_REQUESTS_PER_MINUTE=5
    STT_MAX_CONCURRENT_REQUESTS=1
@@ -107,7 +111,9 @@ Model không nằm trong image. Compose gắn thư mục local
 `./artifacts/stt-models` vào `/app/artifacts/stt-models` ở chế độ chỉ đọc.
 Chạy `stt:prepare` trên máy host trước khi bật STT trong container. Nếu chưa có
 model, API báo `model_missing`; không coi trạng thái container khỏe là bằng
-chứng STT đã chạy được.
+chứng STT đã chạy được. Sau khi đổi `.env`, tạo lại container API bằng Compose
+để nhận cấu hình mới; chỉ restart không cập nhật biến môi trường của container.
+Sau khi đổi code web/nginx/API, build và tạo lại đúng các service của stack demo.
 
 ## API và bảo vệ dữ liệu
 
@@ -131,9 +137,13 @@ chứng STT đã chạy được.
   như đăng nhập Supabase, Gemini chat và RAG vẫn có thể cần Internet/API key.
 
 Giới hạn mặc định: upload tối đa 5 MiB, audio tối đa 60 giây, inference timeout
-30 giây, model-load timeout 180 giây và 5 yêu cầu mỗi phút/người dùng. API request
-deadline vẫn là 45 giây, client timeout hiện là 60 giây. Không tăng timeout toàn
-ứng dụng chỉ để phục vụ STT.
+120 giây, model-load timeout 180 giây và 5 yêu cầu mỗi phút/người dùng. Request
+STT có deadline 150 giây tính từ admission, bao gồm upload và chuẩn hóa audio;
+frontend chờ tối đa 180 giây. Nginx cũng chỉ tăng read timeout lên 180 giây cho
+đúng `/api/speech/transcriptions`; các API khác giữ 60 giây. Giới hạn nhận upload
+của Node vẫn là 60 giây, không phải thời hạn inference sau khi upload xong.
+Không tăng timeout toàn ứng dụng chỉ để phục vụ STT. Worker nạp model qua bước
+status trước khi nhận bản ghi; model-load timeout không cộng thêm vào inference.
 
 Các mã lỗi STT gồm `STT_NOT_CONFIGURED`, `STT_MODEL_MISSING`,
 `STT_MODEL_LOADING`, `STT_MODEL_ERROR`, `STT_MEDIA_UNAVAILABLE`,
