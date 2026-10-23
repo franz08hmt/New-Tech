@@ -18,7 +18,9 @@ import {
 let fixture;
 
 before(async () => {
-  fixture = await openDocumentsTenantFixture();
+  // Test the exact historical 023 -> 024 rollback boundary, not a database
+  // with later migrations which the rollback must correctly refuse.
+  fixture = await openDocumentsTenantFixture({ migrationLimit: 24 });
 });
 
 after(async () => {
@@ -272,8 +274,12 @@ test("migration 024 rolls back and reapplies on disposable target without changi
     prior.quizzes,
   );
 
-  await migrate(admin.options.connectionString);
-  await migrate(admin.options.connectionString);
+  const loadThrough024 = async () =>
+    (await loadMigrations()).filter(
+      (item) => Number(item.name.slice(0, 3)) <= 24,
+    );
+  await migrate(admin.options.connectionString, { loadSource: loadThrough024 });
+  await migrate(admin.options.connectionString, { loadSource: loadThrough024 });
   const migration = (await loadMigrations()).find(
     (item) => item.name === "024_study_coach_flashcards.sql",
   );

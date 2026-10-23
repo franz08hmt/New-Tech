@@ -10,6 +10,7 @@ import {
 import { AuthStore } from "../dist/auth/auth-store.js";
 import { runtimeCapabilityCatalogSnapshot } from "../dist/database/runtime-capability-contract.js";
 import { rollbackManagedAuthSession } from "../scripts/managed-auth-session-rollback.mjs";
+import { runPilotRollback024 } from "../scripts/pilot-rollback-024.mjs";
 import {
   loadMigrations,
   applyMigrationInTransaction,
@@ -102,6 +103,19 @@ test("managed Auth RLS stays enabled while the runtime verifies only session/use
     runtimeUrl: process.env.TEST_DATABASE_URL,
   });
   assert.equal(dry.dryRun, true);
+  const rollbackClient = await f.admin.connect();
+  try {
+    await assert.rejects(
+      runPilotRollback024(
+        rollbackClient,
+        { apply: false },
+        { databaseName: f.name },
+      ),
+      /exact 001-024 migration chain/,
+    );
+  } finally {
+    rollbackClient.release();
+  }
   assert.equal(
     await store.authSessionActive(sid, uid),
     true,
