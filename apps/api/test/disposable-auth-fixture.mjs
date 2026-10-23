@@ -19,6 +19,23 @@ export async function prepareAuthFixture(pool) {
     REVOKE ALL ON auth.users,auth.sessions FROM PUBLIC;`);
 }
 export async function prepareRuntimeFixture(pool) {
+  // These legacy rollback tests intentionally stop at 013/016. Install only
+  // the current AuthStore's boolean verifier as test infrastructure, not a
+  // forged migration entry or a production fallback to direct Auth reads.
+  const bridge = await pool.query(
+    "SELECT obj_description(oid,'pg_namespace') AS marker FROM pg_namespace WHERE nspname='examate_private'",
+  );
+  if (bridge.rows.length && bridge.rows[0].marker !== marker)
+    throw new Error("Refusing to modify an unrelated private Auth schema");
+  await pool.query(`CREATE SCHEMA IF NOT EXISTS examate_private;
+    COMMENT ON SCHEMA examate_private IS '${marker}';
+    REVOKE ALL ON SCHEMA examate_private FROM PUBLIC;
+    CREATE OR REPLACE FUNCTION examate_private.auth_session_active(session_id uuid, owner_id uuid)
+    RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
+      SELECT EXISTS(SELECT 1 FROM auth.sessions s WHERE s.id=session_id AND s.user_id=owner_id
+        AND (s.not_after IS NULL OR s.not_after>now()));
+    $$;
+    REVOKE ALL ON FUNCTION examate_private.auth_session_active(uuid,uuid) FROM PUBLIC;`);
   const existing = await pool.query(
     "SELECT shobj_description(oid,'pg_authid') AS marker FROM pg_roles WHERE rolname=$1",
     [runtimeRole],
@@ -29,6 +46,8 @@ export async function prepareRuntimeFixture(pool) {
     await pool.query(`CREATE ROLE ${runtimeRole} LOGIN PASSWORD '${runtimePassword}' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
       COMMENT ON ROLE ${runtimeRole} IS '${marker}';`);
   await pool.query(`GRANT USAGE ON SCHEMA public,auth TO ${runtimeRole};
+    GRANT USAGE ON SCHEMA examate_private TO ${runtimeRole};
+    GRANT EXECUTE ON FUNCTION examate_private.auth_session_active(uuid,uuid) TO ${runtimeRole};
     GRANT SELECT(id,user_id,not_after) ON auth.sessions TO ${runtimeRole};
     GRANT SELECT ON workspaces,workspace_memberships TO ${runtimeRole};
     GRANT SELECT,INSERT,UPDATE ON pilot_sessions,pilot_auth_limits TO ${runtimeRole};

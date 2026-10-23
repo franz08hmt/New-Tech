@@ -76,7 +76,7 @@ export function authFixture() {
       const tx = {
         query: async (sql, params) => {
           if (state.dbFail) throw Error("sensitive-database-string");
-          if (sql.startsWith("SELECT id FROM auth.sessions"))
+          if (sql.includes("examate_private.auth_session_active("))
             return { rows: state.sessionActive ? [{ id: sessionId }] : [] };
           if (sql.includes("SET revoked_at")) row.revoked_at = new Date();
           else if (sql.includes("SET tokens=")) {

@@ -36,6 +36,7 @@ const expectedMigrationNames = [
   "022_assistant_conversations.sql",
   "023_study_coach_quizzes.sql",
   "024_study_coach_flashcards.sql",
+  "025_managed_auth_session_verifier.sql",
 ];
 
 const saved = { ...process.env };

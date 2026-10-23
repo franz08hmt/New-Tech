@@ -106,6 +106,7 @@ export class AuthDatabaseService implements OnModuleDestroy {
       business_table: boolean;
       auth_table: boolean;
       auth_session_columns: boolean;
+      auth_session_bridge: boolean;
       auth_schema: boolean;
       auth_schema_create: boolean;
       auth_sessions_table: boolean;
@@ -133,6 +134,8 @@ export class AuthDatabaseService implements OnModuleDestroy {
         (has_column_privilege(r.rolname,(SELECT c.oid FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='auth' AND c.relname='sessions'), a_id.attnum,'SELECT') AND
          has_column_privilege(r.rolname,(SELECT c.oid FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='auth' AND c.relname='sessions'), a_user.attnum,'SELECT') AND
          has_column_privilege(r.rolname,(SELECT c.oid FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='auth' AND c.relname='sessions'), a_exp.attnum,'SELECT')) AS auth_session_columns,
+        (has_schema_privilege(r.rolname,'examate_private','USAGE') AND
+          has_function_privilege(r.rolname,to_regprocedure('examate_private.auth_session_active(uuid,uuid)'),'EXECUTE')) AS auth_session_bridge,
         has_schema_privilege(r.rolname,'auth','USAGE') AS auth_schema,
         has_schema_privilege(r.rolname,'auth','CREATE') AS auth_schema_create,
         has_table_privilege(r.rolname,(SELECT c.oid FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='schema_migrations'),'SELECT') AS migration_ledger,
@@ -193,9 +196,10 @@ export class AuthDatabaseService implements OnModuleDestroy {
       !row.has_capability ||
       !row.auth_table ||
       row.business_table ||
-      !row.auth_schema ||
+      row.auth_schema ||
       row.auth_schema_create ||
-      !row.auth_session_columns ||
+      row.auth_session_columns ||
+      !row.auth_session_bridge ||
       row.auth_sessions_table ||
       row.auth_sessions_extra_columns ||
       row.migration_ledger ||

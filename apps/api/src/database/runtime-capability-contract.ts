@@ -21,7 +21,7 @@ export function runtimeCapabilityError(message?: string) {
   return new RuntimeCapabilityContractError(message);
 }
 
-export const RUNTIME_CAPABILITY_CONTRACT_VERSION = 24;
+export const RUNTIME_CAPABILITY_CONTRACT_VERSION = 25;
 
 const baseManagedRelations = [
   "workspaces",
@@ -100,6 +100,8 @@ const expectedCatalogDigests: Readonly<Record<number, string>> = {
   23: "81a06e44c4a79d02f2ce6ed1bd09cd34dbe2e6acd50b26543b8eea400a3f23e1",
   // Generated from a pristine PG17 database by applying source migrations 001-024.
   24: "43348bba96719e0efb18026dee0361c6662d4ed69ee5bd202fdf7e669dd3beca",
+  // Generated only from pristine PG17 + committed source, never a rollout target.
+  25: "395cff54443a0ff075db33991150c5648b40f16d79c834b6c8699625877c596e",
 };
 
 async function readContractCatalog(query: Query, version: number) {
@@ -135,7 +137,7 @@ async function readContractCatalog(query: Query, version: number) {
   const schemaOwners = await query(
     `SELECT n.nspname,
       n.nspowner=ANY(ARRAY(SELECT oid FROM pg_roles WHERE rolname=ANY($1::text[]))) AS owned_by_runtime_group
-    FROM pg_namespace n WHERE n.nspname IN ('public','auth') ORDER BY n.nspname`,
+    FROM pg_namespace n WHERE n.nspname IN ('public','auth'${version >= 25 ? ",'examate_private'" : ""}) ORDER BY n.nspname`,
     [roleGroups],
   );
   const databaseOwners = await query(
@@ -170,7 +172,7 @@ async function readContractCatalog(query: Query, version: number) {
       AND (x.grantee=0 OR g.rolname=ANY($2::text[])
         OR (g.rolcanlogin AND (pg_has_role(g.oid,'examate_business','member')
           OR pg_has_role(g.oid,'examate_auth','member'))))
-    ORDER BY c.relname,a.attnum,grantee,x.privilege_type,x.is_grantable`,
+    ORDER BY c.relname,${version >= 25 ? "a.attname" : "a.attnum"},grantee,x.privilege_type,x.is_grantable`,
     [names, ["anon", "authenticated", ...roleGroups]],
   );
   const schemaAcls = await query(
@@ -178,7 +180,7 @@ async function readContractCatalog(query: Query, version: number) {
       x.privilege_type,x.is_grantable
     FROM pg_namespace n CROSS JOIN LATERAL aclexplode(COALESCE(n.nspacl,acldefault('n',n.nspowner))) x
       LEFT JOIN pg_roles g ON g.oid=x.grantee
-    WHERE n.nspname IN ('public','auth') AND x.grantee<>n.nspowner
+    WHERE n.nspname IN ('public','auth'${version >= 25 ? ",'examate_private'" : ""}) AND x.grantee<>n.nspowner
       AND (x.grantee=0 OR g.rolname=ANY($1::text[])
         OR (g.rolcanlogin AND (pg_has_role(g.oid,'examate_business','member')
           OR pg_has_role(g.oid,'examate_auth','member'))))
@@ -267,10 +269,37 @@ async function readContractCatalog(query: Query, version: number) {
     ORDER BY grantee,x.privilege_type,x.is_grantable`,
     [["anon", "authenticated", ...roleGroups]],
   );
+  const bridge =
+    version >= 25
+      ? await query(
+          `SELECT pg_get_functiondef(p.oid) AS definition,p.prosecdef,p.provolatile,p.proconfig,
+      pg_get_userbyid(p.proowner) IN ('examate_business','examate_auth','examate_policy_owner') AS owned_by_runtime_group
+      FROM pg_proc p WHERE p.proname='auth_session_active' AND p.pronamespace=(SELECT oid FROM pg_namespace WHERE nspname='examate_private') AND p.proargtypes='2950 2950'::oidvector`,
+        )
+      : undefined;
+  const bridgeAcls =
+    version >= 25
+      ? await query(
+          `SELECT CASE WHEN x.grantee=0 THEN 'PUBLIC' ELSE r.rolname END AS grantee,x.privilege_type,x.is_grantable
+      FROM pg_proc p CROSS JOIN LATERAL aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) x
+      LEFT JOIN pg_roles r ON r.oid=x.grantee
+      WHERE p.proname='auth_session_active' AND p.pronamespace=(SELECT oid FROM pg_namespace WHERE nspname='examate_private') AND p.proargtypes='2950 2950'::oidvector AND x.grantee<>p.proowner
+      ORDER BY grantee,x.privilege_type,x.is_grantable`,
+        )
+      : undefined;
+  // auth.* is platform-managed. With v25 the runtime has no direct Auth read;
+  // its bounded function and ACLs are pinned instead of assuming Supabase RLS.
+  const authSessionRows =
+    version >= 25
+      ? authSession.rows.map(
+          ({ relrowsecurity: _rls, relforcerowsecurity: _force, ...rest }) =>
+            rest,
+        )
+      : authSession.rows;
   return [
     roles.rows,
     relations.rows,
-    authSession.rows,
+    authSessionRows,
     schemaOwners.rows,
     databaseOwners.rows,
     relationAcls.rows,
@@ -284,6 +313,7 @@ async function readContractCatalog(query: Query, version: number) {
     aiUsageTriggers.rows,
     helper.rows,
     helperAcls.rows,
+    ...(version >= 25 ? [bridge!.rows, bridgeAcls!.rows] : []),
   ];
 }
 

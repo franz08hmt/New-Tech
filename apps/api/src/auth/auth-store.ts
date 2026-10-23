@@ -3,6 +3,8 @@ import { AuthDatabaseService } from "../database/auth-database.service.js";
 import type { EncryptedTokens } from "./session-crypto.js";
 import type { PilotRole } from "@examate/contracts";
 import type { DatabaseTransaction } from "../database/database.service.js";
+export const AUTH_SESSION_ACTIVE_SQL =
+  "SELECT $1::uuid AS id WHERE examate_private.auth_session_active($1::uuid,$2::uuid)";
 export class AuthLimitReached extends Error {
   constructor(readonly resetAt: string) {
     super("AUTH_LIMIT_REACHED");
@@ -228,12 +230,8 @@ export class AuthStore {
   }
   async authSessionActive(id: string, userId: string) {
     return (
-      (
-        await this.db.query(
-          "SELECT id FROM auth.sessions WHERE id=$1 AND user_id=$2 AND (not_after IS NULL OR not_after>NOW())",
-          [id, userId],
-        )
-      ).rows.length === 1
+      (await this.db.query(AUTH_SESSION_ACTIVE_SQL, [id, userId])).rows
+        .length === 1
     );
   }
   async revoke(hash: string) {

@@ -1,0 +1,6 @@
+# Main real-service stack, using the verified project CA mounted read-only.
+# Certificate bytes and credentials stay outside Git. No TLS bypass.
+services:
+  api:
+    environment:
+      DATABASE_CA_CERT_PATH: /run/secrets/prod-ca-2021.crt

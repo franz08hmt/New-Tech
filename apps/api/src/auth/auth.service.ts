@@ -21,7 +21,11 @@ import {
   authUnavailable,
   type AuthConfig,
 } from "./auth-config.js";
-import { AuthStore, type SessionRow } from "./auth-store.js";
+import {
+  AuthStore,
+  AUTH_SESSION_ACTIVE_SQL,
+  type SessionRow,
+} from "./auth-store.js";
 import {
   openTokens,
   randomToken,
@@ -556,10 +560,10 @@ export class AuthService {
             )
               return authInvalid();
             if (this.config().sessionVerification === "database") {
-              const active = await tx.query(
-                "SELECT id FROM auth.sessions WHERE id=$1 AND user_id=$2 AND (not_after IS NULL OR not_after>NOW())",
-                [identity.sessionId, identity.userId],
-              );
+              const active = await tx.query(AUTH_SESSION_ACTIVE_SQL, [
+                identity.sessionId,
+                identity.userId,
+              ]);
               if (active.rows.length !== 1) return authInvalid();
             }
           } catch {

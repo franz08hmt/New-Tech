@@ -2624,9 +2624,10 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
   );
   assert.equal(
     (
-      await authDb.query("SELECT id FROM auth.sessions WHERE id=$1", [
-        sessionId,
-      ])
+      await authDb.query(
+        "SELECT $1::uuid AS id WHERE examate_private.auth_session_active($1::uuid,$2::uuid)",
+        [sessionId, people.member],
+      )
     ).rowCount,
     1,
   );

@@ -287,13 +287,20 @@ test("grounded generation, explicit save, reopen, server grading and owner isola
     rolsuper: false,
     rolbypassrls: false,
   });
+  await assert.rejects(
+    authCheck.query(
+      "SELECT current_user::text AS role FROM auth.sessions LIMIT 0",
+    ),
+    { code: "42501" },
+  );
   assert.equal(
     (
       await authCheck.query(
-        "SELECT current_user::text AS role FROM auth.sessions LIMIT 0",
+        "SELECT examate_private.auth_session_active($1,$2) AS active",
+        [owner.auth.sessionId, owner.auth.userId],
       )
-    ).rowCount,
-    0,
+    ).rows[0].active,
+    true,
   );
 
   for (const body of [

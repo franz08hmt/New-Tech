@@ -322,7 +322,11 @@ test("AuthStore uses bound parameters and private migration has restrictive memb
   assert.match(calls[0].sql, /set_config\('examate.user_id'/);
   assert.deepEqual(calls[0].params, ["untrusted-user", "synthetic-workspace"]);
   assert.deepEqual(calls[1].params, ["synthetic-workspace", "untrusted-user"]);
-  assert.match(calls[2].sql, /id=\$1 AND user_id=\$2/);
+  assert.match(
+    calls[2].sql,
+    /examate_private\.auth_session_active\(\$1::uuid,\$2::uuid\)/,
+  );
+  assert.deepEqual(calls[2].params, ["untrusted-session", "untrusted-user"]);
   assert.ok(calls.every((c) => !c.sql.includes("untrusted")));
   const sql = readFileSync(
     new URL(
