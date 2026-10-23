@@ -1,10 +1,10 @@
 # ExaMate AI Academic Workspace Project Report
 
-**Status: DRAFT — technical evidence updated 23 October 2026.** The complete improved evaluation and personal confirmations remain pending.
+**Status: DRAFT — visual revision 24 October 2026; technical measurements retained from 23 October 2026.** The complete improved evaluation and personal confirmations remain pending.
 
-**Submission files:** [editable Word](submission/ExaMate-Report-20261023.docx) and [PDF](submission/ExaMate-Report-20261023.pdf). The same files are copied to ignored `output/pdf/` for local use. Both contain 19 pages including cover and contents. Instructor, class and second-student metadata are intentionally blank. Body text uses Times New Roman; the source Word file includes an automatically generated table of contents.
+**Submission files:** [editable Word](submission/ExaMate-Report-20261023.docx) and [PDF](submission/ExaMate-Report-20261023.pdf). Local copies are in ignored `output/pdf/`. Both contain 20 A4 pages including cover and contents. Instructor, class and second-student metadata remain intentionally blank. Times New Roman and the native Word table of contents follow the supplied cover/style reference.
 
-Deployment and evaluation measurements are retained evidence. Fresh local publication gates passed for runtime source `0bddd53`; see the publication checkpoint for exact counts. No cloud or paid-model request was made during publication.
+References were removed at the user's request. Figure captions and [figure provenance](report-assets/figure-provenance.json) distinguish implementation diagrams, retained synthetic-provider browser observations and real-service screenshots. No application, DB, browser or model run was performed for this document-only revision. The earlier publication gates for runtime source `0bddd53` remain historical evidence.
 
 ## I INTRODUCTION AND PROJECT SCOPE
 
@@ -149,37 +149,39 @@ General answers stream text; RAG emits progress until source checks and final au
 
 ### 6.1 Retrieval and refusal
 
-Uploading a PDF does not index it automatically. The ingestion path claims processing, extracts pages, evaluates useful text and persists chunks and embeddings atomically. A query is embedded and compared only with accessible documents. No qualifying context produces a fixed insufficient evidence response without a generation call. The interface exposes coverage so scanned or low text pages are not silently treated as fully searchable.
+Ingestion extracts page-bounded text and persists chunks and embeddings. Query retrieval filters accessible ready documents before selecting at most six qualifying chunks. No qualifying context produces a fixed refusal without answer generation; query embedding may already have occurred. Low text coverage is disclosed.
 
 ### 6.2 Prompt versions and answer contracts
 
-The prompt registry includes assistant.general, assistant.documents.question, summary section and synthesis prompts, documents.ocr.page, study-coach.quiz and study-coach.flashcards. Retrieved text and filenames are serialized as untrusted data. The model receives an evidence catalog and is asked to return the following shape:
+The versioned prompt registry separates general chat, grounded questions, summary stages, OCR and Study Coach. Filenames and retrieved text are untrusted data. Generation requests a bounded answer contract:
 
 ```json
 { "answerable": true, "answer": "... [S1]", "citationIds": ["S1"] }
 ```
 
-The validator requires the exact keys, a nonempty bounded answer, unique well formed source IDs and equality between inline markers and returned citation IDs. Every citation must belong to retrieved evidence. A refusal carries no citations or source-like markers. These checks validate shape and source membership, not whether every natural language claim is entailed. Semantic evaluation is still necessary.
+Exact keys, a bounded answer and valid source IDs are required. Inline markers must match citation IDs, all within the retrieved catalog. Refusals carry no citations. These are structural and provenance checks, not proof that every claim is entailed.
+
+![Figure 2  Scoped retrieval and source binding; conceptual implementation diagram](report-assets/retrieval-explained.png)
 
 ## VII STRUCTURED OUTPUT AND STUDY COACH
 
-Study Coach implements capability C by using model generated JSON in a persistent learning workflow. A ready, authorized document supplies evidence. The model proposes a quiz or flashcard draft; backend validation and explicit user confirmation are required before it becomes a saved artifact.
+Study Coach uses schema-validated model output in a persistent learning workflow. Ready, authorized document evidence supports a draft; backend validation and explicit user confirmation precede a saved artifact.
 
-![Figure 2  Validated generation and explicit persistence](report-assets/study-flow.png)
+![Figure 3  Validated generation and explicit persistence](report-assets/study-flow.png)
 
 ### 7.1 Quiz validation and grading
 
-A quiz must match the requested question count and language. Each item requires four distinct options, a valid correctIndex, a bounded explanation and source IDs from the allowed evidence. Unexpected keys, repeated questions, invalid choices and invented sources are rejected. Schema mode at the provider is useful but does not replace this application validator.
+A quiz requires the requested count and language, four distinct options, a valid correctIndex, an explanation and evidence-bound source IDs. Unknown fields, duplicates and invented sources fail validation. Provider schema mode does not replace backend validation.
 
-Preview creates no confirmed quiz. A server issued draft token binds the content and user; explicit confirmation persists it. Drafts expire after 15 minutes. A saved attempt is scored on the server from the stored key, with idempotency protecting repeated submissions. Attempts and progress remain private to their owner. Reload and reopen are part of the lifecycle contract.
+Explicit confirmation binds a server-issued draft token to the owner and content; drafts expire after 15 minutes. Server grading uses the saved answer key. Idempotency protects logical submissions, including uncertain transport outcomes. Reopen and progress remain owner-scoped.
 
 ### 7.2 Flashcard review
 
-Flashcards follow the same preview, validation and confirmation boundary. The learner flips a card and records a self rating such as remembered or needs review. This is not objective automatic grading of memory. Confirmed artifacts and review progress are durable, while generation failures do not create an apparently valid saved set.
+Saved flashcards follow the same validation and confirmation boundary. Each learner flips a card, then records remembered or needs_review. Progress reflects self-assessment, not objective mastery or an AI grade. No provider call is needed to practise.
 
-### 7.3 Evidence and acceptance limit
+![Figure 4  Flashcard practice mechanism; illustration, not a model output or UI capture](report-assets/flashcard-practice.png)
 
-Automated API, database and frontend lifecycle tests cover both artifact types. An earlier real Gemini smoke run produced a three question quiz and three flashcards that passed strict validation, with a small informal content check. That run used local synthetic Auth and Storage. It is not a completed semantic benchmark or full end to end acceptance of the current cloud deployment.
+API, database and frontend tests cover both lifecycles. An earlier real Gemini smoke produced three validated questions and three flashcards using synthetic Auth/Storage. Schema and source validity do not establish semantic quality or full cloud acceptance.
 
 ## VIII STREAMING AND LOCAL SPEECH INPUT
 
@@ -204,17 +206,23 @@ The user records at most 60 seconds, selects automatic, Vietnamese or English re
 
 Real Docker HTTP tests returned a short synthetic English sample in 3.951 seconds and a 31 second sample in 6.264 seconds. A distinct phrase beginning after second 35 was recognized in 7.416 seconds. These measurements establish pipeline operation and tail coverage, not general recognition accuracy. Physical microphone capture, Vietnamese and mixed language accuracy, noise robustness and the teammate machine remain unverified. The template default is disabled; the current demo explicitly enables STT.
 
-## IX INTERFACE AND USABILITY EVIDENCE
+## IX APPLICATION WALKTHROUGH: RAG AND QUIZ
 
-Academic records, documents and Study Coach share one workspace. The Assistant preserves drafts and distinguishes general from document grounded answers. Loading, refusal and failure have separate states.
+The following retained browser captures illustrate capabilities A and C. Nest, PDF rendering, retrieval and PostgreSQL were real; Auth upstream, Storage and provider transport were synthetic. UI text remains in its implemented language. These are workflow evidence, not Gemini quality results.
 
-![Figure 3  Real service dashboard after authenticated login, 23 October 2026](report-assets/dashboard.jpg)
+![Figure 5  Citation preview opens the selected PDF at page 3; historical integration capture](report-assets/rag-citation-page3.jpg)
 
-Desktop and 375 pixel inspections covered ten routes. Separate settled Documents and speech views showed no horizontal overflow; speech was checked at 375 by 812 and 375 by 520. Responsive emulation is not a physical phone acceptance test.
+![Figure 6  Saved quiz graded 3/3 by the server, with explanations and sources; cropped independent fixture capture](report-assets/quiz-result.png)
 
-![Figure 4  Local Whisper readiness; screenshots retain the implemented UI language](report-assets/speech-ready.jpg)
+## IX APPLICATION WALKTHROUGH: MOBILE AND MONITORING
 
-These screenshots show observed UI, not semantic AI quality. Quick notes remain browser local; the report does not claim they synchronize.
+Figure 7 juxtaposes separate observations. A and B use real Supabase Auth, Storage and database services. C is an earlier integration dashboard with synthetic telemetry: its numbers are examples, not the live campaign measurements.
+
+![Figure 7  A: Documents in a 375px emulated viewport (360px content); B: real-service dashboard; C: manager AI monitoring example](report-assets/interface-panels.jpg)
+
+The Documents capture exposes file, course, status and bounded search controls. Manager monitoring separates operations from provider calls and labels incomplete token/cost metadata. Screenshots demonstrate presentation, not authorization coverage by themselves.
+
+Retained desktop and mobile inspections covered ten routes without page-wide horizontal overflow. Speech layouts were checked at 375 by 812 and 375 by 520. Responsive emulation is not physical-phone or microphone acceptance. Quick notes remain browser-local.
 
 ## X VERIFICATION AND DEPLOYMENT RESULTS
 
@@ -243,23 +251,21 @@ Managed deployment support and the guarded evaluation budget are versioned in so
 
 ### 11.1 Frozen cases and evidence
 
-The v2 quality manifest defines 24 authored objectives against the versioned synthetic ASCII PDF corpus, with ten indexed gold facts across five pages. The live comparison cohort is explicitly RQ01 to RQ20. It includes ordinary extraction, multiple sources/pages, scope intersections, missing facts, refusal and prompt injection. RQ21 and RQ22 require summary generation beyond the question envelope, RQ23 lacks a supported API path and RQ24 was blocked by Auth preflight before generation. These are not silently counted as passes.
+The v2 manifest has 24 objectives over a synthetic ASCII PDF corpus: ten gold facts across five pages. The comparison cohort is RQ01-RQ20. RQ21/22 need summary generation, RQ23 lacks a supported path and RQ24 was Auth-blocked; none becomes a silent pass.
 
-Expected facts, accepted alternatives, page bindings and corpus hashes were frozen before output review. The suite SHA256 is 53066af8cc6f256f14b78313e3becd8857eb81e9d64d33f64429a5282d6cda6a. Gold received AI technical review under explicit user delegation, not a fabricated human signature. Post response semantic review is also labelled AI assisted. The corpus is illustrative, not the actual course assignment, a real deadline or permission to spend.
+Expected facts, alternatives, pages and hashes were frozen before output review. Suite SHA256: 53066af8cc6f256f14b78313e3becd8857eb81e9d64d33f64429a5282d6cda6a. Gold and response reviews are AI-assisted under delegation, with no human signature. Corpus numbers are illustrative, not actual course rules.
 
 ### 11.2 Controlled change
 
-Both phases keep Gemini 2.5 Flash, embedding 001, prompt, corpus, cohort, identity, scope, top K 6 and candidate limit 10. The declared quality change is retrieval minimum score 0.55 to 0.50. Daily admission was temporarily 60 for both phases and restored to 30 afterward. The full improved cohort was planned, but only three cases were attempted. Consequently no causal benefit or complete improved pass rate is reported.
+Both phases retain Gemini 2.5 Flash, embedding 001, prompt, corpus, cohort, identity, scope, top K 6 and candidate limit 10. Only the retrieval threshold changes: 0.55 to 0.50. Daily admission was 60 in both phases, then restored to 30. Only three improved cases ran; no quality benefit is established.
 
-### 11.3 Execution and review rules
+### 11.3 Execution and acceptance limits
 
-Requests pass through the authenticated API with Origin, CSRF, membership and source provenance checks. Exact runtime and SQL/Storage target evidence is bound to each campaign. Batches contain no more than five logical requests and run sequentially without automatic retries. An append only reservation journal preserves unknown outcomes and budget exposure before dispatch. Missing embedding or failed generation usage retains a conservative reservation rather than being treated as zero.
+Authenticated requests preserve Origin, CSRF, membership and target bindings. Sequential batches contain at most five requests, without automatic retries. The append-only journal records exposure before dispatch. Missing usage retains a conservative reservation, not zero cost.
 
-Strict final answer review checks requested qualifications, source scope and citation contracts. A separate semantic assessment records supported content but does not overwrite a frozen contract failure. Injection resistance requires evidence of the actual context received by the model; citations alone are insufficient. Failure to obtain that trace results in INCONCLUSIVE rather than a safety pass. Retrieval recall and MRR were not measured.
+Contract and semantic review are separate. Injection resistance needs exact model context, not just citations; absent traces remain INCONCLUSIVE. Recall and MRR were not measured. The complete before/after requirement remains unmet; the partial improved bar is not a comparative success rate.
 
-### 11.4 Rubric status
-
-Twenty baseline cases ran. The required complete before/after comparison remains incomplete: provider failures and the spending envelope stopped the improved run. These constraints do not waive the requirement.
+![Figure 8  Retained real evaluation outcomes; incomplete improved cohort, no improvement claim](report-assets/evaluation-cohort.png)
 
 ## XII AI EVALUATION RESULTS
 
@@ -339,7 +345,7 @@ AI_USAGE.md records assistance from ChatGPT/Codex and Claude Code, the relevant 
 
 The incomplete improved evaluation prevents a full before/after claim. Semantic quality of quizzes and flashcards needs a larger reviewed sample; injection resistance remains inconclusive. Physical microphone, Vietnamese/mixed speech, a real phone and the teammate machine need acceptance. Dependency advisories and the large frontend bundle warning remain. Course mutation and task deletion are not implemented; quick notes do not synchronize. The prototype has operation admission and campaign budget reservations, not a universal hard monetary cap. Video recording, personal explanations and defense practice remain human work.
 
-## XV REPRODUCTION CONCLUSION AND REFERENCES
+## XV REPRODUCTION AND CONCLUSION
 
 ### 15.1 Running the current verified machine
 
@@ -361,20 +367,8 @@ Verification commands are npm run typecheck, npm test, npm run build and npm run
 
 ExaMate connects authorized academic records with grounded answers and validated learning artifacts. Deployment, regression and local speech evidence support the prototype. The improved evaluation cohort, broader semantic review, physical device testing and personal submission tasks remain open.
 
-### 15.3 References and evidence index
+### 15.3 Safe outcomes at runtime boundaries
 
-[1] Final Project Assignment 2026-2027, sections 3-11. https://docs.google.com/document/d/1zxaqjKBBGjibOYuhw5xW6hEU1NbUayrr/edit
+![Figure 9  Guardrail and recovery map; implementation illustration, not a security benchmark](report-assets/guardrail-decisions.png)
 
-[2] Project repository, source and tests. https://github.com/franz08hmt/New-Tech/tree/feature/tai-assistant-integration-20261018
-
-[3] docs/FINAL-REQUIREMENTS.md; docs/DECISIONS.md; AI_USAGE.md. Requirements, decisions and assistance history; later local deployment edits are separate from base HEAD.
-
-[4] docs/submission/report-evidence.json and docs/evaluation-quality-cases-v2.json. Retained measurement summary and frozen expected cases; full private run artifacts are not published.
-
-[5] docs/STT-READINESS-20261023.md; artifacts/stt-check-20261023/. Model, media and test evidence; share only sanitized artifacts.
-
-[6] Google Gemini API pricing. https://ai.google.dev/gemini-api/docs/pricing. Recorded rate mapping is an estimate, not an account invoice.
-
-[7] Transformers.js 3.8.1 documentation and pinned Whisper model. https://huggingface.co/docs/transformers.js/v3.8.1/en/index
-
-[8] Cover and typography reference supplied by Tai. https://docs.google.com/document/d/1B6nHrPEu8VPO0VmdQhAILIjWdhrz49GO/edit
+The editable submission includes figure origins and retained measurement bindings. The source assets and figure-provenance.json distinguish conceptual diagrams, historical UI tests and measured results. No new browser or model run was performed for this visual revision.

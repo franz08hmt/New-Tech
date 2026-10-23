@@ -1,5 +1,29 @@
 # ExaMate — context hiện tại cho Tài, Thắng và agent
 
+## Report visual revision — 24 October 2026
+
+User requested removal of References and more explanatory figures. The English
+report is now 20 A4 pages including cover and native Word TOC (18 entries), with
+nine numbered figures: component architecture, scoped retrieval, validated Study
+Coach lifecycle, flashcard self-rating, actual citation/PDF and quiz result
+captures, mobile/dashboard/usage panels, retained evaluation cohort chart and
+safe-outcome map. Figure captions and `docs/report-assets/figure-provenance.json`
+identify illustration versus historical synthetic-provider or real-service capture.
+No fake UI screenshot or new Gemini output was generated.
+
+Document-only checks: 23/23 export checks; PDF exporter regression tests 2/2;
+targeted Prettier and Git whitespace checks. Earlier 2324 application / 521 DB
+passes remain historical, not rerun here. No browser acceptance was rerun; no
+provider calls, cloud writes, containers or DB resources were created. Initial
+layout overflow was corrected from 22 to 20 pages; a source-image-path assertion
+and whitespace-sensitive caption audit were corrected, with first QA retained.
+The report stays DRAFT; improved evaluation, semantic/device/personal obligations
+are unchanged. Instructor/class/second-student fields remain blank by instruction.
+Editable/PDF bundles: `docs/submission/ExaMate-Report-20261023.{docx,pdf}`;
+local copies: ignored `output/pdf/`. Revision artifacts:
+`artifacts/report-visual-refresh-20261024/`. Unrelated untracked
+`docs/EXAMATE-ON-TAP-VAN-DAP.html` is preserved outside this commit.
+
 ## Source publication verification - 23 October 2026
 
 User authorized committing and pushing all reviewed nonsensitive integration code and documentation. Runtime/database source is committed at `0bddd53`. Fresh local gates: typecheck, npm test, build, format and canonical database all exit 0; application 2324 PASS (API Vitest 460 + Node 1317 + Web 547), canonical PG17 521/521 in 51 invocations; separate restricted managed-profile fixture 1/1. Fail/skip/cancelled: 0. PDF exporter tests: 2/2.

@@ -1,0 +1,131 @@
+{
+  "schema": "examate-report-figures-v1",
+  "visualRevision": "2026-10-24",
+  "referencesSectionRemovedByUserRequest": true,
+  "records": [
+    {
+      "asset": "retrieval-explained.png",
+      "kind": "implementation illustration",
+      "description": "Conceptual scoped retrieval; boxes do not depict a measured query or all production internals.",
+      "sha256": "82441494469121ac8ba37e1a7872f26a919c2ffe618cab390a0574951f57a81e",
+      "sources": [
+        {
+          "path": "apps/api/src/assistant/rag-retrieval.service.ts",
+          "sha256": "e2813e2ee42ddff836dbee1a708e3eb374a5dd3f2c1b41dee874f6b27fbd822e"
+        }
+      ],
+      "newBrowserAcceptance": false,
+      "newProviderCalls": 0
+    },
+    {
+      "asset": "flashcard-practice.png",
+      "kind": "workflow illustration",
+      "description": "Illustrates the saved-deck workflow, not an application screenshot or an educational-quality result.",
+      "sha256": "f3d437141052ef51e9b6eacb1a629612f4730ddf1d858d4a3df6aa3ebf5f2be9",
+      "sources": [
+        {
+          "path": "apps/web/src/StudyFlashcardsPanel.tsx",
+          "sha256": "668c7ba2eceac64eb98ba3a6d564ad32e39ed49afd37d44f73417f66687f1a43"
+        }
+      ],
+      "newBrowserAcceptance": false,
+      "newProviderCalls": 0
+    },
+    {
+      "asset": "guardrail-decisions.png",
+      "kind": "implementation illustration",
+      "description": "Safe outcomes at independent boundaries; not a security benchmark or browser evidence.",
+      "sha256": "c826599dd31f8c53a8a5edb7a05217f49321ded18cda9514ca31c1cce30ece72",
+      "sources": [
+        {
+          "path": "apps/api/src/assistant/assistant.service.ts",
+          "sha256": "e7503d31a79bea90805311ffd661f4fe9af99c319123e811001195bb077224c5"
+        }
+      ],
+      "newBrowserAcceptance": false,
+      "newProviderCalls": 0
+    },
+    {
+      "asset": "rag-citation-page3.jpg",
+      "kind": "historical application screenshot",
+      "description": "Real Nest/PDF.js/PG17 path; synthetic Auth upstream, Storage, embeddings and model. Shows cited PDF page 3, not the whole answer.",
+      "sha256": "c243d18127372101241f1a4aa7eff3466e634fd5051276d71d2805673e949bcd",
+      "sources": [
+        {
+          "path": "artifacts/rubric-readiness-20261022/screens/01-rag-citation-opens-page3.jpg",
+          "sha256": "c243d18127372101241f1a4aa7eff3466e634fd5051276d71d2805673e949bcd"
+        }
+      ],
+      "newBrowserAcceptance": false,
+      "newProviderCalls": 0
+    },
+    {
+      "asset": "quiz-result.png",
+      "kind": "cropped historical application screenshot",
+      "description": "Independent synthetic-provider integration run; real server grading. Crop preserves score and answer explanations. Not a live Gemini quality measurement.",
+      "sha256": "cbb326bb67f60f125efd93edf6b49a6ba6046887a2597dbf49404dd21e8e9d44",
+      "sources": [
+        {
+          "path": "artifacts/readiness-independent-review-20261023/browser-quiz-score.png",
+          "sha256": "a0581d17e312ee83b1916caa3bb9b1ec308283b5a3b7b5f5ca6f3969ca69015b"
+        }
+      ],
+      "newBrowserAcceptance": false,
+      "newProviderCalls": 0
+    },
+    {
+      "asset": "interface-panels.jpg",
+      "kind": "labelled composite of separate historical screenshots",
+      "description": "A/B use real Supabase services. C uses synthetic provider telemetry with real Nest/PG17. Mobile capture content is 360px at a 375px emulated viewport. No new browser run.",
+      "sha256": "376f2af4219f6af16c728c5ed6d26ce473f0ad0e1cdb83a4a80a835ae653117b",
+      "sources": [
+        {
+          "path": "artifacts/managed-completion-20261023/mobile-documents.jpg",
+          "sha256": "5a0aa92e36b33da225671406590b3c9b8bf7d9be358aad6eb28f279c2c019b81"
+        },
+        {
+          "path": "artifacts/managed-completion-20261023/demo-final-dashboard.jpg",
+          "sha256": "d2d06f31ef10003993dcac942cc38577001f3f2bca305711b29d774ef8f87df4"
+        },
+        {
+          "path": "artifacts/rubric-readiness-20261022/screens/03-ai-usage-dashboard.jpg",
+          "sha256": "de3b941a749dd61c0c934c22df1a2879cb93e9cb8edd6d80ade64a2f9557b659"
+        }
+      ],
+      "newBrowserAcceptance": false,
+      "newProviderCalls": 0
+    },
+    {
+      "asset": "evaluation-cohort.png",
+      "kind": "chart of retained live evaluation evidence",
+      "description": "Incomplete improved phase; no improvement or comparative pass-rate claim. Provider errors are separate from semantic failures in the text/table.",
+      "sha256": "7ccf366d6e1a23824a08ff433cddc505132dea335f7290864397195a8f6b4322",
+      "sources": [
+        {
+          "path": "docs/evaluation-live-results-20261023.json",
+          "sha256": "54b8e8ea9d0ec3a04c7e84c67c0bb214a45b9292477ab901f79009ab987b51f0"
+        }
+      ],
+      "newBrowserAcceptance": false,
+      "newProviderCalls": 0
+    },
+    {
+      "asset": "architecture-detailed.png",
+      "kind": "implementation illustration",
+      "description": "Existing component architecture; English labels, managed migration profile 001-026.",
+      "sha256": "1feb3d587fcf1eb8469c677af94568f0a611977eea89645d454c158416171171",
+      "sources": [],
+      "newBrowserAcceptance": false,
+      "newProviderCalls": 0
+    },
+    {
+      "asset": "study-flow.png",
+      "kind": "workflow illustration",
+      "description": "Validated generation, explicit preview confirmation, saved practice and private progress.",
+      "sha256": "7c37d734b4ccef96cc45b7042535877d0464203db80c26df524ce8b64f08ee75",
+      "sources": [],
+      "newBrowserAcceptance": false,
+      "newProviderCalls": 0
+    }
+  ]
+}

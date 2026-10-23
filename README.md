@@ -19,7 +19,7 @@ Bộ nộp và bảo vệ (23/10/2026, bản DRAFT): [ma trận rubric + user st
 [báo cáo](docs/REPORT.md), [slide](docs/SLIDES.md), [demo/video/bảo vệ](docs/DEMO-AND-DEFENSE.md),
 [gói duyệt gold](docs/GOLD-REVIEW-PACK.md) và [checklist bàn giao](docs/RUBRIC-READINESS-HANDOFF.md).
 PDF/PPTX dựng nhanh bằng `python scripts/build-submission-docs.py <thư-mục-xuất>`.
-Bản report tiếng Anh có bìa và mục lục Word hiện hành: [PDF 19 trang](docs/submission/ExaMate-Report-20261023.pdf), [Word chỉnh sửa](docs/submission/ExaMate-Report-20261023.docx).
+Bản report tiếng Anh có bìa và mục lục Word hiện hành: [PDF 20 trang](docs/submission/ExaMate-Report-20261023.pdf), [Word chỉnh sửa](docs/submission/ExaMate-Report-20261023.docx).
 Bản Word/PDF chính giữ layout theo mẫu; sửa Word, cập nhật mục lục và xuất PDF lại khi đổi nội dung.
 
 Chỉ mở khi cần: [đăng nhập máy Thắng](docs/PILOT-DEMO-HANDOFF.md),

@@ -279,5 +279,26 @@
     "cloudWritesThisPublication": 0,
     "browserRerun": false,
     "environment": "Owned disposable PG17 only; synthetic upstreams, split runtime capabilities in integration tests."
+  },
+  "visualRevision": {
+    "date": "2026-10-24",
+    "sourceBaseHead": "cebaad4f5b3cfd260087d19a60a9fede4f9166c1",
+    "pages": 20,
+    "numberedFigures": 9,
+    "exportChecksPassed": 23,
+    "exportChecksTotal": 23,
+    "pdfExporterTests": {
+      "pass": 2,
+      "fail": 0
+    },
+    "applicationGatesRerun": false,
+    "databaseGatesRerun": false,
+    "browserRerun": false,
+    "providerCalls": 0,
+    "cloudWrites": 0,
+    "referencesSectionRemoved": true,
+    "figureProvenance": "../report-assets/figure-provenance.json",
+    "status": "DRAFT; retained measurements, incomplete improved evaluation and personal confirmations unchanged",
+    "artifacts": "artifacts/report-visual-refresh-20261024/"
   }
 }

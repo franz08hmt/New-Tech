@@ -1,6 +1,6 @@
 {
   "schema": "examate-report-delivery-v1",
-  "pages": 19,
+  "pages": 20,
   "language": "en",
   "authoredStatus": "DRAFT",
   "coverFieldsIntentionallyBlank": [
@@ -9,36 +9,44 @@
     "second student name",
     "second student ID"
   ],
-  "sourceBaseHead": "0bddd533e79316d9457135fe5e4665b555559c47",
+  "sourceBaseHead": "cebaad4f5b3cfd260087d19a60a9fede4f9166c1",
   "sourceBaseHadUncommittedChanges": true,
   "buildMethod": "Retained authoring script; installed Word native TOC update and fixed-format PDF export. DOCX is editable.",
   "refreshInstructions": "Edit the DOCX in Word. Update all fields/table of contents, then export to PDF. Keep docs/REPORT.md and this manifest consistent when revising substantive content.",
   "files": {
     "ExaMate-Report-20261023.docx": {
-      "sha256": "f0fd725c035558a6d76d7d9e61309a963e16efc2881988e07b9765e2a9b0cf85",
-      "bytes": 2994229
+      "sha256": "886b309b0bfc75804c3e85b415b9b48403cf42eacfc0f054b93c48142e55a18f",
+      "bytes": 3704056
     },
     "ExaMate-Report-20261023.pdf": {
-      "sha256": "641bfa9889e077e3f32691c773c062d24d647665c7262cbe067b0398da3ea15c",
-      "bytes": 813670
+      "sha256": "8e9bb421a645dbc905f4420759e5226a32fa41f93ab24242ee9fd22ae641a330",
+      "bytes": 1244755
     },
     "report-evidence.json": {
-      "sha256": "e5439ae12934d155f5830ff64978f3b01a52754798c89b358bac95741561b8fd",
-      "bytes": 8789
+      "sha256": "290e8f49a6fc2a09ce256f72154f468e173140758cab61b1662bd41a352d6e53",
+      "bytes": 9520
     }
   },
-  "newApplicationGatesRun": true,
+  "newApplicationGatesRun": false,
   "newProviderCalls": 0,
   "privateArtifactsPublished": false,
-  "reportChecks": "19 A4 pages; native TOC matches 17 section entries; all 13 stories and 20 evaluation rows present; prior-course material removed.",
+  "reportChecks": "20 A4 pages; native TOC matches 18 section entries; nine numbered figures; all 13 stories and 20 evaluation rows retained; References removed; 23/23 export checks.",
   "documentationVerification": {
     "pythonCommand": "python -m unittest discover -s scripts -p test_submission_docs.py",
     "testsPassed": 2,
-    "redRegression": "source-relative image missing from generic Markdown PDF export",
-    "finalExportChecksPassed": 18,
-    "applicationTestsRerun": false
+    "finalExportChecksPassed": 23,
+    "finalExportChecksTotal": 23,
+    "applicationTestsRerun": false,
+    "browserRerun": false,
+    "figureProvenance": "../report-assets/figure-provenance.json"
   },
   "originalReportSourceBaseHead": "4ec44c7892e0dfa0bbe7569d08789657a766aa5b",
   "runtimeSourceNowVersioned": true,
-  "publicationVerificationSourceCommit": "0bddd533e79316d9457135fe5e4665b555559c47"
+  "publicationVerificationSourceCommit": "0bddd533e79316d9457135fe5e4665b555559c47",
+  "visualRevision": "2026-10-24",
+  "previousApplicationGates": "See retained publicationVerification in report-evidence.json for source 0bddd53; not rerun by visual revision.",
+  "figureProvenance": {
+    "path": "../report-assets/figure-provenance.json",
+    "sha256": "e8fb2f7f35d3f528ec7730e745d4625e09b64451d99a42a98a6de745ad340266"
+  }
 }
