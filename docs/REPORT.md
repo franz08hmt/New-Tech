@@ -4,7 +4,7 @@
 
 **Submission files:** [editable Word](submission/ExaMate-Report-20261023.docx) and [PDF](submission/ExaMate-Report-20261023.pdf). The same files are copied to ignored `output/pdf/` for local use. Both contain 19 pages including cover and contents. Instructor, class and second-student metadata are intentionally blank. Body text uses Times New Roman; the source Word file includes an automatically generated table of contents.
 
-This report summarizes retained evidence. Preparing/exporting it did not rerun application gates or call a provider.
+Deployment and evaluation measurements are retained evidence. Fresh local publication gates passed for runtime source `0bddd53`; see the publication checkpoint for exact counts. No cloud or paid-model request was made during publication.
 
 ## I INTRODUCTION AND PROJECT SCOPE
 
@@ -237,7 +237,7 @@ Regression cases cover missing or revoked membership, outsider login, cross user
 
 The running stack uses real Supabase Auth, private Storage and PostgreSQL, with Gemini configured on the backend. The 45 HTTP checks verified outsider no_access and forbidden data reads, viewer write denial, manager only AI monitoring, module reads and private signed object access. Google login succeeded for the explicitly granted identity; it does not establish access for every Google account.
 
-This report identifies source HEAD 4ec44c7 plus local managed profile, evaluation and documentation changes. HEAD alone does not describe the running managed026 deployment, so exact clean clone reproducibility is not asserted. Dependency advisories and the frontend bundle warning remain disclosed. This report preparation does not rerun application gates or modify cloud state.
+Managed deployment support and the guarded evaluation budget are versioned in source commit 0bddd53. The real deployment observations were collected before that source publication, with private configuration kept outside Git. A fresh clone still requires target-specific provisioning. Dependency advisories and the bundle warning remain; publication verification is recorded separately from the deployment and model measurements.
 
 ## XI AI EVALUATION METHOD
 
@@ -355,7 +355,7 @@ Invoke-RestMethod http://127.0.0.1:8080/api/health
 
 The README lists variable names: business/Auth URLs, Supabase settings, session encryption, Gemini and the trusted origin. Runtime migration credentials stay blank. CA and model mounts are read only; credentials are distributed privately.
 
-Verification commands are npm run typecheck, npm test, npm run build and npm run format:check. Database tests require a guarded disposable target. Review and commit the remaining deployment changes before claiming clean clone reproduction. Health alone does not verify Google login, Storage access or model behavior.
+Verification commands are npm run typecheck, npm test, npm run build and npm run format:check. Database tests require a guarded disposable target. For a fresh clone, review the explicit migration profile and provide private configuration. Health alone does not verify Google login, Storage access or model behavior.
 
 ### 15.2 Conclusion
 

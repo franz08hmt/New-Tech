@@ -6,6 +6,14 @@ và câu hỏi Q&A cá nhân 12 phút. Rubric: mục 10 (demo 8 phút, live chan
 
 ## 1. Chọn môi trường demo — và nói đúng nó là gì
 
+**Môi trường đang chạy:** `http://127.0.0.1:8080`, Compose project
+`examate-final-live-20261023`, Supabase Auth/Storage/DB và Gemini thật.
+Google của Tài đã vào Dashboard; cloud managed026. Chưa cần đợi Support.
+Gemini đang trả503 ở lượt evaluation sau, nên kiểm kết quả một lần khi chuẩn
+bị quay và giữ phần không-AI sử dụng được; không bấm gửi lặp để săn ảnh đẹp.
+So sánh AI chưa đủ20 lượt sau, PDF giữ DRAFT. Xem bàn giao hiện tại để tránh
+nói checkpoint synthetic cũ là nghiệm thu live toàn bộ.
+
 | Môi trường | Khi nào | Lời phải nói |
 | ---------- | ------- | ------------ |
 | `compose.yaml` + `.env` thật (Supabase + Gemini) | **Dùng cho buổi bảo vệ chính thức** khi đã có credential và đã tự kiểm tra từng máy | "Đây là bản chạy trong Docker với dịch vụ thật." Chỉ nói vậy khi đúng vậy. |
@@ -74,7 +82,7 @@ Quy trình khi bảo vệ: (1) đọc yêu cầu và nói lại; (2) tìm file b
 
 ## 5. Q&A cá nhân 12 phút — module sở hữu và một module của bạn cùng nhóm
 
-Mỗi người trả lời module của mình trước, rồi một phần do giảng viên chọn. Nguồn sự thật: Git history (23/10/2026: 260 commit Tài, 5 commit Thắng) và `docs/FINAL-REQUIREMENTS.md`.
+Mỗi người trả lời module của mình trước, rồi một phần do giảng viên chọn. Nguồn sự thật: Git history tại baseline bd94726 (23/10/2026: 264 commit Tài, 5 commit Thắng; không suy ra tỷ lệ công sức) và `docs/FINAL-REQUIREMENTS.md`.
 
 | Module | Người đứng đầu theo Git | Câu hỏi thường gặp và nơi mở code |
 | ------ | ----------------------- | --------------------------------- |
@@ -87,5 +95,13 @@ Mỗi người trả lời module của mình trước, rồi một phần do gi
 | Streaming chat (SSE) | Thắng | Vì sao documents mode chỉ stream trạng thái? `X-Accel-Buffering`? Hủy giữa chừng? → `assistant.controller.ts`, `use-assistant.ts` |
 
 **THẮNG ĐIỀN:** giải thích số commit trong Git và mô tả luồng dữ liệu STT/streaming bằng lời của bạn. **TÀI ĐIỀN:** mô tả luồng RAG và Study Coach bằng lời của bạn.
-Giảng viên có thể hỏi truy vết: "story US-06 nằm ở đâu?" → `FINAL-REQUIREMENTS.md` bảng User stories; hoặc "giải thích một case evaluation đang đỏ" → chưa có case chạy,
-hãy nói thẳng và mở `docs/GOLD-REVIEW-PACK.md`.
+Giảng viên có thể hỏi truy vết: "story US-06 nằm ở đâu?" → `FINAL-REQUIREMENTS.md` bảng User stories; hoặc "giải thích một case evaluation đang đỏ" → mở bảng RQ01/RQ11/RQ14 trong report và kết quả baseline. Improved còn thiếu mẫu; không nói chưa có baseline hoặc đã hoàn tất so sánh.
+
+
+## Checkpoint lịch sử trước managed026 — không phải trạng thái runtime hiện tại
+
+Kịch bản 8 phút và shot list 3–5 phút ở trên sẵn dùng. **Chưa ghi video từ dịch vụ thật**: cloud mới ở016, chưa có LOGIN runtime hợp lệ; không quay synthetic rồi gọi đó là bản dùng Auth/Storage/Gemini thật. Công cụ mở Chrome tương tác đã bị policy từ chối; không dùng profile cá nhân hay đường vòng. Browser headless local riêng vẫn có thể dùng cho kiểm thử synthetic khi stack sẵn, không mở khóa console Google của người dùng.
+
+Trước khi quay chính thức: operator hoàn tất supported rollout017–025, preflight hai LOGIN, khởi động compose thật với CA; đăng nhập bằng file demo-logins.private.json hiện hành (không chụp màn hình mật khẩu), mở bộ dữ liệu sẵn có, chạy lại các bước A/C và kiểm persistence. Chỉ bấm generation theo campaign còn ngân sách. Nếu không có recorder, nhóm có thể dùng công cụ quay trên máy mình theo shot list; không đánh dấu video đã làm.
+
+Phần cá nhân duy nhất còn cần nhóm: xác nhận đóng góp thật/hiểu bài, đăng nhập/2FA/consent Google, thử micro/STT trên máy thực, luyện và tham gia bảo vệ. Agent chịu trách nhiệm kỹ thuật còn lại khi quyền operator/target được mở khóa. Không dùng lỗi AI có chủ động bật trong synthetic stack làm bằng chứng outage thật.

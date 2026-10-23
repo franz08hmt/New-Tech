@@ -3,7 +3,7 @@
   "reportDate": "2026-10-23",
   "kind": "retained-evidence-summary-not-a-new-execution",
   "sourceBaseHead": "4ec44c7892e0dfa0bbe7569d08789657a766aa5b",
-  "runtimeIncludedUncommittedChanges": true,
+  "runtimeIncludedUncommittedChanges": false,
   "reviewer": {
     "kind": "ai_under_user_delegation",
     "humanReview": "not_claimed"
@@ -201,6 +201,83 @@
     "No full improved-cohort pass rate; provider failures and unattempted cases remain.",
     "No injection resistance PASS without exact model-context evidence.",
     "Raw private runtime logs, credentials, account mapping and backups are excluded.",
-    "Managed deployment source changes remain local WIP outside the report commit."
-  ]
+    "Deployment and evaluation measurements predate this source publication; no new cloud or paid-model verification is implied."
+  ],
+  "sourceNowVersionedAt": "0bddd533e79316d9457135fe5e4665b555559c47",
+  "deploymentObservationsCollectedBeforeSourcePublication": true,
+  "publicationVerification": {
+    "sourceCommit": "0bddd533e79316d9457135fe5e4665b555559c47",
+    "gates": [
+      {
+        "gate": "typecheck",
+        "exitCode": 0,
+        "seconds": 17.59,
+        "log": "typecheck.log"
+      },
+      {
+        "gate": "test",
+        "exitCode": 0,
+        "seconds": 267.43,
+        "log": "test.log"
+      },
+      {
+        "gate": "build",
+        "exitCode": 0,
+        "seconds": 22.09,
+        "log": "build.log"
+      },
+      {
+        "gate": "format",
+        "exitCode": 0,
+        "seconds": 11.87,
+        "log": "format.log"
+      },
+      {
+        "gate": "database",
+        "exitCode": 0,
+        "seconds": 307.65,
+        "log": "database.log"
+      },
+      {
+        "gate": "managed-database",
+        "exitCode": 0,
+        "seconds": 4.4,
+        "log": "managed-database.log"
+      }
+    ],
+    "application": {
+      "vitest": [460, 547],
+      "node": {
+        "tests": 1317,
+        "pass": 1317,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "totalPass": 2324
+    },
+    "canonicalDatabase": {
+      "tests": 521,
+      "pass": 521,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "invocations": 51
+    },
+    "managedDatabase": {
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "pdfTests": {
+      "pass": 2,
+      "fail": 0
+    },
+    "providerCallsThisPublication": 0,
+    "cloudWritesThisPublication": 0,
+    "browserRerun": false,
+    "environment": "Owned disposable PG17 only; synthetic upstreams, split runtime capabilities in integration tests."
+  }
 }

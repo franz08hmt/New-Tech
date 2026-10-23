@@ -18,7 +18,9 @@ Folder `Final-Project` cũ còn WIP riêng; không reset, copy đè hoặc gom v
 Bộ nộp và bảo vệ (23/10/2026, bản DRAFT): [ma trận rubric + user stories](docs/FINAL-REQUIREMENTS.md),
 [báo cáo](docs/REPORT.md), [slide](docs/SLIDES.md), [demo/video/bảo vệ](docs/DEMO-AND-DEFENSE.md),
 [gói duyệt gold](docs/GOLD-REVIEW-PACK.md) và [checklist bàn giao](docs/RUBRIC-READINESS-HANDOFF.md).
-PDF/PPTX dựng bằng `python scripts/build-submission-docs.py <thư-mục-xuất>`.
+PDF/PPTX dựng nhanh bằng `python scripts/build-submission-docs.py <thư-mục-xuất>`.
+Bản report tiếng Anh có bìa và mục lục Word hiện hành: [PDF 19 trang](docs/submission/ExaMate-Report-20261023.pdf), [Word chỉnh sửa](docs/submission/ExaMate-Report-20261023.docx).
+Bản Word/PDF chính giữ layout theo mẫu; sửa Word, cập nhật mục lục và xuất PDF lại khi đổi nội dung.
 
 Chỉ mở khi cần: [đăng nhập máy Thắng](docs/PILOT-DEMO-HANDOFF.md),
 [cấu hình Assistant](docs/ASSISTANT-SETUP.md), [STT](docs/STT-SETUP-VI.md),
@@ -55,12 +57,12 @@ F13 (WASM PoC) khỏi kế hoạch. Giữ responsive mobile web, SSE và demo b�
 Docker Compose hoặc bản deployed. Không tự bỏ F14; xem
 [đối chiếu rubric](docs/FINAL-REQUIREMENTS.md#phạm-vi-bổ-sung-theo-tài--22102026).
 
-App chỉ chạy **local**, dùng dữ liệu demo nhóm, không public/deploy.
-Auth bootstrap demo ngày 17/10 đã ghi nhận schema cloud 001–015 và membership;
-**chưa nghiệm thu đăng nhập thực tế trên máy Thắng** hoặc Auth extended.
-Tenant RLS/non-owner đã chứng minh trên DB disposable, chưa rollout runtime
-role/grants/policies toàn app lên cloud. B3 budget AI, B4 semantic RAG/live
-evaluation có Auth và benchmark microphone/STT thật còn thiếu.
+App phục vụ demo trên loopback8080, dùng Supabase Auth/Storage/DB và Gemini
+thật. Cloud đã áp profile **supabase-managed001–026**; runtime business/Auth
+tách LOGIN và kiểm contract quyền/TLS. Google của Tài đã vào Dashboard thành
+công;45 kiểm tra HTTP thật đạt. Xem [triển khai hiện tại](docs/MANAGED-DEPLOYMENT.md).
+Máy Thắng và microphone/STT thật chưa được nghiệm thu. Kết quả AI trước/sau
+và phần cá nhân xem checklist bàn giao, không suy từ health check.
 
 Checkpoint tích hợp `01288ce` đã chạy 5 gates exit 0:
 **1.487 test ứng dụng + 379 DB**, browser fixture desktop/375px/320×320,
@@ -97,11 +99,10 @@ không coi install thành công là audit sạch. Xem [context](docs/PROJECT-CON
 | AI          | `GEMINI_API_KEY`, model/timeouts theo template; thiếu AI không được bỏ Auth                                                           |
 | Dev origin  | Cấu hình công khai dưới đây                                                                                                           |
 
-F02-A local đã thêm capability groups, migration 017 và kiểm tra startup để API
-từ chối owner/BYPASSRLS hoặc privilege drift. Đây **không** phải quyền đã được
-provision trên Supabase: không dùng chung một owner/service credential cho hai
-URL runtime và không chạy `f02:apply-017` lên cloud. Cần chuẩn bị roles/credentials
-qua checkpoint riêng F02-B trước khi chuyển môi trường thật.
+Cloud hiện có capability groups và hai LOGIN runtime đã kiểm startup; API từ
+chối owner/BYPASSRLS hoặc privilege drift. Không dùng chung credential cho hai
+URL runtime và không chạy `f02:apply-017` canonical lên managed ledger. Profile
+managed dùng tên/checksum riêng, không thay byte migration lịch sử.
 
 ```dotenv
 HOST=127.0.0.1
@@ -144,26 +145,32 @@ Assistant status chỉ báo cấu hình, không chứng minh key/quota/model ho�
 Main Compose dùng Supabase bên ngoài, origin **http://127.0.0.1:8080**,
 chỉ publish web trên loopback; API không publish port 3000.
 Container API cần cả `DATABASE_URL` business và `AUTH_DATABASE_URL` Auth riêng;
-`MIGRATION_DATABASE_URL` được ép rỗng trong API container. Migration 017 và
-login roles F02-A chỉ được kiểm trên DB disposable local ở lượt này; cấu hình
-runtime owner hiện có không được âm thầm dùng làm fallback.
+`MIGRATION_DATABASE_URL` được ép rỗng trong API container. Cloud managed026 và
+hai LOGIN đã được kiểm thật; không dùng runtime owner làm fallback. Không đổi
+profile hoặc migrate khi chỉ khởi động demo.
 Nginx ghi đè XFF; chỉ trust peer cố định `172.30.250.10` trên subnet
 `172.30.250.0/24`. Kiểm mạng/route không trùng trước chạy; không tự đổi trust.
-Trong Docker CA mount dùng `/run/secrets/prod-supabase.cer`, API bind nội bộ
+Trong Docker CA mount dùng `/run/secrets/prod-ca-2021.crt` qua `compose.ca.yaml`, API bind nội bộ
 `0.0.0.0`; không áp bind/trust đó cho dev trực tiếp.
 
 ```powershell
 docker info
 docker compose --env-file .env.example config --no-env-resolution --quiet
 # Chỉ chạy với cấu hình/runtime target đã được duyệt:
-docker compose build
-docker compose up -d
-docker compose ps
-docker compose down
+docker compose -p examate-final-live-20261023 -f compose.yaml -f compose.ca.yaml build
+docker compose -p examate-final-live-20261023 -f compose.yaml -f compose.ca.yaml up -d
+docker compose -p examate-final-live-20261023 -f compose.yaml -f compose.ca.yaml ps
+docker compose -p examate-final-live-20261023 -f compose.yaml -f compose.ca.yaml down
 ```
 
 Không in resolved Compose/env/log chứa credential. `down` không dùng `-v`;
 không xóa volume/stack của người khác.
+
+**Completion 23/10/2026:** các lệnh khởi động thật trên chỉ dùng sau preflight.
+Cloud đã dùng profile managed026, `.env` đã chuyển sang LOGIN runtime đúng
+quyền. Không khởi động bằng postgres/BYPASSRLS. Native CA và mount read-only
+đã xác minh. Backup/restore rehearsal, Docker health và Google Dashboard thật
+đã kiểm; xem [runbook hiện tại](docs/MANAGED-DEPLOYMENT.md).
 
 **Demo không cần credential (stack demo, 23/10/2026).** `compose.demo-stack.yaml` dựng Nest thật + PG17 disposable + nginx, với
 Auth upstream, Storage và "model" giả lập (không `.env`, không Supabase, không Gemini). Dùng để luyện demo, kiểm UI/quyền/lỗi và quay video

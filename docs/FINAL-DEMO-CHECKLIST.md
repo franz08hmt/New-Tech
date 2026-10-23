@@ -1,5 +1,36 @@
 # ExaMate — checklist demo và nộp cuối kỳ
 
+## Source publication verification - 23 October 2026
+
+User authorized committing and pushing all reviewed nonsensitive integration code and documentation. Runtime/database source is committed at `0bddd53`. Fresh local gates: typecheck, npm test, build, format and canonical database all exit 0; application 2324 PASS (API Vitest 460 + Node 1317 + Web 547), canonical PG17 521/521 in 51 invocations; separate restricted managed-profile fixture 1/1. Fail/skip/cancelled: 0. PDF exporter tests: 2/2.
+
+Both databases are new owned disposable clusters. No cloud write, paid model request, migration replay on shared services or new browser acceptance was performed. Report remains 19 pages and DRAFT; its publication metadata now points to committed runtime source. Secrets/backups/private artifacts remain ignored. Logs: `artifacts/publish-sync-20261023/`. Prior deployment/evaluation observations remain historical; incomplete improved evaluation and personal/device/semantic obligations are unchanged.
+
+
+## Hiện tại - đọc trước các checkpoint lịch sử
+
+- [x] Cloud managed026; Docker thật healthy tại8080; TLS/CA và hai LOGIN runtime.
+- [x] Google của Tài callback về Dashboard;45 kiểm HTTP thật/private Storage đạt.
+- [x]20 baseline thật và AI review công bố; không cần người ký gold.
+- [ ] Improved đủ20: mới3 câu,2 lỗi503; dừng ở budget envelope, không retry.
+- [ ] Video, máy Thắng/STT và xác nhận cá nhân do nhóm làm; không suy từ test giả.
+
+Xem [bàn giao mới nhất](RUBRIC-READINESS-HANDOFF.md),
+[triển khai](MANAGED-DEPLOYMENT.md) và [kết quả](evaluation-live-results-20261023.json).
+Các dòng cloud016/017-blocked bên dưới là lịch sử, không áp dụng để migrate lại.
+
+## Completion candidate — 23/10/2026
+
+- [x] Private backup readable and restore rehearsed on owned PG17; 50 existing non-ledger tables preserved through local migrations 016–025.
+- [x] Hosted Auth RLS regression RED→GREEN using non-owner LOGIN and a minimal private verifier; no managed Auth owner/RLS change.
+- [x] Independent outsider-login 500 oracle and PDF continuation-fill oracle reproduced then fixed.
+- [x] AI-delegated pre-execution technical gold review: v2, 24 definitions, 10 source facts/5 pages. This is neither model semantic review nor runtime provenance.
+- [ ] Cloud rollout: stopped after 016; 017 rolled back due to PG17 policy-owner membership/ownership prerequisites. Root runtime configuration unchanged. Maintenance window released; restart requires fresh backup/writer checks.
+- [ ] Real `compose.yaml` health/browser matrix, Google OAuth, >=20 live before/after results and real-service fallback video. Do not substitute synthetic stack evidence.
+- [ ] Dispatch budget counter/wrapper and verified runtime target proof are still required before paid execution; the pinned batch authorizer alone does not provide them.
+
+New-run evidence/lifecycle is recorded in `artifacts/final-completion-20261023/`; historical counts below are not this candidate's gate results. Final result summary will be appended after the current gate runs.
+
 Đọc [README](../README.md), [hướng dẫn học](FINAL-STUDY-GUIDE-VI.md) và
 [context](PROJECT-CONTEXT.md). Checklist này là kế hoạch; ô trống không phải PASS.
 

@@ -1,5 +1,83 @@
 # ExaMate — context hiện tại cho Tài, Thắng và agent
 
+## Source publication verification - 23 October 2026
+
+User authorized committing and pushing all reviewed nonsensitive integration code and documentation. Runtime/database source is committed at `0bddd53`. Fresh local gates: typecheck, npm test, build, format and canonical database all exit 0; application 2324 PASS (API Vitest 460 + Node 1317 + Web 547), canonical PG17 521/521 in 51 invocations; separate restricted managed-profile fixture 1/1. Fail/skip/cancelled: 0. PDF exporter tests: 2/2.
+
+Both databases are new owned disposable clusters. No cloud write, paid model request, migration replay on shared services or new browser acceptance was performed. Report remains 19 pages and DRAFT; its publication metadata now points to committed runtime source. Secrets/backups/private artifacts remain ignored. Logs: `artifacts/publish-sync-20261023/`. Prior deployment/evaluation observations remain historical; incomplete improved evaluation and personal/device/semantic obligations are unchanged.
+
+
+## Điểm tiếp tục mới nhất - managed cloud26, 23/10/2026
+
+**Ưu tiên mục này hơn các checkpoint lịch sử bên dưới.** Cloud đã commit
+`supabase-managed001–026`, root env đã chuyển sang hai LOGIN business/Auth
+non-owner, non-BYPASSRLS và TLS/CA đúng. API Docker thật healthy tại8080;
+Google do Tài tự consent đã callback và mở Dashboard với manager membership
+cấp đúng identity.45 kiểm tra HTTP thật đạt, private Storage đọc được. Cửa sổ
+bảo trì đã trả lại. Support SU-521037 không còn là blocker của đường này.
+
+Profile017/025 dùng tên/checksum riêng và026 khôi phục CONNECT cho role nền
+tảng, không sửa lịch sử canonical hoặc Auth owner/ACL/RLS. Contract managed26
+được pin từ restricted fixture độc lập, không từ hash cloud. Xem
+[MANAGED-DEPLOYMENT](MANAGED-DEPLOYMENT.md) cho vận hành/recovery.
+
+Campaign01 đã chạy20 câu baseline thật; batchRQ24 bị REFUSED ở Auth preflight,
+generationRequests0 do5 login/window15 phút. Không retry/clear throttle.
+Improved giữ cùngRQ01–RQ20, model/corpus/prompt, threshold0,55→0,50 khai báo
+trước. Mới3 câu (1 đạt,2HTTP503),17 chưa dispatch. Journal carryover đầy đủ,
+tổng49 calls, upper used/reserved0,596895USD; reserve câu kế0,252USD vượt stop
+0,80USD nên không gọi nữa. Baseline AI review15 strictPASS/3FAIL/2INCONCLUSIVE;
+không claim đầy đủ trước/sau hoặc injection resistance. Cấu hình demo đã trả
+về threshold0,55/daily30. Máy Thắng/STT, video và xác nhận cá nhân còn riêng.
+
+### Các mục dưới là checkpoint lịch sử, không phải chỉ thị triển khai lại
+
+FallbackFlash-Lite thử trong một bài đo mới, nhận502 ngay câu đầu rồi dừng.
+Tổng cập nhật51 AI calls, upper used/reserved0,618895USD, giữ chi phí cũ và
+không retry. Model metadataGET200 không chứng minh generation hoạt động.
+Không chuyển demo sangLite; không ghép hai model thành một so sánh trước/sau.
+
+## Resume inspection — 23/10/2026, 12:29 Asia/Ho_Chi_Minh
+
+Fresh read-only checks supersede the earlier Google-provider-disabled finding:
+Supabase `/auth/v1/settings` returns HTTP200 with `external.google=true`.
+The owner supplied a screenshot showing two Google test users; no Google login
+or consent has been performed by this resumption. TLS certificate validation is
+authorized, Storage bucket is private, and cloud ledger001–016 matches source.
+Root env still lacks `AUTH_DATABASE_URL`; app Google flag is not enabled. No
+cloud writes or paid provider calls were made; no runtime startup is claimed.
+
+The 017 prerequisite was independently reproduced in an owned disposable PG17
+with five assertions (automatic membership, ineffective ordinary revoke,
+forbidden bootstrap-grantor revoke, superuser positive control, and forbidden
+ownership transfer without membership). This confirms a dependency of the
+**current immutable migration path**, not that all alternative architectures are
+impossible. Do not repeatedly apply017, edit its bytes, or fake its ledger.
+User said Support has not been contacted and requested a draft; the unsent
+request and sanitized evidence are under `artifacts/resume-completion-20261023/`.
+Preserve the preceding agent's documentation WIP. See `tasks/plan.md` and
+`tasks/todo.md` for the ordered resumption; no push was requested in this turn.
+
+Resumption gates: typecheck/build/format exit0; application components
+457+1313+544=2314 pass. The first root npm-test run was interrupted by overlapping
+builds; the exact Node list was rerun clean, not reported as root exit0. Fresh
+DB gate passed521/521 in51 files after fixing one test-only42704 assumption about
+optional hosted API roles. PUBLIC EXECUTE denial is unconditional and a local
+grant mutation was caught. No product source/migration changed. Owned test
+container removed; evidence at `artifacts/resume-completion-20261023/`.
+
+## Completion campaign — 23/10/2026 (current; supersedes older readiness assumptions)
+
+Authority: user explicitly permits private credential use, guarded cloud migration and a sequential Gemini campaign capped at USD 1, stop dispatch at used/reserved USD 0.80, 200 provider calls, 5 logical requests/batch, no automatic retry. No paid call has been dispatched by this campaign yet. Gold may be technically reviewed by AI under delegation; no Tài–Thắng signatures are required. Personal contribution/understanding is still theirs to confirm.
+
+Cloud is **PAUSED at 001–016**, not rolled out: verified TLS to Supavisor endpoint, private DB/Auth/Storage archive plus object-byte backup, successful local PG17 restore and 016–025 rehearsal. All 50 pre-existing non-ledger table counts and row fingerprints survived the stopped rollout. 017 rolled back. PostgreSQL 17 automatically grants role creators an administrative membership; immutable 017 rejects any policy-owner membership and needs an operator able to perform its ownership transition. Hosted `postgres` cannot remove the bootstrap-superuser grant. No guard/checksum/ledger bypass, owner change of managed Auth, or runtime owner fallback is allowed. Root `.env` is unchanged; separate runtime LOGINs have not been created on cloud. Cloud writes stopped; the maintenance window was released explicitly in chat. A later rollout needs fresh writer/backup checks.
+
+Source adds migration 025 and a private, boolean-only Auth-session verifier following Supabase's documented SECURITY DEFINER pattern. Auth runtime loses direct Auth schema/table access; session/user/expiry checks remain. Existing 001–024 bytes stay unchanged. 025 is **local-only** until the cloud blocker is resolved. Capability v25 and guarded local rollback are tested. Legacy rollback fixtures explicitly install test-only verifier infrastructure without fabricating migration entries.
+
+Gold v2 technical review is recorded in `evaluation-quality-gold-review-v2.json` against manifest `53066af8…da6a` and exact case hashes, before any campaign output. PDFs: 10 facts/5 pages verified offline. All 24 definitions reviewed; current planner supports 23 and defers RQ23. The historical offline preparer reports its narrower legacy support matrix (15 document-question cases); it is not the newer planner. Operator-side campaign authorizer pins trusted record bytes and exact batch bindings. This alone is **not** target equivalence, runtime provenance, provider-budget enforcement or permission to dispatch. Live execution remains blocked pending those runtime conditions.
+
+Other fixes: outsider harness now requires HTTP 200 plus `no_access` instead of comparing a failure to itself; PDF exporter removes MuPDF header fills leaking into blank continuation space. Artifacts and RED/GREEN logs: `artifacts/final-completion-20261023/`; backups/credentials stay under its ACL-protected `private/`, never Git. No claim of real-service Docker, Google, full browser acceptance or semantic evaluation follows from these local fixes.
+
 Cập nhật 22/10/2026. Đây là điểm tiếp tục công việc, không phải nhật ký từng lượt.
 Git/source và kết quả kiểm mới có ưu tiên hơn checkpoint cũ trong báo cáo.
 

@@ -1,8 +1,44 @@
 # ExaMate RAG evaluation — Phase 4
 
-## Live run — những gì còn thiếu, thứ tự chạy và mẫu kết quả (23/10/2026)
+## Current completion campaign — 23/10/2026
 
-Mục này là bản **duy nhất** cho việc "đo ≥ 20 case, trước/sau một cải tiến" của rubric 4.2.
+User permits pre-execution gold technical review by AI, labelled as such, and later AI-assisted semantic assessment; two human signatures are not a rubric requirement. Earlier named-human-only wording below describes the old workflow, not a restriction on this explicitly delegated campaign. Never sign Tài/Thắng's names or call machine/AI review human review.
+
+Suite v2 remains byte-identical (`53066af8cc6f256f14b78313e3becd8857eb81e9d64d33f64429a5282d6cda6a`). `evaluation-quality-gold-review-v2.json` binds every case to source/page/fact and records the delegated technical decisions before outputs. 24 definitions, 23 supported by the current planner, RQ23 deferred. The older offline preparer's support count is not the current runtime planner count.
+
+`rag-evaluation-campaign.mjs` verifies delegated gold and creates an injected batch authorizer from a separately pinned, operator-held campaign record. It binds exact batch hashes (including target/request/cohort), phase, expiry and <=5 request batches under the user's USD1/stop0.80/200 provider-call policy. It does not enforce dispatch cost itself. An unprovisioned target, missing current provenance or missing provider-side counter remains blocked; neither a JSON decision nor this authorizer bypasses existing executor guards. No live run is authorized by the review file alone.
+
+Current result: cloud managed26 and real Docker/Google are operational. Actual
+container/config/source target proof, SQL/private Storage provenance and durable
+pre-dispatch envelope were integrated. BaselineRQ01-RQ20 all executed:15 strict
+final-answer PASS,3 FAIL,2 injection INCONCLUSIVE under disclosed AI review.
+Improved threshold0.50 (baseline0.55), same model/corpus/prompt, attempted3:
+1 PASS and2 providerHTTP503.17 not attempted. RQ24 had zero generation after
+Auth-preflight rate limit, so it is excluded from BOTH comparison denominators;
+summaryRQ21/22 and unsupportedRQ23 remain excluded explicitly.
+
+49 provider calls including index. Used/reserved upper estimateUSD0.596895;
+nextUSD0.252 reservation would exceed stopUSD0.80. No more dispatch, no billing
+enablement/budget reset. Missing embedding/error usage is not zero. Known503
+was reconciled separately after a wrapper incorrectly surfaced transport unknown;
+preserve raw report/ledger and do not replay. Full results and limits:
+[live results](evaluation-live-results-20261023.json), [report evaluation method/results](REPORT.md#xi-ai-evaluation-method).
+Further execution needs provider availability and a new budget decision; retain
+all failures and the fixed corpus. No improvement-effectiveness claim is supported.
+
+Reproduce offline preparation (no credential/network/provider/ledger):
+
+```powershell
+node apps/api/scripts/prepare-rag-quality.mjs --suite docs/evaluation-quality-cases-v2.json --output artifacts/<fresh-output>
+node --test apps/api/test/evaluation-campaign.test.mjs
+```
+
+Each live phase needs its own approved bindings and ledger path. Usage missing stays unknown; no currency/version mixing or production SLA claim. Existing legacy AUTH_REQUIRED guard remains intact.
+
+## Historical live-readiness plan - superseded by the current campaign above
+
+Phần dưới lưu quy trình thiết kế trước campaign. Trạng thái mới ở mục đầu và
+bảng kết quả thật có ưu tiên hơn các checklist "chưa triển khai" lịch sử.
 Trạng thái: `LIVE_EVALUATION_PENDING`. Chưa có case nào chạy bằng model thật, chưa có pass rate nào.
 Không ghi pass rate dựa trên stack demo (`compose.demo-stack.yaml`): nó dùng bộ trích câu, không phải LLM.
 

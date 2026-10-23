@@ -1319,3 +1319,80 @@ and an unverified claim that v1 plans 22 cases was corrected after running the p
 Human checks still required: Tài and Thắng must read and own the user stories, the report sections marked `ĐIỀN`, and the
 `GOLD_REVIEW_PENDING` decisions. No approval, signature, commit or confirmation was made for either of them; no real credential, paid model call,
 cloud write, push or deploy was used.
+
+
+## 2026-10-23 — authorized completion campaign (Codex)
+
+User explicitly authorized private credential use, guarded cloud rollout, USD1 real-model budget and AI-delegated gold review. AI implemented a boolean-only managed Auth verifier/capability025 with PG17 RLS regression, local rollback/reapply; reproduced outsider-login harness false PASS and MuPDF blank-space table fills before fixing both. It technically reviewed all 24 v2 gold definitions against 10 facts/5 pages before campaign model outputs, labelled the separate record AI rather than signing Tài/Thắng, and added pinned campaign authorizer tests. No new paid call has been made in this campaign.
+
+The first full DB run correctly rejected a reused restore database's Auth-schema marker; a clean owned target was provisioned. A legacy test correctly failed because current AuthStore needs the new private verifier; legacy fixture infrastructure was updated without faking ledger025. One app run failed because concurrent build commands removed `dist` while Node tests imported it; it is retained as invalid build scheduling evidence, then rerun with builds separated. A later DB connection refusal was an exited owned Docker container after restart; its exact labels were checked before restarting it. These failed runs remain artifacts, not replaced by historical counts.
+
+Backup includes public/Auth/Storage SQL plus separate Storage bytes; local restore and 016–025 rehearsal passed. Cloud016 committed, 017 rolled back on a genuine hosted-PG17 role-membership prerequisite. No immutable migration, managed Auth owner/RLS, cloud data or runtime-owner fallback was changed to bypass it; 50 old table fingerprints matched after stopping. Maintenance window released explicitly. Cloud roles/runtime/OAuth/live evaluation remain blocked; report and slides stay DRAFT. No personal contribution or understanding was asserted for either student.
+
+## 2026-10-23 — interrupted-campaign resumption
+
+Fresh read-only inspection confirmed Google provider is now enabled, TLS verifies,
+Storage is private, and the cloud ledger remains001–016 with source checksums.
+A separate owned PG17 reproduction confirmed the role-creator/bootstrap-grantor
+and ownership-transition boundaries. A Support request was drafted at the user's
+request, not submitted. No paid calls, cloud writes or fabricated approvals.
+
+The clean full DB gate caught an AI-authored test assumption: the managed Auth
+test called `has_function_privilege` with optional hosted role `anon`, which is
+absent on pristine PostgreSQL (42704). The test now resolves optional roles via
+catalog and unconditionally rejects PUBLIC EXECUTE; focused RED→GREEN passed.
+An injected PUBLIC EXECUTE grant in a separate disposable fixture made the fixed
+test fail as intended; no migration bytes were mutated. The resuming agent also
+scheduled an overlapping build that invalidated initial tests by deleting dist;
+those failures remain logged, followed by clean component reruns. This is not
+claimed as a product bug or a successful root npm-test run.
+
+Final resumption evidence: application components457+1313+544=2314 pass;
+full guarded database521/521 in51 files exit0; build/typecheck/format exit0.
+Owned disposable container removed after exact ID/label checks. Other agent
+resources and all cloud data were untouched; no commit/push in this resumption.
+
+## Managed completion and real campaign (23/10/2026)
+
+Later work supersedes the stopped-runtime state above: separately checksummed
+managed026 installed, private backup preserved, two non-owner TLS LOGINs,
+real Docker/Google and45 HTTP checks verified. No human contribution/signature
+was invented. Historical SQL and managed Auth catalog were not rewritten.
+
+Two additional AI-authored harness defects were caught:
+
+- Budget envelope map accepted inherited keys like `__proto__`, poisoning totals
+  toNaN. Fresh review found it; invalid-kind regression RED→GREEN now requires
+  an own-property lookup. Valid real calls always used fixed known kind literals.
+- Live wrapper threw after RECEIVINGHTTP503, causing raw executor to classify a
+  known provider error as transport-unknown. Saved per-dispatch status/request ID
+  and fresh terminal telemetry reconciled it without replay or ledger rewriting.
+  Later wrapper returns received errors for correct STOPPED classification.
+
+Baseline20 real cases and partial improved3 retain all errors. AI technical
+review labels RQ09/10 injection resistance INCONCLUSIVE without context trace.
+RQ11 frozen automatic contract FAIL is retained despite supported extra citation;
+no gold edit after observing output. Missing provider usage retained budget, not0.
+Source/evidence and remaining obligations are in current handoff/report.
+
+
+## English report completion - 23 October 2026
+
+At the user's request, the AI assistant completed the interrupted English report using the supplied DBMS document only as a typography/cover reference. Current report content replaces the unrelated course text; instructor, class and second-student cover fields remain blank by instruction. `docs/REPORT.md` is the English text source; screenshots and English diagrams are in `docs/report-assets/`. Editable Word and PDF are in ignored `output/pdf/ExaMate-Report-20261023.{docx,pdf}`.
+
+Installed Word refreshed the native table of contents and exported 18 A4 pages. Render review checked the page images, table layout and references. The export audit passed 18 checks, including all 16 TOC entries, 13 stories, 20 evaluation rows, source test filenames, reference hash preservation and absence of old comments/custom XML or credential patterns. Evidence, the original reference and the pre-edit report copy are retained under ignored `artifacts/report-refresh-20261023/`. The audit initially identified an overly narrow filename-matching expression; it was corrected to validate complete dotted test names against the filesystem.
+
+The report labels retained application/DB/browser evidence as earlier runs, not fresh execution. This documentation work made no provider calls, cloud writes, application changes or new application-gate claims. Baseline 15 PASS / 3 FAIL / 2 INCONCLUSIVE and the partial improved cohort remain unchanged; no semantic human sign-off or personal contribution explanation is fabricated. The report remains DRAFT.
+
+
+## Reviewed source publication - 23 October 2026
+
+The user explicitly authorized committing and pushing the remaining nonsensitive code, migration profile, tests and documentation. The report-only commit 547ccde had already been pushed; deployment/evaluation source changes had not. This publication reviews that existing work rather than replaying cloud migration, model execution or private bootstrap scripts. Historical task plans retain their earlier instructions with a superseding context note.
+
+The report was extended from 18 to 19 pages with an English module diagram, an eight-step RAG request trace and a responsibilities table. Generic Markdown PDF export had lost source-relative images; a managed regression failed before the archive lookup fix, then both PDF tests passed. The formal Word/PDF bundle and bounded evidence summary are committed under docs/submission; private source artifacts remain ignored. New verification results are recorded in the publication checkpoint, distinct from the earlier deployment and evaluation evidence.
+
+## Source publication verification - 23 October 2026
+
+User authorized committing and pushing all reviewed nonsensitive integration code and documentation. Runtime/database source is committed at `0bddd53`. Fresh local gates: typecheck, npm test, build, format and canonical database all exit 0; application 2324 PASS (API Vitest 460 + Node 1317 + Web 547), canonical PG17 521/521 in 51 invocations; separate restricted managed-profile fixture 1/1. Fail/skip/cancelled: 0. PDF exporter tests: 2/2.
+
+Both databases are new owned disposable clusters. No cloud write, paid model request, migration replay on shared services or new browser acceptance was performed. Report remains 19 pages and DRAFT; its publication metadata now points to committed runtime source. Secrets/backups/private artifacts remain ignored. Logs: `artifacts/publish-sync-20261023/`. Prior deployment/evaluation observations remain historical; incomplete improved evaluation and personal/device/semantic obligations are unchanged.

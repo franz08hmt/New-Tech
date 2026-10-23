@@ -1,6 +1,14 @@
 # Gói duyệt gold cho evaluation RAG (v1 và v2)
 
-Trạng thái: **`GOLD_REVIEW_PENDING`** — chưa ai ký. File này giúp người có thẩm quyền
+## Current policy — user delegation, 23/10/2026
+
+**`AI_TECHNICAL_GOLD_REVIEWED` for v2 only.** User authorized AI technical review before model outputs, without two human signatures. Record: [`evaluation-quality-gold-review-v2.json`](evaluation-quality-gold-review-v2.json), exact v2 manifest SHA and each case SHA, reviewer explicitly AI; 10 facts on 5 PDF pages rechecked with local production extractor. v1/v2/corpus bytes and all historical reports remain unchanged. This separate record does not rewrite historical pending-human templates or claim human approval.
+
+24 definitions have technical decisions; the current quality planner supports **23**, with RQ23 course summary **DEFERRED**. Historical offline preparation advertises only its narrower document-question transport; it must not be mistaken for the newer planner. The tables below remain an optional human review form, not a gate requiring Tài/Thắng signatures. Post-execution review is separate: the retained baseline has AI-assisted technical/semantic assessment, while human semantic review and a complete improved-cohort comparison remain pending.
+
+Campaign authorization can use `createCampaignAuthorizer` only with an independently pinned private campaign record binding exact plan/batch/target/request hashes and reviewed-gold hash. Provenance audit, controlled target proof, ledger and pre-dispatch provider/money enforcement remain separate mandatory gates. The earlier readiness pack itself grants no execution authority. The later authorized campaign and its partial live results are recorded in evaluation-live-results-20261023.json and the current handoff; no additional execution is implied by reading this pack.
+
+Trạng thái lịch sử của mẫu người duyệt: **`GOLD_REVIEW_PENDING`** — chưa ai ký. Chính sách hiện hành và bản duyệt AI tách riêng ở trên. File này giúp người có thẩm quyền
 (Tài và Thắng theo quy trình nội bộ; **đề cuối kỳ không bắt buộc hai chữ ký**) duyệt nhanh. Khuyến nghị
 của AI bên dưới **không phải phê duyệt** và không được ghi thành chữ ký của ai.
 Nội dung PDF là giả (synthetic), không phải yêu cầu thật của giảng viên.
@@ -108,6 +116,4 @@ Cột *Quyết định*, *Reviewer · ngày*, *Nhận xét* để người có t
 
 ## Sau khi duyệt
 
-Ghi nhận quyết định vào `gold-review-template.json` của đúng revision. **Công cụ ghi nhận phê duyệt gold và
-authorizer cho executor chưa được triển khai** (xem `docs/evaluation-plan.md` § "Live run — những gì còn thiếu").
-Đến khi có, `GOLD_REVIEW_PENDING` giữ nguyên và không case nào được chạy bằng model thật.
+Mẫu human review vẫn để trống nếu chưa có người thật duyệt. Bản duyệt AI hiện hành dùng record riêng gắn đúng revision/hash; không sửa mẫu lịch sử để giả chữ ký. Authorizer có thể kiểm record campaign đã pin; chưa đủ target/provenance/budget thì executor tiếp tục từ chối. Không case nào của campaign này đã chạy model thật.

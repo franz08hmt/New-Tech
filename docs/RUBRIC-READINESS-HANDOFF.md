@@ -1,105 +1,92 @@
-# Bàn giao nghiệm thu rubric — 23/10/2026
+# Bàn giao cuối kỳ - cập nhật23/10/2026
 
-**Verdict: `PARTIALLY_READY`** — chưa phải `READY_FOR_INDEPENDENT_REVIEW` toàn phần và **không** phải `RUBRIC_PASSED`.
-Ứng dụng, stack demo, bộ tài liệu và hạ tầng evaluation đã sẵn để reviewer độc lập kiểm; ba nghĩa vụ của rubric còn thiếu bằng chứng
-vì cần người/tài khoản/quyền bên ngoài: (1) evaluation ≥ 20 case trước/sau (cần Gemini thật + gold được duyệt), (2) OAuth2 Google chạy thật,
-(3) demo từ bản triển khai dùng dịch vụ thật. Năm trạng thái dưới đây **không** tương đương nhau.
+## Source publication verification - 23 October 2026
 
-| Trạng thái | Nội dung |
-| ---------- | -------- |
-| Đã triển khai | A (RAG có citation/từ chối), C (Study Coach quiz + flashcards), SSE, STT (Thắng), dashboard AI, RLS, Docker Compose (thật + demo) |
-| Đã kiểm tự động local | gates dưới đây; 49 file test DB trên PG17 disposable |
-| Đã kiểm trong trình duyệt thật (**synthetic** Auth/Storage/model) | xem `docs/FINAL-DEMO-CHECKLIST.md` (mục 23/10/2026) và `docs/REPORT.md` §6.2 |
-| Đã chuẩn bị, chưa thực hiện | evaluation live, video, slide/báo cáo final, luyện live-change |
-| Bị chặn bởi đầu vào/quyền/phê duyệt | xem checklist dưới đây |
+User authorized committing and pushing all reviewed nonsensitive integration code and documentation. Runtime/database source is committed at `0bddd53`. Fresh local gates: typecheck, npm test, build, format and canonical database all exit 0; application 2324 PASS (API Vitest 460 + Node 1317 + Web 547), canonical PG17 521/521 in 51 invocations; separate restricted managed-profile fixture 1/1. Fail/skip/cancelled: 0. PDF exporter tests: 2/2.
 
-## 0. Cập nhật sau khi Tài cấp `.env` (23/10/2026)
+Both databases are new owned disposable clusters. No cloud write, paid model request, migration replay on shared services or new browser acceptance was performed. Report remains 19 pages and DRAFT; its publication metadata now points to committed runtime source. Secrets/backups/private artifacts remain ignored. Logs: `artifacts/publish-sync-20261023/`. Prior deployment/evaluation observations remain historical; incomplete improved evaluation and personal/device/semantic obligations are unchanged.
 
-Đã thăm dò **chỉ đọc** ba dịch vụ trong `.env` (không in secret): Gemini hợp lệ (gói standard, có "thinking token"); Storage bucket `study-documents` **private**, giới hạn 10 MiB; PostgreSQL 17.6 kết nối được bằng user
-`postgres` (owner, **bỏ qua RLS** — API sẽ từ chối khởi động bằng user này) với ledger **dừng ở migration 015**, 1 workspace, 3 membership, 5 tài liệu, 67 chunk. Sau đó chạy một lần **thăm dò Gemini thật** trên stack local
-(`apps/api/test/demo-stack-live-smoke.mjs`, khoảng 35 lời gọi): kết quả ở `docs/REPORT.md` §6.2b. Không có gì được ghi lên Supabase; không áp migration; không dùng dữ liệu chung của nhóm.
 
-Không làm dù đã được "toàn quyền": **duyệt gold** (cần chữ ký người thật, kể cả Thắng) và **áp migration 016–024 + tạo role lên Supabase** (khó hoàn tác, có thể làm máy chạy code cũ lỗi; cần sao lưu, thử trên bản restore local, rồi bạn duyệt riêng).
-Việc còn lại của bảng dưới: #6 đã có `.env` (thiếu role business/Auth non-owner và `AUTH_DATABASE_URL`), #7 đã cho phép gọi Gemini (thực tế đã tiêu khoảng 35 request).
-**Khuyến nghị an toàn:** `.env` đã đi qua cuộc trò chuyện này — xoay (rotate) key Gemini, secret key Supabase, mật khẩu DB `postgres` và `SESSION_ENCRYPTION_KEY` sau khi xong việc; mật khẩu DB trong `DATABASE_URL` còn chứa ký tự `@` chưa mã hóa.
+## Kết luận
 
-## 1. Việc Tài/Thắng cần làm — một checklist, có thứ tự
+**Có thể mở và luyện demo ở http://127.0.0.1:8080. Chưa FINAL toàn rubric.**
+Điểm chặn migration/DB đã giải quyết bằng profile managed26, Google của Tài đã
+vào Dashboard. Việc chưa xong là lượt AI trước/sau đủ mẫu: baseline20 câu đã
+đo, improved mới3 câu rồi Google503. Không gọi tình trạng này là hoàn tất.
 
-"Bắt buộc" = rubric hoặc demo thật không thể đạt nếu thiếu. Cung cấp credential **qua kênh riêng**, không dán vào chat/Git.
+## Agent đã làm
 
-| # | Ai | Quyết định / đầu vào | Cách cấp an toàn | Mở khóa | Bắt buộc? |
-| - | -- | -------------------- | ---------------- | ------- | --------- |
-| 1 | Tài + Thắng | Chọn **v1 hay v2** và duyệt gold 24 case (`docs/GOLD-REVIEW-PACK.md`; khuyến nghị v2, có lý do) | Điền bảng/`gold-review-template.json`; tên người duyệt thật | Mọi bước evaluation | **Có** (rubric 4.2) |
-| 2 | Thắng | Điền ô `THẮNG ĐIỀN` trong `docs/REPORT.md` §9: vì sao Git chỉ có 5 commit + module sở hữu | Tự viết | Rubric 5.4 | **Có** |
-| 3 | Tài + Thắng | Lý do chọn model Gemini và chunk size (ô `ĐIỀN` §4–5, hoặc ADR-012) | Tự viết | Rubric 4.2 "model choice" | Nên |
-| 4 | Tài (owner Supabase) | **Chuẩn bị cloud để chạy `compose.yaml` thật**: cloud hiện chỉ có migration 001–015; app cần 001–024 + role business/Auth non-owner (F02-B). Sao lưu, cửa sổ bảo trì, runbook `docs/PILOT-B1-RUNBOOK.md`, kế hoạch rollback | Maintenance credential chỉ trên máy bạn; không để trong `.env` của API | Demo bằng stack thật, Auth thật | **Có** nếu demo bằng stack thật |
-| 5 | Tài (owner Supabase/Google) | Bật Google provider + redirect allowlist (`/api/auth/google/callback`) + áp migration 016; `AUTH_GOOGLE_ENABLED=true` | Console Google/Supabase | **OAuth2 Google thật** (rubric 3: login OAuth2) | **Có** |
-| 6 | Tài | Tạo `.env` + `secrets/` cho `compose.yaml` (Supabase, `GEMINI_API_KEY`, `SESSION_ENCRYPTION_KEY`…) | Editor riêng; không gửi chat | Chạy `compose.yaml`, AI thật | **Có** |
-| 7 | Tài | **Cho phép gọi Gemini thật** + trần: số request/batch (đề xuất ≤ 5), số batch, quota tài khoản, ngân sách | Ghi trong approval record từng batch | Evaluation live, quiz thật | **Có** (4.2) |
-| 8 | Dev (agent hoặc người) sau #1 và #7 | Hoàn thiện 4 mảnh còn thiếu của executor: ghi nhận phê duyệt gold, `authorize`, target-equivalence, wrapper audit target thật, tờ chấm ngữ nghĩa (`docs/evaluation-plan.md` § Live run, mục C) | Không cần credential để viết; cần để chạy | `--execute` | Có |
-| 9 | Tài + Thắng | Audit provenance (maintenance chỉ đọc) → preflight → từng batch → **chấm ngữ nghĩa bằng người** → baseline → một cải tiến → chạy lại | Credential riêng, stdin | Số liệu 4.2 | **Có** |
-| 10 | Thắng | Đăng nhập trên máy Thắng; STT: weights + micro; thử VI/EN/trộn, audio dài; báo kết quả | Máy của Thắng | Nghiệm thu STT (`docs/PILOT-DEMO-HANDOFF.md`, `docs/STT-SETUP-VI.md`) | Nên (đã trình bày STT) |
-| 11 | Tài + Thắng | Chấm tay mẫu quiz/flashcards do Gemini thật sinh (đúng sự thật? bám tài liệu?) | Tờ chấm | `SEMANTIC_REVIEW_PENDING` | Nên |
-| 12 | Tài + Thắng | Điền kết quả evaluation vào báo cáo/slide; dựng lại PDF/PPTX; bỏ chữ DRAFT | `python scripts/build-submission-docs.py <dir>` | Bộ nộp cuối | **Có** |
-| 13 | Tài + Thắng | **Quay video 3–5 phút** từ bản Docker thật (shot list trong `docs/DEMO-AND-DEFENSE.md` §3) | Phần mềm ghi màn hình | Video dự phòng | **Có** |
-| 14 | Mỗi người | Luyện live-change 10 phút và Q&A 12 phút (module của mình + một module bạn cùng nhóm) | — | Điểm cá nhân 20 % | **Có** |
-| 15 | Tài | Dọn tài nguyên F09-A.1 bị chặn (`RESOURCE_CLEANUP_BLOCKED`, container `examate-f09a1-pg17-20261022` đang Exited) **sau khi xác minh sở hữu** | Tay | Gọn gàng | Không |
-| 16 | Tài | Quyết định có nâng `@huggingface/transformers` (npm audit: 3 high, 4 moderate qua chuỗi STT) hay giữ STT tắt khi demo | `npm install` thủ công sau khi xem changelog | Giảm rủi ro | Nên |
+- Backup SQL/Auth/Storage metadata và11 object, restore rehearsal local; giữ
+  fingerprint dữ liệu cũ trước commit. Không sửa owner/RLS/ACL Auth của Supabase.
+- Cloud `supabase-managed001–026`, tên/checksum thật; canonical001–025 nguyên
+  byte. Runtime LOGIN business/Auth tách riêng, non-owner/non-BYPASSRLS, TLS/CA.
+- Docker thật healthy;45 kiểm tra HTTP/quyền/private Storage đạt.
+- Google PKCE: chủ tài khoản tự consent, callback và Dashboard dữ liệu thật.
+  Cấp manager cho đúng Google identity đã xác minh, không auto-membership.
+- Documents375px đã tải xong không tràn; đo nhanh10 route không tràn. Không
+  nhận các luồng UI synthetic cũ là đã quay lại đầy đủ trên cloud.
+- Gold v2 đã được AI duyệt kỹ thuật theo ủy quyền. Không cần Tài/Thắng ký gold.
+- Campaign thật:3 index+20 baseline+3 improved,49 provider calls. Có target
+  proof đối chiếu container/config/source, provenance SQL/private Storage,
+  exact batch authorizer và budget journal ghi bền trước dispatch.
 
-Thứ tự khuyến nghị: 1 → 2/3 (song song) → 4–6 → 7 → 8 → 9 → 11 → 12 → 13/14. Không chờ #4–#7 để làm #2, #3, #14.
+## Kết quả AI và điểm dừng
 
-## 2. Bằng chứng kiểm tra
+Baseline20: **15 PASS,3 FAIL,2 INCONCLUSIVE** theo kiểm câu trả lời cuối bảo thủ
+(75%). Nội dung đúng18/20, nhưng không trộn số này thành75%→90% chất lượng toàn
+pipeline. RQ01 thiếu nhấn mạnh minh họa, RQ14 thiếu caveat bắt buộc; RQ11 nội
+dung có căn cứ nhưng frozen gold-page check không cho citation bổ sung trang3.
+RQ09/10 trả lời đúng, song thiếu trace đoạn độc hại tới model nên injection
+resistance INCONCLUSIVE. Retrieval recall/MRR chưa quan sát.
 
-Candidate: nhánh `feature/tai-assistant-integration-20261018`, source code ứng dụng giữ nguyên so với `c2ea870`; gates chạy trên working tree gồm các file thêm bên dưới (chưa commit lúc chạy); đợt này chỉ thêm
-test harness, script, compose demo và tài liệu. Chưa push.
+Improved:1 câu đạt,2 câu HTTP503,17 chưa chạy. Giữ nguyên lỗi, không retry để
+lấy kết quả đẹp. Raw executor đầu tiên gọi nhầm known503 là transport-unknown
+vì wrapper ném lỗi sau khi nhận response; đã đối chiếu request/terminal telemetry,
+ghi reconciliation riêng, không sửa raw report hoặc ledger để che lỗi.
 
-| Lệnh (từ thư mục gốc) | Kết quả mới (23/10/2026) |
-| --------------------- | ------------------------ |
-| `npm run typecheck` | exit 0 (30 s) |
-| `npm test` | exit 0 (382 s): API Vitest 457 + API Node 1.309 + Web Vitest 544 = **2.310** pass; fail/skip/cancelled 0 |
-| `npm run build` | exit 0 (37 s) |
-| `npm run format:check` | exit 0 (22 s) |
-| `npm run test:database` (PG17 disposable, container riêng) | exit 0 (250 s): **520/520** pass trong 50 file; fail/skip/cancelled 0 |
-| `docker compose --env-file .env.example config --no-env-resolution --quiet` | exit 0 |
-| `docker compose -p examate-rubric20261022 build` (api + web của `compose.yaml`) | exit 0; **chưa start** (không có `.env`/secrets) |
-| `docker compose -p … -f compose.demo-stack.yaml up -d --build` | up → api healthy → web 200 → `/api/health` ok qua nginx 8080 |
-| Ma trận quyền (`apps/api/test/demo-stack-roles-check.mjs`) | native 19/19; trong container (qua nginx) 16/16 (không có quiz nên 3 kiểm tra quiz bỏ qua) |
-| SSE qua nginx (`demo-stack-stream-check.mjs`, scenario `slow`) | 9 chunk, chunk đầu 40 ms, cuối 4.266 ms |
-| Quét secret lịch sử Git (pattern) | không có secret thật; chỉ placeholder/fixture |
-| `npm audit --omit=dev` | 7 mục (3 high, 4 moderate), đều từ chuỗi STT + `vite` dev-server; không áp fix |
+Upper estimate đã dùng/dự phòng **0,596895 USD**; câu tiếp theo cần reserve
+0,252 USD, tổng0,848895 vượt ngưỡng dừng0,80 USD. Không dispatch thêm, không
+coi usage thiếu là0, không tăng budget hoặc bật billing. Chưa kết luận threshold
+0,55→0,50 tốt hơn. Cấu hình demo bình thường đã khôi phục, daily admission30.
 
-Artifacts (git-ignored): `artifacts/rubric-readiness-20261022/` — `screens/` (ảnh), `roles-check*.jsonl`, `gates-baseline.txt`, `gates-final.txt`,
-`final-gate-*.log`, `docker-*.log`, `submission/` (`ExaMate-report-DRAFT.pdf`, `ExaMate-slides-DRAFT.pdf/.pptx`).
+Baseline operation mean4,583s, p95 mẫu5,056s (20 mẫu, không phải SLA).13.732
+token có usage;0,0128272 USD estimated generation cost cho20 mẫu, thiếu usage
+20 embedding. Không cộng thành hóa đơn. Latency lấy từ operation DB, loại
+thời gian chờ cố ý của bộ chạy.
 
-Số liệu **không** phải ở đây: chưa có pass rate, chi phí/latency thật, chất lượng model, STT accuracy, Google OAuth live, máy Thắng.
+## Việc còn lại - ai làm
 
-## 3. Handoff cho reviewer độc lập
+Thử fallbackFlash-Lite một lần trong bài đo mới cũng nhận502 upstream, dừng ngay
+câu đầu, không thay cấu hình demo bằng model chưa đạt. Cộng thêm2 AI calls,
+tổng51, upper used/reserved hiện **0,618895USD**. Các số49/0,596895 phía trên
+là riêng campaignFlash. Hai metadataGET chỉ đọc xác nhận model tồn tại, không
+phải bằng chứng key/quota/provider đang phục vụ generation bình thường.
 
-**File đổi trong đợt này (không có file sản xuất):**
+| Việc | Người phụ trách | Trạng thái |
+| --- | --- | --- |
+| Lượt improved đủ20 case, giữ cả lỗi và cùng corpus | Agent | Dừng do503 và envelope ngân sách; cần provider hoạt động và quyết định ngân sách mới trước tiếp tục |
+| Trace retrieval/injection nếu muốn kết luận resistance/recall | Agent | Chưa có bằng chứng, không suy từ citation |
+| PDF/report/slides | Agent | Nguồn cập nhật kết quả thật, giữ DRAFT vì so sánh chưa đủ |
+| Quay video3–5 phút, luyện demo/bảo vệ | Tài và Thắng | Tự thực hiện; AI live có thể503 nên cần phần không-AI và video dự phòng trung thực |
+| Máy Thắng, micro/STT và phản tư/đóng góp cá nhân | Tài và Thắng | Không ký/viết thay lời xác nhận cá nhân |
+| Google secret từng có trong ảnh chat | Owner | Xoay qua Console riêng, cập nhật provider kín; không gửi secret vào chat |
 
-| File | Mục đích |
-| ---- | -------- |
-| `apps/api/test/demo-stack-server.mjs`, `demo-stack-seed.mjs`, `demo-stack-wait-db.mjs`, `fixtures/demo-pdfs/*`, `fixtures/make-demo-pdfs.mjs` | Stack demo test-only |
-| `apps/api/test/demo-stack-roles-check.mjs`, `demo-stack-stream-check.mjs` | Ma trận quyền HTTP; kiểm SSE tăng dần |
-| `compose.demo-stack.yaml` | Demo trong Docker, không credential |
-| `scripts/build-submission-docs.py` | Dựng PDF báo cáo + PPTX/PDF slide từ Markdown |
-| `docs/{REPORT,SLIDES,DEMO-AND-DEFENSE,GOLD-REVIEW-PACK,RUBRIC-READINESS-HANDOFF}.md`, `docs/architecture.svg` | Bộ nộp và bảo vệ |
-| `docs/{FINAL-REQUIREMENTS,evaluation-plan,FINAL-DEMO-CHECKLIST,PROJECT-CONTEXT,DECISIONS}.md`, `AI_USAGE.md`, `README.md` | Ma trận rubric, user stories, runbook evaluation, đính chính |
+Support SU-521037 đã gửi, chưa cần chờ để mở demo. Không reset DB, không chạy
+bootstrap/migrate lại, không đổi mọi mật khẩu hệ thống về12345678. Mật khẩu demo
+email theo yêu cầu trước nằm trong file private, không phải mật khẩu Google/DB.
 
-**Lỗi tìm thấy/sửa trong đợt (đều thuộc harness, không đổi sản phẩm):** refusal của model giả trả `answer` rỗng (production từ chối đúng); đọc nhầm `parts[0]`;
-giới hạn đăng nhập của fixture; `sed` làm hỏng hai file Markdown (khôi phục + kiểm diff); claim sai "v1 lập 22 case" (thực tế 23 + 1 hoãn).
-Regression: không có test mới cho harness (nó là công cụ kiểm, được chạy thật nhiều lần); `compose.demo-stack.yaml` được kiểm bằng up/health/smoke.
+## Mở demo và kiểm tra
 
-**Nên thử phá:**
-1. Stack demo: đăng nhập từng vai trò rồi gọi API thẳng (bỏ CSRF/Origin, đổi `workspaceId` trong body, ID tài liệu của người khác) — kỳ vọng 401/403/404.
-2. Hủy request giữa lúc stream (scenario `slow`) rồi xem DB: không có hội thoại nửa câu; đếm `ai_usage_provider_calls`.
-3. Quiz: sửa JSON trả về của "model" (scenario `malformed`) — không có quiz nào được lưu.
-4. Hai tab, đăng xuất ở một tab; phiên hết hạn (`/control/expire`) rồi gửi form — bản nháp còn, request ghi không được gửi lại.
-5. 375 px và viewport 375×520: composer có cuộn được không, nút gửi có tới được không.
-6. Đọc `docs/FINAL-REQUIREMENTS.md`: mọi chữ `BROWSER` có đúng là chạy trong browser trên stack demo, không phải dịch vụ thật?
+Gates cuối trên working tree: `npm test`2.318 PASS(457+1317+544), canonical
+DB521/521 trong51 file, managed fixture1 PASS riêng; typecheck/build/format đều
+exit0. PDF regression1 PASS. Build còn cảnh báo bundle>500kB. Không gọi đó là
+production-ready, audit sạch hoặc evaluation trước/sau đã hoàn chỉnh.
 
-**Claim chưa được kiểm chứng (đừng tin):** chất lượng/độ an toàn của Gemini thật; pass rate; chi phí/latency thật; Google OAuth; Supabase thật; STT accuracy;
-cloud RLS; `compose.yaml` start thành công (chỉ config + build); thiết bị di động thật; keyboard/focus; mở lại hội thoại từ lịch sử bằng UI; xóa quiz/flashcards bằng UI.
+Xem [MANAGED-DEPLOYMENT](MANAGED-DEPLOYMENT.md). Không publish Internet, không
+dừng stack của người khác. Backup016 là lịch sử; tuyệt đối không restore đè
+cloud đang được nhóm sử dụng. Nếu kết quả ghi/COMMIT không rõ phải đối chiếu.
 
-**Giới hạn đã biết:** stack demo mất dữ liệu khi dừng (tmpfs); embedding băm không phản ánh embedding thật (ngưỡng `RAG_MIN_SCORE` được hạ cho harness);
-signed URL của stack demo trỏ tới cổng 3999 (không phải Storage thật, không kiểm đường ký của Supabase); panel Assistant đóng khi Browser pane bị ẩn/hiện (chưa rõ nguyên nhân).
+Evidence git-ignored: `artifacts/managed-completion-20261023/`,
+`live-evaluation-review.json` và các thư mục `live-campaign-01*`.
+Không chia sẻ `private/`, env, account mapping, cookie, signed URL hoặc backup.
+Chưa push trong lượt này; bảo toàn tài liệu WIP của agent trước.

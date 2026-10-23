@@ -67,25 +67,25 @@ Slide kết quả evaluation giữ `PENDING` cho đến khi có số thật; kh�
 - Thăm dò Gemini thật: chat 0,5–2,7 s, quiz 7 s, chi phí ước tính 0,0066 USD / 3 call — PENDING: số trung bình đủ suite
 
 ## Kiểm thử và nghiệm thu
-- `npm test`: 2.310 test (API 457 + 1.309, Web 544) — typecheck, build, format đều pass
-- 49 file test database trên PostgreSQL 17 disposable (RLS, quyền, migration)
+- `npm test`:2.318 test(API457+1.317,Web544), typecheck/build/format đều pass
+- CanonicalDB521 test/51file, restricted managed profile fixture1test riêng, tất cả pass
 - Trình duyệt thật (desktop + 375 px) trên stack demo: đăng nhập, RAG + citation, quiz, flashcards, SSE + dừng, dashboard, lỗi AI
 - Docker: demo stack up → healthy → đăng nhập, RAG, citation, SSE qua nginx
 
-## Evaluation — PENDING
-- Suite 24 case (18 có bằng chứng, 6 từ chối); 23 lập kế hoạch được, RQ23 hoãn
-- Gold chưa được duyệt; **chưa case nào chạy bằng model thật** — chưa có pass rate
-- Kế hoạch: baseline `rag-v1` → chọn **một** cải tiến sau khi xem lỗi → chạy lại cùng suite → báo cả khi không tăng
-- Mẫu số rõ ràng: DEFERRED / BLOCKED / INCONCLUSIVE không tính là PASS
+## Evaluation thật và phần so sánh còn thiếu
+- Baseline20 câu thật:15 PASS,3 FAIL,2 injection INCONCLUSIVE, chấm kỹ thuật bằng AI theo ủy quyền
+- Giữ cùng corpus/model/prompt, chỉ đổi threshold0,55 thành0,50 đã khai báo trước
+- Lượt sau mới3 câu:1 đạt,2 lỗi503.17 chưa chạy, chưa có kết luận hiệu quả cải tiến
+- 51 AI provider calls kể cả index và1 probeLite lỗi502. Upper used/reserved0,618895USD. Không retry hoặc tính thiếu usage là0
 
 ## Giới hạn trung thực
-- Gemini thật mới chạy thăm dò (~35 lời gọi); chưa kiểm Supabase, Google OAuth, máy Thắng
+- Docker và Supabase thật hoạt động, Google của Tài vào Dashboard. Chưa kiểm máy Thắng/STT thật
 - Ghi chú lưu ở trình duyệt; Workspace mode là SQL có kiểm soát, không phải tool-calling LLM
 - Không có trần tiền cứng; courses không có tạo/sửa/xóa; task không có xóa
-- Cloud RLS rollout chưa làm; migration chỉ chạy trên DB disposable
+- Cloud dùng managed026 với hai LOGIN runtime riêng. Lượt AI sau đang bị503 và envelope ngân sách chặn
 
 ## Đóng góp và nhật ký AI
-- Git: 260 commit (Tài), 5 commit (Thắng: STT, streaming chat, Gemini text endpoint, backend bài tập 4)
+- Git tại bd94726: 264 commit (Tài), 5 (Thắng: STT, SSE, Gemini/backend); không dùng số commit làm tỷ lệ công sức
 - Thắng giải thích số commit và module sở hữu (THẮNG ĐIỀN trong báo cáo)
 - `AI_USAGE.md`: 6 lỗi do AI viết đã được phát hiện và sửa, có commit và test hồi quy
 - Ví dụ: executor sao chép buffer sau một `await` → sửa bằng snapshot đồng bộ (`da862cd`)

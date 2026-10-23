@@ -1,5 +1,10 @@
 # B1 + 015 — bootstrap và nghiệm thu Auth trên hai máy
 
+> **Hiện tại23/10:** cloud đã dùng profile managed001–026, hai LOGIN runtime
+> riêng và Google trên máy Tài đã vào Dashboard. Vận hành/recovery hiện tại ở
+> [MANAGED-DEPLOYMENT](MANAGED-DEPLOYMENT.md). Các checkpoint015/016/017-paused
+> dưới đây là lịch sử; không replay bootstrap hoặc canonical rollback lên cloud.
+
 **Demo đã bootstrap ngày 17/10/2026:** schema cloud `001`–`015`, bốn account demo
 và ba membership đã tạo theo lựa chọn của Tài; HTTP Auth thật trên máy Tài đã đạt.
 Thắng chỉ làm theo [hướng dẫn chạy sau bootstrap](PILOT-DEMO-HANDOFF.md), không
@@ -682,3 +687,58 @@ Nguồn thao tác: [Supabase Google](https://supabase.com/docs/guides/auth/socia
 [Google Web OAuth](https://developers.google.com/identity/protocols/oauth2/web-server),
 [Supabase redirect matching](https://supabase.com/docs/guides/auth/redirect-urls),
 [Auth matcher source](https://github.com/supabase/auth/blob/master/internal/utilities/request.go).
+
+## Completion rollout paused — 23/10/2026
+
+Resume check at12:29 local: Google settings now returns HTTP200 with provider
+enabled; earlier disabled-provider observations below are historical. Owner
+showed two test users. End-to-end Google login is still unverified and the app
+flag remains off until a valid runtime exists. Cloud ledger remains001–016,
+all source checksums match, TLS authorized, Storage private. No cloud write or
+Gemini call was issued. A separate local PG17 reproduction confirmed both the
+bootstrap-grantor boundary and ownership-transfer boundary. Owner requested an
+unsent Support draft: `artifacts/resume-completion-20261023/SUPABASE-SUPPORT-REQUEST.md`.
+Do not replay `rollout-cloud.mjs`: its original baseline is15, not the current16.
+
+Verified project: `kdttaumvsosrfziyydct`. Private artifacts are under
+`artifacts/final-completion-20261023/private/`, protected by filesystem ACL.
+Backup covers public/Auth/Storage SQL plus separate bytes for 11 Storage objects
+(20,837,763 bytes); role/ACL catalogs exclude passwords. Control-plane/OAuth
+settings, role passwords, extension binaries and realtime/vault are not restored.
+Archive SHA256: `cd3f769db8a9d5ca53aa7a5587eab13fef661efc7cc2accc71322833640a9db3`.
+PG17 restore/rehearsal016–025 passed; local vector0.8.7 differs from cloud0.8.2.
+
+Cloud016 committed; 017 failed and rolled back. No017 helper/policy remains;
+all50 old non-ledger table row fingerprints matched. No runtime LOGIN created,
+root env unchanged, temporary explicit policy-owner access removed. The user
+was told maintenance may end; subsequent rollout needs fresh backup/writer checks.
+TLS verifies the Supavisor endpoint; backend pg_stat_ssl does not establish the
+pooler's DB-hop TLS. Never disable certificate verification.
+
+Immutable017 requires zero policy-owner members before its function ownership
+transfer. Hosted PG17 creates an automatic ADMIN/noSET/noINHERIT membership
+from the bootstrap superuser; postgres cannot remove it. Migration025 fixes the
+separate managed-Auth read boundary, not this017 prerequisite. Do not edit017,
+forge its ledger/checksum or use an owner runtime to bypass the stop.
+
+Operator coordination: open the verified project, Help/Support, and request a
+supported narrowly scoped way to apply the original017 ownership transaction
+under PG17's automatic role-creator membership. Provide source017 and safe
+inspection, not credentials or backups in public tickets. Dashboard SQL as
+postgres has the same privilege limit. No student-authored SQL is required;
+do not automatically contact a third party without user instruction.
+
+Google coordination: user selected **Default Gemini Project**, Project ID
+`gen-lang-client-0909603943`; do not modify another project or the Gemini key.
+Open Google Auth Platform → Clients → Web application. Google callback is
+`https://kdttaumvsosrfziyydct.supabase.co/auth/v1/callback`; app callback is
+separately `http://127.0.0.1:8080/api/auth/google/callback` (dev5173 analog).
+Keep existing dynamic attempt redirect matching. Only openid/email/profile
+scopes; Client Secret belongs only in Supabase Google provider, never Git,
+frontend or chat. Owner performs consent/2FA; do not enable billing.
+
+No console session is connected to this agent. Tool policy rejected launching
+interactive automation Chrome; do not retry that action through another launcher
+or a personal profile. Console login alone grants no management API access.
+OAuth provider configuration/live success remains pending. Local text edits and
+headless tests do not supply console access or prove Google login.

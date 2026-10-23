@@ -947,3 +947,45 @@ would be a bypass), editing `compose.yaml` (it must stay the real stack), and pr
 this stack proves UI, permission, error-handling and layout behaviour but nothing about model quality or cost; every document that reports
 its results says so. Chunk size and model choice still have no recorded rationale and no ADR; the report leaves them for the owners to
 write rather than inventing a history.
+
+
+## ADR-012 — Preserve the existing model/chunk baseline; document rationale (23/10/2026)
+
+Decision: keep `gemini-2.5-flash` generation and `gemini-embedding-001` at existing 768 dimensions for the completion campaign; do not change model to match an example environment file. Flash structured-output support fits strict quiz/flashcard schemas and bounded document answers; official standard text prices checked for the campaign are USD0.30/M input, USD2.50/M output including thinking, and embedding001 USD0.15/M input. Price is an estimate, not a billing cap. Before any paid dispatch, bound actual input/output/thinking and retain conservative reservations when outcome/usage is unknown.
+
+Keep target chunk 1200 characters, max1800, overlap200, page boundaries, default topK6/minScore0.55. Rationale reconstructed from current constraints: page-specific citations need page-preserving chunks; overlap reduces lost boundary context; bounded chunk/context size limits latency/cost. These are starting trade-offs, not measured optimums. No ablation/live baseline has established superiority. Larger context, changed models/dimensions, ANN/ranking changes are rejected in this baseline because they would confound before/after comparison and require re-indexing. This is a present technical rationale drafted by AI, not invented recollection or personal confirmation from Tài/Thắng.
+
+Sources: [Google pricing](https://ai.google.dev/gemini-api/docs/pricing), [embedding001 announcement](https://developers.googleblog.com/en/gemini-embedding-available-gemini-api/). Code: `document-chunker.ts`, `config.ts`, prompt registry. A later actual comparison must keep corpus/gold/model/config pinned and vary only the declared improvement.
+
+## ADR-013 — Hosted Auth verifier and stop rather than bypass migration ownership (23/10/2026)
+
+Use migration025 to expose only `auth_session_active(uuid,uuid)` in controlled `examate_private`, SECURITY DEFINER with fixed `pg_catalog` search_path and qualified Auth table. Auth LOGIN has USAGE/EXECUTE only and loses raw Auth grants. It returns session/user/expiry validity, no email/token/session row. Supabase-managed Auth ownership and RLS are unchanged; operator credential never enters runtime. Capability v25 pins private function/ACL and detects drift; rollback is local guarded, dry-run-first and RESTRICT.
+
+Hosted `postgres` lacks grant authority over managed Auth schema. Supported reference: [Supabase private-function pattern](https://supabase.com/kb/troubleshooting/permission-errors-when-granting-custom-roles-access-to-the-auth-schema). On restored PG17 the bridge fixes valid-session rejection under Auth RLS. Local/source catalog ACL ordering uses column name in v25 so physical restored column order cannot change an otherwise identical ACL fingerprint; earlier digests remain untouched.
+
+Cloud017 has another prerequisite: no policy-owner members, followed by function ownership transfer. PG17 creates a bootstrap-superuser ADMIN membership for a non-superuser creator, which that creator cannot revoke ([PG17 role attributes](https://www.postgresql.org/docs/17/role-attributes.html)). Do not edit immutable017, forge its checksum/ledger, suppress RLS or use owner runtime. Stop, preserve backup/fingerprints, remove only our temporary access grant and request supported operator assistance. 016 committed; 017 rolled back; 025 not applied to cloud.
+
+## Completion review authority (23/10/2026)
+
+The user's campaign authorization supersedes internal two-signature gold policy. A separate AI-labelled, hash-bound pre-execution record is accepted for technical gold review. It is not a human signature, target provenance, runtime equivalence or semantic outcome. A pinned operator campaign authorizer covers exact batches but does not replace dispatch accounting, expiry, provenance, target proof or append-only ledger. Historical manifests/gold/results are immutable; no expected result is edited after outputs.
+
+## ADR-014: Separate hosted-PG17 migration profile (23/10/2026)
+
+Use the explicitly named/checksummed `supabase-managed` profile rather than
+editing canonical017 or waiting for unsupported bootstrap-grant revocation.
+Preserve app table grants/RLS, Auth catalog ownership/ACL/RLS and distinct
+non-owner/non-BYPASSRLS LOGINs. Pin managed26 independently from the restricted
+installer fixture. Exactly identified postgres bootstrap ADMIN/noINHERIT/noSET
+memberships remain a trusted maintenance capability, not runtime inheritance.
+Reject other membership options/dual capability paths/effective raw Auth access.
+
+Managed025 supplies private boolean session verification without managed Auth
+grant changes. Managed026 restores CONNECT for pre-existing platform roles after
+PUBLIC CONNECT revocation in018, so Supavisor/Auth/Storage can open new sessions.
+No PUBLIC/anon database access is introduced. Ledger prefix/checksums, atomic
+pending install and before-commit hook remain fail-closed. Trade-off: explicit
+profile means canonical rollback must not be applied to this cloud history;
+future schema changes need deliberate profile review, not silent auto-upgrade.
+
+Cloud26, separate TLS LOGINs, real Docker and Google were verified after backup
+and restore rehearsal. Operational recovery and limits: MANAGED-DEPLOYMENT.

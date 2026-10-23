@@ -9,25 +9,25 @@
     "second student name",
     "second student ID"
   ],
-  "sourceBaseHead": "4ec44c7892e0dfa0bbe7569d08789657a766aa5b",
+  "sourceBaseHead": "0bddd533e79316d9457135fe5e4665b555559c47",
   "sourceBaseHadUncommittedChanges": true,
   "buildMethod": "Retained authoring script; installed Word native TOC update and fixed-format PDF export. DOCX is editable.",
   "refreshInstructions": "Edit the DOCX in Word. Update all fields/table of contents, then export to PDF. Keep docs/REPORT.md and this manifest consistent when revising substantive content.",
   "files": {
     "ExaMate-Report-20261023.docx": {
-      "sha256": "6ba18e2bc5847577fc5a460eea46183f2c64445f50f6304cb2ff349adf658a2f",
-      "bytes": 2994204
+      "sha256": "f0fd725c035558a6d76d7d9e61309a963e16efc2881988e07b9765e2a9b0cf85",
+      "bytes": 2994229
     },
     "ExaMate-Report-20261023.pdf": {
-      "sha256": "8020f52c3152028312369b61bb52f633a422e440638570a9bbef764bab41962a",
-      "bytes": 813578
+      "sha256": "641bfa9889e077e3f32691c773c062d24d647665c7262cbe067b0398da3ea15c",
+      "bytes": 813670
     },
     "report-evidence.json": {
-      "sha256": "04503d1a666dd7df91315fcea16df25064e17c0adc57f62f8d4cdb48ddd733fe",
-      "bytes": 6889
+      "sha256": "e5439ae12934d155f5830ff64978f3b01a52754798c89b358bac95741561b8fd",
+      "bytes": 8789
     }
   },
-  "newApplicationGatesRun": false,
+  "newApplicationGatesRun": true,
   "newProviderCalls": 0,
   "privateArtifactsPublished": false,
   "reportChecks": "19 A4 pages; native TOC matches 17 section entries; all 13 stories and 20 evaluation rows present; prior-course material removed.",
@@ -37,5 +37,8 @@
     "redRegression": "source-relative image missing from generic Markdown PDF export",
     "finalExportChecksPassed": 18,
     "applicationTestsRerun": false
-  }
+  },
+  "originalReportSourceBaseHead": "4ec44c7892e0dfa0bbe7569d08789657a766aa5b",
+  "runtimeSourceNowVersioned": true,
+  "publicationVerificationSourceCommit": "0bddd533e79316d9457135fe5e4665b555559c47"
 }
