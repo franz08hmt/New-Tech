@@ -217,6 +217,42 @@ async function managedCatalogProjection(query: Query, catalog: QueryRow[][]) {
   return catalog;
 }
 
+function platformAdministrator(role: string) {
+  return `${role}.rolcanlogin AND ${role}.rolcreaterole
+    AND (${role}.rolsuper OR ${role}.rolbypassrls)`;
+}
+
+function runtimeLoginMembership(role: "g" | "x" | "r", version: number) {
+  const member = `${role}.rolcanlogin AND
+    (pg_has_role(${role}.oid,'examate_business','member')
+      OR pg_has_role(${role}.oid,'examate_auth','member'))`;
+  if (version < 25) return `(${member})`;
+  // Hosted PostgreSQL can give the role creator ADMIN-only memberships. Such
+  // an existing administrator is outside the runtime boundary and cannot use
+  // any of our groups through INHERIT or SET. Its platform ACLs are not runtime
+  // grants. A normal login, or any administrator able to assume a group, stays
+  // in the fingerprint and must still satisfy the unchanged pinned contract.
+  const cannotAssume = roleGroups
+    .flatMap((group) =>
+      ["USAGE", "SET"].map(
+        (privilege) => `NOT pg_has_role(${role}.oid,'${group}','${privilege}')`,
+      ),
+    )
+    .join(" AND ");
+  return `(${member} AND NOT ((${platformAdministrator(role)}) AND ${cannotAssume}))`;
+}
+
+function canonicalFunctionDefinitions(rows: QueryRow[]) {
+  // These two source-pinned functions contain no multiline string literals.
+  // SQL files on Windows may store CRLF in prosrc; preserve every other byte.
+  return rows.map((row) => ({
+    ...row,
+    ...(typeof row.definition === "string"
+      ? { definition: row.definition.replace(/\r\n/g, "\n") }
+      : {}),
+  }));
+}
+
 async function readContractCatalog(query: Query, version: number) {
   const names = managedRelationsFor(version);
   const usageNames = aiUsageRelationsFor(version);
@@ -229,7 +265,13 @@ async function readContractCatalog(query: Query, version: number) {
       (SELECT count(*)::int FROM pg_auth_members m JOIN pg_roles child ON child.oid=m.member
         WHERE m.roleid=r.oid AND (m.admin_option OR NOT child.rolcanlogin
           OR child.rolsuper OR child.rolbypassrls OR child.rolcreatedb OR child.rolcreaterole
-          OR child.rolreplication OR NOT child.rolinherit)) AS unsafe_members
+          OR child.rolreplication OR NOT child.rolinherit)
+        ${
+          version >= 25
+            ? `AND NOT (m.admin_option AND NOT m.inherit_option AND NOT m.set_option
+              AND ${platformAdministrator("child")})`
+            : ""
+        }) AS unsafe_members
     FROM pg_roles r WHERE r.rolname=ANY($1::text[]) ORDER BY r.rolname`,
     [roleGroups],
   );
@@ -267,8 +309,7 @@ async function readContractCatalog(query: Query, version: number) {
     WHERE ((n.nspname='public' AND c.relname=ANY($1::text[]))
         OR (n.nspname='auth' AND c.relname='sessions')) AND a.grantee<>c.relowner
       AND (a.grantee=0 OR g.rolname=ANY($2::text[])
-        OR (g.rolcanlogin AND (pg_has_role(g.oid,'examate_business','member')
-          OR pg_has_role(g.oid,'examate_auth','member'))))
+        OR ${runtimeLoginMembership("g", version)})
     ORDER BY c.relname,grantee,a.privilege_type,a.is_grantable`,
     [names, ["anon", "authenticated", ...roleGroups]],
   );
@@ -283,11 +324,12 @@ async function readContractCatalog(query: Query, version: number) {
         OR (n.nspname='auth' AND c.relname='sessions'))
       AND a.attnum>0 AND NOT a.attisdropped AND a.attacl IS NOT NULL
       AND (x.grantee=0 OR g.rolname=ANY($2::text[])
-        OR (g.rolcanlogin AND (pg_has_role(g.oid,'examate_business','member')
-          OR pg_has_role(g.oid,'examate_auth','member'))))
+        OR ${runtimeLoginMembership("g", version)})
     ORDER BY c.relname,${version >= 25 ? "a.attname" : "a.attnum"},grantee,x.privilege_type,x.is_grantable`,
     [names, ["anon", "authenticated", ...roleGroups]],
   );
+  // Supabase's public API roles may navigate platform schemas. Non-grantable
+  // USAGE alone gives no table/function access; their data ACLs stay pinned.
   const schemaAcls = await query(
     `SELECT n.nspname,CASE WHEN x.grantee=0 THEN 'PUBLIC' ELSE g.rolname END AS grantee,
       x.privilege_type,x.is_grantable
@@ -295,8 +337,14 @@ async function readContractCatalog(query: Query, version: number) {
       LEFT JOIN pg_roles g ON g.oid=x.grantee
     WHERE n.nspname IN ('public','auth'${version >= 25 ? ",'examate_private'" : ""}) AND x.grantee<>n.nspowner
       AND (x.grantee=0 OR g.rolname=ANY($1::text[])
-        OR (g.rolcanlogin AND (pg_has_role(g.oid,'examate_business','member')
-          OR pg_has_role(g.oid,'examate_auth','member'))))
+        OR ${runtimeLoginMembership("g", version)})
+      ${
+        version >= 25
+          ? `AND NOT (n.nspname IN ('public','auth')
+            AND COALESCE(g.rolname IN ('anon','authenticated'),false)
+            AND x.privilege_type='USAGE' AND NOT x.is_grantable)`
+          : ""
+      }
     ORDER BY n.nspname,grantee,x.privilege_type,x.is_grantable`,
     [["anon", "authenticated", ...roleGroups]],
   );
@@ -307,8 +355,7 @@ async function readContractCatalog(query: Query, version: number) {
       LEFT JOIN pg_roles g ON g.oid=x.grantee
     WHERE d.datname=current_database() AND x.grantee<>d.datdba
       AND (x.grantee=0 OR g.rolname=ANY($1::text[])
-        OR (g.rolcanlogin AND (pg_has_role(g.oid,'examate_business','member')
-          OR pg_has_role(g.oid,'examate_auth','member'))))
+        OR ${runtimeLoginMembership("g", version)})
     ORDER BY grantee,x.privilege_type,x.is_grantable`,
     [["anon", "authenticated", ...roleGroups]],
   );
@@ -323,8 +370,7 @@ async function readContractCatalog(query: Query, version: number) {
     WHERE n.nspname='public' AND c.relname=ANY($1::text[])
       AND (0=ANY(p.polroles) OR EXISTS(SELECT 1 FROM unnest(p.polroles) r(oid)
         JOIN pg_roles x ON x.oid=r.oid WHERE x.rolname=ANY($2::text[])
-          OR (x.rolcanlogin AND (pg_has_role(x.oid,'examate_business','member')
-            OR pg_has_role(x.oid,'examate_auth','member')))))
+          OR ${runtimeLoginMembership("x", version)}))
     ORDER BY c.relname,p.polname`,
     [names, roleGroups],
   );
@@ -377,8 +423,7 @@ async function readContractCatalog(query: Query, version: number) {
       LEFT JOIN pg_roles r ON r.oid=x.grantee
     WHERE p.oid=to_regprocedure('public.examate_workspace_role(uuid)') AND x.grantee<>p.proowner
       AND (x.grantee=0 OR r.rolname=ANY($1::text[])
-        OR (r.rolcanlogin AND (pg_has_role(r.oid,'examate_business','member')
-          OR pg_has_role(r.oid,'examate_auth','member'))))
+        OR ${runtimeLoginMembership("r", version)})
     ORDER BY grantee,x.privilege_type,x.is_grantable`,
     [["anon", "authenticated", ...roleGroups]],
   );
@@ -424,9 +469,11 @@ async function readContractCatalog(query: Query, version: number) {
     aiUsageConstraints.rows,
     aiUsageIndexes.rows,
     aiUsageTriggers.rows,
-    helper.rows,
+    canonicalFunctionDefinitions(helper.rows),
     helperAcls.rows,
-    ...(version >= 25 ? [bridge!.rows, bridgeAcls!.rows] : []),
+    ...(version >= 25
+      ? [canonicalFunctionDefinitions(bridge!.rows), bridgeAcls!.rows]
+      : []),
   ];
   return version === 26 ? managedCatalogProjection(query, catalog) : catalog;
 }

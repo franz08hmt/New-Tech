@@ -8,7 +8,12 @@ import {
   people,
 } from "./documents-tenant-fixture.mjs";
 import { AuthStore } from "../dist/auth/auth-store.js";
-import { runtimeCapabilityCatalogSnapshot } from "../dist/database/runtime-capability-contract.js";
+import {
+  assertRuntimeCatalogContract,
+  runtimeCapabilityCatalogSnapshot,
+} from "../dist/database/runtime-capability-contract.js";
+import { DatabaseService } from "../dist/database/database.service.js";
+import { AuthDatabaseService } from "../dist/database/auth-database.service.js";
 import { rollbackManagedAuthSession } from "../scripts/managed-auth-session-rollback.mjs";
 import { runPilotRollback024 } from "../scripts/pilot-rollback-024.mjs";
 import {
@@ -19,14 +24,30 @@ import {
 test("managed Auth RLS stays enabled while the runtime verifies only session/user/expiry", async (t) => {
   const f = await openDocumentsTenantFixture(),
     role = `auth_bridge_${randomBytes(8).toString("hex")}`,
-    password = randomBytes(24).toString("hex");
+    password = randomBytes(24).toString("hex"),
+    platformRolesCreated = [];
   let db;
   t.after(async () => {
     await db?.end();
     await f.admin.query(`REVOKE examate_auth FROM "${role}"`);
     await f.admin.query(`DROP ROLE "${role}"`);
+    for (const platformRole of platformRolesCreated)
+      await f.admin.query(`DROP ROLE ${platformRole}`);
     await f.close();
   });
+  // A pristine PostgreSQL image has no Supabase API roles. Create only the
+  // NOLOGIN identities this fixture needs to prove that the bridge denies them.
+  f.guard(f.admin.options.connectionString);
+  for (const platformRole of ["anon", "authenticated"]) {
+    const existing = await f.admin.query(
+      "SELECT 1 FROM pg_roles WHERE rolname=$1",
+      [platformRole],
+    );
+    if (!existing.rowCount) {
+      await f.admin.query(`CREATE ROLE ${platformRole} NOLOGIN`);
+      platformRolesCreated.push(platformRole);
+    }
+  }
   await f.admin.query(
     `CREATE ROLE "${role}" LOGIN PASSWORD '${password}' INHERIT NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE; GRANT examate_auth TO "${role}"`,
   );
@@ -192,4 +213,230 @@ test("managed Auth RLS stays enabled while the runtime verifies only session/use
   await applyMigrationInTransaction(f.admin, source);
   await f.admin.query("COMMIT");
   assert.equal(await store.authSessionActive(sid, uid), true);
+});
+
+test("hosted platform administration does not change runtime data capabilities", async (t) => {
+  const f = await openDocumentsTenantFixture();
+  f.guard(f.admin.options.connectionString);
+  const parentUrl = f.guard(process.env.TEST_DATABASE_URL);
+  const suffix = randomBytes(8).toString("hex");
+  const roles = {
+    business: `platform_biz_${suffix}`,
+    auth: `platform_auth_${suffix}`,
+    operator: `platform_admin_${suffix}`,
+  };
+  const passwords = {
+    business: randomBytes(24).toString("hex"),
+    auth: randomBytes(24).toString("hex"),
+  };
+  const created = [];
+  let business, auth;
+  t.after(async () => {
+    await business?.onModuleDestroy();
+    await auth?.onModuleDestroy();
+    for (const role of created) await f.admin.query(`DROP OWNED BY "${role}"`);
+    await f.close();
+    const parent = new pg.Pool({ connectionString: parentUrl, max: 1 });
+    try {
+      for (const role of created.reverse())
+        await parent.query(`DROP ROLE "${role}"`);
+    } finally {
+      await parent.end();
+    }
+  });
+
+  // Keep this reproduction about platform metadata; Windows line endings have
+  // their own regression below. Rewriting these fixture-only functions retains
+  // their owners and ACLs.
+  const definitions = await f.admin.query(
+    `SELECT pg_get_functiondef(p.oid) AS definition FROM pg_proc p
+     WHERE p.oid IN ('public.examate_workspace_role(uuid)'::regprocedure,
+       'examate_private.auth_session_active(uuid,uuid)'::regprocedure)`,
+  );
+  for (const { definition } of definitions.rows)
+    await f.admin.query(definition.replace(/\r\n/g, "\n"));
+  const query = (sql, values) => f.admin.query(sql, values);
+  await assertRuntimeCatalogContract(query);
+  for (const capability of ["business", "auth"]) {
+    const role = roles[capability];
+    await f.admin.query(
+      `CREATE ROLE "${role}" LOGIN PASSWORD '${passwords[capability]}' INHERIT NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION`,
+    );
+    created.push(role);
+    await f.admin.query(`GRANT examate_${capability} TO "${role}"`);
+    const url = new URL(f.admin.options.connectionString);
+    url.username = role;
+    url.password = passwords[capability];
+    process.env[
+      capability === "business" ? "DATABASE_URL" : "AUTH_DATABASE_URL"
+    ] = f.guard(url.href);
+  }
+  business = new DatabaseService();
+  auth = new AuthDatabaseService();
+  await business.assertBusinessCapability();
+  await auth.assertCapability("examate_auth");
+
+  await f.admin.query(
+    `CREATE ROLE "${roles.operator}" LOGIN INHERIT NOSUPERUSER BYPASSRLS CREATEDB CREATEROLE REPLICATION`,
+  );
+  created.push(roles.operator);
+  for (const capability of [
+    "examate_business",
+    "examate_auth",
+    "examate_policy_owner",
+  ])
+    await f.admin.query(
+      `GRANT ${capability} TO "${roles.operator}" WITH ADMIN TRUE, INHERIT FALSE, SET FALSE`,
+    );
+  for (const role of ["anon", "authenticated"]) {
+    const existing = await f.admin.query(
+      "SELECT 1 FROM pg_roles WHERE rolname=$1",
+      [role],
+    );
+    if (!existing.rowCount) {
+      await f.admin.query(`CREATE ROLE ${role} NOLOGIN`);
+      created.push(role);
+    }
+    await f.admin.query(`GRANT USAGE ON SCHEMA public,auth TO ${role}`);
+  }
+  await f.admin.query(
+    `GRANT USAGE ON SCHEMA public,auth TO "${roles.operator}";
+     GRANT ALL ON auth.sessions TO "${roles.operator}";
+     ALTER TABLE auth.sessions ENABLE ROW LEVEL SECURITY`,
+  );
+  const cannotAssumeRuntime = await f.admin.query(
+    `SELECT pg_has_role($1,'examate_business','USAGE') AS inherits_business,
+      pg_has_role($1,'examate_business','SET') AS sets_business,
+      pg_has_role($1,'examate_auth','USAGE') AS inherits_auth,
+      pg_has_role($1,'examate_auth','SET') AS sets_auth`,
+    [roles.operator],
+  );
+  assert.deepEqual(cannotAssumeRuntime.rows[0], {
+    inherits_business: false,
+    sets_business: false,
+    inherits_auth: false,
+    sets_auth: false,
+  });
+  await assertRuntimeCatalogContract(query);
+  await business.assertBusinessCapability();
+  await auth.assertCapability("examate_auth");
+  for (const service of [business, auth])
+    await assert.rejects(service.query("SELECT id FROM auth.sessions"), {
+      code: "42501",
+    });
+  assert.equal(
+    (
+      await auth.query(
+        "SELECT examate_private.auth_session_active(gen_random_uuid(),gen_random_uuid()) AS active",
+      )
+    ).rows[0].active,
+    false,
+  );
+  const historic = await runtimeCapabilityCatalogSnapshot(query, 24);
+  assert.ok(historic[0].every((role) => role.unsafe_members > 0));
+  assert.ok(
+    historic[7].some(
+      (acl) => acl.grantee === "anon" && acl.privilege_type === "USAGE",
+    ),
+    "historical catalog contracts retain their original scope",
+  );
+
+  const rejectedChanges = [
+    [
+      "administrator can inherit a runtime group",
+      `GRANT examate_business TO "${roles.operator}" WITH INHERIT TRUE`,
+    ],
+    [
+      "administrator can SET a runtime group",
+      `GRANT examate_auth TO "${roles.operator}" WITH SET TRUE`,
+    ],
+    [
+      "administrator membership has no ADMIN option",
+      `GRANT examate_policy_owner TO "${roles.operator}" WITH ADMIN FALSE`,
+    ],
+    [
+      "ordinary login receives runtime ADMIN",
+      `CREATE ROLE "platform_rogue_${suffix}" LOGIN INHERIT;
+       GRANT examate_auth TO "platform_rogue_${suffix}" WITH ADMIN TRUE, INHERIT FALSE, SET FALSE`,
+    ],
+    [
+      "anonymous role can create in managed Auth schema",
+      "GRANT CREATE ON SCHEMA auth TO anon",
+    ],
+    [
+      "anonymous schema usage carries grant option",
+      "GRANT USAGE ON SCHEMA auth TO anon WITH GRANT OPTION",
+    ],
+    [
+      "anonymous role can read Auth session rows",
+      "GRANT SELECT ON auth.sessions TO anon",
+    ],
+    [
+      "authenticated role can read an Auth session column",
+      "GRANT SELECT(id) ON auth.sessions TO authenticated",
+    ],
+    [
+      "runtime Auth group can use managed Auth schema directly",
+      "GRANT USAGE ON SCHEMA auth TO examate_auth",
+    ],
+    [
+      "anonymous role can execute private session verifier",
+      "GRANT EXECUTE ON FUNCTION examate_private.auth_session_active(uuid,uuid) TO anon",
+    ],
+    [
+      "business RLS is disabled",
+      "ALTER TABLE public.tasks DISABLE ROW LEVEL SECURITY",
+    ],
+    [
+      "an extra public row policy permits reads",
+      "CREATE POLICY platform_unsafe ON public.tasks FOR SELECT TO PUBLIC USING(true)",
+    ],
+  ];
+  const client = await f.admin.connect();
+  try {
+    for (const [name, sql] of rejectedChanges)
+      await t.test(name, async () => {
+        await client.query("BEGIN");
+        try {
+          await client.query(sql);
+          await assert.rejects(
+            assertRuntimeCatalogContract((s, p) => client.query(s, p)),
+            { code: "RUNTIME_CAPABILITY_INVALID" },
+          );
+        } finally {
+          await client.query("ROLLBACK");
+        }
+      });
+  } finally {
+    client.release();
+  }
+  await business.assertBusinessCapability();
+  await auth.assertCapability("examate_auth");
+});
+
+test("managed runtime catalog accepts SQL file line endings without accepting a changed verifier", async (t) => {
+  const f = await openDocumentsTenantFixture();
+  t.after(() => f.close());
+  const definitions = await f.admin.query(
+    `SELECT pg_get_functiondef(p.oid) AS definition FROM pg_proc p
+     WHERE p.oid IN ('public.examate_workspace_role(uuid)'::regprocedure,
+       'examate_private.auth_session_active(uuid,uuid)'::regprocedure)`,
+  );
+  for (const newline of ["\n", "\r\n"]) {
+    for (const { definition } of definitions.rows)
+      await f.admin.query(
+        definition.replace(/\r\n/g, "\n").replace(/\n/g, newline),
+      );
+    await assertRuntimeCatalogContract((sql, values) =>
+      f.admin.query(sql, values),
+    );
+  }
+  await f.admin.query(
+    `CREATE OR REPLACE FUNCTION examate_private.auth_session_active(session_id uuid,owner_id uuid)
+     RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$ SELECT true $$`,
+  );
+  await assert.rejects(
+    assertRuntimeCatalogContract((sql, values) => f.admin.query(sql, values)),
+    { code: "RUNTIME_CAPABILITY_INVALID" },
+  );
 });
