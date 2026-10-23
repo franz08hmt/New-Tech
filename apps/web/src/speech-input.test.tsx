@@ -412,6 +412,7 @@ describe("API cancellation", () => {
           }),
         }),
       );
+      const timeout = vi.spyOn(globalThis, "setTimeout");
 
       await api.transcribeSpeech(
         new Blob(["fixture audio"], { type: "audio/webm" }),
@@ -423,6 +424,7 @@ describe("API cancellation", () => {
       const body = init?.body as FormData;
       expect(body.get("language")).toBe(language);
       expect(body.get("file")).toBeInstanceOf(File);
+      expect(timeout).toHaveBeenCalledWith(expect.any(Function), 180000);
     },
   );
   it("propagates caller cancellation through fetch and distinguishes it from timeout", async () => {
@@ -477,7 +479,12 @@ describe("API cancellation", () => {
         ),
       );
       try {
-        const pending = request(path, { method: "POST", body: new FormData() });
+        const pending = request(
+          path,
+          { method: "POST", body: new FormData() },
+          undefined,
+          timeout,
+        );
         const rejected = expect(pending).rejects.toThrow(/timed out/);
         const signal = vi.mocked(fetch).mock.calls[0][1]?.signal;
         await vi.advanceTimersByTimeAsync(timeout - 1);

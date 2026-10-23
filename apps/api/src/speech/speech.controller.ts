@@ -72,7 +72,7 @@ export class SpeechAdmissionInterceptor implements NestInterceptor {
         cleanup();
         req.destroy();
       }
-    }, 150000);
+    }, this.speech.requestDeadlineMs());
     if (req.aborted) abort();
     req.speechSignal = controller.signal;
     try {

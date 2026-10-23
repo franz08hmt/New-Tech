@@ -54,6 +54,11 @@ export class SpeechService {
     private readonly limiter: SpeechLimiter,
   ) {}
 
+  /** Inference timeout plus bounded time for upload, authorization and media normalization. */
+  requestDeadlineMs() {
+    return Math.max(45_000, this.config().timeoutMs + 30_000);
+  }
+
   async status(): Promise<SpeechStatusResponse> {
     const config = this.config();
     const providerState = await this.provider.status();

@@ -1,11 +1,16 @@
 import type { WhisperSourceLanguage } from "./speech.types.js";
 
-export interface LocalWhisperOptions {
+export const LOCAL_WHISPER_CHUNK_LENGTH_SECONDS = 30;
+// Transformers.js applies stride on both sides, so neighboring chunks overlap
+// by twice this duration.
+export const LOCAL_WHISPER_STRIDE_LENGTH_SECONDS = 5;
+
+export type LocalWhisperOptions = {
   language?: WhisperSourceLanguage;
   task: "transcribe";
-  chunk_length_s: 30;
-  stride_length_s: 5;
-}
+  chunk_length_s: typeof LOCAL_WHISPER_CHUNK_LENGTH_SECONDS;
+  stride_length_s: typeof LOCAL_WHISPER_STRIDE_LENGTH_SECONDS;
+};
 
 export type LocalWhisperTranscriber = (
   audio: Float32Array,
@@ -25,9 +30,9 @@ export function localWhisperOptions(
   // cover recordings beyond its 30-second feature-extraction window.
   return {
     task: "transcribe",
-    chunk_length_s: 30,
-    stride_length_s: 5,
     ...(language ? { language } : {}),
+    chunk_length_s: LOCAL_WHISPER_CHUNK_LENGTH_SECONDS,
+    stride_length_s: LOCAL_WHISPER_STRIDE_LENGTH_SECONDS,
   };
 }
 

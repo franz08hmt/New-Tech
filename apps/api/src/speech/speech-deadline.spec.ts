@@ -37,6 +37,7 @@ it.each([true, false])(
     const release = vi.fn();
     const speech = {
       admit: vi.fn(async () => release),
+      requestDeadlineMs: vi.fn(() => 150000),
     } as unknown as SpeechService;
     const context = {
       switchToHttp: () => ({ getRequest: () => req, getResponse: () => res }),

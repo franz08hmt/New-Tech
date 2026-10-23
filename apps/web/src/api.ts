@@ -114,6 +114,7 @@ export class ApiError extends Error {
     this.name = "ApiError";
   }
 }
+
 import { pilotHeaders, notifyPilotDenied } from "./pilot-client";
 import {
   readPilotSession,
@@ -208,21 +209,22 @@ import type {
   WorkspaceSearchQuery,
   WorkspaceSearchSort,
 } from "@examate/contracts";
+
+const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
+const SPEECH_REQUEST_TIMEOUT_MS = 180_000;
+
 export async function request<T>(
   path: string,
   init?: RequestInit,
   onResponse?: (headers: Headers) => void,
+  timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
 ): Promise<T> {
   const authHeaders = pilotHeaders(path, init?.method);
   const controller = new AbortController();
   const signal = init?.signal
     ? AbortSignal.any([init.signal, controller.signal])
     : controller.signal;
-  // Only local inference needs the longer deadline; ordinary API calls keep 60s.
-  const timer = setTimeout(
-    () => controller.abort(),
-    path === "/api/speech/transcriptions" ? 180000 : 60000,
-  );
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   const cancel = () => controller.abort();
   if (init?.signal?.aborted) cancel();
   init?.signal?.addEventListener("abort", cancel, { once: true });
@@ -462,11 +464,16 @@ export const api = {
     const body = new FormData();
     body.append("file", audio, `recording.${extension}`);
     body.append("language", language);
-    return request<SpeechTranscriptionResponse>("/api/speech/transcriptions", {
-      method: "POST",
-      body,
-      signal,
-    });
+    return request<SpeechTranscriptionResponse>(
+      "/api/speech/transcriptions",
+      {
+        method: "POST",
+        body,
+        signal,
+      },
+      undefined,
+      SPEECH_REQUEST_TIMEOUT_MS,
+    );
   },
   pilotGoogleStatus: () =>
     request<PilotGoogleStatus>("/api/auth/google/status"),
