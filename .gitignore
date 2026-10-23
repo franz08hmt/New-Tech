@@ -13,3 +13,5 @@ artifacts/
 .idea/
 .vscode/
 *.tsbuildinfo
+__pycache__/
+output/pdf/

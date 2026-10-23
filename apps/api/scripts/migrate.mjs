@@ -29,7 +29,12 @@ class MigrationFileError extends Error {
   }
 }
 
-export async function loadMigrations(root = projectRoot) {
+export async function loadMigrations(
+  root = projectRoot,
+  { profile = "canonical" } = {},
+) {
+  if (!["canonical", "supabase-managed"].includes(profile))
+    throw new ConfigurationError("Unknown migration profile.");
   const directory = "infra/postgres/migrations";
   let names;
   try {
@@ -47,6 +52,30 @@ export async function loadMigrations(root = projectRoot) {
         path: `${directory}/${name}`,
       })),
   ];
+  if (profile === "supabase-managed") {
+    if (files.length !== 25)
+      throw new ConfigurationError(
+        "Managed profile requires reviewed 001-025 source manifest.",
+      );
+    for (const index of [16, 24]) {
+      if (
+        !files[index]?.name.startsWith(`${String(index + 1).padStart(3, "0")}_`)
+      )
+        throw new ConfigurationError("Managed migration source order changed.");
+      files[index] = {
+        name:
+          index === 16
+            ? "017_managed_runtime_rls.sql"
+            : "025_managed_auth_verifier.sql",
+        path: `infra/postgres/managed-migrations/${index === 16 ? "017_managed_runtime_rls.sql" : "025_managed_auth_verifier.sql"}`,
+      };
+    }
+  }
+  if (profile === "supabase-managed")
+    files.push({
+      name: "026_managed_platform_connect.sql",
+      path: "infra/postgres/managed-migrations/026_managed_platform_connect.sql",
+    });
   for (const file of files) {
     try {
       file.sql = await readFile(resolve(root, file.path), "utf8");
@@ -108,6 +137,21 @@ export function migrationChecksum(file) {
     .digest("hex");
 }
 
+export function validateMigrationLedger(ledger, files) {
+  const ordered = [...ledger].sort((a, b) => a.name.localeCompare(b.name));
+  for (const [index, row] of ordered.entries()) {
+    const file = files[index];
+    if (!file || row.name !== file.name)
+      throw new ConfigurationError(
+        "Migration history is not a prefix of the selected profile.",
+      );
+    if (row.checksum !== migrationChecksum(file))
+      throw new MigrationFileError(file.path, {
+        code: "MIGRATION_CHECKSUM_CHANGED",
+      });
+  }
+}
+
 /** Apply exactly one already-loaded migration inside the caller's transaction. */
 export async function applyMigrationInTransaction(
   client,
@@ -157,21 +201,49 @@ export async function applyMigrationInTransaction(
 
 export async function migrate(
   connectionString = process.env.MIGRATION_DATABASE_URL?.trim(),
-  { loadSource = loadMigrations } = {},
+  { loadSource, profile = "canonical", beforeCommit } = {},
 ) {
+  if (!["canonical", "supabase-managed"].includes(profile))
+    throw new ConfigurationError("Unknown migration profile.");
+  if (
+    beforeCommit !== undefined &&
+    (profile !== "supabase-managed" || typeof beforeCommit !== "function")
+  )
+    throw new ConfigurationError(
+      "beforeCommit requires a managed migration profile and a function.",
+    );
   if (!connectionString)
     throw new ConfigurationError(
       "Missing configuration: MIGRATION_DATABASE_URL. See .env.example",
     );
   const config = databaseConfig(connectionString);
   // Read every SQL file before connecting or changing database state.
-  const files = await loadSource();
+  const files = await (loadSource
+    ? loadSource()
+    : loadMigrations(projectRoot, { profile }));
   const pool = new pg.Pool(config);
   let client;
   try {
     client = await pool.connect();
     await client.query("SET search_path TO public, extensions");
     await client.query("SELECT pg_advisory_lock(424204)");
+    if (!loadSource || profile === "supabase-managed") {
+      const exists = await client.query(
+        "SELECT to_regclass('public.schema_migrations') AS ledger",
+      );
+      const ledger = exists.rows[0]?.ledger
+        ? (
+            await client.query(
+              "SELECT name,checksum FROM public.schema_migrations ORDER BY name",
+            )
+          ).rows
+        : [];
+      validateMigrationLedger(ledger, files);
+      if (profile === "supabase-managed" && ledger.length < 16)
+        throw new ConfigurationError(
+          "Managed profile requires verified 001-016 history before installation.",
+        );
+    }
     await client.query("BEGIN");
     await client.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
       name TEXT PRIMARY KEY, checksum TEXT NOT NULL, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -187,7 +259,7 @@ export async function migrate(
         END IF;
       END LOOP;
     END $$`);
-    await client.query("COMMIT");
+    if (profile !== "supabase-managed") await client.query("COMMIT");
     for (const file of files) {
       const applied = await client.query(
         "SELECT checksum FROM schema_migrations WHERE name = $1",
@@ -201,12 +273,14 @@ export async function migrate(
         console.log(`Migration already applied: ${file.name}`);
         continue;
       }
-      await client.query("BEGIN");
+      if (profile !== "supabase-managed") await client.query("BEGIN");
       try {
         if (
-          ["017_runtime_rls.sql", "018_runtime_rls_reindex.sql"].includes(
-            file.name,
-          )
+          [
+            "017_runtime_rls.sql",
+            "017_managed_runtime_rls.sql",
+            "018_runtime_rls_reindex.sql",
+          ].includes(file.name)
         ) {
           await lockManagedRuntimeRelations((text, values) =>
             client.query(text, values),
@@ -261,12 +335,18 @@ export async function migrate(
           throw new MigrationFileError(file.path, {
             code: "MIGRATION_STATE_CHANGED",
           });
-        await client.query("COMMIT");
-        console.log(`Migration applied: ${file.name}`);
+        if (profile !== "supabase-managed") await client.query("COMMIT");
+        console.log(
+          `Migration ${profile === "supabase-managed" ? "staged" : "applied"}: ${file.name}`,
+        );
       } catch (error) {
         await client.query("ROLLBACK");
         throw error;
       }
+    }
+    if (profile === "supabase-managed") {
+      if (beforeCommit) await beforeCommit(client);
+      await client.query("COMMIT");
     }
   } finally {
     await client?.query("ROLLBACK").catch(() => {});
@@ -281,7 +361,15 @@ if (
 ) {
   try {
     loadEnvironment();
-    await migrate();
+    const args = process.argv.slice(2);
+    if (
+      args.length &&
+      (args.length !== 1 || args[0] !== "--profile=supabase-managed")
+    )
+      throw new ConfigurationError("Invalid migration arguments.");
+    await migrate(undefined, {
+      profile: args.length ? "supabase-managed" : "canonical",
+    });
   } catch (error) {
     console.error(migrationFailure(error));
     process.exitCode = 1;

@@ -96,7 +96,6 @@ export async function runPilotPreflight(
     runtimeCapabilities = { business: false, auth: false },
   },
 ) {
-  const source = await loadMigrations();
   return withReadOnly(client, async () => {
     const transaction = await client.query("SHOW transaction_read_only");
     if (transaction.rows[0]?.transaction_read_only !== "on")
@@ -116,6 +115,12 @@ export async function runPilotPreflight(
           )
         ).rows
       : [];
+    const profile = applied.some(
+      (row) => row.name === "017_managed_runtime_rls.sql",
+    )
+      ? "supabase-managed"
+      : "canonical";
+    const source = await loadMigrations(undefined, { profile });
     const migrations = source.map((file) => {
       const row = applied.find((candidate) => candidate.name === file.name);
       return {
@@ -136,6 +141,7 @@ export async function runPilotPreflight(
       target: { maskedProjectRef: target.maskedProjectRef },
       auth: authSummary,
       runtimeCapabilities,
+      migrationProfile: profile,
       migrations,
       allSourceMigrationsApplied: migrations.every((m) => m.applied),
       checksumsMatch:
@@ -160,7 +166,10 @@ export async function runPilotPreflight(
         (m) => m.name === "016_pilot_oauth_attempts.sql" && m.applied,
       ),
       stage017Applied: migrations.some(
-        (m) => m.name === "017_runtime_rls.sql" && m.applied,
+        (m) =>
+          ["017_runtime_rls.sql", "017_managed_runtime_rls.sql"].includes(
+            m.name,
+          ) && m.applied,
       ),
       maintenanceRole: {
         isPostgres: role.name === "postgres",

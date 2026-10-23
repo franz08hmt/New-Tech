@@ -68,13 +68,22 @@ test("managed Auth RLS stays enabled while the runtime verifies only session/use
   assert.equal(flags.relrowsecurity, true);
   const denied = (
     await f.admin.query(
-      "SELECT has_function_privilege('examate_business','examate_private.auth_session_active(uuid,uuid)','EXECUTE') business,has_function_privilege('anon','examate_private.auth_session_active(uuid,uuid)','EXECUTE') anon,has_function_privilege('authenticated','examate_private.auth_session_active(uuid,uuid)','EXECUTE') authenticated",
+      // Hosted API roles are optional on a clean PostgreSQL fixture. Check
+      // their effective privileges when present, and always check PUBLIC so
+      // absence cannot hide an accidentally public SECURITY DEFINER function.
+      `SELECT has_function_privilege('examate_business','examate_private.auth_session_active(uuid,uuid)','EXECUTE') business,
+        COALESCE((SELECT has_function_privilege(oid,'examate_private.auth_session_active(uuid,uuid)','EXECUTE') FROM pg_roles WHERE rolname='anon'),false) anon,
+        COALESCE((SELECT has_function_privilege(oid,'examate_private.auth_session_active(uuid,uuid)','EXECUTE') FROM pg_roles WHERE rolname='authenticated'),false) authenticated,
+        EXISTS(SELECT 1 FROM pg_proc p CROSS JOIN LATERAL aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a
+          WHERE p.oid='examate_private.auth_session_active(uuid,uuid)'::regprocedure
+            AND a.grantee=0 AND a.privilege_type='EXECUTE') public_execute`,
     )
   ).rows[0];
   assert.deepEqual(denied, {
     business: false,
     anon: false,
     authenticated: false,
+    public_execute: false,
   });
   const acl = (
     await runtimeCapabilityCatalogSnapshot((s, p) => f.admin.query(s, p))
