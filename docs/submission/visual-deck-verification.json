@@ -1,9 +1,9 @@
 {
   "schema": "examate-visual-verification-v1",
   "date": "2026-10-25",
-  "sourceBaseline": "f5736e0",
-  "htmlSha256": "174ac06960d814fa215cc115bef91d79d0567b9bdd99bf20f774d4a86dca9629",
-  "pdfSha256": "8e24506b1480eb263591b0b67dcda96182ea82a1e5c24e3f9293c36b1a076ce9",
+  "sourceBaseline": "f2e3dd2",
+  "htmlSha256": "fbf3b4ac21e67d81c473a824b2400668a66d4cbc5c4a3d60b49f5e0304a17c04",
+  "pdfSha256": "4c0536d5c501353953da6055be9cfd5b594ecfe448f1d6144d0ea824f2d41939",
   "pdfPages": 15,
   "aspect": "16:9",
   "nodeTests": {
@@ -11,18 +11,13 @@
     "failCount": 0
   },
   "pythonTests": {
-    "passCount": 4,
-    "failCount": 0
+    "passCount": 1,
+    "failCount": 0,
+    "scope": "PDF regression rerun for contribution correction; previous three exporter tests not rerun"
   },
   "browser": {
     "scope": "Static slide document only; no ExaMate application acceptance",
-    "widths": [
-      1440,
-      1024,
-      768,
-      375,
-      320
-    ],
+    "widths": [1440, 1024, 768, 375, 320],
     "slideLayoutChecks": 75,
     "clippedElements": 0,
     "globalHorizontalOverflow": 0,
@@ -33,7 +28,7 @@
     "overview": true,
     "notes": true,
     "mobileStickyControls": true,
-    "rawEvidence": "artifacts/presentation-visual-20261025/fb000583"
+    "rawEvidence": "artifacts/presentation-visual-20261025/e9b448a3/browser-results.json"
   },
   "applicationGates": {
     "typecheck": 0,
@@ -44,9 +39,12 @@
     "apiVitest": 460,
     "apiNode": 1317,
     "web": 553,
-    "db": "Not rerun: static document/source only; no SQL/API/privilege changes"
+    "db": "Not rerun: static document/source only; no SQL/API/privilege changes",
+    "rerunForCreditCorrection": false,
+    "evidenceScope": "Retained preceding presentation run; this correction only changes slide copy"
   },
   "newProviderCalls": 0,
   "semanticAcceptance": false,
-  "cleanup": "Owned static server and Chrome closed; isolated profile evidence retained. No Docker resources created. Earlier blocked resources untouched."
+  "cleanup": "Owned static server and Chrome closed; isolated profile evidence retained. No Docker resources created. Earlier blocked resources untouched.",
+  "creditClarification": "Thang also contributed to RAG, as clarified by Tai on 25 October; no exclusive ownership asserted"
 }

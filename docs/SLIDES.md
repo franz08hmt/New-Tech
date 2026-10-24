@@ -9,6 +9,9 @@ contents, numbered steps, alternating panels, a circular guardrail motif and
 outcome bars. Poppins and genuine Heroicons are embedded with their licenses;
 there are no CDN, API, credential, analytics or storage dependencies.
 
+The ownership slide and its notes also credit Thắng's RAG contributions, as
+clarified by Tài on 25 October; RAG is not attributed exclusively to one person.
+
 This edition has **15 slides**, English content and Vietnamese notes. Eleven
 retained screenshots cover Dashboard, Courses, Expenses, Documents/mobile,
 Assistant/citations/history, Study Coach/quiz, STT readiness and AI Usage. Captions

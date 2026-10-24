@@ -4,6 +4,12 @@
 
 Source/deliverables commit: `632d945`.
 
+Contribution clarification (25 October): the user confirmed that Thang also
+contributed to RAG. The current visual HTML/PDF, speaker notes and preview now
+include that shared contribution. Static-deck checks were rerun (6 Node tests,
+1 PDF test and 75 browser layout checks); application gates were not rerun for
+this copy-only correction. See updated visual-deck-verification.json bindings.
+
 Added a separate 15-slide offline HTML and matching 16:9 PDF under
 `docs/submission/ExaMate-Presentation-Visual-20261025.*`; original PPTX/report are
 preserved. Black/white/yellow reference styling uses existing local photographs,

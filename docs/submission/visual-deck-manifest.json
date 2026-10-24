@@ -4,7 +4,7 @@
   "slides": 15,
   "status": "DRAFT — incomplete follow-up evaluation and personal/device confirmations",
   "html": "ExaMate-Presentation-Visual-20261025.html",
-  "htmlSha256": "174ac06960d814fa215cc115bef91d79d0567b9bdd99bf20f774d4a86dca9629",
+  "htmlSha256": "fbf3b4ac21e67d81c473a824b2400668a66d4cbc5c4a3d60b49f5e0304a17c04",
   "assets": [
     {
       "id": "dashboard",
@@ -54,5 +54,5 @@
   "newProviderCalls": 0,
   "newApplicationAcceptance": false,
   "pdf": "ExaMate-Presentation-Visual-20261025.pdf",
-  "pdfSha256": "8e24506b1480eb263591b0b67dcda96182ea82a1e5c24e3f9293c36b1a076ce9"
+  "pdfSha256": "4c0536d5c501353953da6055be9cfd5b594ecfe448f1d6144d0ea824f2d41939"
 }
