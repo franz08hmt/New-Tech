@@ -1,5 +1,51 @@
 # ExaMate — checklist demo và nộp cuối kỳ
 
+## Visual presentation verification - 25 October 2026
+
+Source/deliverables commit: `632d945`.
+
+Deliverables: [offline HTML](submission/ExaMate-Presentation-Visual-20261025.html),
+[15-page PDF](submission/ExaMate-Presentation-Visual-20261025.pdf),
+[all-slide preview](submission/ExaMate-Presentation-Visual-20261025-preview.jpg).
+Original report and editable 24 October PPTX are preserved. Rebuild commands and
+presenter controls are in SLIDES.md. This tests the slide document, not the app
+workflows depicted in retained screenshots.
+
+Fresh runs on baseline `f5736e0` plus scoped presentation changes:
+
+- `node --test scripts/visual-presentation.test.mjs`: 6 PASS, 0 fail/skip/cancelled.
+- `python scripts/test_visual_presentation_pdf.py`: 1 PASS (15 pages, 16:9,
+  embedded Poppins and required content). Before the print fix it failed four
+  content assertions because mobile layout clipped PDF pages; after fix GREEN.
+- `python -m unittest discover -s scripts -p test_submission_docs.py`: 3 PASS.
+- `node scripts/verify-visual-presentation.mjs`: exit 0, Chrome 141, **75 slide
+  layout checks** over 1440/1024/768/375/320 px; no horizontal overflow/clipped
+  text detected. Real keyboard navigation, native Overview/Notes clicks, sticky
+  mobile controls, offline file loading and PDF export checked. Unexpected
+  console errors/warnings 0; external requests 0. Accessibility snapshot retained;
+  this is not a complete screen-reader/WCAG or projector acceptance audit.
+- `npm run typecheck`, `npm test`, `npm run build`, `npm run format:check`: each
+  exit 0. New full app suite: **2330 PASS** = API Vitest 460 + API Node 1317 +
+  Web 553 (32 files), 0 fail/skip/cancelled. Existing Vite bundle-size warning
+  remains. No DB gate: no SQL/API/runtime/privilege changes.
+- Separate source Prettier check: exit 0. First check flagged the newly edited
+  browser helper; formatted and rerun. Initial test used a broad section selector;
+  corrected to direct slide sections while retaining the expected target.
+
+Sanitized bindings: `submission/visual-deck-{manifest,verification}.json`.
+Raw logs/failed exports are preserved under ignored
+`artifacts/presentation-visual-20261025/`; final browser evidence is
+`fb000583/browser-results.json`. Eleven source images are bound in
+`presentation/assets/provenance.json`, with real/synthetic captions. No provider
+calls, cloud writes, app deployment or new application browser acceptance.
+
+Owned static server and Chrome processes closed. New isolated browser profiles
+remain as ignored diagnostic evidence; no container/volume was created or deleted.
+Prior cleanup-blocked resources, SOP containers and old checkout are untouched.
+User WIP `docs/EXAMATE-ON-TAP-VAN-DAP.html` remains outside commits. Live follow-up,
+semantic review, full app/browser, physical microphone and remote-machine pending
+items retain their previous status.
+
 ## Course gallery and session revalidation repair — 24 October 2026
 
 Source `a2e6892` fixes the two reported frontend regressions on baseline

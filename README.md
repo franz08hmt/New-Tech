@@ -22,6 +22,15 @@ PDF/PPTX dựng nhanh bằng `python scripts/build-submission-docs.py <thư-mụ
 Bản report tiếng Anh có bìa và mục lục Word hiện hành: [PDF 20 trang](docs/submission/ExaMate-Report-20261023.pdf), [Word chỉnh sửa](docs/submission/ExaMate-Report-20261023.docx).
 Bản Word/PDF chính giữ layout theo mẫu; sửa Word, cập nhật mục lục và xuất PDF lại khi đổi nội dung.
 
+**New reference-style visual deck (25 October):**
+[Offline HTML](docs/submission/ExaMate-Presentation-Visual-20261025.html) and
+[15-page PDF](docs/submission/ExaMate-Presentation-Visual-20261025.pdf).
+Poppins + Heroicons, black/white/yellow, eleven retained application screenshots.
+Open HTML in Chrome/Edge: arrow keys navigate, Overview reads all, Notes reveals
+Vietnamese speaker notes. No Docker/network needed to present; the demo link
+requires the app at port 8080. Sources and rebuild commands: [SLIDES.md](docs/SLIDES.md).
+The older editable PPTX below is retained as a separate design.
+
 Slide present 16:9 (24/10/2026): [PowerPoint chỉnh sửa](docs/submission/ExaMate-Presentation-20261024.pptx)
 và [PDF 14 trang](docs/submission/ExaMate-Presentation-20261024.pdf).
 12 slide chính + 2 backup vấn đáp (ẩn khi trình chiếu PPT, có trong PDF);

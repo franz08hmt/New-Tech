@@ -1,5 +1,32 @@
 # ExaMate — context hiện tại cho Tài, Thắng và agent
 
+## Reference-style presentation - 25 October 2026
+
+Source/deliverables commit: `632d945`.
+
+Added a separate 15-slide offline HTML and matching 16:9 PDF under
+`docs/submission/ExaMate-Presentation-Visual-20261025.*`; original PPTX/report are
+preserved. Black/white/yellow reference styling uses existing local photographs,
+embedded Poppins and genuine Heroicons. Eleven retained UI screenshots have
+source hashes and fixture/real-service captions in `docs/presentation/assets/`.
+Flashcards is an explicitly labelled workflow illustration. English content,
+Vietnamese notes, keyboard controls, fullscreen, overview, semantic headings,
+reduced-motion handling and no-JS reading/printing are supported. No application
+API, Auth, cloud, model, DB/schema or runtime configuration was changed.
+
+Source and rerun commands are in SLIDES.md. Export testing found mobile CSS was
+being applied by Chrome print layout, clipping content; a PDF-content regression
+was RED (four missing page-content assertions), then GREEN after limiting mobile
+rules to screen media. A 320px RAG grid needed shrinkable columns. Retained
+measurements remain explicitly dated; incomplete follow-up, semantic/device and
+whole-app browser acceptance are not promoted to complete.
+
+New static-deck browser evidence belongs only to this document: isolated Chrome,
+15 pages at 1440/1024/768/375/320 px, file:// offline loading, keyboard/overview/notes
+and PDF export. No app/provider/DB call was needed. Earlier cleanup-blocked
+resources and the unrelated untracked oral-study HTML remain untouched. Final
+commands/results are recorded in the 25 October demo-checklist entry.
+
 ## Course gallery and session revalidation repair — 24 October 2026
 
 Source `a2e6892` fixes the two reported frontend regressions on baseline

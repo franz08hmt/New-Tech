@@ -1,5 +1,51 @@
 ﻿# ExaMate — defense presentation
 
+## Recommended visual edition - 25 October 2026
+
+[Offline HTML](submission/ExaMate-Presentation-Visual-20261025.html) and
+[15-page PDF](submission/ExaMate-Presentation-Visual-20261025.pdf) follow the selected
+black/white/yellow reference: grayscale local photographs, yellow frames, diagonal
+contents, numbered steps, alternating panels, a circular guardrail motif and
+outcome bars. Poppins and genuine Heroicons are embedded with their licenses;
+there are no CDN, API, credential, analytics or storage dependencies.
+
+This edition has **15 slides**, English content and Vietnamese notes. Eleven
+retained screenshots cover Dashboard, Courses, Expenses, Documents/mobile,
+Assistant/citations/history, Study Coach/quiz, STT readiness and AI Usage. Captions
+distinguish real-service captures from synthetic-provider integration fixtures.
+The flashcard page is explicitly an implementation illustration. The editable
+24 October PPTX below remains available; it uses the older design.
+
+Open HTML directly in Chrome/Edge. Arrow keys/Page Up/Page Down navigate; Home/End
+jump to the ends. Overview shows every page; Notes shows Vietnamese speaker notes.
+Fullscreen requires a user click. Narrow screens use a readable vertical layout;
+the PDF always retains 16:9. With JavaScript disabled all slides remain readable.
+
+Recommended eight-minute route: **1 -> 3 -> 5 -> 15 -> web demo -> 13 -> 14**.
+Do not narrate all fifteen pages. Do not claim a complete improved evaluation:
+baseline remains 15 PASS/3 FAIL/2 INCONCLUSIVE, follow-up 1 PASS/2 provider
+errors/17 NOT ATTEMPTED. Evidence on slide 12 is explicitly dated; no application
+measurement is inferred from a slide export.
+
+Editable source: `docs/presentation/deck.html`, `deck.css`, `deck.js` and
+`assets/provenance.json`. Rebuild with existing installed dependencies:
+
+```powershell
+node scripts/build-visual-presentation.mjs
+node --test scripts/visual-presentation.test.mjs
+node scripts/verify-visual-presentation.mjs
+python scripts/test_visual_presentation_pdf.py
+python -m unittest discover -s scripts -p test_submission_docs.py
+```
+
+The verification command uses installed Windows Chrome in a new isolated
+profile and a loopback static server, exports PDF, checks all slides at five widths
+and saves evidence under ignored `artifacts/presentation-visual-20261025/`.
+It does not log into or exercise the application. Profile artifacts are retained;
+browser/server processes created by the command are closed.
+
+## Retained 24 October PPTX outline
+
 English slide content; Vietnamese speaker notes. Visual revision: 24 October 2026.
 Technical measurements are retained from 23 October; no new application/model run.
 DRAFT: improved evaluation and personal confirmations remain incomplete.

@@ -1,5 +1,15 @@
 # ExaMate — yêu cầu cuối kỳ và traceability
 
+## Presentation delivery - 25 October 2026
+
+The recommended visual presentation is the offline HTML + 15-page PDF linked in
+SLIDES.md and README. It follows the selected reference using Poppins/Heroicons,
+retained labelled application screenshots and an implementation architecture.
+The previous editable PPTX is preserved as a separate design. This delivers a
+presentation artifact; it does not close incomplete evaluation, human semantic,
+whole-app browser, microphone or remote-machine acceptance. Application/source
+behavior is unchanged.
+
 ## Focused UI repair — 24/10/2026
 
 Source `a2e6892` restores the Courses photo/scroll gallery on the current
