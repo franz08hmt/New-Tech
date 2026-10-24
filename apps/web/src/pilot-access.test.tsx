@@ -9,6 +9,125 @@ import {
 } from "@testing-library/react";
 import { PilotAccess } from "./PilotAccess";
 import { configurePilotClient } from "./pilot-client";
+import { api } from "./api";
+
+it("revalidation preserves the page shell and title without exposing the login screen or enabling requests", async () => {
+  vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+  const fetcher = vi.fn(async () => {
+    if (fetcher.mock.calls.length === 1) return Response.json(granted);
+    return new Promise<Response>((resolve) => {
+      drain = () => resolve(Response.json(granted));
+    });
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(
+    <PilotAccess>
+      <main data-testid="workspace-shell" style={{ minHeight: 1800 }}>
+        <label>
+          Current draft
+          <input defaultValue="Keep my course draft" />
+        </label>
+      </main>
+    </PilotAccess>,
+  );
+  const draft = await screen.findByLabelText("Current draft");
+  const shell = screen.getByTestId("workspace-shell");
+  document.title = "Courses · ExaMate AI";
+  draft.focus();
+  await act(async () => window.dispatchEvent(new Event("focus")));
+  expect(
+    screen.queryByRole("heading", { name: "Sign in to ExaMate" }),
+  ).toBeNull();
+  expect(shell.closest("[hidden]")).toBeNull();
+  expect(shell).not.toBeVisible();
+  expect(shell.closest("[inert]")).not.toBeNull();
+  expect(document.title).toBe("Courses · ExaMate AI");
+  await expect(api.listCourses()).rejects.toThrow(/đang khóa/);
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  await act(async () => drain?.());
+  await waitFor(() => expect(shell).toBeVisible());
+  expect(screen.getByLabelText("Current draft")).toBe(draft);
+  expect(draft).toHaveValue("Keep my course draft");
+  expect(draft).toHaveFocus();
+});
+
+it.each(["revoked", "outage"])(
+  "revalidation still locks private content after %s",
+  async (outcome) => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    let count = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        if (++count === 1) return Response.json(granted);
+        return new Promise<Response>((resolve) => {
+          drain = () =>
+            resolve(
+              outcome === "outage"
+                ? unavailable()
+                : Response.json({
+                    status: "no_access",
+                    csrfToken: "a".repeat(43),
+                  }),
+            );
+        });
+      }),
+    );
+    render(
+      <PilotAccess>
+        <button>Private operation</button>
+      </PilotAccess>,
+    );
+    const action = await screen.findByRole("button", {
+      name: "Private operation",
+    });
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(
+      screen.queryByRole("heading", { name: "Sign in to ExaMate" }),
+    ).toBeNull();
+    expect(action).not.toBeVisible();
+    await act(async () => drain?.());
+    await screen.findByRole("heading", { name: "Sign in to ExaMate" });
+    expect(action).not.toBeVisible();
+    await expect(api.listCourses()).rejects.toThrow(/đang khóa/);
+  },
+);
+
+it("revalidation cannot restore an old principal after a cross-tab session change", async () => {
+  vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+  let count = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => {
+      if (++count === 1) return Response.json(granted);
+      return new Promise<Response>((resolve) => {
+        drain = () => resolve(Response.json(granted));
+      });
+    }),
+  );
+  render(
+    <PilotAccess>
+      <input
+        aria-label="Old principal draft"
+        defaultValue="Private old draft"
+      />
+    </PilotAccess>,
+  );
+  await screen.findByLabelText("Old principal draft");
+  await act(async () => window.dispatchEvent(new Event("focus")));
+  expect(
+    screen.queryByRole("heading", { name: "Sign in to ExaMate" }),
+  ).toBeNull();
+  await act(async () =>
+    tabChannel.onmessage?.(
+      new MessageEvent("message", { data: { type: "session_changed" } }),
+    ),
+  );
+  expect(screen.queryByLabelText("Old principal draft")).toBeNull();
+  await act(async () => drain?.());
+  expect(screen.queryByLabelText("Old principal draft")).toBeNull();
+  expect(screen.getByText(/Phiên đã đổi ở tab khác/)).toBeVisible();
+});
 
 const anonymous = { status: "anonymous", csrfToken: "a".repeat(43) };
 const granted = {

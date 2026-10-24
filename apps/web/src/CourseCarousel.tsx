@@ -5,7 +5,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from "@heroicons/react/24/outline";
-import type { Course } from "./api";
+import type { CourseSearchItem } from "./api";
 
 function pad(value: number) {
   return String(value).padStart(2, "0");
@@ -15,19 +15,27 @@ function pad(value: number) {
  * Cinematic course gallery: the backdrop is the selected course, and the
  * thumbnails below scroll to follow it.
  *
- * The track is a scroll-snap list moved with `scrollIntoView` rather than a
- * calculated `translateX`. That keeps it responsive at any width, lets people
+ * The track uses native scrolling rather than a calculated `translateX`.
+ * That keeps it responsive at any width, lets people
  * swipe or drag it directly on a touch screen, and leaves far less code to
  * explain.
  */
-export function CourseCarousel({ courses }: { courses: Course[] }) {
-  const [active, setActive] = useState(0);
+export function CourseCarousel({ courses }: { courses: CourseSearchItem[] }) {
+  const [activeId, setActiveId] = useState<string>();
+  // Derive a valid selection during render: filtering/paging can replace a
+  // twenty-item page with one item, and must never dereference an old index.
+  const active = Math.max(
+    0,
+    courses.findIndex((item) => item.id === activeId),
+  );
   const track = useRef<HTMLUListElement>(null);
   const items = useRef<(HTMLLIElement | null)[]>([]);
   const course = courses[active];
 
-  const go = (next: number) =>
-    setActive((next + courses.length) % courses.length);
+  const go = (next: number) => {
+    if (courses.length)
+      setActiveId(courses[(next + courses.length) % courses.length].id);
+  };
 
   useEffect(() => {
     const list = track.current;
@@ -59,7 +67,7 @@ export function CourseCarousel({ courses }: { courses: Course[] }) {
       if (Math.abs(list.scrollLeft - target) > 4) list.scrollLeft = target;
     }, 600);
     return () => window.clearTimeout(safety);
-  }, [active]);
+  }, [active, courses]);
 
   function onKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (event.key === "ArrowRight") {
@@ -71,6 +79,8 @@ export function CourseCarousel({ courses }: { courses: Course[] }) {
       go(active - 1);
     }
   }
+
+  if (!course) return null;
 
   return (
     <section
@@ -84,7 +94,7 @@ export function CourseCarousel({ courses }: { courses: Course[] }) {
       <div className="stage-backdrop" aria-hidden="true">
         {courses.map((item, index) => (
           <img
-            key={item.code}
+            key={item.id}
             src={item.cover}
             alt=""
             className={index === active ? "is-active" : ""}
@@ -119,7 +129,7 @@ export function CourseCarousel({ courses }: { courses: Course[] }) {
         <ul className="stage-track" ref={track}>
           {courses.map((item, index) => (
             <li
-              key={item.code}
+              key={item.id}
               ref={(node) => {
                 items.current[index] = node;
               }}
@@ -129,7 +139,7 @@ export function CourseCarousel({ courses }: { courses: Course[] }) {
                 className={`stage-thumb ${index === active ? "is-active" : ""}`}
                 aria-label={`Select ${item.name} course`}
                 aria-current={index === active ? "true" : undefined}
-                onClick={() => setActive(index)}
+                onClick={() => go(index)}
               >
                 <img src={item.cover} alt={item.cover_alt} loading="lazy" />
                 <span>

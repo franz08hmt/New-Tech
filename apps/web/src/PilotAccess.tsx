@@ -37,8 +37,14 @@ export function PilotAccess({ children }: { children: ReactNode }) {
   const [lastSettledState, setLastSettledState] = useState(session.state);
   const gate = useRef<HTMLElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
+  const lastWorkspaceFocus = useRef<HTMLElement | null>(null);
+  const restoreWorkspaceFocus = useRef<HTMLElement | null>(null);
   const granted = session.state === "authenticated";
   const checking = session.state === "verifying";
+  const revalidating =
+    checking &&
+    lastSettledState === "authenticated" &&
+    Boolean(session.principal);
   const blocked = checking || session.busy;
   const showLogin =
     session.state === "anonymous" ||
@@ -48,13 +54,23 @@ export function PilotAccess({ children }: { children: ReactNode }) {
     if (!checking) setLastSettledState(session.state);
   }, [checking, session.state]);
   useEffect(() => {
-    if (granted) return;
+    if (granted || revalidating) return;
     const previous = document.title;
     document.title = "Sign in · ExaMate AI";
     return () => {
       document.title = previous;
     };
-  }, [granted]);
+  }, [granted, revalidating]);
+  useEffect(() => {
+    if (revalidating) {
+      restoreWorkspaceFocus.current = lastWorkspaceFocus.current;
+      return;
+    }
+    const target = restoreWorkspaceFocus.current;
+    restoreWorkspaceFocus.current = null;
+    if (granted && target?.isConnected && !target.hasAttribute("disabled"))
+      target.focus({ preventScroll: true });
+  }, [granted, revalidating]);
   useEffect(() => {
     if (
       !granted &&
@@ -72,7 +88,24 @@ export function PilotAccess({ children }: { children: ReactNode }) {
   }
   return (
     <>
-      {!granted && (
+      {revalidating && (
+        <section
+          ref={gate}
+          className="pilot-revalidation"
+          aria-labelledby="pilot-revalidation-heading"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="pilot-revalidation-card">
+            <LockClosedIcon aria-hidden="true" />
+            <h2 ref={heading} id="pilot-revalidation-heading" tabIndex={-1}>
+              Checking workspace access
+            </h2>
+            <p>Đang xác minh phiên… Trang và bản nháp được giữ nguyên.</p>
+          </div>
+        </section>
+      )}
+      {!granted && !revalidating && (
         <main
           ref={gate}
           className="pilot-access"
@@ -197,8 +230,16 @@ export function PilotAccess({ children }: { children: ReactNode }) {
       {session.principal && (
         <div
           key={`${session.principal.userId}:${session.principal.workspaceId}`}
-          hidden={!granted}
+          // Visibility keeps the document's height/scroll position while all
+          // private content and interaction stay locked until verification.
+          hidden={!granted && !revalidating}
+          style={revalidating ? { visibility: "hidden" } : undefined}
+          aria-hidden={!granted}
+          aria-busy={revalidating}
           inert={!granted}
+          onFocusCapture={(event) => {
+            if (granted) lastWorkspaceFocus.current = event.target;
+          }}
         >
           <div className="pilot-session-bar">
             <span>Workspace access</span>

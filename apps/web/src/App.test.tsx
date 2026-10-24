@@ -1330,7 +1330,12 @@ describe("Academic workspace", () => {
     fireEvent.change(screen.getByLabelText("Search courses"), {
       target: { value: "Kinh" },
     });
-    expect(await screen.findByRole("link", { name: /Kinh/ })).toBeVisible();
+    const results = await screen.findByRole("region", {
+      name: "Course results",
+    });
+    expect(
+      await within(results).findByRole("link", { name: /Kinh/ }),
+    ).toBeVisible();
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining("q=Kinh"),
       expect.objectContaining({ signal: expect.any(AbortSignal) }),

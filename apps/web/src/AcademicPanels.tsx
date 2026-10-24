@@ -168,8 +168,19 @@ export function CoursesPanel({
           return (
             <li key={course.code}>
               <article className="course-card">
-                <span className={`course-art ${course.tone}`}>
-                  <Icon aria-hidden="true" />
+                <span
+                  className={`course-art ${course.tone}${expanded ? " course-art--photo" : ""}`}
+                >
+                  {expanded ? (
+                    <img
+                      src={course.cover}
+                      alt={course.cover_alt}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : (
+                    <Icon aria-hidden="true" />
+                  )}
                 </span>
                 <header>
                   <h3>

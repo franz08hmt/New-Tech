@@ -6,6 +6,7 @@ import type {
 } from "./api";
 import { api } from "./api";
 import { CoursesPanel } from "./AcademicPanels";
+import { CourseCarousel } from "./CourseCarousel";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
 import { usePagedSearch } from "./use-paged-search";
 
@@ -201,7 +202,12 @@ export function CoursesSearchPanel() {
         !rangeInvalid && (
           <>
             {search.items.length ? (
-              <CoursesPanel courses={search.items} expanded />
+              <>
+                <CourseCarousel key={identity} courses={search.items} />
+                <section aria-label="Course results">
+                  <CoursesPanel courses={search.items} expanded />
+                </section>
+              </>
             ) : (
               <section className="panel" aria-label="Course results">
                 <p className="empty-message">

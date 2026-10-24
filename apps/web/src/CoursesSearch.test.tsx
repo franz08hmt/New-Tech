@@ -6,6 +6,7 @@ import {
   renderHook,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Course, CourseSearchItem, CourseSearchPage } from "./api";
@@ -16,6 +17,7 @@ import type { Workspace } from "./use-workspace";
 import type { CoursesState } from "./use-courses";
 import { useCourses } from "./use-courses";
 import { useCourseLookup } from "./use-course-lookup";
+import { CourseCarousel } from "./CourseCarousel";
 import type { ReactNode } from "react";
 
 const principal = {
@@ -95,6 +97,64 @@ afterEach(() => {
 });
 
 describe("server-paged Courses route", () => {
+  it("restored course gallery shows photos from the current server page without loading the full catalog", async () => {
+    const list = vi.spyOn(api, "listCourses");
+    const search = vi
+      .spyOn(api, "searchCourses")
+      .mockResolvedValue(page([course("a"), course("b")], 24));
+    render(view());
+    const gallery = await screen.findByRole("region", {
+      name: "Course gallery",
+    });
+    expect(gallery).toHaveAttribute("aria-roledescription", "carousel");
+    const next = within(gallery).getByRole("button", { name: "Next course" });
+    fireEvent.click(next);
+    expect(
+      within(gallery).getByRole("link", { name: "Explore Course b course" }),
+    ).toHaveAttribute("href", "#courses/b");
+    expect(
+      gallery.querySelector(".stage-backdrop img.is-active"),
+    ).toHaveAttribute("src", "/img/fixture.webp");
+    expect(list).not.toHaveBeenCalled();
+    expect(search).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 1, pageSize: 20 }),
+      expect.any(AbortSignal),
+    );
+    search.mockResolvedValue(page([course("filtered")], 1));
+    fireEvent.change(
+      screen.getByRole("searchbox", { name: "Search courses" }),
+      { target: { value: "filtered" } },
+    );
+    await screen.findByRole("link", { name: "Explore Course filtered course" });
+    expect(
+      screen.queryByRole("button", { name: "Select Course b course" }),
+    ).toBeNull();
+    expect(search).toHaveBeenLastCalledWith(
+      expect.objectContaining({ q: "filtered", page: 1 }),
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("restored course gallery resets an out-of-page selection without crashing on a shorter result or an empty page", () => {
+    const complete = (id: string): Course => ({
+      ...legacyCourse,
+      ...course(id),
+    });
+    const rendered = render(
+      <CourseCarousel
+        courses={[complete("a"), complete("b"), complete("c")]}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Select Course c course" }),
+    );
+    rendered.rerender(<CourseCarousel courses={[complete("only")]} />);
+    expect(
+      screen.getByRole("link", { name: "Explore Course only course" }),
+    ).toHaveAttribute("href", "#courses/only");
+    rendered.rerender(<CourseCarousel courses={[]} />);
+    expect(screen.queryByRole("region", { name: "Course gallery" })).toBeNull();
+  });
   it("loads bounded server pages and resets pagination when filters change", async () => {
     const search = vi.spyOn(api, "searchCourses");
     search.mockImplementation(async (query) => {
@@ -105,17 +165,22 @@ describe("server-paged Courses route", () => {
     });
     render(view());
 
-    expect(await screen.findByText("First page course")).toBeVisible();
+    const results = await screen.findByRole("region", {
+      name: "Course results",
+    });
+    expect(
+      within(results).getByRole("link", { name: "First page course" }),
+    ).toBeVisible();
     expect(search).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 1, pageSize: 20 }),
       expect.any(AbortSignal),
     );
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    await screen.findByText("Course page-two");
+    await screen.findByRole("link", { name: "Course page-two" });
     fireEvent.change(screen.getByLabelText("Minimum progress"), {
       target: { value: "50" },
     });
-    await screen.findByText("Filtered course");
+    await screen.findByRole("link", { name: "Filtered course" });
     expect(search).toHaveBeenLastCalledWith(
       expect.objectContaining({ progressMin: 50, page: 1, pageSize: 20 }),
       expect.any(AbortSignal),
@@ -153,7 +218,11 @@ describe("server-paged Courses route", () => {
         />
       </PilotPrincipalContext.Provider>,
     );
-    expect(await screen.findByText("New principal course")).toBeVisible();
+    expect(
+      await screen.findByRole("link", {
+        name: "New principal course",
+      }),
+    ).toBeVisible();
     await act(async () =>
       resolveOld(page([course("old", "Old principal course")], 1)),
     );
