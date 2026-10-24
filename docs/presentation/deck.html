@@ -1,0 +1,1002 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="ExaMate: an AI academic workspace. A source-verifiable presentation of grounded document Q&A, structured study practice, architecture and evaluation limits."
+    />
+    <meta name="theme-color" content="#f7e54b" />
+    <title>ExaMate — From evidence to practice</title>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "DigitalDocument",
+        "name": "ExaMate — From evidence to practice",
+        "genre": "Academic project defense presentation",
+        "inLanguage": "en",
+        "dateModified": "2026-10-25",
+        "description": "Draft presentation of grounded document Q&A and structured study practice. Retained technical evidence is distinguished from incomplete evaluation and semantic acceptance."
+      }
+    </script>
+    <!-- LICENSES -->
+    <!-- STYLES -->
+  </head>
+  <body>
+    <a class="skip" href="#presentation">Skip to presentation</a>
+    <nav class="toolbar" aria-label="Presentation controls">
+      <a class="brand" href="#cover" aria-label="ExaMate cover"
+        >[[icon:AcademicCap]]<strong>ExaMate</strong
+        ><span>DEFENSE · 2026</span></a
+      >
+      <output data-status aria-live="polite" aria-atomic="true"
+        >15 slides · Offline presentation</output
+      >
+      <menu>
+        <li>
+          <button type="button" data-previous aria-label="Previous slide">
+            [[icon:ArrowLeft]]
+          </button>
+        </li>
+        <li>
+          <button type="button" data-next aria-label="Next slide">
+            [[icon:ArrowRight]]
+          </button>
+        </li>
+        <li>
+          <button type="button" data-overview aria-pressed="false">
+            [[icon:Squares2X2]]<span>Overview</span>
+          </button>
+        </li>
+        <li>
+          <button type="button" data-notes aria-pressed="false">
+            [[icon:ChatBubbleBottomCenterText]]<span>Notes</span>
+          </button>
+        </li>
+        <li>
+          <button type="button" data-fullscreen aria-label="Toggle fullscreen">
+            [[icon:ArrowsPointingOut]]
+          </button>
+        </li>
+      </menu>
+    </nav>
+    <main id="presentation" aria-label="ExaMate defense presentation">
+      <section
+        id="cover"
+        class="slide cover photo"
+        data-title="ExaMate"
+        aria-labelledby="title-cover"
+      >
+        <img class="backdrop" src="[[photo]]" alt="" />
+        <header class="cover-meta">
+          <span>NEW TECHNOLOGIES IN SOFTWARE ENGINEERING</span
+          ><span>TÀI + THẮNG · 2026–2027</span>
+        </header>
+        <article class="cover-title">
+          <p class="eyebrow">AI ACADEMIC WORKSPACE</p>
+          <h1 id="title-cover" tabindex="-1">
+            ExaMate<span>From evidence<br />to practice.</span>
+          </h1>
+          <p>Study from your sources.<br />Verify what AI says.</p>
+        </article>
+        <p class="cover-bottom">
+          <span>A · GROUNDED DOCUMENT Q&amp;A</span
+          ><span>C · STRUCTURED STUDY PRACTICE</span>
+        </p>
+        <aside class="speaker" lang="vi">
+          <h2>Ghi chú trình bày</h2>
+          <p>
+            TÀI · 15 giây. ExaMate nối quản lý học tập, hỏi đáp có nguồn và
+            luyện tập. Nhóm trình bày capability A và C; không nhận capability B
+            ba LLM-called tools. Bản tài liệu còn DRAFT vì evaluation sau cải
+            tiến chưa đầy đủ.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="contents"
+        class="slide contents"
+        data-title="Presentation route"
+        aria-labelledby="title-contents"
+      >
+        <figure class="contents-photo">
+          <img src="[[photo]]" alt="" />
+          <figcaption>
+            ONE WORKSPACE.<br /><strong>A TRACEABLE<br />STUDY LOOP.</strong>
+          </figcaption>
+        </figure>
+        <header>
+          <p class="eyebrow">THE PRESENTATION</p>
+          <h2 id="title-contents" tabindex="-1">
+            Five things<br />to take away.
+          </h2>
+        </header>
+        <ol class="agenda">
+          <li>
+            <a href="#mission"
+              ><span>01</span><strong>The learning problem</strong
+              ><small>A workspace, beyond an isolated chatbot.</small></a
+            >
+          </li>
+          <li>
+            <a href="#architecture"
+              ><span>02</span><strong>How the system works</strong
+              ><small>Explicit trust and data boundaries.</small></a
+            >
+          </li>
+          <li>
+            <a href="#rag"
+              ><span>03</span><strong>Two usable AI capabilities</strong
+              ><small>Grounded answers and structured practice.</small></a
+            >
+          </li>
+          <li>
+            <a href="#guardrails"
+              ><span>04</span><strong>What the evidence proves</strong
+              ><small>Guardrails, tests and honest limitations.</small></a
+            >
+          </li>
+          <li>
+            <a href="#demo"
+              ><span>05</span><strong>The product, live</strong
+              ><small>Trace one question to its source and result.</small></a
+            >
+          </li>
+        </ol>
+        <aside class="speaker" lang="vi">
+          <h3>Ghi chú trình bày</h3>
+          <p>
+            Tuyến 8 phút: 1 → 3 → 5 → 15, chuyển web, sau đó 13 → 14. Các trang
+            khác dùng minh họa hoặc vấn đáp. Không đọc hết 15 trang trong 8
+            phút.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="mission"
+        class="slide mission"
+        data-title="The learning problem"
+        aria-labelledby="title-mission"
+      >
+        <figure class="mission-photo">
+          <img
+            src="[[library]]"
+            alt="Library shelves represent scattered study material"
+          />
+          <figcaption>
+            Fewer disconnected tools.<br /><strong
+              >More usable learning.</strong
+            >
+          </figcaption>
+        </figure>
+        <header>
+          <p class="eyebrow">01 / THE PROBLEM</p>
+          <h2 id="title-mission" tabindex="-1">
+            Turn scattered files<br />into a study loop.
+          </h2>
+        </header>
+        <ol class="numbered">
+          <li>
+            <span>1</span>
+            <article>
+              <h3>Organize</h3>
+              <p>
+                Tasks, courses, exams, study plans, expenses and documents in
+                one workspace.
+              </p>
+            </article>
+          </li>
+          <li>
+            <span>2</span>
+            <article>
+              <h3>Verify</h3>
+              <p>
+                Ask within an authorized source. Inspect the actual cited PDF
+                page.
+              </p>
+            </article>
+          </li>
+          <li>
+            <span>3</span>
+            <article>
+              <h3>Practise</h3>
+              <p>
+                Preview AI content, explicitly save it, then track personal
+                study activity.
+              </p>
+            </article>
+          </li>
+        </ol>
+        <figure class="mini-screen">
+          <img
+            src="[[image:dashboard]]"
+            alt="ExaMate dashboard showing urgent tasks and the weekly schedule"
+          />
+          <figcaption>Historical capture · real Supabase services.</figcaption>
+        </figure>
+        <aside class="speaker" lang="vi">
+          <h3>Ghi chú trình bày</h3>
+          <p>
+            TÀI · 15 giây. Khó khăn là tài liệu rời rạc, câu trả lời khó kiểm
+            chứng và output AI chưa có luồng sử dụng. Dashboard trong ảnh là
+            capture dịch vụ thật trước đó, không phải output Gemini mới. Courses
+            hiện đọc; không nói mọi module có đầy đủ CRUD.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="workspace"
+        class="slide workspace"
+        data-title="The everyday workspace"
+        aria-labelledby="title-workspace"
+      >
+        <header>
+          <p class="eyebrow">THE PRODUCT / EVERYDAY WORK</p>
+          <h2 id="title-workspace" tabindex="-1">
+            Useful before the first AI call.
+          </h2>
+          <p class="subtitle">
+            Bounded server search. Persistent business data. Desktop and mobile.
+          </p>
+        </header>
+        <figure class="screen course-screen">
+          <img
+            src="[[image:courses]]"
+            alt="Courses with a photo gallery, horizontal thumbnails and paginated search results"
+          />
+          <figcaption>
+            <strong>Courses</strong> · Photo gallery + server pagination.
+            Synthetic fixture, 24 Oct.
+          </figcaption>
+        </figure>
+        <figure class="screen expense-screen">
+          <img
+            src="[[image:expenses]]"
+            alt="Expense page with filtered totals and a spending chart grouped by course"
+          />
+          <figcaption>
+            <strong>Expenses</strong> · Filter-wide aggregates, independent of
+            the page. Historical fixture.
+          </figcaption>
+        </figure>
+        <figure class="screen phone-screen">
+          <img
+            src="[[image:mobile]]"
+            alt="Documents on a narrow mobile screen with search and document cards"
+          />
+          <figcaption>
+            <strong>Mobile Documents</strong> · Real-service capture.
+          </figcaption>
+        </figure>
+        <p class="ribbon">
+          Tasks · Courses · Exams · Study plans · Expenses · Documents
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Ghi chú trình bày</h3>
+          <p>
+            TÀI · Gallery vừa khôi phục dùng dữ liệu của đúng trang server,
+            không tải toàn bộ catalog. Expenses tính tổng trên tập lọc, không
+            cộng riêng items của trang. Ảnh course/expense là fixture có Nest/PG
+            thật, Auth/provider tổng hợp; ảnh mobile dùng dịch vụ thật. Không
+            coi đây là lần nghiệm thu browser mới.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="architecture"
+        class="slide architecture"
+        data-title="Architecture and trust boundaries"
+        aria-labelledby="title-architecture"
+      >
+        <header>
+          <p class="eyebrow">02 / SYSTEM DESIGN</p>
+          <h2 id="title-architecture" tabindex="-1">
+            Clear boundaries. Scoped access.
+          </h2>
+        </header>
+        <article class="arch-client">
+          <span class="node-icon">[[icon:ComputerDesktop]]</span>
+          <h3>Browser</h3>
+          <p>React · TypeScript · Vite</p>
+          <ul>
+            <li>Responsive workspace + Assistant</li>
+            <li>Quiz and flashcard practice</li>
+            <li>Opaque HttpOnly session cookie</li>
+            <li>CSRF protection for writes</li>
+          </ul>
+          <small>No provider key or persistent signed URL.</small>
+        </article>
+        <article class="arch-api">
+          <p class="eyebrow">NGINX → NESTJS API</p>
+          <h3>Verified session + current membership</h3>
+          <ul class="api-nodes">
+            <li>[[icon:ShieldCheck]]Authorization + validation</li>
+            <li>
+              [[icon:DocumentMagnifyingGlass]]Scoped retrieval + citations
+            </li>
+            <li>[[icon:AcademicCap]]Structured Study Coach</li>
+            <li>[[icon:Signal]]SSE + receipt/history</li>
+          </ul>
+          <p class="api-base">Prompt registry · Admission · Usage telemetry</p>
+          <small>No DB transaction held while awaiting a provider.</small>
+        </article>
+        <section
+          class="arch-services"
+          aria-label="Scoped storage and provider services"
+        >
+          <article>
+            <span>[[icon:CircleStack]]</span>
+            <h3>PostgreSQL + pgvector</h3>
+            <p>
+              Workspace transactions + RLS.<br />Separate business / Auth
+              LOGINs.
+            </p>
+          </article>
+          <article>
+            <span>[[icon:LockClosed]]</span>
+            <h3>Supabase Auth + Storage</h3>
+            <p>
+              Google login · private PDF bucket.<br />Fresh scoped file access.
+            </p>
+          </article>
+          <article>
+            <span>[[icon:Sparkles]]</span>
+            <h3>Gemini + local Whisper</h3>
+            <p>Embedding / generation.<br />STT on the local API host.</p>
+          </article>
+        </section>
+        <p class="ribbon">
+          01 Verify principal → 02 Scope evidence → 03 Admit AI → 04 Validate →
+          05 Persist explicitly
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Ghi chú trình bày</h3>
+          <p>
+            THẮNG · 30 giây. React gọi Nest qua proxy, backend giữ key. Business
+            và Auth dùng LOGIN non-owner/NOBYPASSRLS riêng; RLS không thay kiểm
+            membership. PDF ở private Storage. Gemini phục vụ
+            embedding/generation; Whisper chạy local API host. Đây là sơ đồ khái
+            niệm theo implementation, không phải sơ đồ network đo tự động.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="rag"
+        class="slide rag"
+        data-title="Capability A: grounded answers"
+        aria-labelledby="title-rag"
+      >
+        <header>
+          <p class="eyebrow">03 / CAPABILITY A</p>
+          <h2 id="title-rag" tabindex="-1">
+            An answer you can<br />trace to a page.
+          </h2>
+        </header>
+        <ol class="rag-steps">
+          <li>
+            <b>01</b>
+            <h3>Prepare</h3>
+            <p>Ready PDF → page-bounded chunks → 768-dimensional vectors.</p>
+          </li>
+          <li>
+            <b>02</b>
+            <h3>Retrieve</h3>
+            <p>
+              Apply document/course/workspace scope; keep up to six qualifying
+              chunks.
+            </p>
+          </li>
+          <li>
+            <b>03</b>
+            <h3>Validate</h3>
+            <p>Answer shape, source IDs and inline markers must agree.</p>
+          </li>
+          <li>
+            <b>04</b>
+            <h3>Inspect</h3>
+            <p>Open the cited PDF page with freshly authorized access.</p>
+          </li>
+        </ol>
+        <figure class="screen rag-screen">
+          <img
+            src="[[image:rag]]"
+            alt="Assistant citation preview with the PDF viewer open on page 3"
+          />
+          <figcaption>
+            Historical fixture · real Nest/PDF.js/PG17; synthetic Auth, Storage
+            and provider.
+          </figcaption>
+        </figure>
+        <blockquote>
+          “What happens when the Round Robin time quantum is very small?”
+        </blockquote>
+        <p class="boundary">
+          No qualifying evidence → refusal without answer generation.<br />A
+          query embedding may already have run. Valid citations alone do not
+          prove claim correctness.
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Ghi chú trình bày</h3>
+          <p>
+            TÀI · Chunk target 1200/max1800/overlap200 ký tự, không vượt trang.
+            Hỏi PDF hệ điều hành về quantum nhỏ, mở trang 3 và đối chiếu thực
+            tế. Ảnh là integration lịch sử, không chứng minh chất lượng Gemini.
+            Tài liệu Ready không bảo đảm mọi trang được trích xuất đầy đủ.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="quiz"
+        class="slide quiz"
+        data-title="Capability C: quiz practice"
+        aria-labelledby="title-quiz"
+      >
+        <header>
+          <p class="eyebrow">03 / CAPABILITY C</p>
+          <h2 id="title-quiz" tabindex="-1">
+            From structured output<br />to usable practice.
+          </h2>
+          <p class="subtitle">
+            A quiz is a workflow, not a JSON message in chat.
+          </p>
+        </header>
+        <figure class="screen quiz-preview">
+          <img
+            src="[[image:coach]]"
+            alt="Study Coach with document selection, generation controls and practice questions"
+          />
+          <figcaption>
+            Study Coach · historical synthetic-provider integration.
+          </figcaption>
+        </figure>
+        <figure class="screen quiz-result">
+          <img
+            src="[[image:quiz]]"
+            alt="Server-graded quiz showing 3 out of 3 and explanations for each question"
+          />
+          <figcaption>
+            Saved-answer grading · fixture score, not a live model-quality
+            benchmark.
+          </figcaption>
+        </figure>
+        <ol class="process-strip">
+          <li>
+            [[icon:DocumentText]]<strong>Generate</strong
+            ><small>Evidence-bound schema</small>
+          </li>
+          <li>
+            [[icon:Eye]]<strong>Preview</strong
+            ><small>Inspect answers + sources</small>
+          </li>
+          <li>
+            [[icon:CheckBadge]]<strong>Confirm</strong
+            ><small>Private immutable snapshot</small>
+          </li>
+          <li>
+            [[icon:ChartBar]]<strong>Practise</strong
+            ><small>Server grade + progress</small>
+          </li>
+        </ol>
+        <aside class="speaker" lang="vi">
+          <h3>Ghi chú trình bày</h3>
+          <p>
+            TÀI · Draft server có token, hết hạn 15 phút. Chỉ confirm mới lưu.
+            Server không tin correctCount từ client. Practice/progress không gọi
+            AI. Ảnh 3/3 dùng provider tổng hợp; demo không đọc số điểm cố định.
+            Điểm thể hiện đối chiếu đáp án snapshot, không chứng minh chất lượng
+            giáo dục.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="flashcards"
+        class="slide flashcards"
+        data-title="Flashcards and private progress"
+        aria-labelledby="title-flashcards"
+      >
+        <header>
+          <p class="eyebrow">CAPABILITY C / FLASHCARDS</p>
+          <h2 id="title-flashcards" tabindex="-1">
+            Recall. Reveal.<br />Reflect.
+          </h2>
+          <p class="subtitle">Self-assessment under the learner’s control.</p>
+        </header>
+        <article class="study-card front">
+          <p class="eyebrow">FRONT / ILLUSTRATIVE CONTENT</p>
+          <span class="node-icon">[[icon:LightBulb]]</span>
+          <h3>What does a thread<br />share with its process?</h3>
+          <p>Think first.<br />Then choose to reveal the back.</p>
+        </article>
+        <article class="study-card back">
+          <p class="eyebrow">BACK / SOURCE-BOUND SNAPSHOT</p>
+          <h3>The address space<br />and open files.</h3>
+          <p>Threads retain their own execution state.</p>
+          <p class="card-source">
+            Illustrative card, not an application screenshot or a live
+            generation.
+          </p>
+        </article>
+        <ol class="flash-flow">
+          <li><span>01</span><strong>Preview both sides + sources</strong></li>
+          <li>
+            <span>02</span><strong>Explicitly save a private deck</strong>
+          </li>
+          <li>
+            <span>03</span><strong>Flip → remembered / needs_review</strong>
+          </li>
+          <li><span>04</span><strong>Save one completed review</strong></li>
+        </ol>
+        <p class="ribbon">
+          Progress = completed reviews + latest self-ratings. No AI call. No
+          claim of mastery.
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Ghi chú trình bày</h3>
+          <p>
+            TÀI · Đây là sơ đồ luồng, không phải screenshot. Card minh họa
+            threads theo PDF mẫu, chưa phải đánh giá ngữ nghĩa. Đủ rating tất cả
+            thẻ mới lưu review. ReviewKey/payload được giữ sau mất ACK; không
+            tạo lượt mới âm thầm. Không có spaced repetition, leaderboard hoặc
+            AI chấm tự đánh giá.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="history"
+        class="slide history"
+        data-title="Conversation continuity"
+        aria-labelledby="title-history"
+      >
+        <header>
+          <p class="eyebrow">CONTINUITY / PRIVATE HISTORY</p>
+          <h2 id="title-history" tabindex="-1">
+            Come back to the<br />same conversation.
+          </h2>
+        </header>
+        <figure class="screen history-screen">
+          <img
+            src="[[image:history]]"
+            alt="A saved Assistant conversation reopened in the workspace side panel"
+          />
+          <figcaption>
+            Historical fixture · real Nest/PG17, synthetic Auth/provider.
+          </figcaption>
+        </figure>
+        <ol class="vertical-timeline">
+          <li>
+            <h3>Save completed, verified turns</h3>
+            <p>
+              Canonical content and receipt checks; cancelled partial output is
+              not a verified answer.
+            </p>
+          </li>
+          <li>
+            <h3>Open without calling AI</h3>
+            <p>
+              Personal owner/workspace scope. A manager cannot read another
+              user’s history.
+            </p>
+          </li>
+          <li>
+            <h3>Continue only in the valid scope</h3>
+            <p>
+              Up to six verified turns. Safe open retry is GET; delete and
+              expiry prevent resurrection.
+            </p>
+          </li>
+        </ol>
+        <p class="boundary">
+          A new conversation starts a new thread. It does not delete the saved
+          one.
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Ghi chú trình bày</h3>
+          <p>
+            TÀI · F07.1 hiển thị lỗi mở rõ, retry chỉ GET. F07.2 initial/retry
+            dùng chung việc đồng bộ document selection; khóa document actions
+            lúc open pending/error. Khác course thật vẫn chỉ đọc. Receipt không
+            phải kho hội thoại. Retention server 90 ngày từ tạo, GET không gia
+            hạn.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="voice"
+        class="slide voice"
+        data-title="Streaming and local speech"
+        aria-labelledby="title-voice"
+      >
+        <header>
+          <p class="eyebrow">INTERACTION / THẮNG’S TECHNICAL FOCUS</p>
+          <h2 id="title-voice" tabindex="-1">
+            Control the response.<br />Keep the final say.
+          </h2>
+        </header>
+        <figure class="screen speech-screen">
+          <img
+            src="[[image:speech]]"
+            alt="Assistant speech input controls beside the dashboard, ready for recording and transcription"
+          />
+          <figcaption>
+            Local runtime readiness capture. Physical microphone and Vietnamese
+            accuracy remain to be accepted.
+          </figcaption>
+        </figure>
+        <article class="voice-block dark">
+          <span>[[icon:Signal]]</span>
+          <h3>Streaming over SSE</h3>
+          <p>
+            General chat appears progressively.<br />Stop aborts and rejects
+            late output.
+          </p>
+          <small
+            >Documents publish the answer only after source validation.</small
+          >
+        </article>
+        <article class="voice-block yellow">
+          <span>[[icon:Microphone]]</span>
+          <h3>Local Whisper STT</h3>
+          <p>
+            Record → inspect → transcribe → edit → insert.<br />The user chooses
+            when to send.
+          </p>
+          <small
+            >60 s audio · 120 s inference · 150 s API · 180 s outer wait.</small
+          >
+        </article>
+        <aside class="speaker" lang="vi">
+          <h3>Ghi chú trình bày</h3>
+          <p>
+            THẮNG · SSE dùng fetch POST/ReadableStream, xử lý UTF-8/frame chia,
+            backpressure/cancel; nginx không buffering. Stop không bảo đảm chưa
+            tính phí upstream. STT MediaRecorder → API → ffprobe/FFmpeg →
+            mono16kHz → Whisper small ONNX CPU/q8. Không gửi audio sang Gemini.
+            Chỉ demo mic sau khi tự thử; không TTS.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="guardrails"
+        class="slide guardrails"
+        data-title="Guardrails and recovery"
+        aria-labelledby="title-guardrails"
+      >
+        <header>
+          <p class="eyebrow">04 / SAFE FAILURE</p>
+          <h2 id="title-guardrails" tabindex="-1">
+            Guardrails at every boundary.
+          </h2>
+        </header>
+        <article class="guard access">
+          <span>[[icon:LockClosed]]</span>
+          <h3>Access</h3>
+          <p>
+            Verified principal, current membership, scoped SQL and RLS. UI
+            gating is only the first layer.
+          </p>
+        </article>
+        <article class="guard evidence">
+          <span>[[icon:DocumentCheck]]</span>
+          <h3>Evidence</h3>
+          <p>
+            Documents are untrusted data. Unsupported answers are refused;
+            invented sources are rejected.
+          </p>
+        </article>
+        <article class="guard recovery">
+          <span>[[icon:ArrowPath]]</span>
+          <h3>Recovery</h3>
+          <p>
+            Keep the write identity when the result is unknown. Reconcile before
+            repeating conflicting writes.
+          </p>
+        </article>
+        <article class="guard continuity">
+          <span>[[icon:ShieldCheck]]</span>
+          <h3>Continuity</h3>
+          <p>
+            Errors remain visible. Independent non-AI workflows remain usable
+            when the provider fails.
+          </p>
+        </article>
+        <p class="guard-center">
+          <span>[[icon:ShieldCheck]]</span><strong>SAFE<br />OUTCOMES</strong>
+        </p>
+        <p class="boundary">
+          Schema validity ≠ semantic correctness. Injection resistance requires
+          the exact observed model context.
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Ghi chú trình bày</h3>
+          <p>
+            CẢ HAI · Không tự retry AI khi timeout/unknown. Confirm unknown dùng
+            GET reconciliation; attempt/review giữ key/payload. Không tuyên bố
+            chống mọi prompt injection. Hai evaluation injection thiếu trace vẫn
+            INCONCLUSIVE. Không dựng lỗi bằng đổi key sai hoặc làm hết quota.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="verification"
+        class="slide verification"
+        data-title="Evidence and usage"
+        aria-labelledby="title-verification"
+      >
+        <header>
+          <p class="eyebrow">VERIFICATION / DISTINCT EVIDENCE LAYERS</p>
+          <h2 id="title-verification" tabindex="-1">
+            Measure it.<br />Name its limits.
+          </h2>
+        </header>
+        <dl class="metrics">
+          <div>
+            <dt>Application tests · 24 Oct</dt>
+            <dd>2,330<span>API 460 + 1,317 · Web 553</span></dd>
+          </div>
+          <div>
+            <dt>Canonical PG17 suite · 23 Oct</dt>
+            <dd>521<span>Historical; not rerun for these slides</span></dd>
+          </div>
+          <div>
+            <dt>Focused gallery / session browser</dt>
+            <dd>13<span>1440 / 375 px · synthetic upstreams</span></dd>
+          </div>
+        </dl>
+        <figure class="screen usage-screen">
+          <img
+            src="[[image:usage]]"
+            alt="AI usage dashboard with provider-call metrics and a currency cost breakdown"
+          />
+          <figcaption>
+            Historical synthetic telemetry fixture on real Nest/PG17. Not live
+            billing.
+          </figcaption>
+        </figure>
+        <article class="usage-caption">
+          <h3>Manager AI usage</h3>
+          <p>
+            Operations ≠ provider calls.<br />Known usage ≠ complete usage.<br />Estimated
+            cost ≠ an invoice.
+          </p>
+          <small
+            >Best-effort telemetry. Totals do not derive from the current table
+            page.</small
+          >
+        </article>
+        <aside class="speaker" lang="vi">
+          <h3>Ghi chú trình bày</h3>
+          <p>
+            TÀI · 2330/13 là evidence 24/10, 521 là canonical DB 23/10. Không
+            phải vừa chạy khi dựng slide. Mean baseline4.58345s/p95 mẫu5.056s
+            trên20operations, không phải SLA/TTFT. Known generationUSD0.0128272
+            trên20generation có usage;20/40baselinecalls thiếuusage, không coi0.
+            Campaign51calls upperused/reservedUSD0.618895, không phảihóađơn.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="evaluation"
+        class="slide evaluation"
+        data-title="Evaluation: an incomplete comparison"
+        aria-labelledby="title-evaluation"
+      >
+        <header>
+          <p class="eyebrow">EVALUATION / RETAINED LIVE RESULTS · 23 OCT</p>
+          <h2 id="title-evaluation" tabindex="-1">
+            A baseline.<br />An incomplete follow-up.
+          </h2>
+        </header>
+        <figure class="evaluation-chart">
+          <figcaption>20-case cohort · strict outcomes</figcaption>
+          <p>Baseline <strong>20 / 20 attempted</strong></p>
+          <ol
+            class="stack baseline"
+            aria-label="Baseline: 15 pass, 3 fail, 2 inconclusive"
+          >
+            <li class="pass">15 PASS</li>
+            <li class="fail">3 FAIL</li>
+            <li class="inconclusive">2 INC.</li>
+          </ol>
+          <p>Follow-up <strong>3 / 20 attempted</strong></p>
+          <ol
+            class="stack followup"
+            aria-label="Follow-up: 1 pass, 2 provider errors, 17 not attempted"
+          >
+            <li class="pass">1</li>
+            <li class="error">2</li>
+            <li class="not-attempted">17 NOT ATTEMPTED</li>
+          </ol>
+          <p class="chart-caption">
+            INC. = injection context not fully observed.<br />Follow-up errors =
+            provider HTTP503, not measured semantic failures.
+          </p>
+        </figure>
+        <article class="change">
+          <span>[[icon:AdjustmentsHorizontal]]</span>
+          <h3>One declared change</h3>
+          <p class="threshold">0.55 <span>→</span> 0.50</p>
+          <p>Retrieval threshold.<br />Same model, corpus and prompt.</p>
+          <p class="warning">
+            The available follow-up does not support an improvement claim.
+          </p>
+        </article>
+        <p class="boundary">
+          Frozen expected facts · synthetic ASCII corpus · AI-assisted technical
+          review, not a signed human semantic review.
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Ghi chú trình bày</h3>
+          <p>
+            TÀI · Giữ mẫu
+            số20.15PASS/3FAIL/2INCONCLUSIVE;semantic-content18/20là thước đo
+            khác. Không ghép hai số. Saucải tiến1PASS/2HTTP503/17NOTATTEMPTED,
+            chưa đủ kết luận. Không sửa gold sauoutput. Corpus là synthetic minh
+            họa, không phải quy định giảng viên.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="team"
+        class="slide team"
+        data-title="Contributions and decisions"
+        aria-labelledby="title-team"
+      >
+        <header>
+          <p class="eyebrow">OWNERSHIP / ONE INTEGRATED PRODUCT</p>
+          <h2 id="title-team" tabindex="-1">
+            Two contributors.<br />Explainable decisions.
+          </h2>
+        </header>
+        <article class="contributor tai">
+          <span class="initial">T</span>
+          <h3>Tài</h3>
+          <p>
+            Final integration · frontend and business screens · Auth/RLS · RAG ·
+            Study Coach · AI controls · evaluation.
+          </p>
+          <small
+            >Code anchors: use-assistant.ts<br />rag-retrieval.service.ts ·
+            study-coach.service.ts</small
+          >
+        </article>
+        <article class="contributor thang">
+          <span class="initial">T</span>
+          <h3>Thắng</h3>
+          <p>
+            Early backend/Supabase · initial Gemini integration · local STT ·
+            SSE.
+          </p>
+          <small
+            >Code anchors: local-speech-runtime.ts<br />audio-inspector.ts ·
+            assistant-stream.ts</small
+          >
+        </article>
+        <ul class="decisions">
+          <li>
+            <strong>Hosted identity</strong
+            ><span>Reuse Auth; keep business authorization on the server.</span>
+          </li>
+          <li>
+            <strong>Bounded evidence</strong
+            ><span
+              >Control context size; accept incomplete document coverage.</span
+            >
+          </li>
+          <li>
+            <strong>Explicit confirmation</strong
+            ><span
+              >AI output becomes stored practice only after user consent.</span
+            >
+          </li>
+        </ul>
+        <p class="boundary">
+          Contribution summary follows Git content. Personal confirmation and
+          understanding belong to each contributor.
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Ghi chú trình bày</h3>
+          <p>
+            CẢ HAI · Không quy công sức bằng số commit. Thắng có
+            b4ce829/d2ca5ca/917edc7/b988e26/2249abf; Tài tích hợp và phát triển
+            tiếp. Deadline/hardening có thay đổi sau. Chỉ nhận phần thực sự làm
+            và hiểu. Còn mở: máy Thắng, mic, broaderbrowser, humansemantic và
+            evaluationfollow-up.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="demo"
+        class="slide demo photo"
+        data-title="Live product walkthrough"
+        aria-labelledby="title-demo"
+      >
+        <img class="backdrop" src="[[photo]]" alt="" />
+        <header>
+          <p class="eyebrow">05 / LET’S SHOW THE PRODUCT</p>
+          <h2 id="title-demo" tabindex="-1">
+            One question.<br />A source.<br /><span>A saved result.</span>
+          </h2>
+        </header>
+        <ol class="demo-route">
+          <li>
+            <span>01</span><strong>Persist</strong
+            ><small>Update a task → reload</small>
+          </li>
+          <li>
+            <span>02</span><strong>Verify</strong
+            ><small>Ask the OS PDF → open page 3</small>
+          </li>
+          <li>
+            <span>03</span><strong>Practise</strong
+            ><small>Preview → confirm → submit</small>
+          </li>
+          <li>
+            <span>04</span><strong>Inspect</strong
+            ><small>Progress → history → usage</small>
+          </li>
+        </ol>
+        <a
+          class="demo-link"
+          href="http://127.0.0.1:8080"
+          target="_blank"
+          rel="noopener"
+          >Open local ExaMate [[icon:ArrowUpRight]]<small
+            >http://127.0.0.1:8080</small
+          ></a
+        >
+        <p class="demo-close">
+          Questions welcome.<br /><small
+            >We can trace the request from the interface to its source and
+            stored result.</small
+          >
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Ghi chú trình bày</h3>
+          <p>
+            TÀI → THẮNG → TÀI · Task/RAG, rồi SSE/STT nếu đã kiểm mic, Study
+            Coach. Chọn os-processes-demo.pdf Ready, quantum nhỏ, mở trang3.
+            Ngoài tài liệu: Ai vẽ MonaLisa? Không gọi lặp khi lỗi provider. Mở
+            bản lưu thì nói rõ bản lưu. Không mở .env/cookie. Quay lại trang13
+            nói evaluation, trang14 phân công. Đây không phải video dự phòng đã
+            quay.
+          </p>
+        </aside>
+      </section>
+    </main>
+    <footer class="site-footer">
+      <span>DRAFT · Visual edition 25 Oct 2026</span
+      ><span
+        >Retained evidence is dated in each section. No new model calls.</span
+      ><span
+        >← → navigate · Overview reads all · Notes: Vietnamese · Browser Print:
+        PDF</span
+      >
+    </footer>
+    <noscript
+      ><p>
+        JavaScript is disabled. All slides remain readable and printable in
+        order.
+      </p></noscript
+    >
+    <!-- SCRIPT -->
+  </body>
+</html>

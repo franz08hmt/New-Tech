@@ -1,2 +1,10 @@
 # Demo PDFs must stay byte-exact: a CRLF rewrite would corrupt their xref offsets.
 apps/api/test/fixtures/demo-pdfs/*.pdf binary
+
+# Keep the offline deck and its SHA-256 bindings identical on Windows checkouts.
+docs/presentation/deck.* text eol=lf
+docs/presentation/assets/*.json text eol=lf
+docs/presentation/assets/*.txt text eol=lf
+docs/presentation/assets/*.md text eol=lf
+docs/submission/ExaMate-Presentation-Visual-*.html text eol=lf
+docs/submission/visual-deck-*.json text eol=lf

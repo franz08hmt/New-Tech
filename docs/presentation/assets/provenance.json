@@ -1,0 +1,106 @@
+{
+  "schema": "examate-presentation-assets-v1",
+  "records": [
+    {
+      "id": "dashboard",
+      "path": "dashboard.jpg",
+      "sha256": "22156c8ce8d02b4c582fb3ac715fb8639fad5b28c9aea7bea638476dcd212ac1",
+      "source": "docs/report-assets/dashboard.jpg",
+      "sourceSha256": "d2d06f31ef10003993dcac942cc38577001f3f2bca305711b29d774ef8f87df4",
+      "crop": null,
+      "description": "Real-service historical capture; Supabase runtime, 23 October."
+    },
+    {
+      "id": "courses",
+      "path": "courses.jpg",
+      "sha256": "3e068967736de54001dff771136b7f89bb43f388887e42c9e9077e457146005d",
+      "source": "artifacts/ui-session-repair-20261024/courses-1440.png",
+      "sourceSha256": "236a72764615ff87783a134278d009bcd0b0a23bca21d1f511de565bd9deb69d",
+      "crop": null,
+      "description": "24 October browser fixture: real Nest/PG17, synthetic upstreams."
+    },
+    {
+      "id": "expenses",
+      "path": "expenses.jpg",
+      "sha256": "fbbfc8963842013c00d93bac4417fb344b0e4e83c9f5afe7e0aa1033cd889b2a",
+      "source": "artifacts/f0531-review-20261021/course-chart-fixed.png",
+      "sourceSha256": "1ca07519c748af7dd7d4c6be1d4d6609a6dbc0a7f4951bbc98c304b56bb19e8a",
+      "crop": null,
+      "description": "Historical browser regression: real Nest/PG17; synthetic data/upstreams."
+    },
+    {
+      "id": "history",
+      "path": "history.jpg",
+      "sha256": "48cdfe5111283bd7c3def9e1b05fe6f352e3461e1cd71c3f67c190d1a20367e7",
+      "source": "artifacts/f07-review-20261021/desktop-reopened.png",
+      "sourceSha256": "eeb4c0e1cd1dc46d25f7a347d99d6947cc228a5e2696cf9a6bdfb1981bd70629",
+      "crop": null,
+      "description": "Historical reopened conversation: real Nest/PG17; synthetic Auth/provider."
+    },
+    {
+      "id": "usage",
+      "path": "usage.jpg",
+      "sha256": "421d93d793937be28e748b59aa7932891ac7e02db3d65100e55c7c3152f8db7a",
+      "source": "artifacts/f062-review-20261021/refresh-fixed-desktop.png",
+      "sourceSha256": "361907a5873ef7f577d8e03082fba393d43c8aa7e01f47f3684c6f65aad87555",
+      "crop": null,
+      "description": "Historical refresh regression: synthetic telemetry on real Nest/PG17."
+    },
+    {
+      "id": "documents",
+      "path": "documents.jpg",
+      "sha256": "fa6b3322215a2e662a0da0a81995c27119b8d176aff684319b2beb23236c9162",
+      "source": "artifacts/final-completion-20261023/browser-settled-1440-documents.png",
+      "sourceSha256": "5643253655d0715a34daa24a0e4eb27b69326c7e28653b430e8ac93afa9b8eb5",
+      "crop": [0, 0, 1440, 950],
+      "description": "Historical integration fixture, real Nest/PG17; synthetic upstreams. Upper viewport crop."
+    },
+    {
+      "id": "coach",
+      "path": "coach.jpg",
+      "sha256": "22bce66a5e58844f4f7646675c7fbc12f830f55df2012fa856730549e26470ec",
+      "source": "artifacts/final-completion-20261023/browser-settled-1440-study-coach.png",
+      "sourceSha256": "312f13ca001854ee509b6f1670206d09990ab3ab0e5514f0fd416df25dcc6d0a",
+      "crop": null,
+      "description": "Historical integration fixture, real Nest/PG17; synthetic provider."
+    },
+    {
+      "id": "rag",
+      "path": "rag.jpg",
+      "sha256": "ebc1665401b7345218f178d44b642b0e0ca57725d395505c3c2af2e76edf43a6",
+      "source": "docs/report-assets/rag-citation-page3.jpg",
+      "sourceSha256": "c243d18127372101241f1a4aa7eff3466e634fd5051276d71d2805673e949bcd",
+      "crop": null,
+      "description": "Historical integration, real Nest/PDF.js/PG17; synthetic Auth, Storage and provider."
+    },
+    {
+      "id": "quiz",
+      "path": "quiz.jpg",
+      "sha256": "e62c7a5c56d643bff31f2454737978d78972b25fac042ae39498dfd4fb394496",
+      "source": "docs/report-assets/quiz-result.png",
+      "sourceSha256": "cbb326bb67f60f125efd93edf6b49a6ba6046887a2597dbf49404dd21e8e9d44",
+      "crop": null,
+      "description": "Historical cropped server-graded fixture result; synthetic provider. Not educational-quality evidence."
+    },
+    {
+      "id": "speech",
+      "path": "speech.jpg",
+      "sha256": "2c5e0b61fab927a660a17d99d7f4212d43e3a5aaae0aa73b6995d54dc55bd025",
+      "source": "docs/report-assets/speech-ready.jpg",
+      "sourceSha256": "63efeee544434a7f7960bd70a1799a4c20a61c8fa07d76eb61fc216257e76053",
+      "crop": null,
+      "description": "Real local runtime readiness capture; does not prove microphone or Vietnamese accuracy."
+    },
+    {
+      "id": "mobile",
+      "path": "mobile.jpg",
+      "sha256": "0b18abad2562bbada0ef5a17973ec5f519a42731a18d9af07270b5ce94958ea1",
+      "source": "artifacts/managed-completion-20261023/mobile-documents.jpg",
+      "sourceSha256": "5a0aa92e36b33da225671406590b3c9b8bf7d9be358aad6eb28f279c2c019b81",
+      "crop": null,
+      "description": "Real-service historical mobile Documents capture; responsive emulation."
+    }
+  ],
+  "newProviderCalls": 0,
+  "newApplicationAcceptance": false
+}

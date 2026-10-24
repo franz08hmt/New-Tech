@@ -1,0 +1,383 @@
+/** Static-deck verification with an isolated Chrome; never connects to ExaMate services. */
+import { createServer } from "node:http";
+import { spawn } from "node:child_process";
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { randomUUID, createHash } from "node:crypto";
+import assert from "node:assert/strict";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const artifact = resolve(
+  root,
+  "artifacts/presentation-visual-20261025",
+  randomUUID().slice(0, 8),
+);
+mkdirSync(artifact, { recursive: true });
+const profile = resolve(artifact, "chrome-profile");
+mkdirSync(profile);
+writeFileSync(
+  resolve(profile, "examate-owner.json"),
+  JSON.stringify({ task: "static-visual-deck-20261025", artifact }),
+);
+const htmlPath = resolve(
+  root,
+  "docs/submission/ExaMate-Presentation-Visual-20261025.html",
+);
+const html = readFileSync(htmlPath);
+const server = createServer((request, response) => {
+  if (request.url === "/favicon.ico") {
+    response.writeHead(204);
+    response.end();
+    return;
+  }
+  if (request.url !== "/") {
+    response.writeHead(404);
+    response.end();
+    return;
+  }
+  response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+  response.end(html);
+});
+await new Promise((done) => server.listen(0, "127.0.0.1", done));
+const url = `http://127.0.0.1:${server.address().port}/`;
+const pause = (ms) => new Promise((done) => setTimeout(done, ms));
+const browser = spawn(
+  "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  [
+    "--headless=new",
+    "--disable-gpu",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-background-networking",
+    "--disable-component-update",
+    "--disable-sync",
+    "--remote-debugging-address=127.0.0.1",
+    "--remote-debugging-port=0",
+    `--user-data-dir=${profile}`,
+    "about:blank",
+  ],
+  { windowsHide: true, stdio: "ignore" },
+);
+let ws;
+let serial = 0;
+const pending = new Map();
+const errors = [];
+const requests = [];
+let sessionId;
+function command(method, params = {}, attached = true) {
+  return new Promise((done, reject) => {
+    const id = ++serial;
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      reject(Error(`CDP timeout: ${method}`));
+    }, 30000);
+    pending.set(id, { done, reject, timer });
+    ws.send(
+      JSON.stringify({
+        id,
+        method,
+        params,
+        ...(attached && sessionId ? { sessionId } : {}),
+      }),
+    );
+  });
+}
+async function evaluate(expression) {
+  const result = await command("Runtime.evaluate", {
+    expression,
+    returnByValue: true,
+    awaitPromise: true,
+  });
+  if (result.exceptionDetails)
+    throw Error(JSON.stringify(result.exceptionDetails));
+  return result.result.value;
+}
+async function key(key, code = key) {
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key, code });
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key, code });
+}
+try {
+  const active = resolve(profile, "DevToolsActivePort");
+  for (let attempt = 0; attempt < 200 && !existsSync(active); attempt++)
+    await pause(100);
+  assert.ok(existsSync(active), "Owned Chrome starts");
+  const [port, path] = readFileSync(active, "utf8").trim().split(/\r?\n/);
+  ws = new WebSocket(`ws://127.0.0.1:${port}${path}`);
+  await new Promise((done, reject) => {
+    ws.onopen = done;
+    ws.onerror = reject;
+  });
+  ws.onmessage = ({ data }) => {
+    const message = JSON.parse(data);
+    if (message.id) {
+      const request = pending.get(message.id);
+      if (!request) return;
+      clearTimeout(request.timer);
+      pending.delete(message.id);
+      if (message.error) request.reject(Error(message.error.message));
+      else request.done(message.result);
+    } else {
+      if (message.method === "Runtime.exceptionThrown")
+        errors.push(message.params.exceptionDetails.text);
+      if (
+        message.method === "Log.entryAdded" &&
+        ["error", "warning"].includes(message.params.entry.level)
+      )
+        errors.push(message.params.entry.text);
+      if (
+        message.method === "Network.requestWillBeSent" &&
+        /^https?:/.test(message.params.request.url)
+      )
+        requests.push(message.params.request.url);
+    }
+  };
+  ws.onclose = () => {
+    for (const request of pending.values()) {
+      clearTimeout(request.timer);
+      request.reject(Error("Browser closed"));
+    }
+    pending.clear();
+  };
+  const { targetId } = await command(
+    "Target.createTarget",
+    { url: "about:blank" },
+    false,
+  );
+  ({ sessionId } = await command(
+    "Target.attachToTarget",
+    { targetId, flatten: true },
+    false,
+  ));
+  for (const method of [
+    "Page.enable",
+    "Runtime.enable",
+    "Log.enable",
+    "Network.enable",
+  ])
+    await command(method);
+  await command("Emulation.setEmulatedMedia", {
+    features: [{ name: "prefers-reduced-motion", value: "reduce" }],
+  });
+  const report = {
+    kind: "static-presentation-browser-only",
+    browser: await command("Browser.getVersion", {}, false),
+    results: [],
+    newModelCalls: 0,
+    newApplicationAcceptance: false,
+  };
+  for (const width of [1440, 375, 320, 768, 1024]) {
+    await command("Emulation.setDeviceMetricsOverride", {
+      width,
+      height: 960,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await command("Page.navigate", { url });
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if (
+        await evaluate(
+          "document.body?.classList.contains('enhanced') && document.images.length > 5",
+        )
+      )
+        break;
+      await pause(100);
+    }
+    await evaluate(
+      "Promise.all([document.fonts.ready, ...[...document.images].map(image => image.decode())]).then(() => true)",
+    );
+    assert.equal(
+      await evaluate('document.fonts.check("600 16px Poppins")'),
+      true,
+    );
+    const cases = [];
+    for (let index = 0; index < 15; index++) {
+      const result = await evaluate(`(() => {
+        const slide = document.querySelector('main > section:not([hidden])');
+        const box = slide.getBoundingClientRect();
+        const hiddenText = [...slide.querySelectorAll('h1,h2,h3,p,li,figure,blockquote,dl')].filter(element => {
+          if(element.closest('.speaker')) return false;
+          const rect = element.getBoundingClientRect();
+          return rect.width && rect.height && (rect.right > box.right + 2 || rect.bottom > box.bottom + 2 || rect.left < box.left - 2);
+        }).map(element => element.textContent.trim().slice(0,80));
+        return { id: slide.id, globalOverflow: document.documentElement.scrollWidth > innerWidth + 1, hiddenText };
+      })()`);
+      cases.push(result);
+      assert.equal(
+        result.globalOverflow,
+        false,
+        `${width}: page overflows at ${result.id}`,
+      );
+      assert.deepEqual(
+        result.hiddenText,
+        [],
+        `${width}: slide content is not clipped at ${result.id}`,
+      );
+      if (width === 1440 || width === 375) {
+        const { data } = await command("Page.captureScreenshot", {
+          format: "jpeg",
+          quality: 85,
+          captureBeyondViewport: false,
+        });
+        writeFileSync(
+          resolve(
+            artifact,
+            `${width}-${String(index + 1).padStart(2, "0")}-${result.id}.jpg`,
+          ),
+          Buffer.from(data, "base64"),
+        );
+      }
+      await key("ArrowRight");
+    }
+    report.results.push({ width, cases });
+    await key("Home");
+    await key("Tab");
+    const namedFocus = await evaluate(
+      'document.activeElement.textContent.trim() || document.activeElement.getAttribute("aria-label")',
+    );
+    assert.ok(namedFocus, "Keyboard focus has an accessible name");
+    if (width === 375) {
+      await key("End");
+      await command("Input.dispatchMouseEvent", {
+        type: "mouseWheel",
+        x: 200,
+        y: 800,
+        deltaX: 0,
+        deltaY: 500,
+      });
+      await pause(100);
+      assert.equal(
+        await evaluate(
+          'Math.round(document.querySelector(".toolbar").getBoundingClientRect().top)',
+        ),
+        0,
+        "Controls remain reachable while a mobile slide scrolls",
+      );
+      await key("Home");
+    }
+  }
+  // Exercise native controls with mouse input, rather than changing DOM state.
+  async function click(selector) {
+    const point = await evaluate(
+      `(() => { const rect = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return {x: rect.x + rect.width / 2, y: rect.y + rect.height / 2}; })()`,
+    );
+    await command("Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      button: "left",
+      clickCount: 1,
+      ...point,
+    });
+    await command("Input.dispatchMouseEvent", {
+      type: "mouseReleased",
+      button: "left",
+      clickCount: 1,
+      ...point,
+    });
+  }
+  await click("[data-overview]");
+  assert.equal(
+    await evaluate(
+      'document.querySelectorAll("main > section:not([hidden])").length',
+    ),
+    15,
+  );
+  await click("[data-notes]");
+  assert.equal(
+    await evaluate(
+      'getComputedStyle(document.querySelector(".speaker")).display',
+    ),
+    "block",
+  );
+  await click("[data-overview]");
+  await click("[data-notes]");
+  await command("Page.navigate", {
+    url: new URL(`file:///${htmlPath.replaceAll("\\", "/")}`).href,
+  });
+  await pause(250);
+  await evaluate(
+    "Promise.all([document.fonts.ready, ...[...document.images].map(image => image.decode())]).then(() => true)",
+  );
+  assert.equal(
+    await evaluate(
+      'document.body.classList.contains("enhanced") && document.fonts.check("600 16px Poppins")',
+    ),
+    true,
+    "Standalone file works without an HTTP server",
+  );
+  await command("Emulation.setDeviceMetricsOverride", {
+    width: 1440,
+    height: 960,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await command("Page.navigate", { url });
+  await pause(250);
+  await evaluate("document.fonts.ready.then(() => true)");
+  await command("Emulation.setEmulatedMedia", { media: "print" });
+  assert.notEqual(
+    await evaluate(
+      'getComputedStyle(document.querySelector(".contents-photo")).display',
+    ),
+    "none",
+    "PDF retains the desktop diagonal-photo layout",
+  );
+  assert.equal(
+    await evaluate(
+      'getComputedStyle(document.querySelector(".mission-photo")).position',
+    ),
+    "absolute",
+    "PDF does not inherit mobile stacking",
+  );
+  const { data } = await command("Page.printToPDF", {
+    printBackground: true,
+    preferCSSPageSize: true,
+    displayHeaderFooter: false,
+  });
+  const pdf = Buffer.from(data, "base64");
+  writeFileSync(
+    resolve(root, "docs/submission/ExaMate-Presentation-Visual-20261025.pdf"),
+    pdf,
+  );
+  const tree = await command("Accessibility.getFullAXTree");
+  writeFileSync(
+    resolve(artifact, "accessibility.json"),
+    JSON.stringify(tree, null, 2),
+  );
+  report.errors = errors;
+  report.requests = [...new Set(requests)];
+  report.externalRequests = report.requests.filter(
+    (request) => !request.startsWith(url),
+  );
+  report.pdfSha256 = createHash("sha256").update(pdf).digest("hex");
+  report.htmlSha256 = createHash("sha256").update(html).digest("hex");
+  report.retainedProfile = profile;
+  writeFileSync(
+    resolve(artifact, "browser-results.json"),
+    `${JSON.stringify(report, null, 2)}\n`,
+  );
+  assert.deepEqual(errors, [], "No unexpected browser errors/warnings");
+  assert.deepEqual(report.externalRequests, [], "No external requests");
+  const manifestPath = resolve(
+    root,
+    "docs/submission/visual-deck-manifest.json",
+  );
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.pdf = "ExaMate-Presentation-Visual-20261025.pdf";
+  manifest.pdfSha256 = report.pdfSha256;
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  console.log(
+    `Verified 15 slides at 5 widths; PDF exported. Evidence: ${artifact}`,
+  );
+} finally {
+  if (ws?.readyState === WebSocket.OPEN) {
+    try {
+      await command("Browser.close", {}, false);
+    } catch {
+      /* Browser close drops the channel. */
+    }
+    ws.close();
+  } else if (browser.exitCode === null) {
+    browser.kill(); // only the exact process this script spawned
+  }
+  await new Promise((done) => server.close(done));
+}

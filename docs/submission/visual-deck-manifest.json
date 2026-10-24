@@ -1,0 +1,58 @@
+{
+  "schema": "examate-visual-deck-v1",
+  "revision": "2026-10-25",
+  "slides": 15,
+  "status": "DRAFT — incomplete follow-up evaluation and personal/device confirmations",
+  "html": "ExaMate-Presentation-Visual-20261025.html",
+  "htmlSha256": "174ac06960d814fa215cc115bef91d79d0567b9bdd99bf20f774d4a86dca9629",
+  "assets": [
+    {
+      "id": "dashboard",
+      "sha256": "22156c8ce8d02b4c582fb3ac715fb8639fad5b28c9aea7bea638476dcd212ac1"
+    },
+    {
+      "id": "courses",
+      "sha256": "3e068967736de54001dff771136b7f89bb43f388887e42c9e9077e457146005d"
+    },
+    {
+      "id": "expenses",
+      "sha256": "fbbfc8963842013c00d93bac4417fb344b0e4e83c9f5afe7e0aa1033cd889b2a"
+    },
+    {
+      "id": "history",
+      "sha256": "48cdfe5111283bd7c3def9e1b05fe6f352e3461e1cd71c3f67c190d1a20367e7"
+    },
+    {
+      "id": "usage",
+      "sha256": "421d93d793937be28e748b59aa7932891ac7e02db3d65100e55c7c3152f8db7a"
+    },
+    {
+      "id": "documents",
+      "sha256": "fa6b3322215a2e662a0da0a81995c27119b8d176aff684319b2beb23236c9162"
+    },
+    {
+      "id": "coach",
+      "sha256": "22bce66a5e58844f4f7646675c7fbc12f830f55df2012fa856730549e26470ec"
+    },
+    {
+      "id": "rag",
+      "sha256": "ebc1665401b7345218f178d44b642b0e0ca57725d395505c3c2af2e76edf43a6"
+    },
+    {
+      "id": "quiz",
+      "sha256": "e62c7a5c56d643bff31f2454737978d78972b25fac042ae39498dfd4fb394496"
+    },
+    {
+      "id": "speech",
+      "sha256": "2c5e0b61fab927a660a17d99d7f4212d43e3a5aaae0aa73b6995d54dc55bd025"
+    },
+    {
+      "id": "mobile",
+      "sha256": "0b18abad2562bbada0ef5a17973ec5f519a42731a18d9af07270b5ce94958ea1"
+    }
+  ],
+  "newProviderCalls": 0,
+  "newApplicationAcceptance": false,
+  "pdf": "ExaMate-Presentation-Visual-20261025.pdf",
+  "pdfSha256": "8e24506b1480eb263591b0b67dcda96182ea82a1e5c24e3f9293c36b1a076ce9"
+}
