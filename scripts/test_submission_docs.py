@@ -3,6 +3,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import fitz
 
@@ -13,6 +14,28 @@ spec.loader.exec_module(module)
 
 
 class SubmissionPdfTests(unittest.TestCase):
+    def test_slides_resolve_source_relative_images_in_pptx_and_pdf(self):
+        with tempfile.TemporaryDirectory(prefix="examate-slide-assets-") as directory:
+            root = Path(directory)
+            source = root / "docs"
+            assets = source / "assets"
+            assets.mkdir(parents=True)
+            output = root / "export"
+            output.mkdir()
+            image = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 80, 40), False)
+            image.clear_with(80)
+            image.save(str(assets / "evidence.png"))
+            slides = [{"title": "Source evidence", "bullets": [],
+                       "image": "assets/evidence.png", "notes": ["Retained fixture, not live AI."]}]
+            with patch.object(module, "DOCS", source):
+                module.build_pptx(slides, output / "deck.pptx", output)
+                module.build_slides_pdf(slides, output / "deck.pdf", output)
+            pptx = module.Presentation(output / "deck.pptx")
+            self.assertEqual(sum(shape.shape_type == 13 for shape in pptx.slides[0].shapes), 1)
+            with fitz.open(output / "deck.pdf") as pdf:
+                self.assertEqual(len(pdf), 1)
+                self.assertEqual(len(pdf[0].get_images()), 1)
+
     def test_report_resolves_images_relative_to_its_source(self):
         with tempfile.TemporaryDirectory(prefix="examate-report-assets-") as directory:
             root = Path(directory)

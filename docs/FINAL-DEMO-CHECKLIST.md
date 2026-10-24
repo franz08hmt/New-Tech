@@ -1,5 +1,26 @@
 # ExaMate — checklist demo và nộp cuối kỳ
 
+## Defense slide delivery — 24 October 2026
+
+Created a 14-slide, editable 16:9 PowerPoint and matching PowerPoint-exported PDF
+in docs/submission/ExaMate-Presentation-20261024.{pptx,pdf}. Twelve main slides and
+two hidden Q&A backups; English screen content and Vietnamese speaker notes.
+The recommended eight-minute route is 1–3 → 5 → web demo → 10 → 12. Notes identify
+Tài/Thắng contributions, real-service captures versus synthetic-provider browser
+fixtures, and retained measurements. No Canva/plugin, new provider request, cloud
+write, runtime change or application/DB/browser-gate rerun was needed.
+
+Native text, diagrams and outcome bars are editable. DRAFT and incomplete improved
+evaluation remain explicit. Sources: docs/SLIDES.md, report-evidence.json and
+figure-provenance.json; slides-manifest.json binds source/builder/assets/delivery
+hashes. Rebuild: python scripts/build-defense-slides.py output/presentation
+(installed Windows PowerPoint and Python authoring libraries required for export).
+Generic outline export lost source-relative slide images: one regression failed
+before the path fix, then all three document-export tests passed. Final deck QA:
+26/26 checks, native PowerPoint text extents zero overflow, all pages render-reviewed.
+Raw logs/renders stay in artifacts/presentation-20261024/ and output/presentation/.
+Existing untracked docs/EXAMATE-ON-TAP-VAN-DAP.html is preserved outside this work.
+
 ## Report visual revision — 24 October 2026
 
 User requested removal of References and more explanatory figures. The English

@@ -117,6 +117,16 @@ def plain(text: str) -> str:
     return re.sub(r"[`*]", "", text)
 
 
+def slide_image_path(image: str, out_dir: Path) -> Path:
+    """Resolve authored assets next to SLIDES.md; retain generated-image support."""
+    path = Path(image)
+    candidates = [path] if path.is_absolute() else [DOCS / path, out_dir / path]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise FileNotFoundError(f"Slide image does not exist: {image}")
+
+
 def build_pptx(slides, target: Path, out_dir: Path):
     prs = Presentation()
     prs.slide_width, prs.slide_height = Emu(12192000), Emu(6858000)  # 16:9
@@ -146,7 +156,7 @@ def build_pptx(slides, target: Path, out_dir: Path):
             p.font.color.rgb = ink
             p.space_after = Pt(6)
         if has_image:
-            png = out_dir / Path(slide["image"]).name
+            png = slide_image_path(slide["image"], out_dir)
             if slide["bullets"]:
                 s.shapes.add_picture(str(png), Emu(6200000), Emu(1250000), width=Emu(5600000))
             else:  # image-only slide: as large as the page allows
@@ -202,7 +212,7 @@ def build_slides_pdf(slides, target: Path, out_dir: Path):
             lines = max(1, round(len(label) * (size * 0.5) / (text_w - (18 if sub else 0))) + 1)
             y += lines * (size + 3) + 5
         if slide["image"]:
-            png = out_dir / Path(slide["image"]).name
+            png = slide_image_path(slide["image"], out_dir)
             if slide["bullets"]:
                 page.insert_image(fitz.Rect(500, 96, width - 24, 96 + 300), filename=str(png))
             else:

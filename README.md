@@ -22,6 +22,16 @@ PDF/PPTX dựng nhanh bằng `python scripts/build-submission-docs.py <thư-mụ
 Bản report tiếng Anh có bìa và mục lục Word hiện hành: [PDF 20 trang](docs/submission/ExaMate-Report-20261023.pdf), [Word chỉnh sửa](docs/submission/ExaMate-Report-20261023.docx).
 Bản Word/PDF chính giữ layout theo mẫu; sửa Word, cập nhật mục lục và xuất PDF lại khi đổi nội dung.
 
+Slide present 16:9 (24/10/2026): [PowerPoint chỉnh sửa](docs/submission/ExaMate-Presentation-20261024.pptx)
+và [PDF 14 trang](docs/submission/ExaMate-Presentation-20261024.pdf).
+12 slide chính + 2 backup vấn đáp (ẩn khi trình chiếu PPT, có trong PDF);
+nội dung tiếng Anh, Presenter Notes tiếng Việt cho Tài–Thắng.
+Nguồn: [SLIDES.md](docs/SLIDES.md); dựng đúng layout bằng
+`python scripts/build-defense-slides.py output/presentation` trên Windows có
+PowerPoint và các thư viện authoring Python đang dùng. Mở file có sẵn để trình
+chiếu/chỉnh sửa thì không cần Python hay Canva. Report/slide vẫn DRAFT vì lượt
+evaluation cải tiến chưa hoàn tất; số kiểm 23/10 là bằng chứng giữ lại.
+
 Chỉ mở khi cần: [đăng nhập máy Thắng](docs/PILOT-DEMO-HANDOFF.md),
 [cấu hình Assistant](docs/ASSISTANT-SETUP.md), [STT](docs/STT-SETUP-VI.md),
 [đánh giá RAG](docs/evaluation-plan.md), [runbook quản trị](docs/PILOT-B1-RUNBOOK.md).
