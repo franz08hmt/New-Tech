@@ -1432,3 +1432,27 @@ At the user request, the assistant inspected Git authorship and the five Thang c
 Under the user's request, AI prepared 14 editable PowerPoint slides (12 main, two hidden Q&A backups) and a matching PDF, with English presentation text and Vietnamese speaker notes. Reused retained, labelled screenshots and source evidence; no AI-generated fake UI or new model output. Architecture and evaluation bars are native shapes. Refreshed stale slide counts and wording: baseline 15 PASS/3 FAIL/2 INCONCLUSIVE, partial follow-up 1 PASS/2 provider503/17 not attempted; known cost and coverage keep their denominators. Contribution language distinguishes initial STT/SSE/backend from later integration, without invented signatures or explanations.
 
 A source-relative image regression in the existing outline exporter failed before correction; after fixing image resolution, all three document-export tests passed. Native PowerPoint rendering caught hidden-backup PDF omission until the correct MsoTriState export flag was applied. Layout bounds and retained-evidence bindings were checked; final document QA passed 26 checks. A QA assumption that editable shapes cannot yield raster effects in exported PDF was corrected to inspect the editable PPTX objects; text/chart values remain checked in the PDF. No application/DB/browser test, paid provider call, cloud write, dependency installation or personal-account access occurred. Raw artifacts are ignored; nonsensitive source and deliverables are versioned.
+
+
+## Course gallery and session UX repair — 24 October 2026
+
+AI traced the removed photo carousel to 132c5e2 and reproduced the focus-verification
+login flash. Six tracked regressions failed on baseline before implementation,
+then passed after restoring a bounded gallery and a fail-closed neutral verification
+overlay. Source `a2e6892` keeps API/server/session/RLS semantics intact. The
+carousel now derives selection by ID to avoid an out-of-range crash after filtering;
+expanded course cards restore photos. Existing assertions were scoped precisely
+to result links when gallery labels introduced valid duplicate text.
+
+Final gates: typecheck/test/build/format exit 0; 2330 app passes (460 API Vitest,
+1317 API Node, 553 Web). Focused suite 156 passes. Chrome/Nest/PG17 local checks
+passed 13 cases; only Auth/Storage/provider boundaries synthetic, no AI calls.
+The browser harness initially lacked capability-group bootstrap and had a selector
+escaping error, both corrected only in the ignored test setup; those failures are
+retained. No claim that source tests or synthetic providers establish live AI quality.
+
+Only the real local Docker web service was rebuilt; API ID/image/start time stayed
+unchanged. Reports, slides, .env, cloud schema/data and SOP were not modified.
+Marker-verified disposable cleanup was blocked by tool policy. No workaround was
+attempted; fixture/browser stopped but owned PG container/profile files retained.
+Evidence and details: current context/checklist, artifacts/ui-session-repair-20261024/.

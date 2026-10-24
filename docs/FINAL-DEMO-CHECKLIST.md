@@ -1,5 +1,72 @@
 # ExaMate — checklist demo và nộp cuối kỳ
 
+## Course gallery and session revalidation repair — 24 October 2026
+
+Source `a2e6892` fixes the two reported frontend regressions on baseline
+`fd1aa13`. Commit `132c5e2` had replaced the Courses gallery with the paged search
+panel. The cinematic photo backdrop, horizontally scrolling thumbnails and
+keyboard controls now render from the **current bounded server page**, with photo
+cards below. Gallery selection is keyed by course ID, so filtering a long page
+to one result or an empty page cannot dereference an old array index. No full
+catalog read was added; course details still use the scoped slug lookup.
+
+`PilotAccess` previously rendered the sign-in gate and collapsed the workspace
+whenever focus/visibility verification entered `verifying`. Revalidation now uses
+a neutral status overlay and keeps the private shell's layout/scroll height.
+Private contents remain visibility-hidden, aria-hidden and inert; the existing API
+client stays locked until verification succeeds. Same-principal drafts, route,
+title and keyboard focus survive. Revocation/outage returns to the access gate;
+cross-tab identity invalidation removes the old principal and ignores late reads.
+Auth/session transport, server validation, role checks, RLS and contracts unchanged.
+
+Fresh evidence, separate from prior report/publication counts:
+
+- Six new regressions were RED before implementation, then 6/6 GREEN. Focused
+  auth/course/App regression run: 156/156. Final full suite: **2330 PASS** = API
+  Vitest 460 + API Node 1317 + Web 553; full Web has 32 passing files. Node
+  fail/skip/cancelled 0. Typecheck, test, build and format all exit 0.
+- First broad Web run hit three ambiguous selectors because restored gallery and
+  result cards legitimately repeat course names. Assertions now target the result
+  region or exact named link, retaining their original behavior checks. Initial
+  typecheck rejected an unsupported Testing Library `exact` option; removed it
+  because string role names already match exactly. Failed logs are retained.
+- **13 focused integration/browser checks PASS**, Chrome 141 at 1440×900 and
+  375×900 responsive emulation. Real Nest/session/authorization, PG17 and split
+  LOGIN non-owner/NOBYPASSRLS runtime; Auth upstream, Storage and provider SDK are
+  synthetic. Both widths verified photos, keyboard, bounded paging, filtering/
+  clearing, scoped detail and deliberately held session GETs preserving scroll,
+  hash/title and focus without a login flash. Global cases verified a late read
+  after identity invalidation, revoked membership and viewer direct POST 403 with
+  zero inserted tasks. Uncaught browser errors 0; only intended HTTP403. AI calls 0.
+- Full database suite **not rerun**: no API/SQL/privilege change. The stated
+  focused integration used the owned disposable target; it is not historical
+  521-test DB evidence. Initial fixture startup required provisioning the repository
+  capability groups on that new disposable cluster; no shared grants were changed.
+
+The real local Compose **web service only** was rebuilt/recreated at
+`http://127.0.0.1:8080`. Public page/assets/health returned 200; bundle
+`index-CQmxCmeE.js` and CSS `index-6ucWZ0B1.css` contain the new UI. API container
+ID, image and start time are identical before/after. No API restart, root env edit,
+cloud data mutation, paid call or report/PDF change. Reload the browser to load
+the new asset hashes. Current Vite large-bundle warning remains.
+
+Rerun source regressions with `npm run test --workspace @examate/web --
+src/pilot-access.test.tsx src/pilot-auth.test.tsx src/CoursesSearch.test.tsx
+src/App.test.tsx`; full gates are the four normal npm commands. Browser harness,
+logs and safe screenshots are retained in ignored
+`artifacts/ui-session-repair-20261024/` (private credential/profile files are not
+submission artifacts). No whole-app browser/evaluation/semantic/device acceptance
+is inferred from this narrow matrix.
+
+**RESOURCE_CLEANUP_BLOCKED:** tool policy rejected the marker-checked command to
+remove owned PG17 container `examate-ui-repair-95923b98` and its Chrome profile
+directories. The command was not executed; no alternate deletion route was tried.
+The fixture was gracefully stopped and browser closed; the loopback-only PG
+container and profile files remain. SOP, older blocked resources and the old
+checkout were untouched. Unrelated untracked `docs/EXAMATE-ON-TAP-VAN-DAP.html`
+is preserved outside the commits. Existing evaluation/semantic/device pending
+items are unchanged.
+
 ## Defense slide delivery — 24 October 2026
 
 Created a 14-slide, editable 16:9 PowerPoint and matching PowerPoint-exported PDF

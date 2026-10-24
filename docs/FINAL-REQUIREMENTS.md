@@ -1,5 +1,15 @@
 # ExaMate — yêu cầu cuối kỳ và traceability
 
+## Focused UI repair — 24/10/2026
+
+Source `a2e6892` restores the Courses photo/scroll gallery on the current
+server-paged results (US04) and separates in-place session verification from the
+login gate (US01/US02). Private content and API interaction remain locked while
+checking; scroll, route and drafts survive same-principal verification. No API,
+SQL, RLS or contract change. Fresh 2330 app tests and 13 bounded browser/integration
+checks passed; see FINAL-DEMO-CHECKLIST for environment, failures and cleanup
+policy block. This does not upgrade unrelated whole-app/browser/semantic pending.
+
 ## Completion traceability update — 23/10/2026
 
 US-01/session verification: migration 025, `AuthStore`/refresh verifier and capability v25; managed Auth remains owned and protected by Supabase. Runtime receives only private function EXECUTE, not raw Auth rows. Real PG17 regression: `managed-auth-session.database.test.mjs`; valid/wrong-user/expired/missing/pool-reuse, direct SELECT denial, dry-run/rollback/reapply.
