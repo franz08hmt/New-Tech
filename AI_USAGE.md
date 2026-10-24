@@ -1420,3 +1420,8 @@ Editable/PDF bundles: `docs/submission/ExaMate-Report-20261023.{docx,pdf}`;
 local copies: ignored `output/pdf/`. Revision artifacts:
 `artifacts/report-visual-refresh-20261024/`. Unrelated untracked
 `docs/EXAMATE-ON-TAP-VAN-DAP.html` is preserved outside this commit.
+
+
+## Defense ownership and rehearsal script ? 24 October 2026
+
+At the user request, the assistant inspected Git authorship and the five Thang commits, current STT/SSE source, the report and existing defense guidance. Updated docs/DEMO-AND-DEFENSE.md with an eight-minute two-speaker script, evidence-based ownership including early backend/Gemini contributions, 17 Tai questions and 19 Thang questions with answer outlines and code anchors. Integration fixes remain distinguished from initial authorship; no explanation for commit-count differences or personal understanding was invented. This is rehearsal material, not a signed contribution attestation. Checked referenced filenames, chronology, Markdown format and Git whitespace only; no application/DB/browser/model test or cloud change was made. The unrelated untracked HTML study notes were preserved.
