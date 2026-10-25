@@ -1,5 +1,22 @@
 # AI Assistance Log
 
+## 2026-10-25 - shared workspace control/readability styling
+
+AI added one scoped stylesheet plus its entry import to normalize controls,
+labels/captions and focus presentation while retaining Poppins, existing palette,
+hero/gallery and special calendar/PDF/notes geometry. No component handler,
+state, API, authorization or backend was changed. No new dependency/provider call.
+
+An independent Chrome sizing probe observed 124 desktop findings before styling;
+final 36 active-page checks, 3 composer checks and 13 role/task checks passed.
+The first mobile probe could wrongly count only an open Assistant's controls;
+a new active-page assertion exposed this harness error. It now uses fresh
+per-route documents and rejects inert main pages. Initialization/photo/selector
+fixture errors and failed logs were retained, not relabelled as app defects.
+Full application tests freshly passed 2338; details and limitations are in context
+and demo checklist. Only the local real web image was updated; API identity stayed
+unchanged. No live/semantic or physical-device acceptance was signed by AI.
+
 ## 2026-10-25 - verified role and task status badges
 
 AI implemented display-only badges from the already verified session role and

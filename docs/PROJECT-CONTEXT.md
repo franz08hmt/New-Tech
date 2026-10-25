@@ -1,5 +1,41 @@
 # ExaMate — context hiện tại cho Tài, Thắng và agent
 
+## Shared workspace readability - 25 October 2026
+
+Source `a68a400` on `ebb01e8` adds `ui-consistency.css` after the existing stylesheet.
+Only this CSS and the main entry import changed: no component DOM, hook, handler,
+API/client contract, backend, SQL, permission, migration or dependency change.
+Poppins and original sage/warm-paper colors remain. Shared tokens apply 13px
+normal control/body text, 12px labels/captions, 44px standard text controls,
+8px control corners and a 2px focus outline. Existing hero/gallery layouts,
+selected/destructive colors and badge semantics are retained. Calendar cells,
+handwritten notes, icon-specific geometry and PDF text/annotation layers are
+excluded from generic control sizing. No Course progress semantics changed.
+
+New real-browser evidence: 12 page/views at 1440/375/320 (36 checks), three
+Assistant draft/submit-reachability checks including 320x640, and 13 existing
+role/task workflow checks rerun with the new styles. All **52 checks passed**.
+Before styling, the same independent sizing oracle found 124 control readability
+findings at 1440; after styling, no sampled font/height violations or page-wide
+overflow. A stronger oracle verifies every non-Assistant page is active, not
+inert behind a leftover Assistant modal; full document navigations isolate pages.
+Real Chrome/Nest/session/PG17, split non-owner NOBYPASSRLS LOGINs; Auth upstream,
+Storage and SDK transport synthetic. Zero uncaught errors/unexpected HTTP/provider
+calls. These are scoped UI checks, not a new full AI/PDF/microphone acceptance.
+
+Fresh root typecheck/test/build/format gates passed; full suite 2338 = API Vitest
+460 + API Node 1317 + Web 561/32 files, no fail/skip/cancelled. Final CSS refinements
+also passed Vite build, source Prettier and browser checks. Existing bundle-size
+warning remains. No full DB suite for CSS-only scope; PG17 integration is separate.
+
+Only the real local Compose web service was rebuilt at http://127.0.0.1:8080;
+assets and health 200, API ID/image/start unchanged. Rerun commands, asset hashes,
+fixture limits and cleanup are in FINAL-DEMO-CHECKLIST and ignored
+`artifacts/ui-consistency-20261025/verification-summary.json`. Exact owned PG17 and
+anonymous volume removed after ownership checks; fixture and Chrome closed,
+profiles/logs retained. SOP, previous blocked resources and oral-study HTML WIP
+untouched. No env edit/cloud write/paid call/merge/push; pending items unchanged.
+
 ## Workspace role and task badges - 25 October 2026
 
 Source commit `e1173e4`, based on `ee7e9de`: frontend-only role/status display and

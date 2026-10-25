@@ -1,5 +1,55 @@
 # ExaMate — checklist demo và nộp cuối kỳ
 
+## Shared typography/control polish - 25 October 2026
+
+Source `a68a400`: shared CSS loaded after legacy styles across Dashboard, Courses,
+course detail, Tasks, Exams, Study plan, Documents, Quiz, Flashcards, Finances,
+AI Usage and Assistant. Refresh local http://127.0.0.1:8080 to load it. Poppins,
+existing colors, hero/photos and control identities are preserved. This updates
+text/control styling, not Course illustrative progress or business behavior.
+
+New verification:
+
+- Real Chrome/Nest/PG17: **36 active page/view checks** over 1440, 375 and 320px;
+  normal sampled controls meet 13px/44px; no horizontal page overflow. This oracle
+  excludes native checkboxes/radios, file/range inputs and PDF/notes special UI.
+- Three Assistant checks: draft survives close/reopen, submit is reachable after
+  inner scrolling, including 320x640; no message submitted or AI called.
+- Existing role/status browser workflow rerun: 13 PASS, manager/member create and
+  status transitions/reload persist, viewer controls stay disabled, mobile menu
+  and Escape work. Total 52 focused checks, no browser exceptions/unexpected HTTP.
+- Runtime is real Nest/session/membership, PG17 and separate business/Auth LOGINs,
+  non-owner/NOBYPASSRLS. Auth upstream, Storage and SDK transport are synthetic;
+  embedding/generation counters both zero. No claim of real-model output quality.
+- Before: 124 font/height findings on 12 desktop views. After: none under the
+  same minimum criteria. This is a visual/control-size comparison, not 124 new
+  production logic defects or a new application-unit test count.
+- Root `npm run typecheck`, `npm test`, `npm run build`, `npm run format:check`:
+  exit 0; 2338 PASS = API Vitest 460 + API Node 1317 + Web 561 (32 files),
+  0 fail/skip/cancelled. Final CSS tweaks also checked with web Vite build,
+  source Prettier and Chrome. Existing bundle warning remains. No full DB gate:
+  no SQL/API/privilege change. No new mirrored CSS unit assertions were added.
+
+The initial fixture PG readiness check encountered initialization restart before
+capability provisioning; after confirming failure was before grants, provisioning
+was rerun on the owned target. Its missing placeholder photo was replaced with an
+existing local project image. Initial page probe could inspect an inert page under
+an open Assistant; it was strengthened to reject that condition and navigate fresh
+documents. Hidden-panel/label-selector harness failures were retained and fixed
+without application bypasses or relaxing final assertions.
+
+Raw evidence: ignored `artifacts/ui-consistency-20261025/`:
+`before-browser.json`, `after-browser.json`, `browser-results.json`,
+`verification-summary.json`, screenshots and gate logs. Browser harnesses are
+`browser-check.mjs` and `badge-regression.mjs`; they require a newly provisioned,
+guarded disposable fixture, not the removed URL or any shared/cloud target.
+Local web smoke/asset hashes: `live-web-smoke.json`; API identity unchanged,
+public page/assets/health 200. Only web rebuilt/recreated, no API restart.
+Owned fixture/Chrome closed and labelled PG17/anonymous volume removed after owner
+and attachment checks. Profiles/logs retained; SOP and older blocked resources
+untouched. No broader live-model, semantic, full workflow, physical-device or
+microphone acceptance upgrade. Git push stays deferred; user WIP preserved.
+
 ## Role/status badge demo and verification - 25 October 2026
 
 Source: `e1173e4`. At http://127.0.0.1:8080 reload to load the new web bundle.
