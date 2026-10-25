@@ -12,6 +12,7 @@ import { PilotPrincipalContext } from "./PilotPrincipalContext";
 import type { Workspace } from "./use-workspace";
 import { usePagedSearch } from "./use-paged-search";
 import { useScopedRecord } from "./use-scoped-record";
+import { TaskStatusBadge } from "./WorkspaceBadges";
 
 const INITIAL_SEARCH: TaskSearchQuery & { page: number; pageSize: number } = {
   q: "",
@@ -494,7 +495,10 @@ function TaskRows({
             {task.status === "done" && <CheckIcon />}
           </button>
           <span className="task-copy">
-            <strong>{task.title}</strong>
+            <span className="task-title-line">
+              <strong>{task.title}</strong>
+              <TaskStatusBadge status={task.status} />
+            </span>
             <small>
               {task.owner_name || "Unassigned"}
               {task.due_date && (
@@ -510,6 +514,7 @@ function TaskRows({
             </small>
           </span>
           <select
+            className="task-status-select"
             aria-label={`Status for ${task.title}`}
             value={task.status}
             disabled={busy || !canWrite}

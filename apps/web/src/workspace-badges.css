@@ -1,0 +1,172 @@
+/* Scoped additions: retain the workspace's Poppins, sage and warm-paper palette. */
+.pilot-session-bar .pilot-session-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+.pilot-session-bar .pilot-session-caption {
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+.workspace-role-badge,
+.task-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 9px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: 0;
+}
+.workspace-role-badge[data-role="manager"] {
+  color: #344f37;
+  background: #e9f0e4;
+  border-color: #cbdac5;
+}
+.workspace-role-badge[data-role="member"] {
+  color: #3d535e;
+  background: #edf2f3;
+  border-color: #d0dde0;
+}
+.workspace-role-badge[data-role="viewer"] {
+  color: #665237;
+  background: #f6efe2;
+  border-color: #e4d8c3;
+}
+.pilot-session-bar .workspace-role-badge svg,
+.task-list .task-status-badge svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  stroke-width: 1.75;
+}
+.pilot-session-bar .pilot-sign-out {
+  flex: none;
+  border-color: var(--color-line);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 500;
+}
+.pilot-session-bar .pilot-sign-out:hover:not(:disabled) {
+  background: var(--color-ai-accent-soft);
+  border-color: #bdcbb8;
+}
+.task-list .task-title-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-bottom: 4px;
+}
+.task-list .task-copy strong {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.task-list .task-copy small {
+  display: block;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.task-status-badge {
+  flex: none;
+  white-space: nowrap;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+.task-status-badge[data-status="todo"] {
+  color: #565e52;
+  background: #f3f4ef;
+  border-color: #dce0d5;
+}
+.task-status-badge[data-status="in_progress"] {
+  color: #79551b;
+  background: #fbf1d8;
+  border-color: #ead7a9;
+}
+.task-status-badge[data-status="done"] {
+  color: #344f2b;
+  background: #e8f0e0;
+  border-color: #cadbbf;
+}
+.task-list .task-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+.task-list .task-status-select {
+  min-height: 40px;
+  max-width: 128px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--color-ink);
+}
+.task-list .task-status-select:disabled {
+  opacity: 1;
+  color: var(--color-muted);
+  background: var(--color-surface);
+  cursor: not-allowed;
+}
+.task-form label {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.task-form input,
+.task-form select {
+  min-height: 44px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.task-form .primary-button {
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.task-list .task-check:focus-visible,
+.task-list .task-status-select:focus-visible,
+.task-form input:focus-visible,
+.task-form .primary-button:focus-visible {
+  outline: 2px solid var(--color-ai-accent);
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .pilot-session-bar.pilot-session-with-role {
+    padding: 10px 16px;
+  }
+  .pilot-session-bar .pilot-session-identity {
+    display: grid;
+    justify-items: start;
+    gap: 4px;
+  }
+  .task-list li {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    align-items: start;
+    gap: 8px 10px;
+    padding-block: 14px;
+  }
+  .task-list .task-check {
+    width: 44px;
+    height: 44px;
+  }
+  .task-list .task-status-select {
+    grid-column: 2;
+    justify-self: start;
+    min-height: 44px;
+    width: min(100%, 160px);
+    max-width: none;
+    font-size: 12px;
+  }
+}

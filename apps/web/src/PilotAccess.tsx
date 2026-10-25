@@ -8,6 +8,7 @@ import { api } from "./api";
 import { usePilotSession } from "./use-pilot-session";
 import { NotesStorageContext } from "./NotesStorageContext";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
+import { WorkspaceRoleBadge } from "./WorkspaceBadges";
 export function PilotAccess({ children }: { children: ReactNode }) {
   const session = usePilotSession();
   const [googleStatus, setGoogleStatus] = useState<
@@ -241,9 +242,15 @@ export function PilotAccess({ children }: { children: ReactNode }) {
             if (granted) lastWorkspaceFocus.current = event.target;
           }}
         >
-          <div className="pilot-session-bar">
-            <span>Workspace access</span>
+          <div className="pilot-session-bar pilot-session-with-role">
+            <span className="pilot-session-identity">
+              <span className="pilot-session-caption">Workspace access</span>
+              {session.principal && (
+                <WorkspaceRoleBadge role={session.principal.role} />
+              )}
+            </span>
             <button
+              className="pilot-sign-out"
               onClick={() => void session.logout()}
               disabled={session.busy}
             >

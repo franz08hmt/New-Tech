@@ -11,6 +11,73 @@ import { PilotAccess } from "./PilotAccess";
 import { configurePilotClient } from "./pilot-client";
 import { api } from "./api";
 
+it.each([
+  ["manager", "Manager · Người quản lý"],
+  ["member", "Member · Thành viên"],
+  ["viewer", "Viewer · Chỉ xem"],
+] as const)(
+  "shows the verified %s role in the workspace bar",
+  async (role, label) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          ...granted,
+          principal: { ...granted.principal, role },
+        }),
+      ),
+    );
+    render(
+      <PilotAccess>
+        <p>Protected fixture</p>
+      </PilotAccess>,
+    );
+    const badge = await screen.findByText(label);
+    expect(badge).toBeVisible();
+    expect(badge.closest(".pilot-session-bar")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeEnabled();
+  },
+);
+
+it("hides the previous role while checking and removes it on logout", async () => {
+  let reads = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (path: string) => {
+      if (path === "/api/auth/session" && ++reads === 1)
+        return Response.json({
+          ...granted,
+          principal: { ...granted.principal, role: "manager" },
+        });
+      if (path === "/api/auth/session" && reads === 2)
+        return new Promise<Response>((resolve) => {
+          drain = () =>
+            resolve(
+              Response.json({
+                ...granted,
+                principal: { ...granted.principal, role: "viewer" },
+              }),
+            );
+        });
+      return Response.json(anonymous);
+    }),
+  );
+  render(
+    <PilotAccess>
+      <p>Protected fixture</p>
+    </PilotAccess>,
+  );
+  await screen.findByText("Manager · Người quản lý");
+  await act(async () => window.dispatchEvent(new Event("focus")));
+  expect(screen.getByText("Manager · Người quản lý")).not.toBeVisible();
+  await act(async () => drain?.());
+  expect(await screen.findByText("Viewer · Chỉ xem")).toBeVisible();
+  expect(screen.queryByText("Manager · Người quản lý")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+  await screen.findByRole("button", { name: "Sign in" });
+  expect(screen.queryByText("Viewer · Chỉ xem")).toBeNull();
+});
+
 it("revalidation preserves the page shell and title without exposing the login screen or enabling requests", async () => {
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
   const fetcher = vi.fn(async () => {

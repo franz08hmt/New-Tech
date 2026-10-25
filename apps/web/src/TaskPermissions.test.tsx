@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  within,
   waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -97,6 +98,52 @@ afterEach(() => {
 });
 
 describe("Task permissions", () => {
+  it.each([
+    ["todo", "Chưa làm"],
+    ["in_progress", "Đang làm"],
+    ["done", "Hoàn thành"],
+  ] as const)(
+    "shows a readable %s badge without enabling viewer writes",
+    async (status, label) => {
+      const workspace = fixtureWorkspace({ tasks: [{ ...task, status }] });
+      render(taskView(workspace, "viewer"));
+      const title = await screen.findByText(task.title);
+      const row = title.closest("li")!;
+      const badge = within(row).getByText(label);
+      expect(badge).toBeVisible();
+      expect(
+        badge.closest(".task-status-badge")?.querySelector("svg"),
+      ).toHaveAttribute("aria-hidden", "true");
+      expect(
+        within(row).getByLabelText(`Status for ${task.title}`),
+      ).toHaveValue(status);
+      expect(
+        within(row).getByLabelText(`Status for ${task.title}`),
+      ).toBeDisabled();
+      expect(workspace.create).not.toHaveBeenCalled();
+      expect(workspace.update).not.toHaveBeenCalled();
+    },
+  );
+
+  it("updates the visible badge from the server result after a status mutation", async () => {
+    const workspace = fixtureWorkspace({ tasks: [{ ...task }] });
+    vi.mocked(workspace.update).mockImplementation(async (_, status) => {
+      workspace.tasks = [{ ...task, status }];
+      return true;
+    });
+    render(taskView(workspace, "member"));
+    expect(await screen.findByText("Chưa làm")).toBeVisible();
+    fireEvent.change(screen.getByLabelText(`Status for ${task.title}`), {
+      target: { value: "in_progress" },
+    });
+    expect(await screen.findByText("Đang làm")).toBeVisible();
+    expect(screen.queryByText("Chưa làm")).toBeNull();
+    expect(workspace.update).toHaveBeenCalledExactlyOnceWith(
+      task.id,
+      "in_progress",
+    );
+    expect(workspace.create).not.toHaveBeenCalled();
+  });
   it("lets a viewer read and filter tasks with a Vietnamese read-only explanation", async () => {
     const workspace = fixtureWorkspace();
     render(taskView(workspace, "viewer"));
