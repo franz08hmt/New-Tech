@@ -1,5 +1,41 @@
 # ExaMate — context hiện tại cho Tài, Thắng và agent
 
+## Workspace role and task badges - 25 October 2026
+
+Source commit `e1173e4`, based on `ee7e9de`: frontend-only role/status display and
+scoped readability improvements. The session bar shows the verified role as
+Manager / Member / Viewer with Vietnamese meaning and a Heroicon. The badge
+remains inside the existing private shell, so revalidation hides it and logout
+removes it. No extra session request, client role override or authorization change.
+
+Tasks show icon + text badges for todo/in_progress/done (neutral/warm/sage).
+Existing status dropdowns and completion buttons still dispatch the same bounded
+API operations. Badge updates follow server reads. Poppins and the workspace
+palette are retained; task title/meta text is 13/11px, form/status controls have
+clear focus styles, and mobile controls have 44px targets. Styles are scoped to
+the session bar and Tasks; Course progress/gallery, Assistant/STT and other modules
+are unchanged. No dependency, API, contract, SQL, RLS or migration change.
+
+Eight new regression cases were observed RED, then GREEN; filtered run 9 PASS
+includes one existing case (21 intentionally filtered skips). Fresh full gates:
+2338 PASS = API Vitest 460 + API Node 1317 + Web 561/32 files; typecheck, build,
+test and format exit 0. Final typecheck was also rerun after scoped CSS classes.
+Chrome/Nest/PG17 fixture: 13 checks at 1440/375/320px, split non-owner NOBYPASSRLS
+LOGINs, synthetic Auth upstream/Storage/provider. Task create/status/reload,
+role/account transitions, viewer controls, menu/Escape, font/control sizes and
+horizontal overflow were checked; uncaught errors and provider calls zero.
+No full DB gate was rerun for this frontend-only change.
+
+The real local Compose web service was rebuilt at http://127.0.0.1:8080; JS
+`index-CGNZqmmb.js`, CSS `index-Dyvh58HQ.css`. API ID/image/start time unchanged;
+public assets and health 200. No cloud write, real-provider call or env change.
+Owned test fixture/browser closed and labelled PG17/anonymous volume removed
+only after ownership checks. Profiles remain ignored diagnostic evidence.
+SOP and prior cleanup-blocked resources were untouched. Evidence and rerun
+commands: FINAL-DEMO-CHECKLIST, ignored `artifacts/workspace-badges-20261025/`.
+Unrelated oral-study HTML WIP remains excluded. No branch merge or push was made;
+previous Git authentication/push deferment and broader acceptance pending remain.
+
 ## Reference-style presentation - 25 October 2026
 
 Source/deliverables commit: `632d945`.

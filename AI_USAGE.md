@@ -1,5 +1,21 @@
 # AI Assistance Log
 
+## 2026-10-25 - verified role and task status badges
+
+AI implemented display-only badges from the already verified session role and
+server task status, using existing Heroicons/Poppins and the sage/neutral/warm
+palette. Typography, focus and touch targets changed only in the task/session
+areas. No authorization, transport, contract, backend, database or dependency
+change; Course progress and gallery remain unchanged.
+
+Eight new UI cases were RED, then passed. Full application suite newly passed
+2338 tests, plus 13 real-browser/Nest/PG17 fixture checks with synthetic upstreams.
+A login keyboard-event issue and SQL parameter type ambiguity were in the new
+browser harness, not application services; both were corrected without weakening
+production checks. Only the local real web container was updated, leaving the API
+identity unchanged. No paid model call, cloud mutation, env edit or new acceptance
+claim for educational quality. See context/checklist for measured limits/cleanup.
+
 ## 2026-10-25 - reference-style presentation authoring
 
 AI authored a separate fifteen-slide HTML/PDF design following the user-selected

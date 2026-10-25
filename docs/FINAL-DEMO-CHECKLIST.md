@@ -1,5 +1,49 @@
 # ExaMate — checklist demo và nộp cuối kỳ
 
+## Role/status badge demo and verification - 25 October 2026
+
+Source: `e1173e4`. At http://127.0.0.1:8080 reload to load the new web bundle.
+The verified-role badge now makes separate Manager/Member/Viewer demo sessions
+visible. Use separate browser profiles: manager/member can update tasks; viewer
+controls remain disabled. In Tasks, use the existing dropdown to demonstrate
+Chua lam / Dang lam / Hoan thanh badges, then reload. Do not imply a task-owner
+name changes authorization or Course example progress updates automatically.
+
+New commands and outcomes (not historical evidence):
+
+- Eight new cases RED before implementation: missing role badges, missing status
+  badges and mutation/read display. Focused `npm exec --workspace @examate/web --
+  vitest run src/pilot-access.test.tsx src/TaskPermissions.test.tsx -t
+  'verified.*role|previous role|readable.*badge|visible badge'`: after fix 9 PASS,
+  21 filtered skips, exit 0 (one pre-existing matching case).
+- `npm run typecheck`, `npm test`, `npm run build`, `npm run format:check`: exit 0.
+  Full suite **2338 PASS** = API Vitest 460 + API Node 1317 + Web 561 (32 files),
+  0 fail/skip/cancelled. Final typecheck repeated after scoped class additions.
+  Existing Vite large-bundle warning remains. No API/SQL/privilege change and no
+  full database-gate rerun.
+- Browser: **13 PASS**, actual Chrome/Nest/PG17 and split business/Auth LOGINs,
+  non-owner/NOBYPASSRLS. Auth upstream, Storage and provider SDK synthetic.
+  1440/375/320px roles/statuses, logout/account changes, manager/member task create
+  and all-state update/reload, viewer disabled controls, mobile menu/Escape,
+  13px title / 12px select / 44px mobile target, no horizontal overflow.
+  Browser exceptions/unexpected HTTP errors 0, embedding/generation calls 0.
+- Initial browser harness did not submit login because native Enter lacked a
+  virtual key code; corrected to a native button click. Fixture seed SELECT
+  parameter type inference then failed (42P08); explicit casts fixed the test
+  setup. Both failed logs are retained; no production API workaround was used.
+- Real Docker **web only** rebuilt/recreated, new bundle/CSS served, public
+  page/assets/health 200. API ID, image and StartedAt identical. This public smoke
+  does not claim a new live Gemini or whole-app browser acceptance.
+
+Raw logs/screens/proofs: ignored `artifacts/workspace-badges-20261025/`;
+`browser-results.json`, `live-web-smoke.json`, `gates.json`, `cleanup.json`.
+Rerun browser harness only after creating a new owned guarded disposable target;
+its previous credentials/target are intentionally no longer active after cleanup.
+Owned fixture/Chrome shut down, exact labelled PG container and its anonymous
+volume removed after attachment checks. Profiles/logs retained. No SOP, older
+blocked resource, user WIP, cloud or other checkout cleanup. Existing broader
+browser, semantic, microphone and remote-machine pending remain as before.
+
 ## Visual presentation verification - 25 October 2026
 
 Source/deliverables commit: `632d945`.
