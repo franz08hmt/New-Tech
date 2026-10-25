@@ -1,0 +1,216 @@
+/* Shared presentation tokens. No visibility, permission or state rules. */
+:root {
+  --ui-text-body: 13px;
+  --ui-text-label: 12px;
+  --ui-text-caption: 12px;
+  --ui-control-height: 44px;
+  --ui-control-radius: 8px;
+}
+
+/* Specific application scopes keep PDF text/annotation layers and handwritten
+   notes out of the form styling. Native checkbox/radio/range/file UI is retained. */
+#root
+  :is(.desktop-shell, .assistant-panel, .pilot-access)
+  :is(input, select, textarea):not(
+    [type="checkbox"],
+    [type="radio"],
+    [type="range"],
+    [type="file"],
+    [type="hidden"],
+    [type="color"],
+    .sticky textarea,
+    .assistant-source *,
+    .pdf-viewer *
+  ) {
+  min-height: var(--ui-control-height);
+  min-width: 0;
+  max-width: 100%;
+  border-radius: var(--ui-control-radius);
+  padding: 10px 12px;
+  font-family: var(--font-sans);
+  font-size: var(--ui-text-body);
+  line-height: 1.5;
+}
+
+#root
+  :is(.desktop-shell, .assistant-panel, .pilot-access)
+  :is(button, .primary-button, .text-button, .file-picker):not(
+    .sticky *,
+    .calendar td *,
+    .stage-thumb,
+    .assistant-panel-header *,
+    .assistant-source *,
+    .pdf-viewer *,
+    .task-check
+  ) {
+  min-height: var(--ui-control-height);
+  font-family: var(--font-sans);
+  font-size: var(--ui-text-body);
+  line-height: 1.5;
+}
+
+#root
+  :is(.desktop-shell, .assistant-panel, .pilot-access)
+  :is(.primary-button, .file-picker) {
+  border-radius: var(--ui-control-radius);
+  padding: 10px 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
+#root :is(.document-pagination, .ai-usage-pagination) button {
+  padding: 9px 12px;
+  border-radius: var(--ui-control-radius);
+}
+
+/* Keep destructive, selected and dark Assistant colors from their original
+   components. Hover changes surface only for neutral workspace controls. */
+#root
+  .desktop-shell
+  :is(.document-pagination, .ai-usage-pagination)
+  button:hover:not(:disabled) {
+  background: var(--color-ai-accent-soft);
+}
+
+#root
+  :is(.desktop-shell, .assistant-panel, .pilot-access, .pilot-session-bar)
+  :is(a[href], button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--color-ai-accent);
+  outline-offset: 3px;
+}
+
+#root
+  :is(.desktop-shell, .assistant-panel, .pilot-access)
+  :is(button, input, select, textarea):disabled {
+  cursor: not-allowed;
+}
+
+#root
+  .desktop-shell
+  :is(
+    .paged-search-toolbar,
+    .document-search-toolbar,
+    .ai-usage-filters,
+    .cw-form,
+    .task-form,
+    .exam-form,
+    .upload-panel
+  )
+  label,
+#root
+  .assistant-panel
+  :is(.assistant-composer > label, .assistant-document-picker),
+#root .pilot-access form label {
+  font-size: var(--ui-text-label);
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+#root
+  .desktop-shell
+  :is(
+    .page-note,
+    .empty-message,
+    .error-message,
+    .document-pagination,
+    .ai-usage-caption,
+    .ai-usage-caveat,
+    .cw-notice
+  ),
+#root
+  .assistant-panel
+  :is(
+    .assistant-status,
+    .assistant-capability,
+    .speech-status,
+    .speech-error,
+    .speech-language-note
+  ) {
+  font-size: var(--ui-text-caption);
+  line-height: 1.65;
+}
+
+#root .desktop-shell :is(.panel-header h2, .cw-block h3) {
+  font-size: 16px;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+#root
+  .desktop-shell
+  :is(
+    .task-copy strong,
+    .plan-copy strong,
+    .document-card h3,
+    .expense-list strong,
+    .course-outline h3
+  ) {
+  font-size: var(--ui-text-body);
+  line-height: 1.55;
+  font-weight: 500;
+}
+
+#root
+  .desktop-shell
+  :is(
+    .task-copy small,
+    .plan-copy small,
+    .plan-meta,
+    .document-meta,
+    .document-card small,
+    .course-card small
+  ) {
+  font-size: var(--ui-text-caption);
+  line-height: 1.6;
+}
+
+#root .desktop-shell :is(.exam-table, .ai-usage-table) :is(th, td) {
+  font-size: var(--ui-text-body);
+  line-height: 1.55;
+}
+
+#root .desktop-shell :is(.exam-table, .ai-usage-table) th {
+  font-size: var(--ui-text-label);
+  font-weight: 600;
+}
+
+#root .assistant-panel .assistant-messages > li,
+#root .assistant-panel .assistant-intro > p {
+  font-size: var(--ui-text-body);
+  line-height: 1.7;
+}
+
+/* Retain the composer and source-pane sizing/scroll contracts. Only native
+   controls change typography; resize handles, media and PDF canvas stay intact. */
+#root .assistant-panel .assistant-mode :is(button, label),
+#root .desktop-shell .period-switch label {
+  min-height: var(--ui-control-height);
+  padding: 8px 10px;
+  min-width: 0;
+  font-size: var(--ui-text-body);
+  line-height: 1.5;
+}
+
+#root .assistant-panel .assistant-mode label:has(input:focus-visible) {
+  outline: 2px solid var(--color-ai-accent);
+  outline-offset: 3px;
+}
+
+#root .assistant-panel .speech-controls label {
+  font-size: var(--ui-text-label);
+  line-height: 1.5;
+}
+
+@media (max-width: 600px) {
+  /* Date inputs and select text must shrink within the existing grids. */
+  #root
+    .desktop-shell
+    :is(.document-search-toolbar, .paged-search-toolbar, .ai-usage-filters)
+    > label {
+    min-width: 0;
+  }
+
+  #root .desktop-shell :is(.document-pagination, .ai-usage-pagination) {
+    gap: 8px;
+  }
+}
