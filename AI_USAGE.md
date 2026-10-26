@@ -1,5 +1,30 @@
 # AI Assistance Log
 
+## 2026-10-26 - Vietnamese technology presentation
+
+AI authored a separate fifteen-slide Vietnamese technology edition from the
+existing visual layout, source and retained screenshot provenance. Each major
+technology includes purpose, selection rationale, trade-offs and Vietnamese
+speaker notes. Eleven screenshots keep synthetic/live boundaries; no new AI
+output, deployment or educational-quality acceptance is claimed. RAG credit is
+shared with Thắng as confirmed by the user.
+
+Existing offline build/Chrome tooling gained a technology-only flag; original
+artifacts are preserved and hash-checked. Poppins extended Unicode coverage is
+included for Vietnamese. HTML is editable; the additional PPTX intentionally
+uses layout-preserving artwork with editable notes, rather than claiming native
+editable slide text. Documentation/static-deck tests are separate from app gates.
+No credentials, paid provider, cloud, database, runtime or application code changed.
+
+Six new artifact checks were observed RED before the edition existed; after
+authoring, all 12 new/original Node deck checks passed. Three exported PDF/PPTX
+checks passed, and isolated Chrome checked 75 slide/width combinations plus
+controls, notes and standalone use. These are document checks, not app gates.
+An initial inspection print hit Windows console encoding after producing the
+preview; UTF-8 output was used for subsequent inspection. Original English
+source/output hashes remain unchanged. Evidence is ignored under
+`artifacts/technology-deck-20261026/`; owned browser/server processes closed.
+
 ## 2026-10-26 - source-bound oral-defense study guide
 
 AI reviewed and extended the existing Vietnamese offline study HTML at the

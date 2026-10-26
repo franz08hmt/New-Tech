@@ -9,9 +9,14 @@ import * as icons from "@heroicons/react/24/outline";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const source = resolve(root, "docs/presentation");
+const technology = process.argv.includes("--technology");
+if (process.argv.slice(2).some((arg) => arg !== "--technology"))
+  throw new Error("Unsupported presentation edition");
 const destination = resolve(
   root,
-  "docs/submission/ExaMate-Presentation-Visual-20261025.html",
+  technology
+    ? "docs/submission/ExaMate-Technologies-VI-20261026.html"
+    : "docs/submission/ExaMate-Presentation-Visual-20261025.html",
 );
 const data = (path, mime) =>
   `data:${mime};base64,${readFileSync(path).toString("base64")}`;
@@ -27,6 +32,8 @@ for (const record of provenance.records) {
   }
 }
 let css = readFileSync(resolve(source, "deck.css"), "utf8");
+if (technology)
+  css += `\n${readFileSync(resolve(source, "technology.css"), "utf8")}`;
 for (const weight of [400, 500, 600, 700]) {
   for (const subset of ["latin", "latin-ext"]) {
     const font = data(
@@ -36,14 +43,19 @@ for (const weight of [400, 500, 600, 700]) {
       ),
       "font/woff2",
     );
-    const range =
+    let range =
       subset === "latin"
         ? "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD"
         : "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0300-0303,U+0305-0307,U+0309-0328,U+032A-036F,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF";
+    if (technology && subset === "latin-ext")
+      range = range.replace("U+1E00-1E9F,U+1EF2-1EFF", "U+1E00-1EFF");
     css = `@font-face{font-family:Poppins;font-style:normal;font-weight:${weight};font-display:swap;src:url('${font}') format('woff2');unicode-range:${range}}\n${css}`;
   }
 }
-let html = readFileSync(resolve(source, "deck.html"), "utf8")
+let html = readFileSync(
+  resolve(source, technology ? "technology.html" : "deck.html"),
+  "utf8",
+)
   .replace(
     "<!-- LICENSES -->",
     `<script type="application/json" id="asset-licenses">${JSON.stringify({
@@ -61,7 +73,12 @@ let html = readFileSync(resolve(source, "deck.html"), "utf8")
   .replace("<!-- STYLES -->", `<style>${css}</style>`)
   .replace(
     "<!-- SCRIPT -->",
-    `<script>${readFileSync(resolve(source, "deck.js"), "utf8")}</script>`,
+    `<script>${readFileSync(resolve(source, "deck.js"), "utf8").replace(
+      "Fullscreen unavailable. Use the browser fullscreen control.",
+      technology
+        ? "Chưa mở được toàn màn hình. Dùng chức năng toàn màn hình của trình duyệt."
+        : "Fullscreen unavailable. Use the browser fullscreen control.",
+    )}</script>`,
   )
   .replaceAll(/\[\[icon:([A-Za-z0-9]+)\]\]/g, (_, name) => {
     const Icon = icons[`${name}Icon`];
@@ -91,11 +108,19 @@ if (/\[\[|<!-- (STYLES|SCRIPT|LICENSES) -->/.test(html))
   throw new Error("Unresolved template");
 writeFileSync(destination, html);
 writeFileSync(
-  resolve(root, "docs/submission/visual-deck-manifest.json"),
+  resolve(
+    root,
+    technology
+      ? "docs/submission/technology-deck-manifest.json"
+      : "docs/submission/visual-deck-manifest.json",
+  ),
   `${JSON.stringify(
     {
-      schema: "examate-visual-deck-v1",
-      revision: "2026-10-25",
+      schema: technology
+        ? "examate-technology-deck-v1"
+        : "examate-visual-deck-v1",
+      revision: technology ? "2026-10-26" : "2026-10-25",
+      ...(technology ? { language: "vi", sourceCheckpoint: "308389a" } : {}),
       slides: 15,
       status:
         "DRAFT — incomplete follow-up evaluation and personal/device confirmations",

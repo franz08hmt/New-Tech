@@ -1,0 +1,65 @@
+{
+  "schema": "examate-technology-deck-v1",
+  "revision": "2026-10-26",
+  "language": "vi",
+  "sourceCheckpoint": "308389a",
+  "slides": 15,
+  "status": "DRAFT — incomplete follow-up evaluation and personal/device confirmations",
+  "html": "ExaMate-Technologies-VI-20261026.html",
+  "htmlSha256": "53141c07705626a8041aae601c168215941913ec236017a28e8685f98698a212",
+  "assets": [
+    {
+      "id": "dashboard",
+      "sha256": "22156c8ce8d02b4c582fb3ac715fb8639fad5b28c9aea7bea638476dcd212ac1"
+    },
+    {
+      "id": "courses",
+      "sha256": "3e068967736de54001dff771136b7f89bb43f388887e42c9e9077e457146005d"
+    },
+    {
+      "id": "expenses",
+      "sha256": "fbbfc8963842013c00d93bac4417fb344b0e4e83c9f5afe7e0aa1033cd889b2a"
+    },
+    {
+      "id": "history",
+      "sha256": "48cdfe5111283bd7c3def9e1b05fe6f352e3461e1cd71c3f67c190d1a20367e7"
+    },
+    {
+      "id": "usage",
+      "sha256": "421d93d793937be28e748b59aa7932891ac7e02db3d65100e55c7c3152f8db7a"
+    },
+    {
+      "id": "documents",
+      "sha256": "fa6b3322215a2e662a0da0a81995c27119b8d176aff684319b2beb23236c9162"
+    },
+    {
+      "id": "coach",
+      "sha256": "22bce66a5e58844f4f7646675c7fbc12f830f55df2012fa856730549e26470ec"
+    },
+    {
+      "id": "rag",
+      "sha256": "ebc1665401b7345218f178d44b642b0e0ca57725d395505c3c2af2e76edf43a6"
+    },
+    {
+      "id": "quiz",
+      "sha256": "e62c7a5c56d643bff31f2454737978d78972b25fac042ae39498dfd4fb394496"
+    },
+    {
+      "id": "speech",
+      "sha256": "2c5e0b61fab927a660a17d99d7f4212d43e3a5aaae0aa73b6995d54dc55bd025"
+    },
+    {
+      "id": "mobile",
+      "sha256": "0b18abad2562bbada0ef5a17973ec5f519a42731a18d9af07270b5ce94958ea1"
+    }
+  ],
+  "newProviderCalls": 0,
+  "newApplicationAcceptance": false,
+  "pdf": "ExaMate-Technologies-VI-20261026.pdf",
+  "pdfSha256": "b4c4ef46b4d8a9ec136c4be52ec56423c7593d26548f83c75a04ccf70c3d846f",
+  "pptx": "ExaMate-Technologies-VI-20261026.pptx",
+  "pptxSha256": "759d6748393ca75400a5e861b84b9979f61d13aa18f817febaf748ee3f8f5dd7",
+  "pptxArtwork": "raster-snapshot-from-pdf; editable speaker notes",
+  "preview": "ExaMate-Technologies-VI-20261026-preview.jpg",
+  "previewSha256": "49bc1e1b7260cb370c82056c5fe9ff6de2530d9e9cc3dc29e661dd70c2df4b71"
+}

@@ -1,5 +1,21 @@
 # ExaMate — context hiện tại cho Tài, Thắng và agent
 
+## Vietnamese technology deck - 26 October 2026
+
+Separate 15-slide HTML/PDF/PPTX under `docs/submission/ExaMate-Technologies-VI-20261026.*`:
+Vietnamese technology choices, rationale, trade-offs and speaker notes, retaining
+the reference-style Poppins/Heroicons layout and eleven dated demo screenshots.
+RAG ownership remains shared. Original deck/report unchanged. HTML/CSS are the
+editable source; PPTX preserves slide artwork and carries editable speaker notes.
+Build/verification commands and fixture boundaries are in SLIDES.md. This work
+does not rerun application/DB/model acceptance or close semantic/live/device pending.
+
+New edition checks: 12 Node deck tests, 3 exported-artifact tests, 75 Chrome
+slide/width layout checks plus controls/notes/offline-file checks passed. Six
+new artifact tests were RED while the edition did not yet exist. Existing
+English source/HTML/PDF/manifest hashes are unchanged. Format and Git whitespace
+checks cover the changed authoring files; no application suite/DB gate was rerun.
+
 ## Shared workspace readability - 25 October 2026
 
 Source `a68a400` on `ebb01e8` adds `ui-consistency.css` after the existing stylesheet.

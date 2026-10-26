@@ -8,3 +8,8 @@ docs/presentation/assets/*.txt text eol=lf
 docs/presentation/assets/*.md text eol=lf
 docs/submission/ExaMate-Presentation-Visual-*.html text eol=lf
 docs/submission/visual-deck-*.json text eol=lf
+
+# Vietnamese technology edition has separate, byte-bound artifacts.
+docs/presentation/technology.* text eol=lf
+docs/submission/ExaMate-Technologies-VI-*.html text eol=lf
+docs/submission/technology-deck-*.json text eol=lf

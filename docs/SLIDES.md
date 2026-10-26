@@ -1,5 +1,49 @@
 ﻿# ExaMate — defense presentation
 
+## Vietnamese technology edition - 26 October 2026
+
+[Offline HTML](submission/ExaMate-Technologies-VI-20261026.html),
+[PDF](submission/ExaMate-Technologies-VI-20261026.pdf),
+[PowerPoint](submission/ExaMate-Technologies-VI-20261026.pptx) and
+[contact sheet](submission/ExaMate-Technologies-VI-20261026-preview.jpg).
+
+A separate **15-slide Vietnamese** explanation of technology choices, following
+the existing black/white/yellow design, embedded Poppins and Heroicons. Eleven
+retained demo screenshots keep their original provenance and synthetic/live
+boundaries. No new application or model result is claimed. The original English
+visual edition and 24 October editable PPTX are unchanged.
+
+Slides: 1 cover; 2 architecture; 3 React/TypeScript/Vite/Tailwind; 4 NestJS and
+contracts; 5 Supabase Auth/Google/PKCE/session; 6 PostgreSQL/pgvector/RLS;
+7 PDF.js/private Storage/OCR; 8 RAG; 9 Gemini/structured output; 10 Study Coach
+persistence/practice; 11 SSE/cancel/history; 12 Whisper/ONNX/FFmpeg STT;
+13 admission/telemetry; 14 Docker/nginx/TLS; 15 testing/evaluation and ownership.
+Technology pages explain purpose, selection rationale, trade-offs and source
+anchors in Vietnamese notes. RAG credit is shared by Tài and Thắng.
+
+HTML: open directly, use arrows, **Tổng quan** and **Lời nói**. For a short defense,
+choose the relevant pages rather than reading every technical page. Suggested
+route: **1 → 2 → 3 → 8 → 9 → 10 → 12 → 14 → 15**, then web demo as time permits.
+The PowerPoint is deliberately **layout-preserving slide artwork** with editable
+speaker notes, not editable slide text. Edit `docs/presentation/technology.html`
+and `technology.css`, then rebuild; the original editable PPTX is a different edition.
+
+```powershell
+node scripts/build-visual-presentation.mjs --technology
+node --test scripts/technology-presentation.test.mjs scripts/visual-presentation.test.mjs
+node scripts/verify-visual-presentation.mjs --technology
+python scripts/build-technology-pptx.py
+python -m unittest discover -s scripts -p test_technology_presentation.py
+```
+
+The technology flag writes only the new edition's HTML/PDF/manifest and uses
+existing screenshot bindings. The browser verifier uses an isolated Chrome and
+loopback static server, five widths and an offline-file check; no app, provider,
+Auth or database is accessed. Raw evidence: ignored
+`artifacts/technology-deck-20261026/`. Screenshot and educational-quality limits
+remain explicit; evaluation follow-up and semantic acceptance are not completed
+by authoring these slides.
+
 ## Recommended visual edition - 25 October 2026
 
 [Offline HTML](submission/ExaMate-Presentation-Visual-20261025.html) and

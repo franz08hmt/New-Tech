@@ -8,9 +8,17 @@ import { randomUUID, createHash } from "node:crypto";
 import assert from "node:assert/strict";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const technology = process.argv.includes("--technology");
+if (process.argv.slice(2).some((arg) => arg !== "--technology"))
+  throw new Error("Unsupported presentation edition");
+const stem = technology
+  ? "ExaMate-Technologies-VI-20261026"
+  : "ExaMate-Presentation-Visual-20261025";
 const artifact = resolve(
   root,
-  "artifacts/presentation-visual-20261025",
+  technology
+    ? "artifacts/technology-deck-20261026"
+    : "artifacts/presentation-visual-20261025",
   randomUUID().slice(0, 8),
 );
 mkdirSync(artifact, { recursive: true });
@@ -18,12 +26,14 @@ const profile = resolve(artifact, "chrome-profile");
 mkdirSync(profile);
 writeFileSync(
   resolve(profile, "examate-owner.json"),
-  JSON.stringify({ task: "static-visual-deck-20261025", artifact }),
+  JSON.stringify({
+    task: technology
+      ? "technology-deck-20261026"
+      : "static-visual-deck-20261025",
+    artifact,
+  }),
 );
-const htmlPath = resolve(
-  root,
-  "docs/submission/ExaMate-Presentation-Visual-20261025.html",
-);
+const htmlPath = resolve(root, `docs/submission/${stem}.html`);
 const html = readFileSync(htmlPath);
 const server = createServer((request, response) => {
   if (request.url === "/favicon.ico") {
@@ -160,7 +170,9 @@ try {
     features: [{ name: "prefers-reduced-motion", value: "reduce" }],
   });
   const report = {
-    kind: "static-presentation-browser-only",
+    kind: technology
+      ? "technology-presentation-browser-only"
+      : "static-presentation-browser-only",
     browser: await command("Browser.getVersion", {}, false),
     results: [],
     newModelCalls: 0,
@@ -314,30 +326,37 @@ try {
   await pause(250);
   await evaluate("document.fonts.ready.then(() => true)");
   await command("Emulation.setEmulatedMedia", { media: "print" });
-  assert.notEqual(
-    await evaluate(
-      'getComputedStyle(document.querySelector(".contents-photo")).display',
-    ),
-    "none",
-    "PDF retains the desktop diagonal-photo layout",
-  );
-  assert.equal(
-    await evaluate(
-      'getComputedStyle(document.querySelector(".mission-photo")).position',
-    ),
-    "absolute",
-    "PDF does not inherit mobile stacking",
-  );
+  if (!technology) {
+    assert.notEqual(
+      await evaluate(
+        'getComputedStyle(document.querySelector(".contents-photo")).display',
+      ),
+      "none",
+      "PDF retains the desktop diagonal-photo layout",
+    );
+    assert.equal(
+      await evaluate(
+        'getComputedStyle(document.querySelector(".mission-photo")).position',
+      ),
+      "absolute",
+      "PDF does not inherit mobile stacking",
+    );
+  } else {
+    assert.equal(
+      await evaluate(
+        'getComputedStyle(document.querySelector(".t-layout")).gridTemplateColumns.split(" ").length',
+      ),
+      2,
+      "Vietnamese PDF retains desktop split layout",
+    );
+  }
   const { data } = await command("Page.printToPDF", {
     printBackground: true,
     preferCSSPageSize: true,
     displayHeaderFooter: false,
   });
   const pdf = Buffer.from(data, "base64");
-  writeFileSync(
-    resolve(root, "docs/submission/ExaMate-Presentation-Visual-20261025.pdf"),
-    pdf,
-  );
+  writeFileSync(resolve(root, `docs/submission/${stem}.pdf`), pdf);
   const tree = await command("Accessibility.getFullAXTree");
   writeFileSync(
     resolve(artifact, "accessibility.json"),
@@ -359,10 +378,12 @@ try {
   assert.deepEqual(report.externalRequests, [], "No external requests");
   const manifestPath = resolve(
     root,
-    "docs/submission/visual-deck-manifest.json",
+    technology
+      ? "docs/submission/technology-deck-manifest.json"
+      : "docs/submission/visual-deck-manifest.json",
   );
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  manifest.pdf = "ExaMate-Presentation-Visual-20261025.pdf";
+  manifest.pdf = `${stem}.pdf`;
   manifest.pdfSha256 = report.pdfSha256;
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   console.log(

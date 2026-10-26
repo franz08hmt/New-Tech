@@ -1,0 +1,1011 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="ExaMate: lý do lựa chọn công nghệ, kiến trúc, luồng code, ảnh demo và trade-off. Bộ slide tiếng Việt cho Tài–Thắng."
+    />
+    <meta name="theme-color" content="#f7e54b" />
+    <title>ExaMate — Công nghệ và quyết định thiết kế</title>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "DigitalDocument",
+        "name": "ExaMate — Công nghệ và quyết định thiết kế",
+        "inLanguage": "vi",
+        "dateModified": "2026-10-26",
+        "description": "Tài liệu trình bày công nghệ theo source 308389a, dùng ảnh đã lưu có provenance; không thay nghiệm thu live hoặc semantic."
+      }
+    </script>
+    <!-- LICENSES -->
+    <!-- STYLES -->
+  </head>
+  <body>
+    <a class="skip" href="#presentation">Đến nội dung trình bày</a>
+    <nav class="toolbar" aria-label="Điều khiển trình chiếu">
+      <a class="brand" href="#cover" aria-label="Trang bìa ExaMate"
+        >[[icon:AcademicCap]]<strong>ExaMate</strong
+        ><span>CÔNG NGHỆ · 2026</span></a
+      >
+      <output data-status aria-live="polite" aria-atomic="true"
+        >15 slide · Tiếng Việt · Đọc offline</output
+      >
+      <menu>
+        <li>
+          <button type="button" data-previous aria-label="Slide trước">
+            [[icon:ArrowLeft]]
+          </button>
+        </li>
+        <li>
+          <button type="button" data-next aria-label="Slide sau">
+            [[icon:ArrowRight]]
+          </button>
+        </li>
+        <li>
+          <button type="button" data-overview aria-pressed="false">
+            [[icon:Squares2X2]]<span>Tổng quan</span>
+          </button>
+        </li>
+        <li>
+          <button type="button" data-notes aria-pressed="false">
+            [[icon:ChatBubbleBottomCenterText]]<span>Lời nói</span>
+          </button>
+        </li>
+        <li>
+          <button
+            type="button"
+            data-fullscreen
+            aria-label="Bật hoặc tắt toàn màn hình"
+          >
+            [[icon:ArrowsPointingOut]]
+          </button>
+        </li>
+      </menu>
+    </nav>
+    <main
+      id="presentation"
+      aria-label="Công nghệ và quyết định thiết kế ExaMate"
+    >
+      <section
+        id="cover"
+        class="slide tech cover photo"
+        data-title="Công nghệ &amp; lựa chọn"
+        aria-labelledby="title-cover"
+      >
+        <img class="backdrop" src="[[photo]]" alt="" />
+        <header class="cover-meta">
+          <span>CÔNG NGHỆ MỚI TRONG PHÁT TRIỂN PHẦN MỀM</span
+          ><span>TÀI + THẮNG</span>
+        </header>
+        <article class="cover-title">
+          <p class="eyebrow">MỘT SẢN PHẨM · NHỮNG QUYẾT ĐỊNH CÓ LÝ DO</p>
+          <h1 id="title-cover" tabindex="-1">
+            ExaMate<span>Công nghệ<br />phía sau trải nghiệm.</span>
+          </h1>
+          <p>
+            Từ giao diện học tập đến RAG có nguồn<br />và luyện tập từ dữ liệu
+            có cấu trúc.
+          </p>
+        </article>
+        <p class="t-cover-foot">
+          React · NestJS · PostgreSQL/pgvector · Supabase · Gemini · Whisper ·
+          Docker
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Tài · mở đầu 25 giây</h3>
+          <p>
+            “Bộ slide này giải thích vì sao nhóm chọn công nghệ và công nghệ đó
+            giải quyết phần nào của ExaMate. Nhóm dùng model có sẵn, không tự
+            train. Hai năng lực AI chính là RAG có nguồn và structured output
+            được đưa vào luồng luyện tập.” Đây là bản bổ sung kỹ thuật, không
+            thay slide demo ngắn. Không đọc cả 15 slide nếu thời gian bảo vệ chỉ
+            8 phút.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="architecture"
+        class="slide tech"
+        data-title="Kiến trúc tổng thể"
+        aria-labelledby="title-architecture"
+      >
+        <header>
+          <p class="eyebrow">01 / BÀI TOÁN QUYẾT ĐỊNH KIẾN TRÚC</p>
+          <h2 id="title-architecture" tabindex="-1">
+            Mỗi lớp có một trách nhiệm.
+          </h2>
+          <p class="subtitle">
+            UI hiển thị · API kiểm quyền/nghiệp vụ · DB lưu và truy xuất · AI
+            tạo nội dung
+          </p>
+        </header>
+        <section class="t-architecture" aria-label="Sơ đồ kiến trúc ứng dụng">
+          <article class="t-node t-browser">
+            [[icon:ComputerDesktop]]
+            <h3>React + TypeScript</h3>
+            <p>Form, danh sách, Assistant,<br />Quiz và Flashcards</p>
+            <small>Không giữ khóa Gemini/DB.</small>
+          </article>
+          <article class="t-node t-api">
+            [[icon:ServerStack]]
+            <h3>NestJS / Node.js</h3>
+            <p>Session → DTO → quyền → service</p>
+            <ul>
+              <li>RAG, citation và structured output</li>
+              <li>Admission, telemetry và history</li>
+              <li>REST + SSE qua nginx</li>
+            </ul>
+          </article>
+          <section class="t-services" aria-label="Dịch vụ và dữ liệu">
+            <article>
+              [[icon:CircleStack]]
+              <h3>PostgreSQL + pgvector</h3>
+              <p>Records, vector, RLS và snapshot.</p>
+            </article>
+            <article>
+              [[icon:LockClosed]]
+              <h3>Supabase Auth / Storage</h3>
+              <p>Danh tính và PDF trong bucket private.</p>
+            </article>
+            <article>
+              [[icon:Sparkles]]
+              <h3>Gemini / Whisper local</h3>
+              <p>Generation &amp; embedding / STT.</p>
+            </article>
+          </section>
+        </section>
+        <p class="t-banner">
+          Trình duyệt → nginx → NestJS → dữ liệu/provider đã được kiểm quyền
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Thắng · 40 giây, Tài bổ sung quyền</h3>
+          <p>
+            “React không gọi SQL hay cầm server key. Nest gom nghiệp vụ và xác
+            minh principal; PostgreSQL lưu cả dữ liệu học tập lẫn vector.
+            Supabase Auth và Storage là hai dịch vụ khác nhau. Gemini cần mạng,
+            còn Whisper chạy trên API host. Nhóm không giữ DB transaction trong
+            lúc chờ Gemini/Storage.” Sơ đồ là khái niệm theo source, không phải
+            trace network mới. Code: App.tsx, app.module.ts,
+            database.service.ts, compose.yaml.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="frontend"
+        class="slide tech"
+        data-title="React · TypeScript · Vite"
+        aria-labelledby="title-frontend"
+      >
+        <header>
+          <p class="eyebrow">02 / FRONTEND · TÀI</p>
+          <h2 id="title-frontend" tabindex="-1">
+            UI dễ dùng, dữ liệu có kiểm soát.
+          </h2>
+        </header>
+        <section class="t-layout" aria-label="Lựa chọn frontend và ảnh môn học">
+          <article class="t-copy">
+            <h3>React 19 + TypeScript + Vite</h3>
+            <ul class="t-points">
+              <li>
+                Component tái sử dụng; hook tách data/lifecycle khỏi giao diện.
+              </li>
+              <li>Contracts chung giữ FE/BE đồng bộ kiểu dữ liệu.</li>
+              <li>Tailwind 4 + CSS riêng, Poppins và Heroicons.</li>
+              <li>
+                Server search/paging; abort + key/revision chặn response cũ.
+              </li>
+            </ul>
+            <p class="decision">
+              <strong>Vì sao chọn?</strong> Phù hợp nhiều màn tương tác; Vite hỗ
+              trợ dev/build, không ép dùng server rendering cho workspace riêng
+              tư.
+            </p>
+            <p class="tradeoff">
+              <strong>Đánh đổi:</strong> state/effect phức tạp; TypeScript không
+              thay validation runtime hoặc phân quyền backend.
+            </p>
+          </article>
+          <figure class="t-screen" data-evidence="courses">
+            <img
+              src="[[image:courses]]"
+              alt="Gallery môn học với ảnh, bộ lọc và điều hướng trong ExaMate"
+            />
+            <figcaption>
+              Ảnh đã lưu 24/10 · Nest/PG17 thật; Auth/provider synthetic.
+              Progress Courses là minh họa, không tính tự động.
+            </figcaption>
+          </figure>
+        </section>
+        <p class="t-code">
+          Điểm chỉ code: App.tsx → TasksPanel.tsx → use-paged-search.ts → api.ts
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Tài · 45 giây</h3>
+          <p>
+            “React giúp chia các màn thành component, còn hook quản lý request
+            và state. Khi đổi từ khóa ở trang hai, request mới phải về trang một
+            ngay; abort chỉ dừng tài nguyên, key/epoch mới quyết định response
+            được apply. Giao diện dùng palette sẵn, Poppins/Heroicons, focus và
+            control dễ thao tác.” Ví dụ kể lỗi query mới dùng page cũ hoặc
+            response account cũ. Không nói dùng localStorage làm nguồn server,
+            không coi ẩn nút là đủ phân quyền. Nếu hỏi sao không Next.js: chưa
+            có nhu cầu SSR/SEO cho vùng workspace riêng tư; Vite đáp ứng
+            dev/build hiện tại.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="backend"
+        class="slide tech photo"
+        data-title="NestJS &amp; contracts"
+        aria-labelledby="title-backend"
+      >
+        <img class="backdrop" src="[[photo]]" alt="" />
+        <header>
+          <p class="eyebrow">03 / BACKEND · THẮNG + TÀI TÍCH HỢP</p>
+          <h2 id="title-backend" tabindex="-1">
+            Một API, nhiều lớp kiểm soát.
+          </h2>
+        </header>
+        <ol class="t-pipeline">
+          <li>
+            [[icon:ShieldCheck]]<strong>Guard</strong
+            ><span>Session/principal<br />Origin &amp; CSRF</span>
+          </li>
+          <li>
+            [[icon:ClipboardDocumentCheck]]<strong>DTO</strong
+            ><span>Kiểu, enum<br />giới hạn input</span>
+          </li>
+          <li>
+            [[icon:Cog6Tooth]]<strong>Service</strong
+            ><span>Nghiệp vụ<br />scope/role</span>
+          </li>
+          <li>
+            [[icon:CircleStack]]<strong>Transaction</strong
+            ><span>SQL có tham số<br />RLS đúng context</span>
+          </li>
+        </ol>
+        <section class="t-dark-pair" aria-label="Quyết định backend">
+          <article>
+            <h3>NestJS 12 · Node.js ESM</h3>
+            <p class="decision">
+              <strong>Vì sao chọn?</strong> Modules, dependency injection và
+              test boundary rõ; cùng hệ TypeScript với frontend và contracts.
+            </p>
+          </article>
+          <article>
+            <h3>Không tin input chỉ vì compile được</h3>
+            <p class="tradeoff">
+              <strong>Đánh đổi:</strong> decorator/DI cần cấu hình nhất quán.
+              DTO, authorization và error envelope vẫn phải kiểm ở HTTP thật.
+            </p>
+          </article>
+        </section>
+        <p class="t-code">
+          Controller mỏng → service nghiệp vụ → runtime DB; @examate/contracts
+          không thay DTO.
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Thắng · 40 giây</h3>
+          <p>
+            “Thắng đóng góp nền backend/Supabase và Gemini ban đầu; Tài tích hợp
+            tiếp Auth/RLS và nghiệp vụ. Nest giúp controller không chứa cả
+            pipeline AI. DI cho phép test giả SDK/Auth upstream trong khi Nest,
+            authorization, service và PostgreSQL vẫn thật.” Code:
+            assistant.controller.ts, auth.guard.ts, common/http.ts,
+            packages/contracts/index.d.ts. TypeScript type bị xóa khi compile,
+            nên body từ mạng phải validate. Không nối sort identifier từ client;
+            dùng allowlist.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="auth"
+        class="slide tech"
+        data-title="Supabase Auth · Google · phiên"
+        aria-labelledby="title-auth"
+      >
+        <header>
+          <p class="eyebrow">04 / DANH TÍNH KHÁC QUYỀN</p>
+          <h2 id="title-auth" tabindex="-1">
+            Đăng nhập đúng, vào đúng workspace.
+          </h2>
+        </header>
+        <section class="t-layout" aria-label="Luồng xác thực và ảnh dashboard">
+          <article class="t-copy">
+            <h3>Supabase Auth + Google OAuth</h3>
+            <ol class="t-steps">
+              <li>Google/Supabase xác minh danh tính.</li>
+              <li>Backend xử lý PKCE/callback và kiểm JWT.</li>
+              <li>Browser dùng cookie opaque HttpOnly + CSRF.</li>
+              <li>Membership hiện hành quyết định workspace/role.</li>
+            </ol>
+            <p class="decision">
+              <strong>Vì sao chọn?</strong> Tái sử dụng dịch vụ danh tính, không
+              tự lưu mật khẩu; quyền nghiệp vụ vẫn do server kiểm.
+            </p>
+            <p class="tradeoff">
+              <strong>Đánh đổi:</strong> phụ thuộc Auth upstream và cấu hình
+              callback; HttpOnly không tự chống mọi XSS/CSRF.
+            </p>
+          </article>
+          <figure class="t-screen" data-evidence="dashboard">
+            <img
+              src="[[image:dashboard]]"
+              alt="Dashboard ExaMate trong một workspace đã đăng nhập"
+            />
+            <figcaption>
+              Ảnh đã lưu 23/10 · runtime Supabase thật. Ảnh không thay một lần
+              kiểm đăng nhập Google mới.
+            </figcaption>
+          </figure>
+        </section>
+        <p class="t-banner">
+          Manager / Member / Viewer · Google login không tự cấp membership hay
+          quyền manager.
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Tài · 45 giây</h3>
+          <p>
+            “Authentication trả lời bạn là ai, authorization trả lời bạn được
+            làm gì. Phiên opaque HttpOnly khác JWT: browser không tự giữ access
+            token trong localStorage. Mỗi workspace request dùng principal
+            server xác minh; viewer không ghi dù sửa DOM. Manager cũng không đọc
+            hội thoại/quiz riêng của người khác.” Google callback về Supabase
+            khác callback về app. Code: auth.service.ts, auth.guard.ts,
+            use-pilot-session.ts, PilotAccess.tsx. Không chiếu
+            .env/cookie/token.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="database"
+        class="slide tech"
+        data-title="PostgreSQL · pgvector · RLS"
+        aria-labelledby="title-database"
+      >
+        <header>
+          <p class="eyebrow">05 / DỮ LIỆU VÀ PHÂN QUYỀN THEO HÀNG</p>
+          <h2 id="title-database" tabindex="-1">
+            Dữ liệu quan hệ và vector, cùng một nền.
+          </h2>
+        </header>
+        <section class="t-layout" aria-label="Database và aggregate chi tiêu">
+          <article class="t-copy">
+            <h3>PostgreSQL 17 + pgvector</h3>
+            <ul class="t-points">
+              <li>
+                Quan hệ/FK, transaction và aggregate tính trên toàn bộ tập lọc.
+              </li>
+              <li>Vector 768 chiều, cosine distance cho retrieval.</li>
+              <li>
+                SQL tenant predicates + RLS; business/Auth LOGIN tách riêng.
+              </li>
+              <li>Runtime non-owner, NOBYPASSRLS; context theo transaction.</li>
+            </ul>
+            <p class="decision">
+              <strong>Vì sao chọn?</strong> Dữ liệu quan hệ và vector cùng nền
+              PostgreSQL; không thêm một vector service riêng cho phạm vi nhóm.
+            </p>
+            <p class="tradeoff">
+              <strong>Đánh đổi:</strong> RLS/grants và migration cần kiểm kỹ.
+              Vector search hiện tại chưa phải chứng minh quy mô ANN lớn.
+            </p>
+          </article>
+          <figure class="t-screen" data-evidence="expenses">
+            <img
+              src="[[image:expenses]]"
+              alt="Chi tiêu theo môn và tổng toàn tập kết quả trong ExaMate"
+            />
+            <figcaption>
+              Ảnh đã lưu · regression Nest/PG17 thật, dữ liệu tổng hợp.
+              Aggregate không lấy từ items của một trang.
+            </figcaption>
+          </figure>
+        </section>
+        <p class="t-code">
+          workspaceTransaction → set_config(..., true) · scope trước count /
+          aggregate / LIMIT
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Tài · 45 giây; Thắng nắm nền database</h3>
+          <p>
+            “PostgreSQL đáp ứng dữ liệu quan hệ còn pgvector bổ sung kiểu vector
+            và phép khoảng cách. RLS là lớp DB, WHERE là scope ứng dụng; dùng cả
+            hai. Runtime owner/BYPASSRLS sẽ làm mất ý nghĩa bảo vệ nên nhóm tách
+            LOGIN business/Auth. Context transaction-local tránh rò pool giữa
+            request.” Giải thích score 1 − cosine distance không là xác suất
+            đúng; không nhận đã tối ưu ANN cho dữ liệu lớn. Code:
+            database.service.ts, runtime-capability-contract.ts,
+            rag-retrieval.service.ts.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="pdf"
+        class="slide tech"
+        data-title="PDF.js · Storage · OCR"
+        aria-labelledby="title-pdf"
+      >
+        <header>
+          <p class="eyebrow">06 / TỪ FILE GỐC ĐẾN EVIDENCE</p>
+          <h2 id="title-pdf" tabindex="-1">
+            Không đưa cả PDF vào mọi câu hỏi.
+          </h2>
+        </header>
+        <section
+          class="t-layout"
+          aria-label="Pipeline tài liệu và ảnh Documents"
+        >
+          <article class="t-copy">
+            <h3>Private Storage + PDF.js</h3>
+            <ol class="t-steps">
+              <li>Upload PDF và metadata có scope.</li>
+              <li>Trích text từng trang, kiểm chất lượng.</li>
+              <li>Chunk 1.200 / max 1.800 / overlap 200 ký tự.</li>
+              <li>Embedding → chunks/vector → Ready.</li>
+            </ol>
+            <p class="decision">
+              <strong>Vì sao chọn?</strong> PDF.js giữ liên hệ text/trang;
+              bucket private giữ file gốc, DB giữ metadata và vector.
+            </p>
+            <p class="tradeoff">
+              <strong>Đánh đổi:</strong> scan/bảng có thể trích thiếu. OCR là
+              opt-in có phí; Ready không bảo đảm đọc đủ mọi trang.
+            </p>
+          </article>
+          <figure class="t-screen" data-evidence="documents">
+            <img
+              src="[[image:documents]]"
+              alt="Danh sách Documents, trạng thái xử lý và phạm vi môn học"
+            />
+            <figcaption>
+              Ảnh đã lưu 23/10 · Nest/PG17 thật, upstream synthetic; crop phần
+              trên viewport.
+            </figcaption>
+          </figure>
+        </section>
+        <p class="t-code">
+          PDF preview/download: kiểm quyền hiện tại → signed URL mới (60 giây) →
+          đúng trang.
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Thắng + Tài · 45 giây</h3>
+          <p>
+            “Nhóm chia theo trang và giữ overlap để giảm mất ngữ cảnh ở ranh
+            giới. Các số là ký tự, không phải token. Signed URL được tạo sau
+            authorize, không do model cung cấp. OCR chỉ dành trang không trích
+            được text hữu ích, không tự chạy lại mọi tài liệu.” Cấu hình local
+            ngày 26/10 đã đổi riêng GEMINI_OCR_MODEL sang gemini-3.5-flash-lite
+            nhưng OCR vẫn tắt; source fallback vẫn 2.5-flash. Đó không phải kết
+            quả benchmark OCR hoặc thay model generation của evaluation. Code:
+            document-ingestion.service.ts, document-chunker.ts,
+            document-ocr.service.ts.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="rag"
+        class="slide tech"
+        data-title="RAG có nguồn"
+        aria-labelledby="title-rag"
+      >
+        <header>
+          <p class="eyebrow">07 / CAPABILITY A · TÀI + THẮNG</p>
+          <h2 id="title-rag" tabindex="-1">
+            Tìm đúng nguồn trước khi tạo câu trả lời.
+          </h2>
+        </header>
+        <section class="t-layout" aria-label="RAG và citation trong demo">
+          <article class="t-copy">
+            <h3>Embedding → retrieval → generation</h3>
+            <ul class="t-points">
+              <li>gemini-embedding-001, vector 768 chiều.</li>
+              <li>Lọc workspace/course/document trước LIMIT.</li>
+              <li>TopK 6, candidate 10; threshold là cấu hình.</li>
+              <li>Thiếu evidence: từ chối, không gọi answer generation.</li>
+            </ul>
+            <p class="decision">
+              <strong>Vì sao chọn?</strong> Hỏi theo tài liệu hiện hành, có thể
+              mở nguồn; không cần fine-tune model để đưa PDF vào context.
+            </p>
+            <p class="tradeoff">
+              <strong>Đánh đổi:</strong> retrieval có thể thiếu/nhiễu. Có
+              citation hợp lệ không chứng minh mọi claim đều đúng.
+            </p>
+          </article>
+          <figure class="t-screen" data-evidence="rag">
+            <img
+              src="[[image:rag]]"
+              alt="Câu trả lời Assistant có citation mở PDF tới trang đối chiếu"
+            />
+            <figcaption>
+              Ảnh đã lưu · Nest/PDF.js/PG17 thật; Auth, Storage và provider
+              synthetic. Không phải output live mới.
+            </figcaption>
+          </figure>
+        </section>
+        <p class="t-banner">
+          PDF là dữ liệu không tin cậy · source IDs chỉ thuộc evidence của chính
+          lượt hỏi.
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Tài + Thắng · 50 giây</h3>
+          <p>
+            “RAG không train hay fine-tune; lấy evidence đúng quyền rồi mới yêu
+            cầu model trả lời. Embedding dùng để so liên quan, generation mới
+            viết answer. Ngưỡng 0,55 là source default, không 55% accuracy;
+            runtime có thể khác. Citation map ID về document/page trên server,
+            nhưng claim grounding còn phải đối chiếu.” Thắng có đóng góp RAG đã
+            được Tài xác nhận, không gán riêng toàn bộ cho một người. Code:
+            rag-retrieval.service.ts, rag-context.ts, source-markers.ts,
+            prompt-registry.ts. Hỏi ngoài PDF có thể tốn query embedding nhưng
+            không answer generation.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="structured"
+        class="slide tech"
+        data-title="Gemini · structured output"
+        aria-labelledby="title-structured"
+      >
+        <header>
+          <p class="eyebrow">08 / CAPABILITY C · DỮ LIỆU AI DÙNG ĐƯỢC</p>
+          <h2 id="title-structured" tabindex="-1">
+            JSON đúng cú pháp vẫn chưa đủ.
+          </h2>
+        </header>
+        <section
+          class="t-layout"
+          aria-label="Structured output và preview Study Coach"
+        >
+          <article class="t-copy">
+            <h3>Google GenAI SDK + schema versioned</h3>
+            <ul class="t-points">
+              <li>responseMimeType + responseJsonSchema.</li>
+              <li>Backend kiểm kiểu, exact keys, độ dài và số mục.</li>
+              <li>Quiz: đúng 4 lựa chọn, correctIndex 0–3.</li>
+              <li>
+                Flashcards: front/back không rỗng, không trùng; nguồn đúng
+                evidence.
+              </li>
+            </ul>
+            <p class="decision">
+              <strong>Vì sao chọn?</strong> Đầu ra có cấu trúc để preview, lưu
+              và luyện tập; không chỉ in JSON trong chat.
+            </p>
+            <p class="tradeoff">
+              <strong>Đánh đổi:</strong> schema/source hợp lệ không bảo đảm đáp
+              án đúng kiến thức; không auto-repair bằng LLM loop.
+            </p>
+          </article>
+          <figure class="t-screen" data-evidence="coach">
+            <img
+              src="[[image:coach]]"
+              alt="Study Coach với lựa chọn tài liệu, ngôn ngữ và tạo bản xem trước"
+            />
+            <figcaption>
+              Ảnh đã lưu 23/10 · Nest/PG17 thật; provider synthetic. Không chứng
+              minh chất lượng giáo dục.
+            </figcaption>
+          </figure>
+        </section>
+        <p class="t-code">
+          Prompt ID/version riêng · server cấp ID và metadata nguồn · model
+          không cấp quyền/URL.
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Tài · 45 giây</h3>
+          <p>
+            “Nhóm chọn Gemini qua wrapper đang có, hỗ trợ generation và
+            structured output. Không nói model chắc tốt nhất khi chưa so sánh.
+            responseJsonSchema giúp định dạng nhưng server vẫn validate lại,
+            reject JSON lỗi/truncated, thừa field, trùng câu/thẻ hoặc source
+            giả. Answer key đúng kiểu chưa đồng nghĩa đúng kiến thức.” Model
+            generation do GEMINI_MODEL quyết định; baseline giữ
+            gemini-2.5-flash, template và OCR riêng có thể khác. Code:
+            gemini.service.ts, prompt-registry.ts, study-quiz-validation.ts,
+            study-flashcards-validation.ts.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="practice"
+        class="slide tech"
+        data-title="Preview · lưu · luyện tập"
+        aria-labelledby="title-practice"
+      >
+        <header>
+          <p class="eyebrow">09 / AI OUTPUT TRỞ THÀNH NGHIỆP VỤ</p>
+          <h2 id="title-practice" tabindex="-1">
+            Người dùng xác nhận, server giữ nhất quán.
+          </h2>
+        </header>
+        <section class="t-layout" aria-label="Lưu và chấm luyện tập">
+          <article class="t-copy">
+            <h3>Draft → confirm → snapshot → practice</h3>
+            <ul class="t-points">
+              <li>Draft token/hash, owner/workspace; draft 15 phút.</li>
+              <li>Quiz chấm server; Flashcards flip rồi tự đánh giá.</li>
+              <li>List/detail/progress từ cùng dữ liệu server.</li>
+              <li>Read, save và practice không gọi AI.</li>
+            </ul>
+            <p class="decision">
+              <strong>Vì sao chọn?</strong> Explicit confirm giữ người học trong
+              vòng kiểm tra; snapshot bất biến bảo toàn cách chấm lịch sử.
+            </p>
+            <p class="tradeoff">
+              <strong>Đánh đổi:</strong> cần idempotency và recovery. Unknown
+              không có nghĩa chưa lưu; phải giữ key/payload hoặc GET
+              reconciliation.
+            </p>
+          </article>
+          <figure class="t-screen" data-evidence="quiz">
+            <img
+              src="[[image:quiz]]"
+              alt="Kết quả quiz với điểm và tiến độ được server trả về"
+            />
+            <figcaption>
+              Ảnh đã lưu · kết quả fixture được server chấm, provider synthetic.
+              Flashcards dùng tự đánh giá, không điểm AI.
+            </figcaption>
+          </figure>
+        </section>
+        <p class="t-banner">
+          Attempt/review chưa rõ kết quả → khóa write xung đột, giữ nguyên đường
+          khôi phục.
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Tài · 50 giây</h3>
+          <p>
+            “Generation không tự lưu bộ quiz/thẻ. Confirm riêng mới tạo snapshot
+            cá nhân. Khi nộp bài, server đọc answer key chứ không nhận score
+            client. Flashcards lưu remembered/needs_review, không chứng minh đã
+            thành thạo. Nếu mất ACK sau commit thì retry cùng key/payload, không
+            tạo lượt mới để thoát lỗi; confirm unknown cần GET trước.” Bộ đã lưu
+            mặc định 90 ngày, nguồn xóa báo unavailable, manager không đọc của
+            người khác. Code: StudyCoachPanel.tsx, StudyFlashcardsPanel.tsx,
+            study-coach.service.ts, study-flashcards.service.ts.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="stream"
+        class="slide tech"
+        data-title="SSE · cancel · history"
+        aria-labelledby="title-stream"
+      >
+        <header>
+          <p class="eyebrow">10 / PHẢN HỒI VÀ NGỮ CẢNH CÓ KIỂM SOÁT</p>
+          <h2 id="title-stream" tabindex="-1">
+            Phản hồi nhanh, kiểm soát trọn vòng đời.
+          </h2>
+        </header>
+        <section class="t-layout" aria-label="Streaming và hội thoại đã lưu">
+          <article class="t-copy">
+            <h3>Fetch POST + SSE + AbortController</h3>
+            <ul class="t-points">
+              <li>General phát delta; Stop chủ động hủy.</li>
+              <li>Documents chỉ trả answer sau kiểm schema/citation.</li>
+              <li>Parser buffer frame/UTF-8, xử lý stream đứt.</li>
+              <li>
+                Receipt/hash, tối đa 6 lượt context hợp lệ; history
+                owner-scoped.
+              </li>
+            </ul>
+            <p class="decision">
+              <strong>Vì sao chọn?</strong> Luồng server → client phù hợp SSE;
+              chưa cần kênh hai chiều liên tục như WebSocket.
+            </p>
+            <p class="tradeoff">
+              <strong>Đánh đổi:</strong> cần chống proxy buffering,
+              backpressure, stale response; Stop không hoàn lại chi phí đã
+              dispatch.
+            </p>
+          </article>
+          <figure class="t-screen" data-evidence="history">
+            <img
+              src="[[image:history]]"
+              alt="Mở lại một hội thoại Assistant đã lưu trong ExaMate"
+            />
+            <figcaption>
+              Ảnh đã lưu · Nest/PG17 thật, Auth/provider synthetic. Mở lịch sử
+              là đọc, không tự gửi lại AI.
+            </figcaption>
+          </figure>
+        </section>
+        <p class="t-code">
+          assistant-stream.ts · assistant.controller.ts · use-assistant.ts ·
+          assistant-conversation.service.ts
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Thắng · SSE 35 giây; Tài · history 15 giây</h3>
+          <p>
+            “SSE không bắt buộc EventSource. Nhóm cần POST body và CSRF headers
+            nên dùng fetch/ReadableStream. Một network chunk không bằng một
+            event; parser phải giữ buffer. General được phát delta, RAG giữ nội
+            dung tới khi validator xong, không bỏ SSE toàn ứng dụng.” Tài bổ
+            sung: receipt xác minh snapshot, không chứng minh answer đúng;
+            history mở lại và follow-up không trộn source cũ thành evidence mới.
+            Epoch/revision ngăn stream A cập nhật B.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="speech"
+        class="slide tech"
+        data-title="Whisper · ONNX · FFmpeg"
+        aria-labelledby="title-speech"
+      >
+        <header>
+          <p class="eyebrow">11 / STT LOCAL · THẮNG</p>
+          <h2 id="title-speech" tabindex="-1">
+            Giọng nói thành bản nháp có thể sửa.
+          </h2>
+        </header>
+        <section
+          class="t-layout"
+          aria-label="Whisper local và giao diện giọng nói"
+        >
+          <article class="t-copy">
+            <h3>Whisper-small · Transformers.js · ONNX</h3>
+            <ol class="t-steps">
+              <li>MediaRecorder → upload audio.</li>
+              <li>ffprobe/FFmpeg → mono 16 kHz.</li>
+              <li>Worker CPU/q8 → transcript.</li>
+              <li>Người dùng sửa → chèn → tự gửi.</li>
+            </ol>
+            <p class="decision">
+              <strong>Vì sao chọn?</strong> STT suy luận local trên API host,
+              không gửi audio tới một speech provider bên ngoài.
+            </p>
+            <p class="tradeoff">
+              <strong>Đánh đổi:</strong> tốn CPU/RAM, cần weights và timeout;
+              micro/tiếng Việt vẫn cần benchmark. Không TTS.
+            </p>
+          </article>
+          <figure class="t-screen" data-evidence="speech">
+            <img
+              src="[[image:speech]]"
+              alt="Giao diện sẵn sàng nhập giọng nói và chỉnh sửa transcript"
+            />
+            <figcaption>
+              Ảnh đã lưu · readiness runtime local; không chứng minh microphone
+              vật lý hay độ chính xác tiếng Việt.
+            </figcaption>
+          </figure>
+        </section>
+        <p class="t-banner">
+          Giới hạn audio 60 giây · cửa sổ 30 / stride 5 · inference 120s → API
+          150s → client/nginx 180s
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Thắng · 50 giây</h3>
+          <p>
+            “Whisper pretrained chạy trên API host, không trong browser và không
+            do nhóm train. ONNX là định dạng/runtime; q8 giảm tài nguyên nhưng
+            có trade-off. Audio dài trong trần 60 giây dùng chunk 30/stride 5 để
+            không chỉ đọc cửa sổ đầu. Timeout phải terminate worker/subprocess
+            và cleanup, không chỉ Promise.race.” Không gọi toàn app offline:
+            Supabase/Gemini vẫn cần mạng. Code: audio-inspector.ts,
+            local-inference-options.ts, local-speech-runtime.ts,
+            use-speech-input.ts.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="controls"
+        class="slide tech"
+        data-title="Admission · usage telemetry"
+        aria-labelledby="title-controls"
+      >
+        <header>
+          <p class="eyebrow">12 / QUAN SÁT KHÁC GIỚI HẠN CHI TIÊU</p>
+          <h2 id="title-controls" tabindex="-1">
+            Giữ chỗ trước, đo đúng sau lời gọi.
+          </h2>
+        </header>
+        <section
+          class="t-layout"
+          aria-label="Admission và dashboard quản lý AI"
+        >
+          <article class="t-copy">
+            <h3>Admission ledger + AiUsageService</h3>
+            <ul class="t-points">
+              <li>Quota/concurrency/fan-out trước dispatch.</li>
+              <li>Tách logical operation với provider calls.</li>
+              <li>Token/cost known đi cùng coverage; missing ≠ 0.</li>
+              <li>Manager dashboard: cohort, filter, paging và refresh.</li>
+            </ul>
+            <p class="decision">
+              <strong>Vì sao chọn?</strong> Ngăn phát sinh quá giới hạn và giúp
+              giải thích model/prompt/outcome/latency.
+            </p>
+            <p class="tradeoff">
+              <strong>Đánh đổi:</strong> telemetry best-effort, không phải hóa
+              đơn hoặc quota ledger; tiền tách currency/pricing version.
+            </p>
+          </article>
+          <figure class="t-screen" data-evidence="usage">
+            <img
+              src="[[image:usage]]"
+              alt="Dashboard Sử dụng AI với tổng provider calls, usage và chi phí ước tính"
+            />
+            <figcaption>
+              Ảnh đã lưu · telemetry tổng hợp trên Nest/PG17 thật; không phải
+              hóa đơn Gemini hay số liệu mới.
+            </figcaption>
+          </figure>
+        </section>
+        <p class="t-code">
+          1 operation ≠ 1 call · latency operation ≠ latency provider · lỗi
+          không tự retry/replay.
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Tài · 45 giây</h3>
+          <p>
+            “Telemetry ghi sau không ngăn chi phí đã xảy ra, nên admission
+            reserve trước provider. Một RAG request có thể có embedding và
+            generation; chỉ đếm HTTP request là thiếu. Token null không coi là
+            zero, cộng decimal/BIGINT không dùng Number tùy tiện. Dashboard chỉ
+            manager và membership được kiểm mới trong transaction.” Refresh dùng
+            generation chung cho overview/cost/detail; chuyển page operation
+            không ép đọc cost nếu cohort giữ nguyên. Code:
+            ai-admission.service.ts, ai-usage.service.ts,
+            ai-usage-dashboard.service.ts.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="deployment"
+        class="slide tech"
+        data-title="Docker · nginx · TLS"
+        aria-labelledby="title-deployment"
+      >
+        <header>
+          <p class="eyebrow">13 / CHẠY LẠI ĐƯỢC TRÊN BẢN DEMO</p>
+          <h2 id="title-deployment" tabindex="-1">
+            Đóng gói runtime, giữ dữ liệu bền.
+          </h2>
+        </header>
+        <section
+          class="t-layout t-mobile-layout"
+          aria-label="Deployment và giao diện mobile"
+        >
+          <article class="t-copy">
+            <h3>Docker Compose + nginx</h3>
+            <ul class="t-points">
+              <li>Web static + API image, health checks và proxy /api.</li>
+              <li>Supabase DB/Storage thật giữ dữ liệu qua lần restart.</li>
+              <li>Business/Auth LOGIN tách, CA/TLS xác minh.</li>
+              <li>Ảnh/chữ responsive; không cần PWA để có mobile web.</li>
+            </ul>
+            <p class="decision">
+              <strong>Vì sao chọn?</strong> Môi trường demo nhất quán, đơn giản
+              hóa khởi động và cô lập dependency hệ thống như FFmpeg.
+            </p>
+            <p class="tradeoff">
+              <strong>Đánh đổi:</strong> vẫn phụ thuộc Docker, mạng và dịch vụ
+              thật. Health xanh không bảo đảm Google/Gemini đang trả lời.
+            </p>
+          </article>
+          <figure class="t-screen t-phone" data-evidence="mobile">
+            <img
+              src="[[image:mobile]]"
+              alt="Documents trên viewport điện thoại 375px"
+            />
+            <figcaption>
+              Ảnh đã lưu 23/10 · dịch vụ thật, responsive emulation; không phải
+              kiểm máy vật lý mới.
+            </figcaption>
+          </figure>
+        </section>
+        <p class="t-code">
+          Demo thật: compose.yaml + compose.ca.yaml · loopback :8080 · không
+          dùng synthetic demo stack làm bằng chứng live.
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Tài · 40 giây</h3>
+          <p>
+            “Container chỉ đóng gói ứng dụng, không tự làm Auth/Storage/Gemini
+            offline. Dữ liệu bền do DB/Storage, không vì state React hay image
+            Docker. nginx giữ proxy/Origin và không buffer SSE; TLS CA phải được
+            giữ, không tắt kiểm chứng để kết nối.” Không trình chiếu .env, không
+            chạy lại migration/cloud write khi chỉ khởi động demo. Đây là mô tả
+            deployment đã lưu, không một đợt triển khai mới. Code: compose.yaml,
+            compose.ca.yaml, Dockerfiles và infra/nginx/default.conf.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        id="verification"
+        class="slide tech photo"
+        data-title="Kiểm chứng &amp; quyết định"
+        aria-labelledby="title-verification"
+      >
+        <img class="backdrop" src="[[photo]]" alt="" />
+        <header>
+          <p class="eyebrow">14 / CÔNG NGHỆ TỐT CẦN BẰNG CHỨNG ĐÚNG</p>
+          <h2 id="title-verification" tabindex="-1">
+            Kiểm cấu trúc, kiểm luồng chạy,<br />rồi đối chiếu chất lượng.
+          </h2>
+        </header>
+        <section class="t-proof-grid" aria-label="Các lớp kiểm chứng">
+          <article>
+            [[icon:Beaker]]
+            <h3>Vitest + Testing Library</h3>
+            <p>Logic, form, race, receipt và lifecycle recovery.</p>
+          </article>
+          <article>
+            [[icon:CircleStack]]
+            <h3>Nest HTTP + PG17</h3>
+            <p>SQL, RLS, owner/tenant và idempotency thật.</p>
+          </article>
+          <article>
+            [[icon:ComputerDesktop]]
+            <h3>Browser + evaluation</h3>
+            <p>Layout/focus khác model live và semantic review.</p>
+          </article>
+        </section>
+        <p class="t-result">
+          <strong>Baseline lịch sử:</strong> 15 PASS / 3 FAIL / 2 INCONCLUSIVE
+          trên 20 case.<br /><strong>Lượt cải tiến:</strong> 1 PASS / 2 lỗi
+          provider / 17 case chưa chạy — chưa đủ kết luận tốt hơn.
+        </p>
+        <p class="t-close">
+          Tài: FE, tích hợp, Auth/RLS, Study Coach, kiểm soát AI &amp;
+          evaluation.<br />Thắng: backend/Gemini nền, SSE &amp; STT.
+          <strong>RAG có đóng góp của cả hai.</strong>
+        </p>
+        <aside class="speaker" lang="vi">
+          <h3>Cả hai · kết 40 giây</h3>
+          <p>
+            “Không lớp test nào tự chứng minh mọi câu AI đúng. Fixture provider
+            kiểm đường runtime, không chất lượng model; citation tồn tại chưa
+            chứng minh claim grounding. Baseline strict 75% khác
+            semantic-content 90%; không dùng 1/1 của lượt cải tiến để nhận 100%.
+            Human review Study Coach, micro/máy Thắng và các matrix pending vẫn
+            theo bằng chứng.” Tài và Thắng nhận phần thực sự làm/hiểu; AI_USAGE
+            công khai hỗ trợ và lỗi. Không nhận capability B có ≥3 LLM-called
+            tools, không thêm TTS. Hướng capability là A RAG + C structured
+            output, không tuyên bố RUBRIC_PASSED thay giảng viên.
+          </p>
+        </aside>
+      </section>
+    </main>
+    <footer class="site-footer">
+      <span>BẢN THUYẾT TRÌNH CÔNG NGHỆ · 26/10/2026</span
+      ><span
+        >Ảnh và số liệu lịch sử có ghi phạm vi; không phát sinh lời gọi
+        model.</span
+      ><span>← → chuyển slide · Tổng quan xem tất cả · Lời nói mở ghi chú</span>
+    </footer>
+    <noscript
+      ><p>
+        JavaScript đang tắt. Tất cả slide vẫn có thể đọc và in theo thứ tự.
+      </p></noscript
+    >
+    <!-- SCRIPT -->
+  </body>
+</html>
