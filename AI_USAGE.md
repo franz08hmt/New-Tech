@@ -24,14 +24,14 @@ every member's uploaded documents) versus private to each person, and, for manag
 role changes, switching access off/on, invitations by e-mail and a one-click grant
 for people who signed in without access. The migration is additive and leaves the
 pinned runtime catalog digest unchanged; a database without it keeps working. It was
-applied only to disposable PostgreSQL 17 (canonical and a restricted managed
-installer fixture), never to the cloud project, which still needs the owner's
-approval, backup and maintenance window (`docs/MANAGED-DEPLOYMENT.md`).
+first rehearsed on disposable PostgreSQL 17 (canonical and a restricted managed
+installer fixture), then applied to the cloud project at the owner's explicit request,
+after a fresh `public` backup and a ledger/contract preflight (`docs/MANAGED-DEPLOYMENT.md`).
 
 Checks: web, API and 53 database test files pass on disposable PG17; typecheck,
 format and build are clean; desktop and 375px browser checks of the switch and the
 Members page. AI also caught its own mistakes along the way (rows 7-9 below). Nothing
-was pushed, and no cloud, Google or paid provider call was made.
+was pushed, and no Google or paid provider call was made.
 
 ## 2026-10-26 - compact ten-slide technology edition
 

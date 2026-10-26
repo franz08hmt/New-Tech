@@ -73,13 +73,20 @@ Bằng chứng private/git-ignored ở `artifacts/managed-completion-20261023/`:
 `google-dashboard.jpg`, `mobile-layout.json`, `managed26-final.log`.
 Không đưa thư mục `private/` vào bộ nộp. Kết quả AI và chấm ngữ nghĩa ghi riêng.
 
-## Migration 027 - thành viên (26/10/2026, CHƯA áp dụng lên cloud)
+## Migration 027 - thành viên (26/10/2026, ĐÃ áp dụng lên cloud)
 
 `027_workspace_members.sql` thêm hai bảng và 11 hàm cho trang **Thành viên**; không đổi
 bảng/chính sách/quyền hiện có và không đổi digest contract (v25/managed26 vẫn
 `395cff54…596c`). Profile managed nhận các migration cộng thêm từ 027 sau 026, nên cloud
 đang ở 26 chỉ cần "staged" đúng một migration mới. Cho tới khi áp dụng, API vẫn chạy và trang
 Thành viên báo chưa bật (`available:false`, ghi trả 503).
+
+**Kết quả 26/10/2026:** áp dụng theo yêu cầu của chủ dự án. Preflight: ledger đúng 26
+dòng là prefix của profile, contract managed26 đạt. Backup logic schema `public` (pg_dump,
+~0,66 MB, private/git-ignored `artifacts/ui-fix-20261026/private/`). Chạy profile managed:
+ledger 27, digest vẫn `395cff54…596c`, vân tay 10 bảng nghiệp vụ không đổi, hai bảng mới có
+RLS và không quyền cho `anon`/`authenticated`/`service_role`/runtime, 11 hàm đúng ACL, owner
+`postgres`. Không replay script này. Phần dưới là quy trình đã dùng/để đối chiếu.
 
 Trước khi áp dụng (cần Tài duyệt, như các lần trước): backup SQL/Auth/Storage metadata hiện
 thời; rehearsal restore; dừng writer; kiểm `schema_migrations` là prefix 001–026 của profile.

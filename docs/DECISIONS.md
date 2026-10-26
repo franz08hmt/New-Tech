@@ -1046,7 +1046,10 @@ canonical và fixture managed `supabase_admin`). Profile managed chấp nhận m
 thêm từ 027 sau 026; 001–026 giữ nguyên checksum. API nhận biết tính năng (`to_regprocedure`,
 cache 30s/5 phút): DB cũ trả `available:false`, các thao tác ghi trả 503
 `MEMBERS_UNAVAILABLE`, đăng nhập không đổi. Rollback: `infra/postgres/rollback/027_*.sql`
-(có test). **Chưa áp dụng lên cloud**; cần Tài duyệt backup → rehearsal → cửa sổ bảo trì.
+(có test). **Đã áp dụng lên cloud ngày 26/10/2026 theo yêu cầu của chủ dự án** (preflight
+ledger 26 → backup `public` → profile managed → ledger 27, digest vẫn `395cff…596c`,
+dòng dữ liệu nghiệp vụ không đổi, ACL kiểm lại); stack `examate-final-live-20261023` được
+build lại từ code mới.
 
 Đánh đổi: `session()` gọi thêm một giao dịch ngắn sau khi xác minh (có throttle 10 phút/user
 và bỏ qua khi chưa có 027); mọi lỗi ở bước này bị nuốt để không bao giờ làm hỏng đăng nhập.

@@ -21,11 +21,10 @@ cho người đã đăng nhập mà chưa có quyền, thu hồi lời mời. T�
 cho mọi thành viên đang hoạt động. Phần riêng đã có: hội thoại Assistant, quiz/flashcards.
 Lời chào "Welcome back, Tài." không còn gắn cứng tên Tài cho mọi tài khoản.
 
-**Phần cần Tài quyết định.** Migration 027 mới chỉ chạy trên PG17 dùng-một-lần (canonical và
-fixture managed). Cloud vẫn ở 26 migration; ứng dụng chạy bình thường trên cloud cũ và trang
-Thành viên báo "chưa bật". Áp dụng lên cloud cần: backup hiện thời, rehearsal restore,
-cửa sổ bảo trì, rồi `node apps/api/scripts/migrate.mjs --profile=supabase-managed` trong
-process operator (xem MANAGED-DEPLOYMENT). Không có thay đổi cloud nào được thực hiện.
+**Cloud.** Sau khi kiểm trên PG17 dùng-một-lần (canonical và fixture managed), migration 027
+đã được áp dụng lên cloud ngày 26/10 theo yêu cầu của chủ dự án (backup `public` trước, ledger
+27, digest không đổi; xem MANAGED-DEPLOYMENT). Stack `examate-final-live-20261023` đã build
+lại từ code mới. Chưa kiểm bằng tay trên cloud: manager đổi vai trò/mời thật; chưa push.
 
 Kiểm chứng: web (Vitest), API unit và 53 file database trên PG17 dùng-một-lần, test managed
 `supabase_admin`, typecheck/format/build sạch. Một số test cũ phải cập nhật vì số migration
