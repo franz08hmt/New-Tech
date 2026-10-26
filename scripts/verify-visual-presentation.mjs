@@ -35,6 +35,7 @@ writeFileSync(
 );
 const htmlPath = resolve(root, `docs/submission/${stem}.html`);
 const html = readFileSync(htmlPath);
+const slideCount = technology ? 10 : 15;
 const server = createServer((request, response) => {
   const path = new URL(request.url, "http://127.0.0.1").pathname;
   if (path === "/favicon.ico") {
@@ -204,7 +205,7 @@ try {
       true,
     );
     const cases = [];
-    for (let index = 0; index < 15; index++) {
+    for (let index = 0; index < slideCount; index++) {
       const result = await evaluate(`(() => {
         const slide = document.querySelector('main > section:not([hidden])');
         const box = slide.getBoundingClientRect();
@@ -469,13 +470,13 @@ try {
       });
       await click("[data-overview]");
       await evaluate(
-        "document.querySelector('#speech').scrollIntoView({block:'center'})",
+        "document.querySelector('#stream').scrollIntoView({block:'center'})",
       );
       await pause(80);
       record(
         "overview scroll reveals the waveform slide",
         await evaluate(
-          "document.querySelector('#speech').classList.contains('is-visible')&&!document.querySelector('#speech').hidden",
+          "document.querySelector('#stream').classList.contains('is-visible')&&!document.querySelector('#stream').hidden",
         ),
       );
       record(
@@ -530,7 +531,7 @@ try {
     await evaluate(
       'document.querySelectorAll("main > section:not([hidden])").length',
     ),
-    15,
+    slideCount,
   );
   await click("[data-notes]");
   assert.equal(
@@ -539,6 +540,17 @@ try {
     ),
     "block",
   );
+  if (technology) {
+    const noteOverlaps = await evaluate(
+      `(()=>{const slides=[...document.querySelectorAll('main>section')];return slides.flatMap((slide,index)=>{const note=slide.querySelector('.speaker').getBoundingClientRect();const next=slides[index+1]?.getBoundingClientRect();return next&&note.bottom>next.top+2?[slide.id]:[]});})()`,
+    );
+    assert.deepEqual(
+      noteOverlaps,
+      [],
+      "Merged speaking notes do not overlap the next slide",
+    );
+    report.mergedNotesChecked = true;
+  }
   await click("[data-overview]");
   await click("[data-notes]");
   await command("Page.navigate", {
@@ -626,7 +638,7 @@ try {
   manifest.pdfSha256 = report.pdfSha256;
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   console.log(
-    `Verified 15 slides at 5 widths; PDF exported. Evidence: ${artifact}`,
+    `Verified ${slideCount} slides at 5 widths; PDF exported. Evidence: ${artifact}`,
   );
 } finally {
   if (ws?.readyState === WebSocket.OPEN) {

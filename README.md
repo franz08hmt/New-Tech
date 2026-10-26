@@ -35,7 +35,7 @@ The older editable PPTX below is retained as a separate design.
 [HTML offline](docs/submission/ExaMate-Technologies-VI-20261026.html),
 [PDF](docs/submission/ExaMate-Technologies-VI-20261026.pdf) và
 [PowerPoint trình chiếu](docs/submission/ExaMate-Technologies-VI-20261026.pptx).
-15 slide trực quan với logo, luồng tương tác, 11 ảnh demo đã lưu có ghi nguồn
+10 slide trực quan (gộp đủ 15 chủ đề) với logo, luồng tương tác, 8 ảnh demo đã lưu có ghi nguồn
 và lời nói tiếng Việt cho Tài–Thắng. Lý do chọn/trade-off đầy đủ ở
 [sổ tay công nghệ](docs/submission/ExaMate-Technologies-Knowledge-VI-20261026.html).
 HTML có hoạt ảnh và tương tác offline; PDF/PPTX là bố cục tĩnh, PPTX có fade và

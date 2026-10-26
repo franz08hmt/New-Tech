@@ -15,11 +15,10 @@ STEM = "ExaMate-Technologies-VI-20261026"
 
 class TechnologyArtifactTests(unittest.TestCase):
     def test_pdf_preserves_all_technology_topics_and_vietnamese(self):
-        required = ["Công nghệ", "ranh giới", "TypeScript", "Guard", "workspace",
-                    "vector", "PDF", "nguồn", "JSON", "snapshot", "SSE",
-                    "Whisper", "admission", "Đóng gói", "bằng chứng"]
+        required = ["Công nghệ", "Guard", "TypeScript", "RLS", "PDF",
+                    "JSON", "Whisper", "admission", "Đóng gói", "bằng chứng"]
         with fitz.open(OUTPUT / f"{STEM}.pdf") as document:
-            self.assertEqual(len(document), 15)
+            self.assertEqual(len(document), 10)
             for page, text in zip(document, required):
                 with self.subTest(page=page.number + 1):
                     self.assertAlmostEqual(page.rect.width / page.rect.height, 16 / 9, places=3)
@@ -30,7 +29,7 @@ class TechnologyArtifactTests(unittest.TestCase):
 
     def test_pptx_has_notes_and_identifies_layout_preserving_artwork(self):
         presentation = Presentation(OUTPUT / f"{STEM}.pptx")
-        self.assertEqual(len(presentation.slides), 15)
+        self.assertEqual(len(presentation.slides), 10)
         self.assertAlmostEqual(presentation.slide_width / presentation.slide_height, 16 / 9, places=5)
         self.assertEqual(presentation.core_properties.identifier,
                          hashlib.sha256((OUTPUT / f"{STEM}.pdf").read_bytes()).hexdigest())
@@ -45,7 +44,7 @@ class TechnologyArtifactTests(unittest.TestCase):
             self.assertEqual(manifest[f"{key}Sha256"],
                              hashlib.sha256((OUTPUT / manifest[key]).read_bytes()).hexdigest())
         source = BeautifulSoup((ROOT / "docs/presentation/technology.html").read_text(encoding="utf-8"), "html.parser")
-        self.assertEqual(len(source.select(".speaker")), 15)
+        self.assertEqual(len(source.select(".speaker")), 10)
 
     def test_knowledge_companion_preserves_all_original_details(self):
         data = json.loads((ROOT / "docs/presentation/technology-knowledge.json").read_text(encoding="utf-8"))

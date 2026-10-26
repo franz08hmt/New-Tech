@@ -2,8 +2,8 @@
   "schema": "examate-technology-deck-v1",
   "revision": "2026-10-26",
   "language": "vi",
-  "sourceCheckpoint": "69eab36",
-  "visualRevision": "interactive-v2",
+  "sourceCheckpoint": "761cf77",
+  "visualRevision": "compact-interactive-v3",
   "knowledge": "ExaMate-Technologies-Knowledge-VI-20261026.html",
   "knowledgeSha256": "2ad577dfedf465a5f5c6796dbd3d20c41864df4c49f21aee7bb1aad68de47c25",
   "logos": [
@@ -64,10 +64,10 @@
       "sha256": "d8cf9fb2d5e234e03254f1d6400d8cc8160c309b010d031a64f37084b5a21d01"
     }
   ],
-  "slides": 15,
+  "slides": 10,
   "status": "DRAFT — incomplete follow-up evaluation and personal/device confirmations",
   "html": "ExaMate-Technologies-VI-20261026.html",
-  "htmlSha256": "e35a252824a651e1f6103cdf9b80f38fd58c1dd104cc76045de68df2a0981f38",
+  "htmlSha256": "959c5012dd3e2de9478c2a986ee963eb0db6c497737670a740c2d89fd2e115f5",
   "assets": [
     {
       "id": "dashboard",
@@ -117,10 +117,10 @@
   "newProviderCalls": 0,
   "newApplicationAcceptance": false,
   "pdf": "ExaMate-Technologies-VI-20261026.pdf",
-  "pdfSha256": "d57a511cee04bccfaad8cc159c19954341b83947c47116e72b26c80eff819920",
+  "pdfSha256": "a00edb406132366c2f5a69c8a5b56209d9cb5e1ef1f27205c0d1a6455b121d13",
   "pptx": "ExaMate-Technologies-VI-20261026.pptx",
-  "pptxSha256": "0ab06a70133e4ffaac515311ffd688ab4748c8b0afe91577f6e538376da59da6",
+  "pptxSha256": "ac7390b8b71da63ae5e46e0a7857f62f12a61849d6abfa99107eee4d6daca8bf",
   "pptxArtwork": "raster-snapshot-from-pdf; fade transitions; editable speaker notes",
   "preview": "ExaMate-Technologies-VI-20261026-preview.jpg",
-  "previewSha256": "b3aadb980b4ed9bdb7946ced4c093e90048eb1281c38c1bea9710b569af6c01c"
+  "previewSha256": "395a594dcd1c917e75c9cff8971bcc08d56a28bfa51153a76dd2c952ad2aadfd"
 }

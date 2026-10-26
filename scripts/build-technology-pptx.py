@@ -39,8 +39,8 @@ def build() -> None:
     properties.identifier = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
     thumbnails = []
     with fitz.open(pdf_path) as document:
-        if len(document) != len(sections) or len(document) != 15:
-            raise ValueError("PDF and HTML must describe the same 15 slides")
+        if len(document) != len(sections) or len(document) != 10:
+            raise ValueError("PDF and HTML must describe the same 10 slides")
         for index, (page, section) in enumerate(zip(document, sections)):
             pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
             image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
@@ -64,12 +64,13 @@ def build() -> None:
             tile = Image.new("RGB", (504, 304), "#e5e5e0")
             thumbnail = ImageOps.contain(image, (480, 270))
             tile.paste(thumbnail, ((504 - thumbnail.width) // 2, 8))
-            ImageDraw.Draw(tile).text((12, 282), f"{index + 1:02} / 15", fill="#191b1e")
+            ImageDraw.Draw(tile).text((12, 282), f"{index + 1:02} / {len(sections)}", fill="#191b1e")
             thumbnails.append(tile)
     presentation.save(output / f"{stem}.pptx")
-    preview = Image.new("RGB", (1512, 1520), "#dededb")
+    columns = 2
+    preview = Image.new("RGB", (504 * columns, 304 * ((len(sections) + columns - 1) // columns)), "#dededb")
     for index, image in enumerate(thumbnails):
-        preview.paste(image, ((index % 3) * 504, (index // 3) * 304))
+        preview.paste(image, ((index % columns) * 504, (index // columns) * 304))
     preview.save(output / f"{stem}-preview.jpg", quality=88)
     manifest_path = output / "technology-deck-manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -81,7 +82,7 @@ def build() -> None:
         "previewSha256": hashlib.sha256((output / f"{stem}-preview.jpg").read_bytes()).hexdigest(),
     })
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
-    print("Built layout-preserving PPTX: 15 slides with Vietnamese speaker notes; HTML is editable source.")
+    print(f"Built layout-preserving PPTX: {len(sections)} slides with Vietnamese speaker notes; HTML is editable source.")
 
 
 if __name__ == "__main__":

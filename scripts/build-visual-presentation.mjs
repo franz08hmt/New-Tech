@@ -135,6 +135,11 @@ if (technology) html = html.replace(/\r\n/g, "\n");
 if (/\[\[|<!-- (STYLES|SCRIPT|LICENSES) -->/.test(html))
   throw new Error("Unresolved template");
 writeFileSync(destination, html);
+const slideCount = technology
+  ? (html.match(/class="slide tech\b/g) ?? []).length
+  : 15;
+if (technology && (slideCount < 1 || slideCount > 15))
+  throw new Error("Invalid technology slide count");
 writeFileSync(
   resolve(
     root,
@@ -151,8 +156,8 @@ writeFileSync(
       ...(technology
         ? {
             language: "vi",
-            sourceCheckpoint: "69eab36",
-            visualRevision: "interactive-v2",
+            sourceCheckpoint: "761cf77",
+            visualRevision: "compact-interactive-v3",
             knowledge: knowledge.path.split(/[\\/]/).at(-1),
             knowledgeSha256: hash(knowledge.html),
             logos: logoManifest.records.map(({ id, sha256 }) => ({
@@ -161,7 +166,7 @@ writeFileSync(
             })),
           }
         : {}),
-      slides: 15,
+      slides: slideCount,
       status:
         "DRAFT — incomplete follow-up evaluation and personal/device confirmations",
       html: destination.split(/[\\/]/).at(-1),
@@ -174,4 +179,6 @@ writeFileSync(
     2,
   )}\n`,
 );
-console.log(`Built 15-slide offline HTML (${Buffer.byteLength(html)} bytes)`);
+console.log(
+  `Built ${slideCount}-slide offline HTML (${Buffer.byteLength(html)} bytes)`,
+);

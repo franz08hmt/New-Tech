@@ -2,7 +2,19 @@
 
 ## Vietnamese technology deck - 26 October 2026
 
-Interactive revision on `69eab36`: main slides were shortened and recomposed into
+Compact revision on `761cf77`: 10 slides now cover all 15 topics by merging
+architecture/backend, Auth/database, PDF/RAG, structured output/practice and
+SSE/STT. Existing interaction controls and all topic notes are retained; the
+knowledge companion still has fifteen full sections. PDF/PPTX and contact sheet
+are regenerated at ten pages. No application/runtime change or new acceptance.
+
+Compact-edition checks: 21 Node deck tests, 4 exported-artifact/companion tests,
+50 Chrome slide/width checks, 31 native interaction checks and 3 companion checks
+passed. Merged speaking-note bounds were checked in overview mode; no overlap.
+Two new regressions were RED on the preceding 15-slide edition. Knowledge
+content remains unchanged. Evidence: ignored `artifacts/technology-compact-20261026/`.
+
+Earlier interactive revision on `69eab36`: main slides were shortened and recomposed into
 15 distinct visual layouts with 14 pinned brand SVGs, bounded scene playback,
 manual steps, RAG/role switches, flip-card and SSE/waveform illustrations. All
 simulations are offline and labelled; global pause/reduced motion and cleanup on

@@ -15,11 +15,11 @@ function open() {
   });
 }
 
-test("Vietnamese technology edition has 15 semantic slides and speaking notes", () => {
+test("Vietnamese technology edition has 10 semantic slides and speaking notes", () => {
   const dom = open();
   const d = dom.window.document;
   assert.equal(d.documentElement.lang, "vi");
-  assert.equal(d.querySelectorAll("main > section").length, 15);
+  assert.equal(d.querySelectorAll("main > section").length, 10);
   assert.equal(d.querySelectorAll("h1").length, 1);
   assert.equal(d.querySelectorAll("div").length, 0);
   for (const s of d.querySelectorAll("main > section")) {
@@ -54,7 +54,9 @@ test("technology choices carry reasons and explicit trade-offs", () => {
     "controls",
     "deployment",
   ]) {
-    const slide = dom.window.document.getElementById(id);
+    const slide = dom.window.document.querySelector(
+      `main>section[data-topics~="${id}"]`,
+    );
     assert.ok(slide, id);
     assert.ok(
       knowledge.sections
@@ -75,7 +77,9 @@ test("technology choices carry reasons and explicit trade-offs", () => {
 test("RAG, SSE, STT and practice preserve actual project boundaries", () => {
   const dom = open();
   const text = (id) =>
-    dom.window.document.getElementById(id).textContent.replace(/\s+/g, " ");
+    dom.window.document
+      .querySelector(`main>section[data-topics~="${id}"]`)
+      .textContent.replace(/\s+/g, " ");
   assert.match(text("rag"), /không.*fine-tune/i);
   assert.match(text("rag"), /citation.*không.*đúng/i);
   assert.match(text("stream"), /General.*delta/);
@@ -97,7 +101,16 @@ test("retained screenshots and embedded fonts have precise provenance", () => {
     ),
   );
   const figures = [...d.querySelectorAll("figure[data-evidence]")];
-  assert.ok(figures.length >= 9);
+  assert.deepEqual(figures.map((f) => f.dataset.evidence).sort(), [
+    "courses",
+    "dashboard",
+    "history",
+    "mobile",
+    "quiz",
+    "rag",
+    "speech",
+    "usage",
+  ]);
   for (const figure of figures) {
     const record = provenance.records.find(
       (r) => r.id === figure.dataset.evidence,
@@ -123,7 +136,7 @@ test("navigation, notes and overview work without application services", () => {
   d.querySelector("[data-next]").click();
   assert.equal(dom.window.location.hash, "#architecture");
   d.querySelector("[data-overview]").click();
-  assert.equal(d.querySelectorAll("main>section:not([hidden])").length, 15);
+  assert.equal(d.querySelectorAll("main>section:not([hidden])").length, 10);
   d.querySelector("[data-notes]").click();
   assert.equal(d.body.classList.contains("with-notes"), true);
   assert.equal(
@@ -145,7 +158,7 @@ test("new artifact is bound separately from the original deck", () => {
     ),
   );
   assert.equal(manifest.language, "vi");
-  assert.equal(manifest.slides, 15);
+  assert.equal(manifest.slides, 10);
   assert.equal(manifest.newProviderCalls, 0);
   assert.equal(manifest.newApplicationAcceptance, false);
   assert.equal(

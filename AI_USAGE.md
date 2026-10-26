@@ -1,5 +1,26 @@
 # AI Assistance Log
 
+## 2026-10-26 - compact ten-slide technology edition
+
+At the user's request, AI merged related topics from fifteen to ten slides while
+retaining all fifteen subject mappings, speaking notes and the full knowledge
+companion. Architecture/backend, Auth/database, PDF/RAG, structured output/practice
+and SSE/STT are paired. Eight retained screenshots support the shorter visual
+route; existing screenshot assets remain preserved. Interactions and font sizes
+are retained rather than shrinking everything to fit. Speaker notes now grow
+with their content in screen mode; print keeps the intended static 16:9 layout.
+
+Two new compact-edition assertions were RED against the fifteen-page version,
+then GREEN after merging. Test expectations explicitly map every original topic
+to its new slide instead of dropping coverage. Original English slides and app,
+runtime, environment, provider and database are unchanged. No cloud/paid call.
+
+Final authoring checks passed: 21 Node, 4 PDF/PPTX/companion, 50 browser layouts,
+31 native interactions and 3 companion checks, with zero console/external requests.
+An initial syntax typo in the new note-boundary probe failed that harness; after
+correction it verifies merged notes do not overlap the following slide. Logs
+are retained. Only owned browser/static servers were closed; no container/DB created.
+
 ## 2026-10-26 - visual technology storytelling and offline interactions
 
 At the user's request, AI replaced the repeated text/image composition with
