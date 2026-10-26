@@ -192,11 +192,21 @@
               data-reset-scene=""
               type="button"
             >
-              [[icon:ArrowPath]]</button
-            ><output aria-live="polite" data-scene-status="" role="status"
+              [[icon:ArrowPath]]
+            </button>
+          </footer>
+          <article class="scene-explanation scene-wide">
+            <p class="scene-step-label" data-scene-heading="">
+              Bước 1 / 4 · React
+            </p>
+            <output
+              aria-live="polite"
+              class="scene-spotlight"
+              data-scene-status=""
+              role="status"
               >Người dùng thao tác; browser không giữ server key.</output
             >
-          </footer>
+          </article>
         </section>
         <p class="diagram-caption">
           Minh họa luồng · không kết nối ứng dụng hoặc gọi AI.
@@ -475,24 +485,30 @@
               data-reset-scene=""
               type="button"
             >
-              [[icon:ArrowPath]]</button
-            ><output aria-live="polite" data-scene-status="" role="status"
-              >Embedding câu hỏi trong scope đã authorize.</output
-            >
+              [[icon:ArrowPath]]
+            </button>
           </footer>
-        </section>
-        <section class="rag-proof">
-          <figure class="evidence" data-evidence="rag">
-            <img alt="Ảnh demo ExaMate: rag" src="[[image:rag]]" />
-            <figcaption>
-              Ảnh đã lưu · Nest/PDF.js/PG17 thật; Auth, Storage và provider
-              synthetic. Không phải output live mới.
-            </figcaption>
-          </figure>
-          <p class="key-takeaway">
-            RAG không fine-tune.<br />Citation hợp lệ không tự chứng minh claim
-            đúng.
-          </p>
+          <section class="rag-proof">
+            <figure class="evidence" data-evidence="rag">
+              <img alt="Ảnh demo ExaMate: rag" src="[[image:rag]]" />
+              <figcaption>
+                Ảnh đã lưu · Nest/PDF.js/PG17 thật; Auth, Storage và provider
+                synthetic. Không phải output live mới.
+              </figcaption>
+            </figure>
+            <article class="scene-explanation">
+              <p class="scene-step-label" data-scene-heading="">
+                Bước 1 / 4 · Câu hỏi
+              </p>
+              <output
+                aria-live="polite"
+                class="scene-spotlight"
+                data-scene-status=""
+                role="status"
+                >Embedding câu hỏi trong scope đã authorize.</output
+              >
+            </article>
+          </section>
         </section>
         <aside class="speaker" lang="vi">
           <h3>Lời thuyết trình và điểm chỉ code</h3>
@@ -501,11 +517,12 @@
             đúng quyền rồi mới yêu cầu model trả lời. Embedding dùng để so liên
             quan, generation mới viết answer. Ngưỡng 0,55 là source default,
             không 55% accuracy; runtime có thể khác. Citation map ID về
-            document/page trên server, nhưng claim grounding còn phải đối
-            chiếu.” Thắng có đóng góp RAG đã được Tài xác nhận, không gán riêng
-            toàn bộ cho một người. Code: rag-retrieval.service.ts,
-            rag-context.ts, source-markers.ts, prompt-registry.ts. Hỏi ngoài PDF
-            có thể tốn query embedding nhưng không answer generation.
+            document/page trên server. Citation hợp lệ không tự chứng minh claim
+            đúng; claim grounding còn phải đối chiếu.” Thắng có đóng góp RAG đã
+            được Tài xác nhận, không gán riêng toàn bộ cho một người. Code:
+            rag-retrieval.service.ts, rag-context.ts, source-markers.ts,
+            prompt-registry.ts. Hỏi ngoài PDF có thể tốn query embedding nhưng
+            không answer generation.
           </p>
           <h3>Phần đã gộp: PDF trở thành bằng chứng có thể tìm.</h3>
           <p>

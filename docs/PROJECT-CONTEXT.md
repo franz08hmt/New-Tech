@@ -33,6 +33,17 @@ chuỗi 001–025). Bằng chứng ignored: `artifacts/ui-fix-20261026/`.
 
 ## Vietnamese technology deck - 26 October 2026
 
+Guided-step readability update on `88f3c40`: architecture and RAG now display
+their active explanation as large dark text, outside the control row; RAG uses
+the area beside the screenshot. Both label and content follow step/play/reset
+and refusal selection. Notes retain the fixed caveats. The ten-page PDF/PPTX
+were regenerated. New checks: 2 regressions RED before the change, then 23 Node
+and 4 Python tests PASS; 50 Chrome layout checks, 35 native interactions at
+1440/375px, 3 companion checks and note bounds passed, with zero console errors
+or external requests. Evidence: `artifacts/technology-explanation-20261026/` and
+`artifacts/technology-deck-20261026/93e8d7a6/`. Presentation-only change; no new
+application, DB, live-model or semantic acceptance.
+
 Compact revision on `761cf77`: 10 slides now cover all 15 topics by merging
 architecture/backend, Auth/database, PDF/RAG, structured output/practice and
 SSE/STT. Existing interaction controls and all topic notes are retained; the

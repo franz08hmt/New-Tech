@@ -1,5 +1,29 @@
 # AI Assistance Log
 
+## 2026-10-26 - prominent explanations for guided technology slides
+
+At the user's request, Codex moved the active-step explanation out of the small
+muted control row on both guided slides (architecture and RAG). RAG uses the
+space beside its retained demo image; architecture has a separate explanation
+panel below its controls. Large dark text and a numbered label update through
+node selection, Next, Reset, Play and the no-evidence scenario. Static caveats
+are retained in speaking notes and the unchanged knowledge companion. PDF/PPTX
+were regenerated as static ten-slide exports. Application, API, DB, credentials
+and provider configuration were not changed; newer commits through `88f3c40`
+were preserved.
+
+Two tracked regressions were observed RED before implementation; the complete
+deck checks then passed: 23 Node tests, 4 Python artifact tests, 50 Chrome
+slide/width checks, 35 native interactions at 1440/375px, 3 companion checks and
+merged-note bounds. Chrome reported zero console errors/external requests.
+The initial new browser assertion compared computed RGB against a CSS hex token;
+it was corrected to the expected computed color, and the browser run was repeated.
+Screenshot capture now waits for finite entrance animations to finish. Raw RED,
+GREEN and browser logs remain ignored in
+`artifacts/technology-explanation-20261026/`; final browser evidence is
+`artifacts/technology-deck-20261026/93e8d7a6/`. These are document checks, not
+application, live-model or semantic acceptance. No model call was made.
+
 ## 2026-10-26 - page-jump fix, display language and member management
 
 At the user's request, AI (Claude Code) diagnosed two Firefox recordings and fixed

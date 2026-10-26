@@ -30,6 +30,12 @@
       scene.dataset.case === "empty"
         ? "Không đủ bằng chứng → từ chối; không gọi generation."
         : nodes[index].dataset.message;
+    scene.querySelector("[data-scene-heading]").textContent =
+      `Bước ${index + 1} / ${nodes.length} · ${
+        scene.dataset.case === "empty"
+          ? "Không đủ bằng chứng"
+          : nodes[index].querySelector("strong").textContent
+      }`;
     const next = scene.querySelector("[data-next-step]");
     next.disabled = index === nodes.length - 1;
   }

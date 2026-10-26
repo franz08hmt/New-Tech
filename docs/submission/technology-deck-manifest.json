@@ -67,7 +67,7 @@
   "slides": 10,
   "status": "DRAFT — incomplete follow-up evaluation and personal/device confirmations",
   "html": "ExaMate-Technologies-VI-20261026.html",
-  "htmlSha256": "959c5012dd3e2de9478c2a986ee963eb0db6c497737670a740c2d89fd2e115f5",
+  "htmlSha256": "a631a4df6d43169824015c40738e3c9f02472cb498a6b815edd4943c63f9a572",
   "assets": [
     {
       "id": "dashboard",
@@ -117,10 +117,10 @@
   "newProviderCalls": 0,
   "newApplicationAcceptance": false,
   "pdf": "ExaMate-Technologies-VI-20261026.pdf",
-  "pdfSha256": "a00edb406132366c2f5a69c8a5b56209d9cb5e1ef1f27205c0d1a6455b121d13",
+  "pdfSha256": "3e9cbbe0ffbda6f12f8de130bdaaa0097d824fe7b2fbd1a531adc98a69ebb984",
   "pptx": "ExaMate-Technologies-VI-20261026.pptx",
-  "pptxSha256": "ac7390b8b71da63ae5e46e0a7857f62f12a61849d6abfa99107eee4d6daca8bf",
+  "pptxSha256": "4db943f59c0c483d14c5664acfbe8c75201359f83970e7dfd10c1f345717c70b",
   "pptxArtwork": "raster-snapshot-from-pdf; fade transitions; editable speaker notes",
   "preview": "ExaMate-Technologies-VI-20261026-preview.jpg",
-  "previewSha256": "395a594dcd1c917e75c9cff8971bcc08d56a28bfa51153a76dd2c952ad2aadfd"
+  "previewSha256": "6114074c06f212667ecbb754ec59256d3c4ba017fe62e4cf1347eab69b50cc92"
 }

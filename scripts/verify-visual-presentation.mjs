@@ -329,6 +329,45 @@ try {
         report.interactions.push({ width, name, actual, expected });
         assert.deepEqual(actual, expected, `${width}: ${name}`);
       };
+      for (const id of ["architecture", "rag"]) {
+        await goto(id);
+        await click(`#${id} [data-next-step]`);
+        await evaluate(`Promise.all(document.getAnimations().filter(animation =>
+          animation.effect.getComputedTiming().iterations !== Infinity
+        ).map(animation => animation.finished.catch(() => {}))).then(() => true)`);
+        record(
+          `${id}: current step has a prominent dark explanation within the slide`,
+          await evaluate(`(() => {
+            const slide=document.querySelector('#${id}');
+            const scene=slide.querySelector('[data-scene]');
+            const output=scene.querySelector('[data-scene-status]');
+            const style=getComputedStyle(output);
+            const box=output.getBoundingClientRect();
+            const bounds=slide.getBoundingClientRect();
+            const node=scene.querySelectorAll('[data-node]')[Number(scene.dataset.step)];
+            return output.closest('.scene-explanation')!==null &&
+              output.closest('.scene-controls')===null &&
+              output.textContent===node.dataset.message &&
+              scene.querySelector('[data-scene-heading]').textContent.includes('2 / 4') &&
+              style.color==='rgb(25, 27, 30)' &&
+              parseFloat(style.fontSize)>=${width === 1440 ? 22 : 16} &&
+              Number(style.fontWeight)>=600 &&
+              box.left>=bounds.left && box.right<=bounds.right+1 &&
+              box.top>=bounds.top && box.bottom<=bounds.bottom+1;
+          })()`),
+        );
+        if (id === "rag") {
+          const image = await command("Page.captureScreenshot", {
+            format: "png",
+            captureBeyondViewport: false,
+          });
+          writeFileSync(
+            resolve(artifact, `large-explanation-${width}.png`),
+            Buffer.from(image.data, "base64"),
+          );
+        }
+      }
+      await click("#rag [data-reset-scene]");
       await click("#rag [data-next-step]");
       record(
         "manual step changes active node",

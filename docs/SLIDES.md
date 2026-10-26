@@ -34,6 +34,11 @@ CC0 license material under `docs/presentation/assets/logos/`; trademarks remain
 with their owners and no endorsement is claimed.
 
 HTML: open directly, use arrows, **Tổng quan**, **Lời nói** and **Dừng hoạt ảnh**.
+Architecture and RAG show the current step in a large, dark explanation panel,
+separate from the controls. In RAG it occupies the space beside the demo image;
+on mobile it stacks below. Clicking a node, Next, Reset or Play updates both the
+step label and explanation. The former fixed RAG caveats remain in speaker notes
+and the companion rather than competing with the active step.
 Use **Chạy luồng / Bước tiếp**, RAG evidence switches, role buttons, flip card and
 stream Stop to illustrate the implementation. These never call the application,
 AI, microphone or provider; they are explicitly labelled simulations. Reduced
@@ -49,7 +54,7 @@ Edit `technology.html`, `technology-visual.css` and `technology-motion.js` under
 
 ```powershell
 node scripts/build-visual-presentation.mjs --technology
-node --test scripts/technology-compact.test.mjs scripts/technology-motion.test.mjs scripts/technology-presentation.test.mjs scripts/visual-presentation.test.mjs
+node --test scripts/technology-explanation.test.mjs scripts/technology-compact.test.mjs scripts/technology-motion.test.mjs scripts/technology-presentation.test.mjs scripts/visual-presentation.test.mjs
 node scripts/verify-visual-presentation.mjs --technology
 python scripts/build-technology-pptx.py
 python -m unittest discover -s scripts -p test_technology_presentation.py
@@ -62,6 +67,14 @@ Auth or database is accessed. Raw evidence: ignored
 `artifacts/technology-deck-20261026/`. Screenshot and educational-quality limits
 remain explicit; evaluation follow-up and semantic acceptance are not completed
 by authoring these slides.
+
+Large-explanation revision: 2 new regressions were RED on the preceding layout,
+then all 23 Node deck tests and 4 Python artifact tests passed. Chrome checked
+10 slides at five widths, 35 native interactions at 1440/375px, 3 companion checks
+and note bounds; zero console errors or external requests. Evidence is retained
+in `artifacts/technology-explanation-20261026/` and
+`artifacts/technology-deck-20261026/93e8d7a6/`. This verifies only the offline
+presentation, not application or live-model acceptance.
 
 ## Recommended visual edition - 25 October 2026
 

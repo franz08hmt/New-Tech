@@ -224,11 +224,30 @@
   width: 1.15em;
   height: 1.15em;
 }
-.scene-controls output {
-  font-size: 0.64em;
-  line-height: 1.6;
+.scene-explanation {
+  min-width: 0;
+  border-left: 0.2em solid var(--yellow);
+  padding-left: 1em;
+}
+.scene-step-label {
+  margin: 0 0 0.7em;
+  font-size: 0.72em;
+  font-weight: 600;
   color: var(--muted);
-  margin-left: 0.6em;
+}
+.scene-spotlight {
+  display: block;
+  color: var(--ink);
+  font-size: 1.45em;
+  font-weight: 600;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+.scene-wide {
+  margin-top: 1.5em;
+}
+.scene-wide .scene-spotlight {
+  max-width: 42ch;
 }
 .mini-brands,
 .brand-ribbon {
@@ -1014,11 +1033,6 @@ body[data-motion="paused"] *::after {
     min-height: 42px;
     font-size: 0.8em;
   }
-  .scene-controls output {
-    flex-basis: 100%;
-    margin: 0.5em 0 0;
-    font-size: 0.8em;
-  }
   .mini-brands,
   .brand-ribbon {
     flex-wrap: wrap;
@@ -1207,9 +1221,6 @@ body[data-motion="paused"] *::after {
   .case-switch,
   .stream-lab menu {
     display: none !important;
-  }
-  .scene-controls output {
-    margin-left: 0;
   }
   .scene-nodes button {
     border: 1px solid var(--ink);
