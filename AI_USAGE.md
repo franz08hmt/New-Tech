@@ -1,5 +1,26 @@
 # AI Assistance Log
 
+## 2026-10-26 - explicit technology selection rationale for oral defense
+
+Codex checked the existing oral-study guide and technology knowledge companion.
+Reasons existed in scattered answers and the slide script but did not cover all
+choices systematically. At the user's request, a separate section now documents
+20 technology/design choices: project need, source anchor, trade-off/alternative
+and a short oral answer. It distinguishes framework/tool responsibilities,
+RAG from fine-tuning, schema from semantics, hosted identity from authorization,
+and admission from telemetry. Choices are justified for this project without
+claiming unmeasured superiority or live/semantic acceptance. No existing study
+section, question or presentation/demo script was removed. Navigation orders
+rationale, slide script and web demo as separate sections 15, 16 and 17.
+
+Document-only checks preserved all 16 existing content sections and 68 questions,
+validated the 20 new entries and their local source links, unique IDs and anchors.
+Isolated Chrome passed navigation/heading focus and no page overflow at 1440/375px,
+with no console errors or external requests. Evidence is retained in ignored
+`artifacts/present-scripts-20261026/technology-choices-validation.json` and
+`artifacts/technology-deck-20261026/e1e68429/`. HTML formatting and diff checks
+passed. No application/DB suite, provider call or new runtime acceptance is claimed.
+
 ## 2026-10-26 - slide script inside the oral-study document
 
 At the user's request, Codex copied the complete ten-slide speaking/action script

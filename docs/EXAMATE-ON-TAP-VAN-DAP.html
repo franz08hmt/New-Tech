@@ -594,8 +594,9 @@
             >12. Cả hai — quyền, số liệu, test và giới hạn</a
           ><a href="#code-map">13. Bản đồ lần code, luyện present và debug</a>
           <a href="#contracts">14. API, giới hạn &amp; từ vựng</a>
-          <a href="#slide-present-script">15. Kịch bản thuyết trình slide</a>
-          <a href="#demo-script">16. Kịch bản demo sản phẩm</a>
+          <a href="#technology-choices">15. Vì sao chọn từng công nghệ?</a>
+          <a href="#slide-present-script">16. Kịch bản thuyết trình slide</a>
+          <a href="#demo-script">17. Kịch bản demo sản phẩm</a>
         </nav>
         <p class="small" style="margin-top: 16px">
           Đọc độc lập, không cần mạng.<br />Code nằm trong các ô bấm mở.
@@ -5150,6 +5151,733 @@ npm exec --workspace @examate/api -- vitest run src/speech/local-inference-optio
             default/template và các máy có thể khác nhau; không mở file secrets
             để chứng minh. Phân công trình bày phải phản ánh đóng góp và hiểu
             biết thật, không dùng sổ tay để nhận phần chưa làm.
+          </p>
+        </section>
+        <section
+          id="technology-choices"
+          aria-labelledby="technology-choices-title"
+        >
+          <h2 id="technology-choices-title">
+            Vì sao nhóm chọn từng công nghệ?
+          </h2>
+          <p class="lead">
+            Cách trả lời: nhu cầu của ExaMate → lý do chọn → cách dùng thật
+            trong code → đánh đổi. Đây là rationale theo kiến trúc đang có,
+            không phải kết quả benchmark chứng minh stack này tốt nhất.
+          </p>
+          <p class="note">
+            Tài ưu tiên frontend, tích hợp, Study Coach và kiểm soát AI; Thắng
+            ưu tiên backend nền, SSE/STT; RAG là đóng góp chung. Nắm luồng chung
+            không đồng nghĩa nhận toàn bộ code là do mình viết. Các lựa chọn
+            dưới đây không mở thêm tính năng hoặc thay cấu hình runtime.
+          </p>
+
+          <article id="why-react">
+            <h3>1. React — vì ứng dụng có nhiều trạng thái tương tác</h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                Tasks, Documents, Assistant và Study Coach đều có form, bộ lọc,
+                loading, lỗi và kết quả bất đồng bộ. Component giúp chia màn
+                hình; hook giúp tách xử lý dữ liệu khỏi phần render.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../apps/web/src/App.tsx">App.tsx</a> ghép các màn;
+                <a href="../apps/web/src/TasksPanel.tsx">TasksPanel.tsx</a> xử
+                lý UI công việc.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                JavaScript thuần vẫn làm được nhưng phải tự quản lý nhiều cập
+                nhật DOM. React không tự giải quyết race, quyền hay state dùng
+                sai; nhóm vẫn cần abort và key/revision guard.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “Em chọn React để tổ chức các màn
+              tương tác bằng component và hook; tính đúng của dữ liệu vẫn phải
+              được kiểm soát trong lifecycle và API.”
+            </p>
+          </article>
+
+          <article id="why-typescript">
+            <h3>2. TypeScript + shared contracts — giảm lệch dữ liệu FE–BE</h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                Cả frontend và backend cùng hệ TypeScript; contract chung giúp
+                phát hiện sớm sai field, enum và response shape khi sửa một
+                luồng xuyên hai phía.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../packages/contracts/index.d.ts"
+                  >packages/contracts/index.d.ts</a
+                >; <a href="../apps/web/src/api.ts">api.ts</a> dùng các kiểu
+                chung cho client.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                Thêm bước typecheck/build và công sức giữ contract. Type bị xóa
+                khi compile; request mạng và output model vẫn cần DTO/validator
+                runtime. TypeScript không kiểm quyền hoặc RLS.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “Contract giúp hai phía cùng hiểu
+              một kiểu dữ liệu, nhưng dữ liệu nhận qua mạng vẫn phải kiểm thật.”
+            </p>
+          </article>
+
+          <article id="why-vite">
+            <h3>3. Vite — công cụ phát triển và build cho frontend</h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                Đáp ứng dev server, cập nhật khi sửa UI và tạo bundle triển
+                khai. Workspace sau đăng nhập tập trung tương tác, chưa có nhu
+                cầu SSR để phục vụ SEO công khai.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../apps/web/package.json">apps/web/package.json</a> có
+                lệnh dev/build;
+                <a href="../apps/web/vite.config.ts">vite.config.ts</a> cấu hình
+                build/plugin.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                Next.js cung cấp thêm mô hình rendering và server framework
+                nhưng không cần thêm chỉ cho nhu cầu hiện tại. Vite không thay
+                backend, session hoặc authorization của Nest.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “Vite phục vụ dev/build cho React;
+              API và quyền nghiệp vụ vẫn nằm ở NestJS.”
+            </p>
+          </article>
+
+          <article id="why-ui-system">
+            <h3>
+              4. Tailwind + CSS riêng, Poppins và Heroicons — giao diện nhất
+              quán
+            </h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                Tailwind cung cấp utility để phối layout, khoảng cách và
+                responsive. CSS riêng xử lý những cấu trúc đặc thù. Poppins
+                thống nhất typography; Heroicons cung cấp icon cùng phong cách.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../apps/web/package.json">Dependencies frontend</a>,
+                <a href="../apps/web/src/main.tsx">main.tsx</a> và CSS/component
+                trong <code>apps/web/src</code>. Tailwind là công cụ CSS, không
+                phải toàn bộ UI có sẵn.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                CSS thuần cũng đủ khả năng, nhưng nhóm phải tự giữ quy ước.
+                Utility dài và CSS riêng có thể chồng nhau; cần kiểm cascade,
+                font tiếng Việt, contrast và kích thước controls. Icon không
+                thay label, accessible name hoặc focus.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “Nhóm dùng Tailwind kết hợp CSS
+              riêng để đồng bộ giao diện; font và icon hỗ trợ đọc và nhận biết,
+              không thay logic ứng dụng.”
+            </p>
+          </article>
+
+          <article id="why-nest">
+            <h3>
+              5. Node.js + NestJS — một backend tổ chức được nghiệp vụ và AI
+            </h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                Node chạy backend JavaScript/TypeScript; Nest tổ chức module,
+                controller, guard, service và dependency injection. Phù hợp
+                nhiều luồng cùng cần Auth, workspace scope và provider wrapper.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../apps/api/src/app.module.ts">app.module.ts</a>,
+                <a href="../apps/api/src/assistant/assistant.controller.ts"
+                  >assistant.controller.ts</a
+                >
+                và các service chuyên trách.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                Express tối giản hơn nhưng phải tự giữ nhiều convention. Nest có
+                decorator/DI cần cấu hình đúng. Supabase không thay pipeline
+                RAG, kiểm output, admission hay chấm quiz. Công việc CPU nặng
+                như STT cần worker, không chỉ chạy trên event loop.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “Nest giúp nhóm tách quyền, HTTP và
+              nghiệp vụ; không gom toàn bộ AI pipeline vào controller.”
+            </p>
+          </article>
+
+          <article id="why-postgres">
+            <h3>6. PostgreSQL — dữ liệu quan hệ, transaction và RLS</h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                Workspace, membership, course, task và lượt làm có quan hệ; SQL,
+                constraint và transaction phù hợp bảo đảm nhất quán. RLS bổ sung
+                lớp kiểm soát ở database.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../apps/api/src/database/database.service.ts"
+                  >database.service.ts</a
+                >: <code>workspaceTransaction</code>; schema và policy ở
+                migrations.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                Database tài liệu cũng lưu được dữ liệu nhưng không phải lý do
+                để bỏ quan hệ/transaction đang cần. PostgreSQL đòi migration,
+                index và quản lý connection. RLS chỉ có ý nghĩa khi runtime
+                không là owner/BYPASSRLS và context được đặt đúng.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “PostgreSQL phù hợp dữ liệu học tập
+              có quan hệ và các write cần nguyên tử; nhóm dùng cả SQL scope lẫn
+              RLS.”
+            </p>
+          </article>
+
+          <article id="why-pgvector">
+            <h3>
+              7. pgvector + embedding — tìm đoạn theo độ liên quan ngữ nghĩa
+            </h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                Câu hỏi có thể khác từ ngữ của PDF. Embedding biểu diễn đoạn và
+                câu hỏi thành vector; pgvector cho phép tìm gần nhau ngay trong
+                PostgreSQL cùng metadata và tenant scope.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../apps/api/src/assistant/gemini-embedding.service.ts"
+                  >gemini-embedding.service.ts</a
+                >
+                và
+                <a href="../apps/api/src/assistant/rag-retrieval.service.ts"
+                  >rag-retrieval.service.ts</a
+                >; đường hiện tại dùng vector 768 chiều và lọc scope trước
+                LIMIT.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                Không cần thêm vector database riêng cho phạm vi hiện tại.
+                Vector có chi phí tạo/lưu, có thể bỏ sót evidence; exact keyword
+                search vẫn là cơ chế khác. Cosine score không phải xác suất đáp
+                án đúng; không nhận đã benchmark ANN ở quy mô lớn.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “pgvector giúp tìm evidence cùng
+              database đang có, nhưng độ gần vector không thay kiểm tra nguồn và
+              nội dung.”
+            </p>
+          </article>
+
+          <article id="why-auth">
+            <h3>
+              8. Supabase Auth + Google OAuth — tái sử dụng xác minh danh tính
+            </h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                Không tự xây hệ thống mật khẩu hay OAuth provider. Supabase Auth
+                tích hợp Google; ứng dụng vẫn quản lý phiên và quyền vào
+                workspace theo contract hiện hành.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../apps/api/src/auth/auth.service.ts"
+                  >auth.service.ts</a
+                >,
+                <a href="../apps/api/src/auth/auth.guard.ts">auth.guard.ts</a>
+                và
+                <a href="../apps/web/src/use-pilot-session.ts"
+                  >use-pilot-session.ts</a
+                >.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                Phụ thuộc dịch vụ và cấu hình callback/redirect. Google login
+                thành công không tự cấp membership. Browser dùng cookie phiên
+                opaque HttpOnly; vẫn cần Origin/CSRF cho write và xử lý
+                expiry/role hiện hành. Hosted Auth không thay authorization.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “Supabase/Google xác minh danh
+              tính; ExaMate quyết định quyền workspace và dữ liệu cá nhân.”
+            </p>
+          </article>
+
+          <article id="why-storage">
+            <h3>9. Supabase private Storage — tách PDF gốc khỏi bản ghi SQL</h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                PDF là file nhị phân; Storage giữ file, PostgreSQL giữ metadata,
+                scope, trạng thái xử lý và chunk. Không đưa toàn bộ bytes PDF
+                vào từng bản ghi nghiệp vụ hoặc bundle frontend.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../apps/api/src/documents/documents.service.ts"
+                  >documents.service.ts</a
+                >
+                và
+                <a href="../apps/web/src/SourcePreview.tsx"
+                  >SourcePreview.tsx</a
+                >
+                nối quyền đọc với preview.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                File và DB là hai hệ thống, phải xử lý upload/lỗi/trạng thái
+                nhất quán. Bucket private không tự chứng minh mọi API đã đúng
+                quyền. URL tải ngắn hạn chỉ cấp sau kiểm quyền hiện tại; không
+                lưu URL cũ làm nguồn lịch sử lâu dài.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “Storage giữ PDF, DB giữ metadata
+              và quyền; mở nguồn phải xin URL mới qua API có kiểm quyền.”
+            </p>
+          </article>
+
+          <article id="why-pdf-chunks">
+            <h3>
+              10. PDF.js + chunk theo trang — giữ liên kết giữa nội dung và
+              nguồn
+            </h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                Trích text và số trang từ PDF giúp tạo evidence và mở citation
+                đúng trang. Chia đoạn giới hạn context; overlap giảm mất ý ở
+                ranh giới đoạn.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a
+                  href="../apps/api/src/documents/document-ingestion.service.ts"
+                  >document-ingestion.service.ts</a
+                >
+                và
+                <a href="../apps/api/src/documents/document-chunker.ts"
+                  >document-chunker.ts</a
+                >.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                Chunk nhỏ có thể thiếu ngữ cảnh, chunk lớn tăng nhiễu và chi
+                phí. PDF scan có thể không có text hữu ích; PDF.js không tự là
+                OCR. OCR là đường có điều kiện/cấu hình riêng, không suy ra đang
+                bật hoặc miễn phí. Không cam kết bao phủ mọi trang.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “Nhóm giữ mapping trang khi trích
+              và chia đoạn để đáp án có thể được đối chiếu lại trên PDF.”
+            </p>
+          </article>
+
+          <article id="why-gemini">
+            <h3>
+              11. Gemini qua SDK wrapper — generation và structured output
+            </h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                Đáp ứng generation và structured output trong tích hợp đang có.
+                Embedding dùng wrapper riêng; cùng luồng admission, timeout và
+                telemetry giúp quan sát các provider calls.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../apps/api/src/assistant/gemini.service.ts"
+                  >gemini.service.ts</a
+                >,
+                <a href="../apps/api/src/assistant/prompt-registry.ts"
+                  >prompt-registry.ts</a
+                >
+                và wrapper embedding. Generation, embedding và OCR không mặc
+                nhiên cùng model.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                Cần mạng, chịu quota, latency, chi phí và lỗi provider. Chưa có
+                so sánh đủ để nhận Gemini là tốt nhất hoặc rẻ nhất. Chọn model
+                phải theo cấu hình/bằng chứng tương ứng; không đổi model để hợp
+                thức hóa kết quả evaluation cũ.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “Nhóm chọn Gemini vì phù hợp các
+              luồng đã tích hợp; wrapper giúp kiểm soát call, không bảo đảm
+              model luôn đúng.”
+            </p>
+          </article>
+
+          <article id="why-rag">
+            <h3>
+              12. RAG — đưa evidence hiện hành vào câu trả lời, không train lại
+              model
+            </h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                Cần hỏi theo PDF người dùng có quyền đọc, cập nhật được nguồn và
+                đối chiếu trang. Retrieval đưa evidence vào context có giới hạn
+                thay vì yêu cầu model nhớ riêng thư viện của nhóm.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../apps/api/src/assistant/rag-retrieval.service.ts"
+                  >rag-retrieval.service.ts</a
+                >
+                và
+                <a href="../apps/api/src/assistant/assistant.service.ts"
+                  >assistant.service.ts</a
+                >.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                Không thay RAG bằng fine-tuning chỉ để thêm PDF; hai cơ chế phục
+                vụ mục tiêu khác nhau. Retrieval có thể thiếu/nhiễu, tài liệu có
+                injection; thiếu evidence thì từ chối. Citation đúng ID/trang
+                không tự chứng minh claim đúng hoặc đầy đủ.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “Nhóm lấy evidence đúng quyền rồi
+              mới generation; không fine-tune và không dùng citation thay kiểm
+              chứng nội dung.”
+            </p>
+          </article>
+
+          <article id="why-structured">
+            <h3>
+              13. JSON schema + server validator — đầu ra AI trở thành dữ liệu
+              dùng được
+            </h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                Quiz và flashcards cần field, số lượng và kiểu dữ liệu cụ thể để
+                render, lưu và luyện tập; một đoạn văn tự do không đủ contract
+                cho những thao tác này.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../apps/api/src/study-coach/study-quiz-validation.ts"
+                  >study-quiz-validation.ts</a
+                >,
+                <a
+                  href="../apps/api/src/study-coach/study-flashcards-validation.ts"
+                  >study-flashcards-validation.ts</a
+                >
+                và các service Study Coach.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                Schema giới hạn biểu đạt và output có thể bị reject. SDK schema
+                mode không thay validator server: kiểm unknown fields, trùng
+                câu/thẻ, số lượng và source IDs. Không tự repair bằng vòng LLM;
+                preview và confirm riêng giữ quyền quyết định của user.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “Structured output tạo shape dùng
+              được, validator kiểm contract; chất lượng kiến thức vẫn cần review
+              riêng.”
+            </p>
+          </article>
+
+          <article id="why-sse">
+            <h3>
+              14. SSE qua fetch — phản hồi một chiều, có POST body và hủy chờ
+            </h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                Trong một lần hỏi, server chủ yếu gửi tiến độ và text về client.
+                SSE phù hợp luồng một chiều; fetch hỗ trợ body POST, headers
+                CSRF và đọc ReadableStream.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../apps/web/src/assistant-stream.ts"
+                  >assistant-stream.ts</a
+                >
+                và
+                <a href="../apps/api/src/assistant/assistant.controller.ts"
+                  >assistant.controller.ts</a
+                >.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                WebSocket phù hợp khi cần trao đổi hai chiều lâu dài, nhưng bài
+                toán hiện tại chưa cần. Phải parse frame bị chia, kiểm
+                stale/abort và chống proxy buffer. General phát delta; RAG giữ
+                nội dung trả lời tới khi validator xong. Cancel không bảo đảm
+                upstream chưa xử lý hoặc chưa tính phí.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “SSE phục vụ output một chiều; nhóm
+              dùng fetch vì cần POST và headers, không bắt buộc dùng
+              EventSource.”
+            </p>
+          </article>
+
+          <article id="why-stt">
+            <h3>
+              15. Whisper + ONNX + FFmpeg — nhập câu hỏi bằng giọng nói có kiểm
+              soát
+            </h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                Whisper pretrained phục vụ speech-to-text; ONNX chạy inference
+                trên máy API, không cần gọi dịch vụ STT trả phí. FFmpeg chuẩn
+                hóa audio cho pipeline thay vì tin mọi định dạng ghi từ browser.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../apps/api/src/speech/local-speech-runtime.ts"
+                  >local-speech-runtime.ts</a
+                >,
+                <a href="../apps/api/src/speech/audio-inspector.ts"
+                  >audio-inspector.ts</a
+                >
+                và
+                <a href="../apps/web/src/SpeechInput.tsx">SpeechInput.tsx</a>.
+                Thắng phụ trách chính.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                Không có phí API STT không đồng nghĩa không tốn CPU/RAM/thời
+                gian hoặc chắc nhận dạng đúng. Audio từ browser gửi tới API
+                host, không phải inference ngay trong browser. Có giới
+                hạn/timeout; user xem và sửa transcript trước tự gửi. Chỉ STT,
+                không TTS; các phần Supabase/Gemini vẫn cần mạng.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “Whisper nhận dạng, ONNX chạy model
+              và FFmpeg chuẩn hóa audio; người học kiểm bản chép trước khi gửi.”
+            </p>
+          </article>
+
+          <article id="why-docker">
+            <h3>
+              16. Docker Compose — đóng gói và khởi động các thành phần nhất
+              quán
+            </h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                Đóng gói dependency và lệnh chạy frontend/API, mô tả services,
+                network và healthcheck trong một cấu hình; giảm bước dựng môi
+                trường thủ công khi demo.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../compose.yaml">compose.yaml</a> và Dockerfile của
+                từng app. Bản dùng dịch vụ thật khác stack synthetic dùng kiểm
+                thử.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                Cần Docker và tài nguyên máy; build/image không tự làm dữ liệu
+                bền hay làm cloud offline. DB/Storage giữ dữ liệu; secrets nằm
+                ngoài Git/image. Container healthy không tự chứng minh Google
+                login hoặc Gemini generation vừa hoạt động.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “Compose đóng gói cách chạy app; dữ
+              liệu bền, credential và dịch vụ ngoài vẫn có trách nhiệm riêng.”
+            </p>
+          </article>
+
+          <article id="why-nginx-tls">
+            <h3>17. nginx + TLS/CA — reverse proxy và kết nối được xác minh</h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                nginx phục vụ frontend build và proxy API qua đường dẫn của ứng
+                dụng. Cấu hình stream tránh giữ buffer. TLS và CA dùng để xác
+                minh kết nối tới database, không chỉ mã hóa mà bỏ kiểm danh
+                tính.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../infra/nginx/default.conf"
+                  >infra/nginx/default.conf</a
+                >
+                và cấu hình database/TLS của runtime.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                Proxy thêm một tầng cần giữ đúng Origin, trusted forwarding,
+                timeout và buffering. Local HTTP của demo không có nghĩa mọi
+                chặng là HTTPS; không nhận đã public Internet. Không tắt xác
+                minh TLS khi thiếu CA để vượt lỗi.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “nginx nối frontend với API và giữ
+              SSE đúng cách; TLS/CA bảo vệ chặng kết nối được cấu hình, không
+              thay Auth.”
+            </p>
+          </article>
+
+          <article id="why-testing">
+            <h3>
+              18. Vitest, Testing Library, Nest HTTP và PG17 — kiểm theo từng
+              ranh giới
+            </h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                Vitest kiểm logic TypeScript; Testing Library kiểm hành vi
+                component theo thao tác/accessible role. Nest HTTP và PostgreSQL
+                disposable kiểm validation, transaction, RLS và quyền thật.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../apps/web/src/StudyCoachPanel.test.tsx"
+                  >StudyCoachPanel.test.tsx</a
+                >,
+                <a href="../apps/web/src/use-paged-search.test.tsx"
+                  >use-paged-search.test.tsx</a
+                >
+                và bộ test database trong <code>apps/api/test</code>.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                Integration DB tốn setup và thời gian, nhưng mock service không
+                chứng minh RLS. Fixture SDK kiểm đường runtime, không chứng minh
+                model hiểu đúng PDF. Browser kiểm tương tác/layout; semantic
+                review và evaluation live là mức bằng chứng khác.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “Nhóm chọn test theo ranh giới lỗi
+              cần bắt; không lấy unit tests xanh thay cho browser hoặc chất
+              lượng AI.”
+            </p>
+          </article>
+
+          <article id="why-admission-telemetry">
+            <h3>19. Admission + telemetry riêng — chặn trước, quan sát sau</h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                Một thao tác có thể gọi embedding và generation. Admission quản
+                lý quota/concurrency trước dispatch; telemetry theo dõi
+                operation, calls, usage và outcome sau thực thi. Hai nhiệm vụ
+                khác nhau.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../apps/api/src/assistant/ai-admission.service.ts"
+                  >ai-admission.service.ts</a
+                >,
+                <a href="../apps/api/src/assistant/ai-usage.service.ts"
+                  >ai-usage.service.ts</a
+                >
+                và dashboard manager.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                Chỉ ghi log sau không ngăn chi phí đã phát sinh. Telemetry
+                best-effort không là billing ledger; thiếu usage/pricing là
+                unknown, không là miễn phí. Admission cần fail closed; dashboard
+                đọc không được tự phát sinh provider call.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “Quota dùng cơ chế chặn trước;
+              dashboard báo dữ liệu quan sát được sau, không dùng chi phí ước
+              tính để giả hóa đơn.”
+            </p>
+          </article>
+
+          <article id="why-lifecycle">
+            <h3>
+              20. Abort, epoch/revision và idempotency — đúng lượt, đúng người,
+              không ghi trùng
+            </h3>
+            <dl>
+              <dt>Vì sao chọn?</dt>
+              <dd>
+                Người dùng có thể đổi query, tài khoản hoặc hội thoại khi
+                request đang chờ; response cũng có thể mất sau COMMIT. Cần phân
+                biệt kết quả cũ và logical write hiện tại thay vì tin thứ tự
+                mạng.
+              </dd>
+              <dt>Dùng ở đâu?</dt>
+              <dd>
+                <a href="../apps/web/src/use-assistant.ts">use-assistant.ts</a>,
+                <a href="../apps/web/src/use-paged-search.ts"
+                  >use-paged-search.ts</a
+                >
+                và
+                <a href="../apps/api/src/study-coach/study-coach.service.ts"
+                  >study-coach.service.ts</a
+                >.
+              </dd>
+              <dt>Đánh đổi / phương án khác</dt>
+              <dd>
+                State machine và recovery phức tạp hơn chỉ disable nút. Abort
+                không tự ngăn callback cũ; FE lock không thay idempotency ở DB.
+                Outcome unknown không đồng nghĩa write thất bại: giữ
+                identity/key/payload, đối chiếu theo contract và không tự gọi AI
+                lại.
+              </dd>
+            </dl>
+            <p class="pitch">
+              <strong>Trả lời ngắn:</strong> “Abort giảm công việc thừa,
+              revision kiểm quyền apply response; idempotency bảo vệ một logical
+              write khi cùng request phải được khôi phục.”
+            </p>
+          </article>
+
+          <h3>Nếu thầy hỏi: “Sao không chọn công nghệ khác?”</h3>
+          <p>
+            “Nhóm chọn theo nhu cầu và khả năng tích hợp của ExaMate: giao diện
+            riêng tư nhiều tương tác, dữ liệu quan hệ có scope, hỏi PDF có nguồn
+            và đầu ra luyện tập có cấu trúc. Phương án khác vẫn có thể phù hợp;
+            nhóm chưa có benchmark để nói stack này tốt nhất. Em xin chỉ cách
+            dùng thật và đánh đổi ở module em làm.”
+          </p>
+          <p class="small">
+            Đối chiếu source fd92b15 và sổ tay công nghệ hiện có ngày
+            26/10/2026. Đây là nội dung ôn rationale; không phải lần chạy
+            benchmark, xác minh lại model/cloud hay nghiệm thu thêm một
+            capability.
           </p>
         </section>
         <section
