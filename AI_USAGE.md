@@ -1,5 +1,38 @@
 # AI Assistance Log
 
+## 2026-10-26 - page-jump fix, display language and member management
+
+At the user's request, AI (Claude Code) diagnosed two Firefox recordings and fixed
+the page jumping at its source: returning to a tab re-verified the session through
+a visible `verifying` state that hid the whole workspace, and lists/Documents were
+swapped for a loading message on every re-read. Verification is now a background
+step (only `401`, no access or expiry lock the screen) and a list keeps its rows
+while the same filter is re-read. API, database and contracts are unchanged. The
+older tests that asserted "hide while checking" were rewritten for the new
+behaviour; the trade-off is recorded as ADR-015. Commit `9c8a18b`.
+
+A VI/EN switch for the interface was added (`aad9b30`, ADR-016). It changes page
+names, buttons, hints and system messages only; typed input, file names, saved
+records and AI answers are untouched, and the AI answers in English only when the
+question asks for it. A dictionary test fails on any wrapped string without an entry.
+Strings inside the Assistant panel and speech input were wrapped for display; the
+speech/RAG behaviour that belongs to Thắng is unchanged.
+
+For roles and accounts AI added a **Members** page and migration `027` (`4e7f2cc`,
+ADR-017): a table of what each role may do, what is shared by the group (including
+every member's uploaded documents) versus private to each person, and, for managers,
+role changes, switching access off/on, invitations by e-mail and a one-click grant
+for people who signed in without access. The migration is additive and leaves the
+pinned runtime catalog digest unchanged; a database without it keeps working. It was
+applied only to disposable PostgreSQL 17 (canonical and a restricted managed
+installer fixture), never to the cloud project, which still needs the owner's
+approval, backup and maintenance window (`docs/MANAGED-DEPLOYMENT.md`).
+
+Checks: web, API and 53 database test files pass on disposable PG17; typecheck,
+format and build are clean; desktop and 375px browser checks of the switch and the
+Members page. AI also caught its own mistakes along the way (rows 7-9 below). Nothing
+was pushed, and no cloud, Google or paid provider call was made.
+
 ## 2026-10-26 - compact ten-slide technology edition
 
 At the user's request, AI merged related topics from fifteen to ten slides while
@@ -175,6 +208,9 @@ người phải tự giải thích được hai mục đầu khi bảo vệ.
 | 4 | Evaluator cho PASS khi phần nội dung bắt buộc của response vắng/sai cấu trúc (HTTP 200 được coi là đúng) | Phát hiện khi review F09-A (chi tiết trong `docs/PROJECT-CONTEXT.md`) | `89d7276` — `rag-evaluation-local.mjs` | `evaluation.test.mjs`, `evaluation-runtime.database.test.mjs` |
 | 5 | Evaluator không kiểm marker `[S<n>]` khớp tập citation; refusal có thể mang text giống nguồn | Phát hiện khi review F09-A.2/A.3 (cùng nguồn) | `c487362` và các sửa kế tiếp | `evaluation.test.mjs` (ma trận 24 hàng parity với production `validateCitations`) |
 | 6 | Helper của chain test seed 12 tài liệu/12 chunk nên "baseline trống" là sai; quét mã tĩnh không thấy | Reviewer đọc DB sau khi helper chạy | `ff44b41` + `3808a9f` (đính chính tuyên bố cũ) | `evaluation-ingestion-chain.database.test.mjs` (assert DB) |
+| 7 | Bản đầu của `usePagedSearch` giữ hàng cũ cho **mọi** lần đổi bộ lọc, nên tổng chi 210.000 của kỳ trước vẫn hiện dưới bộ lọc tuần | Test `App.test` "totals only the expenses inside the chosen period" đỏ khi chạy lại bộ test | `9c8a18b` — chỉ giữ hàng khi cùng khóa truy vấn | `use-paged-search.test.tsx` |
+| 8 | Codemod i18n ghép số nhiều bằng cách nối `"s"` vào chuỗi đã dịch ("kỳ thi" + "s" = "kỳ this") | AI duyệt trang Exams ở chế độ VI trong browser | `aad9b30` — chuỗi đầy đủ có số ít/số nhiều | `i18n.test.tsx` (từ điển đủ mọi chuỗi bọc) |
+| 9 | Migration 027 làm sai ba test cũ có số migration cứng (profile managed, fixture pilot, rollback 025) mà AI chưa sửa khi viết migration | Chạy toàn bộ `test:database` trên PG17 dùng-một-lần | `4e7f2cc` — cập nhật manifest/baseline, thêm kiểm managed cho 027 | `managed-migration-profile*.test.mjs`, `pilot-cli.database.test.mjs`, `managed-auth-session.database.test.mjs` |
 
 Tuyên bố sai của chính AI cũng được giữ trong lịch sử docs kèm dòng đính chính (ví dụ
 B.2B.3 "no documents at setup", B.2B.5 "executor recomputes binding", B.2B.5.1 "works only

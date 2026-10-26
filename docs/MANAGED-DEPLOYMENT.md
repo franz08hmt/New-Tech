@@ -72,3 +72,28 @@ Bằng chứng private/git-ignored ở `artifacts/managed-completion-20261023/`:
 `cloud-schema.json`, `restore-rehearsal-v2.json`, `http-acceptance.json`,
 `google-dashboard.jpg`, `mobile-layout.json`, `managed26-final.log`.
 Không đưa thư mục `private/` vào bộ nộp. Kết quả AI và chấm ngữ nghĩa ghi riêng.
+
+## Migration 027 - thành viên (26/10/2026, CHƯA áp dụng lên cloud)
+
+`027_workspace_members.sql` thêm hai bảng và 11 hàm cho trang **Thành viên**; không đổi
+bảng/chính sách/quyền hiện có và không đổi digest contract (v25/managed26 vẫn
+`395cff54…596c`). Profile managed nhận các migration cộng thêm từ 027 sau 026, nên cloud
+đang ở 26 chỉ cần "staged" đúng một migration mới. Cho tới khi áp dụng, API vẫn chạy và trang
+Thành viên báo chưa bật (`available:false`, ghi trả 503).
+
+Trước khi áp dụng (cần Tài duyệt, như các lần trước): backup SQL/Auth/Storage metadata hiện
+thời; rehearsal restore; dừng writer; kiểm `schema_migrations` là prefix 001–026 của profile.
+Chạy trong process operator riêng, không đặt `MIGRATION_DATABASE_URL` vào runtime:
+
+```powershell
+node apps/api/scripts/migrate.mjs --profile=supabase-managed
+```
+
+Sau đó xác minh: ledger có 27 dòng; `to_regprocedure('public.examate_members_list()')` không
+null; hai bảng mới có RLS và **không** quyền cho `anon`/`authenticated`/`examate_*`; hàm
+`public.examate_member_*` chỉ `EXECUTE` cho `examate_business`, hai hàm `examate_private.*`
+chỉ cho `examate_auth`; API khởi động (kiểm contract) và đăng nhập manager thấy trang Thành
+viên. Hosted Supabase có thể cấp mặc định cho API role; migration đã thu hồi tường minh và test
+managed kiểm lại. Rollback: `infra/postgres/rollback/027_workspace_members_rollback.sql`
+(giữ các membership đã cấp, mất profile và lời mời đang chờ). Không dùng rollback canonical
+017–025 trên ledger managed.

@@ -1,5 +1,37 @@
 # ExaMate — context hiện tại cho Tài, Thắng và agent
 
+## Sửa nhảy trang, ngôn ngữ hiển thị và quản lý thành viên - 26 tháng 10 2026
+
+**Nhảy trang (hai video Firefox).** Hai nguyên nhân: (1) mỗi lần tab lấy lại focus, phiên
+được xác minh lại bằng trạng thái `verifying` nên toàn bộ workspace bị ẩn rồi hiện lại;
+(2) danh sách/Documents bị thay bằng "Loading…" mỗi lần đọc lại sau khi lưu, làm trang co
+rồi giãn. Đã sửa bằng xác minh nền (không đổi UI khi vẫn `authenticated`) và giữ hàng cũ khi
+đọc lại cùng bộ lọc. Không đổi API/DB/contract. Chi tiết và đánh đổi: ADR-015. Đã kiểm trên
+browser và bằng test mới (`pilot-silent-revalidation`, `use-paged-search`, Documents).
+
+**Ngôn ngữ hiển thị.** Nút VI/EN ở trang đăng nhập và thanh phiên; mặc định tiếng Việt; chỉ
+đổi nhãn/nút/gợi ý/thông báo hệ thống. Nội dung nhập, tên tệp, bản ghi và mọi kết quả AI giữ
+nguyên (AI chỉ trả lời tiếng Anh khi được yêu cầu). Chi tiết: ADR-016. Kiểm trên 10 trang ở
+chế độ EN (không còn chữ Việt ngoài dữ liệu người dùng và tên ngôn ngữ), VI, desktop và 375px.
+
+**Tài khoản và phân quyền.** Trang **Thành viên** (menu mới, mọi vai trò đều xem được): bảng
+mỗi vai trò làm được gì (khớp với kiểm tra ở server), phần nào dùng chung và phần nào riêng,
+danh sách thành viên. Manager đổi vai trò, tắt/bật quyền, thêm thành viên bằng email, cấp quyền
+cho người đã đăng nhập mà chưa có quyền, thu hồi lời mời. Tài liệu tải lên vốn đã dùng chung
+cho mọi thành viên đang hoạt động. Phần riêng đã có: hội thoại Assistant, quiz/flashcards.
+Lời chào "Welcome back, Tài." không còn gắn cứng tên Tài cho mọi tài khoản.
+
+**Phần cần Tài quyết định.** Migration 027 mới chỉ chạy trên PG17 dùng-một-lần (canonical và
+fixture managed). Cloud vẫn ở 26 migration; ứng dụng chạy bình thường trên cloud cũ và trang
+Thành viên báo "chưa bật". Áp dụng lên cloud cần: backup hiện thời, rehearsal restore,
+cửa sổ bảo trì, rồi `node apps/api/scripts/migrate.mjs --profile=supabase-managed` trong
+process operator (xem MANAGED-DEPLOYMENT). Không có thay đổi cloud nào được thực hiện.
+
+Kiểm chứng: web (Vitest), API unit và 53 file database trên PG17 dùng-một-lần, test managed
+`supabase_admin`, typecheck/format/build sạch. Một số test cũ phải cập nhật vì số migration
+(25→26 nguồn; ledger fixture pilot 16 giữ nguyên) và baseline rollback 025 (giờ dựng trên
+chuỗi 001–025). Bằng chứng ignored: `artifacts/ui-fix-20261026/`.
+
 ## Vietnamese technology deck - 26 October 2026
 
 Compact revision on `761cf77`: 10 slides now cover all 15 topics by merging

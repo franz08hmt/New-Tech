@@ -989,3 +989,67 @@ future schema changes need deliberate profile review, not silent auto-upgrade.
 
 Cloud26, separate TLS LOGINs, real Docker and Google were verified after backup
 and restore rehearsal. Operational recovery and limits: MANAGED-DEPLOYMENT.
+
+## ADR-015 — Phiên làm việc không còn "chớp" khi quay lại tab (26/10/2026)
+
+Quyết định: xác minh lại phiên khi tab lấy lại focus là **việc nền**. Nếu người dùng
+đang `authenticated` thì UI không đổi sang `verifying`, không ẩn workspace, không mất vị
+trí cuộn. Chỉ `401`, `no_access` hoặc phiên hết hạn mới khóa. Lỗi tạm thời (mất mạng,
+5xx) giữ nguyên màn hình và thử lại ở lần kiểm tra sau; `principal` chỉ đổi khi
+userId/workspaceId/role đổi thật. Danh sách phân trang giữ hàng cũ khi cùng bộ lọc được
+đọc lại (stale-while-revalidate); đổi bộ lọc thì không mượn dữ liệu của bộ lọc khác.
+
+Đánh đổi: bản trước khóa UI ngay khi dịch vụ xác thực gián đoạn (fail-closed ở lớp
+giao diện). Lớp bảo vệ thật vẫn ở server (cookie, CSRF, RLS, vai trò): mọi yêu cầu ghi
+tiếp theo vẫn bị từ chối khi phiên không còn hợp lệ, và `401` khóa UI ngay. Test cũ khẳng
+định "ẩn khi đang kiểm tra" đã được viết lại theo ngữ nghĩa mới. Hai video Firefox của
+trang Tasks và Kinh tế vi mô là bằng chứng lỗi; nguyên nhân và regression nằm ở
+`use-pilot-session.ts`, `use-paged-search.ts`, `DocumentsPanel.tsx` và các test đi kèm.
+
+## ADR-016 — Ngôn ngữ hiển thị là lựa chọn riêng, không chạm dữ liệu và AI (26/10/2026)
+
+Quyết định: nút VI/EN chỉ đổi **chrome của giao diện** (tên trang, nút, nhãn, gợi ý, thông
+báo hệ thống). Mặc định `vi`, lưu ở `localStorage` (`examate-ui-language`), nằm ở trang
+đăng nhập và thanh phiên. Không gửi lên server, không đổi nội dung người dùng nhập, tên
+tệp, bản ghi đã lưu, câu trả lời AI hay tùy chọn `language` của Study Coach/Whisper. AI
+chỉ trả lời tiếng Anh khi người dùng yêu cầu trong câu hỏi, như trước.
+
+Cách làm: từ điển hai chiều khớp nguyên văn (`i18n-dictionary-*.ts`), `useTr()` trong
+component và `tl()` cho hook/hàm; bảng nhãn cố định dùng `lazyLabels`. Không có provider
+(các test đơn vị) thì mọi chuỗi giữ nguyên như viết trong code, nên các test cũ không đổi.
+Một test quét mã và fail khi có chuỗi bọc `tr()/tl()` chưa có trong từ điển. Câu hỏi gợi ý
+của Assistant được giữ nguyên vì chúng là nội dung gửi cho AI. Không thêm thư viện.
+
+Lưu ý phạm vi: các chuỗi hiển thị trong `AssistantPanel.tsx`, `SpeechInput.tsx` (phần của
+Thắng theo AGENTS) được bọc `tr()`; chỉ là lớp hiển thị, không đổi hành vi giọng nói/RAG.
+Thông báo lỗi của `use-speech-input.ts` được dịch tại nơi hiển thị, hook giữ nguyên.
+
+## ADR-017 — Quản lý thành viên bằng migration 027 cộng thêm (26/10/2026)
+
+Nhu cầu: manager thấy và cấp quyền trong ứng dụng; thêm nhiều thành viên cho một nhóm học.
+Hiện trạng dữ liệu: workspace **là** nhóm học; mọi thành viên đang hoạt động đọc được môn
+học, task, kỳ thi, kế hoạch, khoản chi và **tài liệu do nhau tải lên** (chính sách RLS đã
+có từ 017). Riêng từng người: hội thoại Assistant, quiz/flashcards Study Coach (chính sách
+owner). Vì vậy không thêm "khu vực riêng" mới.
+
+Quyết định: migration `027_workspace_members.sql` chỉ **thêm** hai bảng
+(`workspace_member_profiles`, `workspace_invitations`, RLS bật, không quyền trực tiếp cho
+runtime) và 11 hàm `SECURITY DEFINER` (`SET search_path = pg_catalog`). Mỗi hàm tự lấy người
+gọi từ `examate.user_id/workspace_id`, kiểm lại membership còn hoạt động, rồi áp luật vai
+trò: chỉ manager đổi vai trò/bật tắt/mời/thu hồi; không tự tắt mình; không hạ hay tắt manager
+cuối cùng (khóa `FOR UPDATE`, kiểm lại sau khóa); email chỉ manager thấy. Đường đăng nhập
+(`examate_auth`) ghi hồ sơ và nhận lời mời theo **email đã xác nhận** từ Supabase `/user`.
+
+Không động tới contract đã pin: các hàm/bảng mới không nằm trong danh mục băm, test
+`assertRuntimeCatalogContract` và digest managed `395cff…596c` không đổi (đã chạy trên PG17
+canonical và fixture managed `supabase_admin`). Profile managed chấp nhận migration cộng
+thêm từ 027 sau 026; 001–026 giữ nguyên checksum. API nhận biết tính năng (`to_regprocedure`,
+cache 30s/5 phút): DB cũ trả `available:false`, các thao tác ghi trả 503
+`MEMBERS_UNAVAILABLE`, đăng nhập không đổi. Rollback: `infra/postgres/rollback/027_*.sql`
+(có test). **Chưa áp dụng lên cloud**; cần Tài duyệt backup → rehearsal → cửa sổ bảo trì.
+
+Đánh đổi: `session()` gọi thêm một giao dịch ngắn sau khi xác minh (có throttle 10 phút/user
+và bỏ qua khi chưa có 027); mọi lỗi ở bước này bị nuốt để không bao giờ làm hỏng đăng nhập.
+Lời mời không gửi email (không thêm nhà cung cấp mail); manager nhập đúng email người đó dùng
+để đăng nhập. Người đăng nhập mà chưa có quyền hiện trong "đang chờ cấp quyền" để manager
+cấp bằng một nút. CLI `pilot:membership` vẫn là đường dự phòng của người vận hành.
