@@ -1,5 +1,30 @@
 # AI Assistance Log
 
+## 2026-10-26 - source-bound oral-defense study guide
+
+AI reviewed and extended the existing Vietnamese offline study HTML at the
+user's request, preserving its 30 original questions and embedded code. The
+guide now has 68 questions, a contributor filter, 14 sections, frontend and
+request-lifecycle explanations, Study Coach recovery, shared RAG credit for
+Thắng, an API/code/test map and separate practice plans for Tài and Thắng.
+Contribution statements distinguish Git evidence from the user's clarification;
+AI does not certify personal authorship or understanding on either person's behalf.
+
+Source was checked at 51e9634. Historical test/evaluation counts are labelled
+as retained evidence; documentation checks are not application, live-model or
+semantic acceptance. Local OCR configuration is a dated observation, separate
+from source defaults and the evaluation generation model. No application code,
+provider, database, runtime, secret or cloud change was needed for this task.
+
+Document verification passed 16 static checks (218 resolved links, 20 source
+snapshots, 30 original questions retained) and 47 isolated Chrome checks at
+1440/375/320px. Search, contributor filters, keyboard focus, answer toggles and
+print-state restoration were exercised. A navigation focus check caught the
+native fragment action overriding heading focus; explicit fragment navigation
+fixed it. The first keyboard probe also required a proper Enter virtual key code.
+Only the offline document was browsed; no application/DB/live-model gate was run.
+Ignored artifacts retain the original HTML, diagnostics and screenshots.
+
 ## 2026-10-25 - shared workspace control/readability styling
 
 AI added one scoped stylesheet plus its entry import to normalize controls,
