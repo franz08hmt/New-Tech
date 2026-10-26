@@ -39,7 +39,7 @@ it.each([
   },
 );
 
-it("hides the previous role while checking and removes it on logout", async () => {
+it("keeps the role visible during a background check, replaces it with the verified one and removes it on logout", async () => {
   let reads = 0;
   vi.stubGlobal(
     "fetch",
@@ -69,7 +69,7 @@ it("hides the previous role while checking and removes it on logout", async () =
   );
   await screen.findByText("Manager · Người quản lý");
   await act(async () => window.dispatchEvent(new Event("focus")));
-  expect(screen.getByText("Manager · Người quản lý")).not.toBeVisible();
+  expect(screen.getByText("Manager · Người quản lý")).toBeVisible();
   await act(async () => drain?.());
   expect(await screen.findByText("Viewer · Chỉ xem")).toBeVisible();
   expect(screen.queryByText("Manager · Người quản lý")).toBeNull();
@@ -78,7 +78,7 @@ it("hides the previous role while checking and removes it on logout", async () =
   expect(screen.queryByText("Viewer · Chỉ xem")).toBeNull();
 });
 
-it("revalidation preserves the page shell and title without exposing the login screen or enabling requests", async () => {
+it("revalidation preserves the page shell, title and focus without exposing the login screen", async () => {
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
   const fetcher = vi.fn(async () => {
     if (fetcher.mock.calls.length === 1) return Response.json(granted);
@@ -106,10 +106,9 @@ it("revalidation preserves the page shell and title without exposing the login s
     screen.queryByRole("heading", { name: "Sign in to ExaMate" }),
   ).toBeNull();
   expect(shell.closest("[hidden]")).toBeNull();
-  expect(shell).not.toBeVisible();
-  expect(shell.closest("[inert]")).not.toBeNull();
+  expect(shell).toBeVisible();
+  expect(shell.closest("[inert]")).toBeNull();
   expect(document.title).toBe("Courses · ExaMate AI");
-  await expect(api.listCourses()).rejects.toThrow(/đang khóa/);
   expect(fetcher).toHaveBeenCalledTimes(2);
   await act(async () => drain?.());
   await waitFor(() => expect(shell).toBeVisible());
@@ -118,8 +117,8 @@ it("revalidation preserves the page shell and title without exposing the login s
   expect(draft).toHaveFocus();
 });
 
-it.each(["revoked", "outage"])(
-  "revalidation still locks private content after %s",
+it.each(["revoked"])(
+  "revalidation still locks private content once the answer says access is gone (%s)",
   async (outcome) => {
     vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
     let count = 0;
@@ -152,7 +151,7 @@ it.each(["revoked", "outage"])(
     expect(
       screen.queryByRole("heading", { name: "Sign in to ExaMate" }),
     ).toBeNull();
-    expect(action).not.toBeVisible();
+    expect(action).toBeVisible();
     await act(async () => drain?.());
     await screen.findByRole("heading", { name: "Sign in to ExaMate" });
     expect(action).not.toBeVisible();
@@ -331,12 +330,19 @@ it("preserves an editable sign-in draft and its focus while background verificat
   expect(email).toHaveValue("invited@example.test");
 });
 
-it("moves focus from hidden workspace content to the access heading on a session outage", async () => {
+it("moves focus from hidden workspace content to the access heading when a focus check finds the session gone", async () => {
   let outage = false;
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => (outage ? unavailable() : Response.json(granted))),
+    vi.fn(async () =>
+      outage
+        ? Response.json(
+            { code: "AUTH_REQUIRED", message: "Session ended" },
+            { status: 401 },
+          )
+        : Response.json(granted),
+    ),
   );
   render(
     <PilotAccess>
@@ -348,9 +354,8 @@ it("moves focus from hidden workspace content to the access heading on a session
   action.focus();
   outage = true;
   await act(async () => window.dispatchEvent(new Event("focus")));
-  await screen.findByRole("alert");
+  await waitFor(() => expect(action).not.toBeVisible());
   expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
-  expect(action).not.toBeVisible();
   expect(screen.getByLabelText("Workspace draft")).toHaveValue(
     "Keep this draft",
   );

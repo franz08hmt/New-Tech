@@ -73,7 +73,9 @@ export function usePilotSession() {
     csrf = useRef<string | undefined>(undefined),
     googleResult = useRef<string | null | undefined>(undefined);
   const apply = useRef<(value: PilotSessionResponse) => void>(() => {}),
-    refresh = useRef<() => Promise<void>>(async () => {});
+    refresh = useRef<(background?: boolean) => Promise<void>>(async () => {});
+  const stateRef = useRef<AccessState>(state);
+  stateRef.current = state;
   const denied = useCallback((code: string) => {
     invalidatePilotSession();
     epoch.current++;
@@ -102,7 +104,17 @@ export function usePilotSession() {
       denied,
     );
     if (value.status === "authenticated") {
-      setPrincipal(value.principal);
+      // A re-check that finds the same person in the same workspace and role
+      // keeps the very same object: consumers key requests on it, so a new copy
+      // would refetch every list on each window focus.
+      setPrincipal((current) =>
+        current &&
+        current.userId === value.principal.userId &&
+        current.workspaceId === value.principal.workspaceId &&
+        current.role === value.principal.role
+          ? current
+          : value.principal,
+      );
       setState("authenticated");
       setAccessExpiresAt(Date.parse(value.accessExpiresAt));
       setMessage("");
@@ -122,17 +134,24 @@ export function usePilotSession() {
       );
     }
   };
-  refresh.current = () => {
+  refresh.current = (background = false) => {
     if (refreshing.current) return refreshing.current;
     const generation = ++epoch.current;
-    setState("verifying");
-    configurePilotClient(csrf.current, false, denied);
+    // Renewing the access token of a session that is already open is invisible:
+    // the page stays as it is and the server keeps authorizing each request.
+    const silent = background && stateRef.current === "authenticated";
+    if (!silent) {
+      setState("verifying");
+      configurePilotClient(csrf.current, false, denied);
+    }
     const task = (async () => {
       try {
         const value = await api.pilotRefresh();
         if (alive.current && generation === epoch.current) apply.current(value);
       } catch (error) {
         if (alive.current && generation === epoch.current) {
+          if (silent && !(error instanceof ApiError && error.status === 401))
+            return; // a passing outage must not lock a page that still works
           configurePilotClient(csrf.current, false, denied);
           setState(
             error instanceof ApiError && error.status === 401
@@ -150,38 +169,51 @@ export function usePilotSession() {
     refreshing.current = task;
     return task;
   };
-  const verify = useCallback(async () => {
-    if (running.current || refreshing.current) return;
-    const generation = ++epoch.current;
-    setState("verifying");
-    configurePilotClient(csrf.current, false, denied);
-    try {
-      const value = validSession(await api.pilotSession());
-      if (!alive.current || generation !== epoch.current) return;
-      apply.current(value);
-      if (value.status === "refresh_required") await refresh.current();
-    } catch (error) {
-      if (alive.current && generation === epoch.current) {
-        setState(
-          error instanceof ApiError && error.status === 401
-            ? "expired"
-            : "unavailable",
-        );
-        setMessage(
-          error instanceof ApiError && error.status === 401
-            ? "Phiên đã hết hạn. Kiểm tra lại để mở màn hình đăng nhập."
-            : "Chưa xác minh được phiên. Workspace đang khóa; thử kiểm tra lại nhé.",
-        );
+  const verify = useCallback(
+    async (background = false) => {
+      if (running.current || refreshing.current) return;
+      const generation = ++epoch.current;
+      // Coming back to a tab (focus/visibility) re-checks a session that is
+      // already open without touching the page: hiding the workspace for the
+      // length of a request made every list collapse and scroll back up. The
+      // check still decides — a revoked or changed session locks or updates the
+      // page when the answer arrives, and the server authorizes every request.
+      const silent = background && stateRef.current === "authenticated";
+      if (!silent) {
+        setState("verifying");
+        configurePilotClient(csrf.current, false, denied);
       }
-    }
-  }, [denied]);
+      try {
+        const value = validSession(await api.pilotSession());
+        if (!alive.current || generation !== epoch.current) return;
+        apply.current(value);
+        if (value.status === "refresh_required") await refresh.current();
+      } catch (error) {
+        if (alive.current && generation === epoch.current) {
+          if (silent && !(error instanceof ApiError && error.status === 401))
+            return;
+          setState(
+            error instanceof ApiError && error.status === 401
+              ? "expired"
+              : "unavailable",
+          );
+          setMessage(
+            error instanceof ApiError && error.status === 401
+              ? "Phiên đã hết hạn. Kiểm tra lại để mở màn hình đăng nhập."
+              : "Chưa xác minh được phiên. Workspace đang khóa; thử kiểm tra lại nhé.",
+          );
+        }
+      }
+    },
+    [denied],
+  );
   useEffect(() => {
     alive.current = true;
     const result = consumeGoogleResult();
     if (result) googleResult.current = result;
     void verify();
     const onFocus = () => {
-      if (document.visibilityState === "visible") void verify();
+      if (document.visibilityState === "visible") void verify(true);
     };
     const onEvent = (value: unknown) => {
       const type = (value as { type?: unknown } | null)?.type;
@@ -234,7 +266,7 @@ export function usePilotSession() {
     if (state !== "authenticated" || accessExpiresAt === undefined) return;
     const timer = window.setTimeout(
       () => {
-        if (!running.current) void refresh.current();
+        if (!running.current) void refresh.current(true);
       },
       Math.max(1000, accessExpiresAt - Date.now() - 60000),
     );
@@ -356,7 +388,8 @@ export function usePilotSession() {
     principal,
     message,
     busy,
-    verify,
+    // The explicit "Check session" is a visible check; only focus is silent.
+    verify: () => verify(),
     login,
     googleLogin,
     logout,

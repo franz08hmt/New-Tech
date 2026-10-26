@@ -132,9 +132,16 @@ export function DocumentsPanel({
   const readPending = loading || searchPending || loadedKey !== currentReadKey;
   const onDocumentsChangedRef = useRef(onDocumentsChanged);
   onDocumentsChangedRef.current = onDocumentsChanged;
-  const visibleDocuments = readPending ? [] : documents;
-  const visibleTotal = readPending ? 0 : total;
-  const visibleTotalPages = readPending ? 0 : totalPages;
+  // Reloading the query already on screen (after an upload, an index run, a
+  // delete or a refile) keeps its rows while the answer comes; only a different
+  // query or identity starts from an empty list.
+  const [reloadFor, setReloadFor] = useState("");
+  const sameQueryReload =
+    readPending && !searchPending && reloadFor === currentReadKey;
+  const listEmptied = readPending && !sameQueryReload;
+  const visibleDocuments = listEmptied ? [] : documents;
+  const visibleTotal = listEmptied ? 0 : total;
+  const visibleTotalPages = listEmptied ? 0 : totalPages;
   const operations = useRef(new Map<string, number>());
   const unconfirmed = useRef(new Set<string>());
   const [indexReads, setIndexReads] = useState<
@@ -154,6 +161,8 @@ export function DocumentsPanel({
   }, [canWrite]);
   const reload = useCallback((notifyAssistant = false) => {
     if (notifyAssistant) notifyAssistantAfterRead.current = true;
+    // The rows of this very query stay on screen until the new answer lands.
+    setReloadFor(currentReadKeyRef.current);
     setLoadedKey("");
     setRefreshVersion((value) => value + 1);
   }, []);
@@ -174,6 +183,7 @@ export function DocumentsPanel({
     setDocuments([]);
     setTotal(0);
     setTotalPages(0);
+    setReloadFor("");
     setError("");
     setListError("");
     setSelected([]);
@@ -206,6 +216,7 @@ export function DocumentsPanel({
           setTotal(result.total);
           setTotalPages(result.totalPages);
           setLoadedKey(key);
+          setReloadFor("");
           if (notifyAssistantAfterRead.current) {
             notifyAssistantAfterRead.current = false;
             onDocumentsChangedRef.current?.();
@@ -218,8 +229,10 @@ export function DocumentsPanel({
           current === revision.current &&
           owner === currentIdentity.current &&
           key === currentReadKeyRef.current
-        )
+        ) {
+          setReloadFor("");
           setListError(message(caught));
+        }
       })
       .finally(() => {
         if (
@@ -803,7 +816,7 @@ export function DocumentsPanel({
           <header>
             <h3>Stored documents</h3>
             <span>
-              {readPending || listError ? "…" : `${visibleTotal} results`}
+              {listEmptied || listError ? "…" : `${visibleTotal} results`}
             </span>
             <button
               type="button"
@@ -996,7 +1009,7 @@ export function DocumentsPanel({
                 )}
             </section>
           )}
-          {readPending && !listError ? (
+          {listEmptied && !listError ? (
             <p aria-live="polite">Loading documents…</p>
           ) : !listError ? (
             <ul>
@@ -1066,7 +1079,7 @@ export function DocumentsPanel({
                   : "Chưa có tài liệu nào. Tải một tệp PDF lên để bắt đầu."}
             </p>
           )}
-          {!readPending && !listError && visibleTotalPages > 0 && (
+          {!listEmptied && !listError && visibleTotalPages > 0 && (
             <nav className="document-pagination" aria-label="Document pages">
               <button
                 type="button"

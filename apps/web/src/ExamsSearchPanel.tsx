@@ -326,7 +326,7 @@ function ExamsSearchPanelState({
           <p role="status" className="page-note">
             This search text has no supported characters. Try another term.
           </p>
-        ) : search.loading ? (
+        ) : search.loading && !search.page ? (
           <p role="status" aria-busy="true" className="empty-message">
             Loading exams…
           </p>

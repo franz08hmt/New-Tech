@@ -419,7 +419,7 @@ function StudyPlansSearchState({
           <p role="status" className="page-note">
             Từ khoá không có ký tự tìm kiếm phù hợp. Hãy thử từ khác.
           </p>
-        ) : search.loading ? (
+        ) : search.loading && !search.page ? (
           <p role="status" aria-busy="true" className="empty-message">
             Đang tải kế hoạch ôn tập…
           </p>

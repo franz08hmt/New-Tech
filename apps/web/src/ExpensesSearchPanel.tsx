@@ -151,6 +151,8 @@ function ExpensesSearchPanelState({
   >(identity, initialQuery, load, {
     enabled: (query) => Boolean(identity) && validRange(query),
   });
+  // A reload keeps the previous rows on screen; only the first load is empty.
+  const initialLoading = search.loading && !search.page;
   const [period, setPeriod] = useState<Period>("month");
   const [notice, setNotice] = useState("");
   const [focusRevision, setFocusRevision] = useState(0);
@@ -422,7 +424,7 @@ function ExpensesSearchPanelState({
           <p role="status" className="page-note">
             Từ khoá không có ký tự tìm kiếm phù hợp. Hãy thử từ khác.
           </p>
-        ) : search.loading ? (
+        ) : search.loading && !search.page ? (
           <p role="status" aria-busy="true" className="empty-message">
             Đang tải sổ chi tiêu…
           </p>
@@ -516,7 +518,7 @@ function ExpensesSearchPanelState({
           <h3 id="expense-list" className="exam-group">
             Các khoản đã ghi
           </h3>
-          {search.page?.total === 0 && !search.error && !search.loading && (
+          {search.page?.total === 0 && !search.error && !initialLoading && (
             <p className="empty-message">
               {hasFilters
                 ? "Không có khoản chi khớp bộ lọc này."
@@ -525,7 +527,7 @@ function ExpensesSearchPanelState({
           )}
           {search.page &&
             search.page.total > 0 &&
-            !search.loading &&
+            !initialLoading &&
             !search.error &&
             (search.items.length ? (
               <ExpenseRows

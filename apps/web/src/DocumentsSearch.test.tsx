@@ -128,6 +128,41 @@ afterEach(() => {
 });
 
 describe("Documents server search", () => {
+  it("keeps the rows and the pager on screen while the same list is refreshed", async () => {
+    render(view());
+    expect(await screen.findByText("First.pdf")).toBeVisible();
+    const slow = deferred<DocumentSearchPage>();
+    vi.mocked(api.searchDocuments).mockReturnValueOnce(slow.promise);
+    fireEvent.click(screen.getByRole("button", { name: "Refresh list" }));
+    await waitFor(() => expect(api.searchDocuments).toHaveBeenCalledTimes(2));
+    // The refresh is in flight: nothing collapsed into a placeholder.
+    expect(screen.getByText("First.pdf")).toBeVisible();
+    expect(screen.getByText("Second.pdf")).toBeVisible();
+    expect(screen.queryByText("Loading documents…")).toBeNull();
+    expect(
+      screen.getByRole("navigation", { name: "Document pages" }),
+    ).toBeVisible();
+    await act(async () =>
+      slow.resolve(page([row(1, "First.pdf"), row(3, "Third.pdf")], {}, 21)),
+    );
+    expect(await screen.findByText("Third.pdf")).toBeVisible();
+    expect(screen.queryByText("Second.pdf")).toBeNull();
+  });
+
+  it("still starts from an empty list when the query changes", async () => {
+    render(view());
+    expect(await screen.findByText("First.pdf")).toBeVisible();
+    const slow = deferred<DocumentSearchPage>();
+    vi.mocked(api.searchDocuments).mockReturnValueOnce(slow.promise);
+    fireEvent.change(screen.getByLabelText("Filter by processing status"), {
+      target: { value: "failed" },
+    });
+    await waitFor(() => expect(api.searchDocuments).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Loading documents…")).toBeVisible();
+    expect(screen.queryByText("First.pdf")).toBeNull();
+    await act(async () => slow.resolve(page([], {}, 0)));
+  });
+
   it("loads a deep-linked document outside page one by its scoped id", async () => {
     const target = row(99, "Page two target.pdf");
     const lookup = vi.spyOn(api, "getDocument").mockResolvedValue(target);
