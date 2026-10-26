@@ -36,12 +36,13 @@ writeFileSync(
 const htmlPath = resolve(root, `docs/submission/${stem}.html`);
 const html = readFileSync(htmlPath);
 const server = createServer((request, response) => {
-  if (request.url === "/favicon.ico") {
+  const path = new URL(request.url, "http://127.0.0.1").pathname;
+  if (path === "/favicon.ico") {
     response.writeHead(204);
     response.end();
     return;
   }
-  if (request.url !== "/") {
+  if (path !== "/") {
     response.writeHead(404);
     response.end();
     return;
@@ -270,6 +271,9 @@ try {
   }
   // Exercise native controls with mouse input, rather than changing DOM state.
   async function click(selector) {
+    await evaluate(
+      `document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'center'})`,
+    );
     const point = await evaluate(
       `(() => { const rect = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return {x: rect.x + rect.width / 2, y: rect.y + rect.height / 2}; })()`,
     );
@@ -285,6 +289,241 @@ try {
       clickCount: 1,
       ...point,
     });
+  }
+  if (technology) {
+    report.interactions = [];
+    const ready = async (id) => {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        if (
+          await evaluate(
+            `!window.__oldDeckForVerification && document.querySelector('main>section:not([hidden])')?.id===${JSON.stringify(id)}`,
+          )
+        )
+          return;
+        await pause(30);
+      }
+      throw Error(`Slide navigation did not settle: ${id}`);
+    };
+    const goto = async (id) => {
+      await evaluate(`location.hash=${JSON.stringify("#" + id)}`);
+      await ready(id);
+    };
+    for (const width of [1440, 375]) {
+      await command("Emulation.setDeviceMetricsOverride", {
+        width,
+        height: 960,
+        deviceScaleFactor: 1,
+        mobile: false,
+      });
+      await command("Emulation.setEmulatedMedia", {
+        features: [{ name: "prefers-reduced-motion", value: "no-preference" }],
+      });
+      await evaluate("window.__oldDeckForVerification=true");
+      await command("Page.navigate", {
+        url: url + "?interaction=" + width + "#rag",
+      });
+      await ready("rag");
+      await evaluate("document.fonts.ready.then(()=>true)");
+      const record = (name, actual, expected = true) => {
+        report.interactions.push({ width, name, actual, expected });
+        assert.deepEqual(actual, expected, `${width}: ${name}`);
+      };
+      await click("#rag [data-next-step]");
+      record(
+        "manual step changes active node",
+        await evaluate(
+          `document.querySelector('#rag [data-scene]').dataset.step`,
+        ),
+        "1",
+      );
+      await click('[data-rag-case="empty"]');
+      record(
+        "empty evidence refuses generation",
+        await evaluate(
+          `document.querySelector('#rag [data-scene-status]').textContent.includes('không gọi generation')`,
+        ),
+      );
+      await click('[data-rag-case="full"]');
+      await click("#rag [data-play-scene]");
+      await pause(1650);
+      record(
+        "play advances the actual scene",
+        await evaluate(
+          `Number(document.querySelector('#rag [data-scene]').dataset.step)>=1`,
+        ),
+      );
+      await click("[data-motion-toggle]");
+      record(
+        "pause stops scene timers",
+        await evaluate(
+          `document.body.dataset.motion==='paused'&&document.querySelector('#rag [data-scene]').dataset.playing==='false'`,
+        ),
+      );
+      const step = await evaluate(
+        `document.querySelector('#rag [data-scene]').dataset.step`,
+      );
+      await pause(1600);
+      record(
+        "paused scene remains stable",
+        await evaluate(
+          `document.querySelector('#rag [data-scene]').dataset.step`,
+        ),
+        step,
+      );
+      await goto("practice");
+      await click("[data-flip-card]");
+      record(
+        "mouse flips the flashcard",
+        await evaluate(
+          `document.querySelector('[data-flip-card]').getAttribute('aria-pressed')`,
+        ),
+        "true",
+      );
+      await command("Input.dispatchKeyEvent", {
+        type: "keyDown",
+        key: " ",
+        code: "Space",
+        windowsVirtualKeyCode: 32,
+        text: " ",
+      });
+      await command("Input.dispatchKeyEvent", {
+        type: "keyUp",
+        key: " ",
+        code: "Space",
+        windowsVirtualKeyCode: 32,
+      });
+      record(
+        "keyboard flips the card back",
+        await evaluate(
+          `document.querySelector('[data-flip-card]').getAttribute('aria-pressed')`,
+        ),
+        "false",
+      );
+      await goto("auth");
+      await click('[data-demo-role="viewer"]');
+      record(
+        "viewer illustration announces read only",
+        await evaluate(
+          `document.querySelector('[data-role-result]').textContent.includes('không có quyền ghi')`,
+        ),
+      );
+      if (width === 1440)
+        record(
+          "identity route and screenshot do not overlap",
+          await evaluate(
+            `(()=>{const a=document.querySelector('.identity-route').getBoundingClientRect(),b=document.querySelector('.auth-proof').getBoundingClientRect();return a.bottom<=b.top+1})()`,
+          ),
+        );
+      await goto("stream");
+      await click("[data-motion-toggle]");
+      await click("[data-type-start]");
+      await pause(240);
+      record(
+        "typewriter produces a partial illustration",
+        await evaluate(
+          `(()=>{const text=document.querySelector('[data-typewriter]').textContent;return text.length>0&&text.length<50})()`,
+        ),
+      );
+      await click("[data-type-stop]");
+      const partial = await evaluate(
+        `document.querySelector('[data-typewriter]').textContent`,
+      );
+      await pause(180);
+      record(
+        "stop freezes text",
+        await evaluate(
+          `document.querySelector('[data-typewriter]').textContent`,
+        ),
+        partial,
+      );
+      await command("Emulation.setEmulatedMedia", {
+        features: [{ name: "prefers-reduced-motion", value: "reduce" }],
+      });
+      await pause(50);
+      record(
+        "reduced motion is respected",
+        await evaluate(
+          `document.body.dataset.motion==='paused'&&document.querySelector('[data-motion-toggle]').disabled`,
+        ),
+      );
+      await goto("rag");
+      await click("#rag [data-reset-scene]");
+      await click("#rag [data-play-scene]");
+      record(
+        "reduced motion prevents auto play",
+        await evaluate(
+          `document.querySelector('#rag [data-scene]').dataset.playing`,
+        ),
+        "false",
+      );
+      await click("#rag [data-next-step]");
+      record(
+        "manual step remains available",
+        await evaluate(
+          `document.querySelector('#rag [data-scene]').dataset.step`,
+        ),
+        "1",
+      );
+      await command("Emulation.setEmulatedMedia", {
+        features: [{ name: "prefers-reduced-motion", value: "no-preference" }],
+      });
+      await click("[data-overview]");
+      await evaluate(
+        "document.querySelector('#speech').scrollIntoView({block:'center'})",
+      );
+      await pause(80);
+      record(
+        "overview scroll reveals the waveform slide",
+        await evaluate(
+          "document.querySelector('#speech').classList.contains('is-visible')&&!document.querySelector('#speech').hidden",
+        ),
+      );
+      record(
+        "waveform animation runs when motion is allowed",
+        await evaluate(
+          "(()=>{const s=getComputedStyle(document.querySelector('.waveform li'));return s.animationName==='wave'&&s.animationPlayState==='running'})()",
+        ),
+      );
+      await click("[data-overview]");
+      await evaluate(
+        "document.querySelector('#rag').scrollIntoView({block:'start'})",
+      );
+      const shot = await command("Page.captureScreenshot", {
+        format: "png",
+        captureBeyondViewport: false,
+      });
+      writeFileSync(
+        resolve(artifact, `${width}-interactive-rag.png`),
+        Buffer.from(shot.data, "base64"),
+      );
+    }
+    const companion = resolve(
+      root,
+      "docs/submission/ExaMate-Technologies-Knowledge-VI-20261026.html",
+    );
+    await command("Page.navigate", {
+      url: new URL(`file:///${companion.replaceAll("\\", "/")}`).href,
+    });
+    await pause(150);
+    assert.equal(
+      await evaluate(`document.querySelectorAll('#knowledge>section').length`),
+      15,
+      "companion preserves all topics",
+    );
+    const search = async (value) =>
+      evaluate(
+        `(()=>{const q=document.querySelector('#q');q.value=${JSON.stringify(value)};q.dispatchEvent(new Event('input'));return [...document.querySelectorAll('#knowledge>section:not([hidden])')].map(s=>s.id)})()`,
+      );
+    const accented = await search("vì sao chọn");
+    assert.ok(accented.length >= 12, "companion keeps all rationale");
+    assert.deepEqual(
+      await search("vi sao chon"),
+      accented,
+      "companion search ignores Vietnamese accents",
+    );
+    report.companionChecks = 3;
+    await command("Page.navigate", { url });
+    await ready("cover");
   }
   await click("[data-overview]");
   assert.equal(
@@ -344,10 +583,10 @@ try {
   } else {
     assert.equal(
       await evaluate(
-        'getComputedStyle(document.querySelector(".t-layout")).gridTemplateColumns.split(" ").length',
+        'getComputedStyle(document.querySelector(".scene-nodes")).gridTemplateColumns.split(" ").length',
       ),
-      2,
-      "Vietnamese PDF retains desktop split layout",
+      4,
+      "Vietnamese PDF retains all four pipeline nodes in the desktop layout",
     );
   }
   const { data } = await command("Page.printToPDF", {

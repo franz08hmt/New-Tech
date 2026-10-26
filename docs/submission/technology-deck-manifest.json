@@ -2,11 +2,72 @@
   "schema": "examate-technology-deck-v1",
   "revision": "2026-10-26",
   "language": "vi",
-  "sourceCheckpoint": "308389a",
+  "sourceCheckpoint": "69eab36",
+  "visualRevision": "interactive-v2",
+  "knowledge": "ExaMate-Technologies-Knowledge-VI-20261026.html",
+  "knowledgeSha256": "2ad577dfedf465a5f5c6796dbd3d20c41864df4c49f21aee7bb1aad68de47c25",
+  "logos": [
+    {
+      "id": "react",
+      "sha256": "ab9136a1a4a8be72ac6743e1bdd1912d878bd68d57787ea7a6c6838e3b23c01c"
+    },
+    {
+      "id": "typescript",
+      "sha256": "7f023e8d1e767370306ec9437d2de5d5af97491d6208dd7799a3808a7c10a36a"
+    },
+    {
+      "id": "vite",
+      "sha256": "642bb261d6476ddf326b8ed7757543b3443a93a77fef1e434021fc201defa21c"
+    },
+    {
+      "id": "tailwindcss",
+      "sha256": "5d4ede3c95da824f543c6eefbe7c78b45ecce6796f6633de196dd712a7841140"
+    },
+    {
+      "id": "nestjs",
+      "sha256": "903a08f64eedd64fb3f65fb733628353d3d42f9e7525ca9d989936f3e38322ef"
+    },
+    {
+      "id": "postgresql",
+      "sha256": "c8ccadbd88c9312c2ad3734c4861b31d3485ce179ee91d64793143f83cfa745c"
+    },
+    {
+      "id": "supabase",
+      "sha256": "61bf16d93be418f723ae1e137e57afdad4f185352fbc6dea9482af1e0a89ccf7"
+    },
+    {
+      "id": "googlegemini",
+      "sha256": "a6228d8846040401e941a39ed17459785e8324dbb7b870ce84233c9b3e9863a0"
+    },
+    {
+      "id": "docker",
+      "sha256": "65571291c261ef869c31540a38f3ca0f0ee3bb73f179c172211c8860f19a6359"
+    },
+    {
+      "id": "nginx",
+      "sha256": "236d53b2b746706df75e2a01668cb84e6f3fc7c8923a9ce824f8534db007a438"
+    },
+    {
+      "id": "onnx",
+      "sha256": "531d7a9aad43bc520f7a3a4d8f6c68df5e1b28ec8e91c27d53c63e158ef01eef"
+    },
+    {
+      "id": "ffmpeg",
+      "sha256": "076e200007de7d3f03ddc970e63a23f7cb46a772d1f4e7c670ceb22a9d46ed35"
+    },
+    {
+      "id": "huggingface",
+      "sha256": "aa81744034eecf4ac6b3fb7108dd71223965c7af3c534932391314563b150109"
+    },
+    {
+      "id": "google",
+      "sha256": "d8cf9fb2d5e234e03254f1d6400d8cc8160c309b010d031a64f37084b5a21d01"
+    }
+  ],
   "slides": 15,
   "status": "DRAFT — incomplete follow-up evaluation and personal/device confirmations",
   "html": "ExaMate-Technologies-VI-20261026.html",
-  "htmlSha256": "53141c07705626a8041aae601c168215941913ec236017a28e8685f98698a212",
+  "htmlSha256": "e35a252824a651e1f6103cdf9b80f38fd58c1dd104cc76045de68df2a0981f38",
   "assets": [
     {
       "id": "dashboard",
@@ -56,10 +117,10 @@
   "newProviderCalls": 0,
   "newApplicationAcceptance": false,
   "pdf": "ExaMate-Technologies-VI-20261026.pdf",
-  "pdfSha256": "b4c4ef46b4d8a9ec136c4be52ec56423c7593d26548f83c75a04ccf70c3d846f",
+  "pdfSha256": "d57a511cee04bccfaad8cc159c19954341b83947c47116e72b26c80eff819920",
   "pptx": "ExaMate-Technologies-VI-20261026.pptx",
-  "pptxSha256": "759d6748393ca75400a5e861b84b9979f61d13aa18f817febaf748ee3f8f5dd7",
-  "pptxArtwork": "raster-snapshot-from-pdf; editable speaker notes",
+  "pptxSha256": "0ab06a70133e4ffaac515311ffd688ab4748c8b0afe91577f6e538376da59da6",
+  "pptxArtwork": "raster-snapshot-from-pdf; fade transitions; editable speaker notes",
   "preview": "ExaMate-Technologies-VI-20261026-preview.jpg",
-  "previewSha256": "49bc1e1b7260cb370c82056c5fe9ff6de2530d9e9cc3dc29e661dd70c2df4b71"
+  "previewSha256": "b3aadb980b4ed9bdb7946ced4c093e90048eb1281c38c1bea9710b569af6c01c"
 }

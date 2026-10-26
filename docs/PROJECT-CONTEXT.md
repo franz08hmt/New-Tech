@@ -2,6 +2,24 @@
 
 ## Vietnamese technology deck - 26 October 2026
 
+Interactive revision on `69eab36`: main slides were shortened and recomposed into
+15 distinct visual layouts with 14 pinned brand SVGs, bounded scene playback,
+manual steps, RAG/role switches, flip-card and SSE/waveform illustrations. All
+simulations are offline and labelled; global pause/reduced motion and cleanup on
+hidden slide/page are supported. Full original rationale/trade-offs/notes live
+in a separate knowledge companion. HTML has interactions; PDF/PPTX have static
+readable artwork, with PPTX fade transitions and editable notes. Original English
+deck and application code remain unchanged. This supersedes the text-heavy
+technology layout below, not any app/live/semantic acceptance status.
+
+Interactive revision verification: 19 Node tests, 4 artifact/companion tests,
+75 Chrome layout checks at five widths, 31 native interaction checks across
+1440/375 and 3 companion checks passed; zero console errors/external requests.
+Full original details are retained in the companion; main copy averages 54 words.
+Byte-normalized HTML plus staged-artifact hash checks preserve Git bindings.
+No app/DB/provider gate was run for this authoring-only scope. See ignored
+`artifacts/technology-motion-20261026/verification-summary.json` for diagnostics.
+
 Separate 15-slide HTML/PDF/PPTX under `docs/submission/ExaMate-Technologies-VI-20261026.*`:
 Vietnamese technology choices, rationale, trade-offs and speaker notes, retaining
 the reference-style Poppins/Heroicons layout and eleven dated demo screenshots.

@@ -31,6 +31,15 @@ test("Vietnamese technology edition has 15 semantic slides and speaking notes", 
 
 test("technology choices carry reasons and explicit trade-offs", () => {
   const dom = open();
+  const knowledge = JSON.parse(
+    readFileSync(
+      new URL(
+        "../docs/presentation/technology-knowledge.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
   for (const id of [
     "frontend",
     "backend",
@@ -48,10 +57,17 @@ test("technology choices carry reasons and explicit trade-offs", () => {
     const slide = dom.window.document.getElementById(id);
     assert.ok(slide, id);
     assert.ok(
-      slide.querySelector(".decision"),
-      `${id} has a selection rationale`,
+      knowledge.sections
+        .find((s) => s.id === id)
+        .content.some((text) => text.startsWith("Vì sao chọn?")),
+      `${id} preserves its selection rationale in the companion`,
     );
-    assert.ok(slide.querySelector(".tradeoff"), `${id} has an honest limit`);
+    assert.ok(
+      knowledge.sections
+        .find((s) => s.id === id)
+        .content.some((text) => text.startsWith("Đánh đổi:")),
+      `${id} preserves its honest limit in the companion`,
+    );
   }
   dom.window.close();
 });

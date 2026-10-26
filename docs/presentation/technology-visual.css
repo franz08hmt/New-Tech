@@ -1,0 +1,1244 @@
+/* Visual storytelling layer. Simulations remain local and labelled. */
+.visual {
+  padding: 2.7em 3.6em 2.6em;
+  isolation: isolate;
+}
+.visual > header {
+  min-height: 4.4em;
+  margin-bottom: 1.1em;
+}
+.visual h2 {
+  font-size: 2.35em;
+  line-height: 1.16;
+  letter-spacing: -0.035em;
+}
+.visual h3 {
+  font-size: 1em;
+}
+.visual button {
+  font: inherit;
+  color: inherit;
+}
+.visual .tech-logo {
+  width: 2.7em;
+  height: 2.7em;
+  fill: currentColor;
+  flex: none;
+}
+.visual .diagram-caption {
+  font-size: 0.6em;
+  color: var(--muted);
+  margin-top: 0.85em;
+  line-height: 1.55;
+}
+.visual .big-statement {
+  font-size: 1.55em;
+  font-weight: 600;
+  text-align: center;
+  margin-top: 1.1em;
+}
+.visual .key-takeaway {
+  font-size: 1.12em;
+  line-height: 1.6;
+  align-self: center;
+  font-weight: 500;
+}
+.evidence {
+  min-width: 0;
+}
+.evidence img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: top;
+  border: 1px solid var(--line);
+  background: #f4f4f0;
+}
+.evidence figcaption {
+  font-size: 0.48em;
+  line-height: 1.5;
+  color: var(--muted);
+  margin-top: 0.5em;
+}
+.visual-hint {
+  font-size: 0.7em;
+}
+.v-orbit {
+  color: white;
+  background: var(--ink);
+}
+.v-orbit header {
+  width: 65%;
+  margin-top: 2.5em;
+}
+.v-orbit h1 {
+  font-size: 3.8em;
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+}
+.v-orbit h1 span {
+  display: block;
+  font-size: 0.66em;
+  margin-top: 0.35em;
+}
+.v-orbit .cover-line {
+  font-size: 1em;
+  margin-top: 1.4em;
+  width: 55%;
+}
+.v-orbit .visual-hint {
+  position: absolute;
+  bottom: 5em;
+  max-width: 52%;
+  color: #eeeee7;
+}
+.logo-orbit {
+  position: absolute;
+  right: 4em;
+  top: 8.3em;
+  width: 15em;
+  height: 15em;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.4em;
+  transform: rotate(-6deg);
+}
+.logo-orbit::before {
+  content: "";
+  position: absolute;
+  inset: -2em;
+  border: 1px dashed var(--yellow);
+  border-radius: 50%;
+  z-index: -1;
+  animation: orbit-ring 35s linear infinite;
+}
+.logo-orbit li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em;
+  border: 1px solid #898b83;
+  background: #191b1ee8;
+  transform: rotate(6deg);
+}
+.logo-orbit li:first-child,
+.logo-orbit li:last-child {
+  border-color: var(--yellow);
+  color: var(--yellow);
+}
+.logo-orbit li span {
+  font-size: 0.8em;
+}
+.scene {
+  position: relative;
+}
+.scene-nodes {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.4em;
+}
+.scene-nodes li {
+  min-width: 0;
+  position: relative;
+}
+.scene-nodes li:not(:last-child)::after {
+  content: "→";
+  position: absolute;
+  right: -1.12em;
+  top: 44%;
+  color: var(--ink);
+  font-size: 1.1em;
+}
+.scene-nodes li:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  right: -1.1em;
+  top: 65%;
+  width: 0.38em;
+  height: 0.38em;
+  background: var(--yellow);
+  border-radius: 50%;
+  animation: packet 1.6s ease-in-out infinite;
+}
+.scene-nodes button {
+  width: 100%;
+  min-height: 10em;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  padding: 1.1em 0.5em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7em;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background 0.25s,
+    border-color 0.25s,
+    transform 0.25s;
+}
+.scene-nodes button:hover {
+  border-color: var(--ink);
+  transform: translateY(-0.15em);
+}
+.scene-nodes button[aria-current="step"] {
+  border-color: var(--ink);
+  background: var(--yellow);
+}
+.scene-nodes button strong {
+  font-size: 1em;
+}
+.scene-nodes button small {
+  font-size: 0.65em;
+  color: var(--muted);
+}
+.scene-nodes .icon {
+  width: 2.7em;
+  height: 2.7em;
+}
+.scene-controls {
+  display: flex;
+  gap: 0.5em;
+  align-items: center;
+  margin-top: 0.9em;
+}
+.scene-controls button,
+.stream-lab button {
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  padding: 0.55em 0.7em;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: 0.65em;
+  cursor: pointer;
+}
+.scene-controls button:first-child,
+.stream-lab [data-type-start] {
+  background: var(--ink);
+  color: white;
+}
+.scene-controls .icon {
+  width: 1.15em;
+  height: 1.15em;
+}
+.scene-controls output {
+  font-size: 0.64em;
+  line-height: 1.6;
+  color: var(--muted);
+  margin-left: 0.6em;
+}
+.mini-brands,
+.brand-ribbon {
+  display: flex;
+  gap: 1.4em;
+  align-items: center;
+}
+.mini-brands {
+  margin: 1.2em auto 0;
+  justify-content: center;
+}
+.mini-brands li,
+.brand-ribbon li {
+  display: flex;
+  gap: 0.5em;
+  align-items: center;
+  font-size: 0.75em;
+}
+.mini-brands .tech-logo,
+.brand-ribbon .tech-logo {
+  width: 1.8em;
+  height: 1.8em;
+}
+.screen-stage {
+  position: relative;
+  width: 87%;
+  margin: 0.9em auto 0;
+}
+.screen-stage .evidence {
+  height: 20em;
+}
+.screen-stage .evidence img {
+  height: 18.8em;
+}
+.brand-ribbon {
+  margin: 0.4em 0 0.9em;
+}
+.callout {
+  position: absolute;
+  background: var(--yellow);
+  padding: 0.65em 0.9em;
+  font-size: 0.72em;
+  font-weight: 500;
+  box-shadow: 0.2em 0.2em 0 #191b1e;
+}
+.callout-a {
+  top: 1em;
+  left: -3em;
+}
+.callout-b {
+  top: 8em;
+  right: -3em;
+}
+.callout-c {
+  bottom: 3em;
+  left: -1em;
+}
+.auth-visual {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 1.3em 2em;
+}
+.identity-route {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1em;
+  margin-bottom: 0;
+  grid-column: 1 / -1;
+}
+.identity-route li {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.7em;
+  font-size: 0.85em;
+  padding: 1em 0.4em;
+  background: var(--soft);
+}
+.identity-route .icon {
+  width: 2.7em;
+  height: 2.7em;
+}
+.role-lab {
+  width: 100%;
+  padding: 1em 1.2em;
+  border-left: 0.25em solid var(--yellow);
+  background: var(--soft);
+}
+.role-lab > p {
+  font-size: 0.7em;
+  margin-bottom: 0.6em;
+}
+.role-lab menu,
+.stream-lab menu {
+  display: flex;
+  gap: 0.5em;
+}
+.role-lab button,
+.case-switch button {
+  border: 1px solid var(--line);
+  background: white;
+  font-size: 0.7em;
+  padding: 0.65em 0.9em;
+  cursor: pointer;
+}
+.role-lab button[aria-pressed="true"],
+.case-switch button[aria-pressed="true"] {
+  background: var(--yellow);
+  border-color: var(--ink);
+}
+.role-lab output {
+  display: block;
+  font-weight: 600;
+  margin: 1em 0 0.6em;
+  font-size: 0.85em;
+}
+.role-lab small {
+  display: block;
+  font-size: 0.52em;
+  color: var(--muted);
+}
+.auth-proof {
+  position: static;
+  width: 100%;
+  height: 11.7em;
+}
+.auth-proof img {
+  height: 10.3em;
+}
+.data-vault {
+  display: grid;
+  grid-template-columns: 0.8fr 1fr 1.2fr;
+  gap: 1.5em;
+  align-items: center;
+  min-height: 21em;
+}
+.vault-core {
+  background: var(--ink);
+  color: white;
+  border-radius: 50% / 10%;
+  padding: 2em 1em;
+  text-align: center;
+  border-top: 0.3em solid var(--yellow);
+}
+.vault-core .tech-logo {
+  display: block;
+  width: 4em;
+  height: 4em;
+  margin: 0 auto 1em;
+  color: var(--yellow);
+}
+.vault-core strong {
+  font-size: 0.9em;
+}
+.vault-core p {
+  font-size: 0.68em;
+  margin-top: 0.7em;
+}
+.vector-dots {
+  display: block;
+  font-size: 0.8em;
+  line-height: 2;
+  color: var(--yellow);
+  letter-spacing: 0.2em;
+  margin-top: 0.8em;
+  animation: vector-pulse 2s ease-in-out infinite;
+}
+.tenant-wall h3 {
+  display: flex;
+  gap: 0.5em;
+  align-items: center;
+  padding: 0.8em;
+  border: 1px solid var(--ink);
+  font-size: 0.8em;
+}
+.tenant-wall h3:nth-of-type(2) {
+  margin-top: 2.4em;
+}
+.tenant-wall p {
+  font-size: 0.65em;
+  margin: 0.8em 0;
+}
+.data-proof {
+  height: 18em;
+}
+.data-proof img {
+  height: 16em;
+}
+.compact-scene .scene-nodes button {
+  min-height: 7.2em;
+  gap: 0.45em;
+  padding: 0.7em 0.4em;
+}
+.compact-scene .tech-logo,
+.compact-scene .icon {
+  width: 2em;
+  height: 2em;
+}
+.compact-scene .scene-controls .icon {
+  width: 1em;
+  height: 1em;
+}
+.pdf-evidence,
+.rag-proof,
+.structured-proof {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: 2em;
+  align-items: center;
+  margin-top: 1.2em;
+}
+.pdf-evidence .evidence,
+.rag-proof .evidence,
+.structured-proof .evidence {
+  height: 12.3em;
+}
+.pdf-evidence .evidence img,
+.rag-proof .evidence img,
+.structured-proof .evidence img {
+  height: 10.7em;
+}
+.paper-note {
+  padding: 1.2em;
+  border-left: 0.25em solid var(--yellow);
+  background: var(--soft);
+  font-size: 1em;
+  line-height: 1.7;
+}
+.case-switch {
+  display: flex;
+  gap: 0.5em;
+  margin-bottom: 0.8em;
+}
+.v-retrieval .scene-nodes button {
+  min-height: 6.4em;
+}
+.v-retrieval .scene-controls {
+  margin-top: 0.5em;
+}
+.scene[data-case="empty"] [data-node]:last-child button {
+  background: var(--soft);
+  border: 2px dashed var(--ink);
+}
+.scene[data-case="empty"] [data-node]:last-child button strong::after {
+  content: ": bỏ qua";
+  font-size: 0.65em;
+  display: block;
+}
+.schema-stage {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr 1fr;
+  gap: 1.4em;
+  align-items: center;
+}
+.schema-stage article {
+  padding: 1em;
+  text-align: center;
+  position: relative;
+}
+.schema-stage article:not(:last-child)::after {
+  content: "→";
+  position: absolute;
+  right: -0.9em;
+  top: 43%;
+  font-size: 1.4em;
+}
+.schema-stage .tech-logo,
+.schema-stage .icon {
+  width: 2.6em;
+  height: 2.6em;
+  margin-bottom: 0.6em;
+}
+.schema-stage h3 {
+  font-size: 1em;
+}
+.schema-stage p,
+.schema-stage li {
+  font-size: 0.68em;
+  margin-top: 0.4em;
+}
+.schema-gate {
+  border: 2px solid var(--ink);
+  background: var(--yellow);
+}
+.schema-result {
+  background: var(--soft);
+}
+.structured-proof {
+  grid-template-columns: 1fr 1.1fr;
+  margin-top: 0.9em;
+}
+.practice-gallery {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 3em;
+  align-items: start;
+}
+.practice-gallery > .evidence {
+  height: 18.5em;
+}
+.practice-gallery > .evidence img {
+  height: 17em;
+}
+.flip-demo figcaption {
+  font-size: 0.6em;
+  color: var(--muted);
+  margin-bottom: 0.65em;
+}
+.flip-demo > p {
+  font-size: 0.66em;
+  text-align: center;
+  margin-top: 0.7em;
+}
+[data-flip-card] {
+  width: 100%;
+  height: 16em;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  perspective: 1000px;
+  cursor: pointer;
+}
+.flip-inner {
+  display: block;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.65s cubic-bezier(0.2, 0.65, 0.3, 1);
+}
+[data-flip-card][aria-pressed="true"] .flip-inner {
+  transform: rotateY(180deg);
+}
+.flip-front,
+.flip-back {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1em;
+  backface-visibility: hidden;
+  border: 2px solid var(--ink);
+}
+.flip-front {
+  background: var(--yellow);
+}
+.flip-back {
+  transform: rotateY(180deg);
+  background: var(--ink);
+  color: white;
+}
+.flip-front strong,
+.flip-back strong {
+  font-size: 1.4em;
+  line-height: 1.45;
+}
+.flip-front small,
+.flip-back small {
+  font-size: 0.6em;
+}
+.flip-front .icon {
+  width: 3em;
+  height: 3em;
+}
+.practice-route {
+  display: flex;
+  gap: 0;
+  margin-top: 0.5em;
+}
+.practice-route li {
+  flex: 1;
+  padding: 0.65em;
+  font-size: 0.75em;
+  border-bottom: 0.25em solid var(--yellow);
+  text-align: center;
+}
+.stream-lab {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2em;
+}
+.stream-lab article {
+  border: 1px solid var(--line);
+  padding: 1.2em;
+}
+.stream-lab h3 {
+  font-size: 1em;
+  margin-bottom: 0.9em;
+}
+.stream-lab output {
+  display: block;
+  min-height: 4.3em;
+  font-size: 0.95em;
+  line-height: 1.6;
+}
+.stream-lab small {
+  display: block;
+  font-size: 0.52em;
+  color: var(--muted);
+  margin-top: 0.8em;
+}
+.stream-lab article:last-child {
+  border-top: 0.3em solid var(--yellow);
+}
+.stream-lab article:last-child p {
+  font-size: 0.75em;
+  margin-top: 1.3em;
+}
+.validation-route {
+  display: flex;
+  gap: 0.6em;
+  flex-wrap: wrap;
+}
+.validation-route li {
+  font-size: 0.68em;
+  background: var(--soft);
+  padding: 0.6em;
+}
+.history-proof {
+  margin: 0.9em auto 0;
+  width: 65%;
+  height: 10.5em;
+}
+.history-proof img {
+  height: 9em;
+}
+.speech-stage {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 2em;
+  align-items: center;
+}
+.speech-stage > .evidence {
+  height: 21.5em;
+}
+.speech-stage > .evidence img {
+  height: 19em;
+}
+.wave-stage {
+  background: var(--ink);
+  color: white;
+  padding: 1.3em;
+}
+.wave-stage > p:first-child {
+  font-size: 0.9em;
+  display: flex;
+  gap: 0.7em;
+  align-items: center;
+}
+.wave-stage > p:last-child {
+  font-size: 0.68em;
+  margin-top: 1.4em;
+}
+.wave-stage .brand-ribbon {
+  flex-wrap: wrap;
+  margin: 1.3em 0 0;
+  gap: 1em;
+}
+.wave-stage .brand-ribbon li {
+  font-size: 0.6em;
+}
+.waveform {
+  height: 5em;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin: 1em 0;
+}
+.waveform li {
+  flex: 1;
+  height: var(--bar);
+  background: var(--yellow);
+  transform-origin: center;
+  animation: wave 1.3s ease-in-out infinite;
+  animation-delay: var(--delay);
+}
+.usage-stage {
+  position: relative;
+  width: 83%;
+  margin: 1.7em auto 0;
+}
+.usage-stage .evidence {
+  height: 23em;
+}
+.usage-stage .evidence img {
+  height: 20em;
+}
+.usage-chips {
+  position: absolute;
+  inset: -1.4em -2.5em auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+}
+.usage-chips li {
+  background: var(--yellow);
+  padding: 0.75em;
+  font-size: 0.7em;
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  border: 1px solid var(--ink);
+}
+.v-usage .diagram-caption {
+  margin-top: 0;
+}
+.shipping-stage {
+  display: grid;
+  grid-template-columns: 1.15fr 0.55fr 0.75fr;
+  gap: 1.6em;
+  align-items: center;
+}
+.docker-stack {
+  border: 2px solid var(--ink);
+  padding: 1em 1.2em;
+  background: var(--soft);
+}
+.docker-stack h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  font-size: 0.85em;
+}
+.docker-stack h3 .tech-logo {
+  width: 2em;
+  height: 2em;
+}
+.docker-stack ol {
+  display: grid;
+  gap: 0.45em;
+  margin: 1em 0;
+}
+.docker-stack ol li {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  padding: 0.65em 0.8em;
+  border: 1px solid var(--line);
+  background: white;
+  font-size: 0.8em;
+}
+.docker-stack ol .tech-logo {
+  width: 1.6em;
+  height: 1.6em;
+}
+.docker-stack > p {
+  font-size: 0.72em;
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+}
+.docker-stack .secure-link {
+  margin: 0.8em 0;
+  font-size: 0.65em;
+}
+.docker-stack > p .tech-logo {
+  width: 2em;
+  height: 2em;
+}
+.phone-proof {
+  height: 23em;
+}
+.phone-proof img {
+  height: 20.5em;
+}
+.shipping-note {
+  font-size: 1.1em;
+  line-height: 1.65;
+  border-left: 0.22em solid var(--yellow);
+  padding-left: 0.8em;
+}
+.proof-ladder {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.4em;
+}
+.proof-ladder article {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  flex-wrap: wrap;
+  padding: 1em;
+  border-top: 0.25em solid var(--yellow);
+  background: var(--soft);
+}
+.proof-ladder strong {
+  font-size: 0.85em;
+}
+.proof-ladder small {
+  flex-basis: 100%;
+  font-size: 0.6em;
+  color: var(--muted);
+}
+.result-board {
+  margin-top: 1.8em;
+  position: relative;
+  padding-left: 11em;
+  min-height: 8.5em;
+}
+.result-board > strong {
+  position: absolute;
+  left: 0;
+  top: -0.12em;
+  font-size: 4em;
+  line-height: 1.1;
+}
+.result-board > strong span {
+  display: block;
+  font-size: 0.15em;
+  font-weight: 500;
+  margin-top: 0.6em;
+}
+.case-cells {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 0.45em;
+  padding-top: 0.2em;
+}
+.case-cells li {
+  height: 1.8em;
+  background: var(--yellow);
+  border: 1px solid var(--ink);
+}
+.case-cells .result-fail {
+  background: var(--ink);
+}
+.case-cells .result-unknown {
+  background: white;
+  border: 2px dashed var(--ink);
+}
+.result-board p {
+  font-size: 0.8em;
+  margin-top: 1em;
+}
+.followup-note {
+  font-size: 0.7em;
+  border-top: 1px solid var(--line);
+  padding-top: 1em;
+}
+.team-foot {
+  margin-top: 1em;
+  font-size: 0.66em;
+}
+body[data-motion="paused"] *,
+body[data-motion="paused"] *::before,
+body[data-motion="paused"] *::after {
+  animation-play-state: paused !important;
+  transition: none !important;
+}
+.visual .speaker {
+  text-align: left;
+}
+@keyframes orbit-ring {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes packet {
+  0%,
+  100% {
+    transform: translateX(-0.4em);
+    opacity: 0.3;
+  }
+  50% {
+    transform: translateX(0.4em);
+    opacity: 1;
+  }
+}
+@keyframes vector-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes wave {
+  50% {
+    transform: scaleY(0.35);
+  }
+}
+@keyframes reveal-scene {
+  from {
+    opacity: 0.3;
+    transform: translateY(0.6em);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .visual.is-visible > :not(.speaker):not(.backdrop) {
+    animation: reveal-scene 0.45s ease-out both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media screen and (max-width: 850px) {
+  .toolbar {
+    flex-wrap: wrap;
+    padding: 0.6rem;
+    gap: 0.5rem;
+  }
+  .toolbar output {
+    margin-left: 0;
+    font-size: 0.65rem;
+  }
+  .toolbar menu {
+    flex-wrap: wrap;
+  }
+  .toolbar button {
+    min-height: 40px;
+  }
+  .toolbar menu button span {
+    display: inline;
+  }
+  .visual {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    aspect-ratio: auto;
+    padding: 1.7rem 1.1rem 3rem;
+    font-size: 15px;
+  }
+  .visual > header {
+    min-height: 0;
+    margin-bottom: 1.4em;
+  }
+  .visual h2 {
+    font-size: 1.8em;
+  }
+  .v-orbit {
+    min-height: 41rem;
+  }
+  .v-orbit header {
+    margin-top: 0;
+    width: 100%;
+  }
+  .v-orbit h1 {
+    font-size: 2.9em;
+  }
+  .v-orbit .cover-line {
+    width: 100%;
+    margin-top: 1em;
+  }
+  .logo-orbit {
+    position: relative;
+    top: auto;
+    right: auto;
+    margin: 2em auto;
+    width: 13em;
+    height: 13em;
+  }
+  .v-orbit .visual-hint {
+    position: static;
+    max-width: 100%;
+  }
+  .scene-nodes {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8em;
+  }
+  .scene-nodes button {
+    min-height: 8.5em;
+    font-size: 0.92em;
+  }
+  .scene-nodes li::before,
+  .scene-nodes li::after {
+    display: none;
+  }
+  .scene-controls {
+    flex-wrap: wrap;
+  }
+  .scene-controls button {
+    min-height: 42px;
+    font-size: 0.8em;
+  }
+  .scene-controls output {
+    flex-basis: 100%;
+    margin: 0.5em 0 0;
+    font-size: 0.8em;
+  }
+  .mini-brands,
+  .brand-ribbon {
+    flex-wrap: wrap;
+    gap: 1em;
+  }
+  .screen-stage {
+    width: 100%;
+  }
+  .screen-stage .evidence {
+    height: auto;
+  }
+  .screen-stage .evidence img {
+    height: auto;
+  }
+  .callout {
+    position: static;
+    box-shadow: none;
+    margin-top: 0.65em;
+  }
+  .evidence {
+    height: auto !important;
+  }
+  .evidence img {
+    height: auto !important;
+  }
+  .evidence figcaption {
+    font-size: 0.66em;
+  }
+  .identity-route {
+    grid-template-columns: 1fr 1fr;
+  }
+  .auth-visual {
+    display: block;
+  }
+  .role-lab {
+    width: 100%;
+    margin-bottom: 1.2em;
+  }
+  .role-lab button {
+    min-height: 44px;
+    font-size: 0.8em;
+  }
+  .role-lab output {
+    font-size: 1em;
+  }
+  .role-lab small {
+    font-size: 0.7em;
+  }
+  .auth-proof {
+    position: static;
+    width: 100%;
+  }
+  .data-vault,
+  .pdf-evidence,
+  .rag-proof,
+  .structured-proof,
+  .practice-gallery,
+  .stream-lab,
+  .speech-stage,
+  .shipping-stage {
+    grid-template-columns: 1fr;
+    gap: 1.3em;
+  }
+  .vault-core {
+    border-radius: 0.2em;
+  }
+  .tenant-wall h3:nth-of-type(2) {
+    margin-top: 1.2em;
+  }
+  .tenant-wall p {
+    font-size: 0.8em;
+  }
+  .schema-stage {
+    grid-template-columns: 1fr;
+    gap: 0.8em;
+  }
+  .schema-stage article::after {
+    display: none;
+  }
+  .schema-stage p,
+  .schema-stage li {
+    font-size: 0.85em;
+  }
+  .flip-demo figcaption {
+    font-size: 0.7em;
+  }
+  .flip-demo {
+    margin-top: 1em;
+  }
+  [data-flip-card] {
+    height: 16em;
+  }
+  .practice-route {
+    flex-wrap: wrap;
+  }
+  .stream-lab output {
+    font-size: 1em;
+  }
+  .stream-lab small {
+    font-size: 0.7em;
+  }
+  .stream-lab button {
+    min-height: 44px;
+    font-size: 0.8em;
+  }
+  .history-proof {
+    width: 100%;
+  }
+  .usage-stage {
+    width: 100%;
+    margin: 0;
+    display: flex;
+    flex-direction: column-reverse;
+  }
+  .usage-chips {
+    position: static;
+    display: grid;
+    margin-bottom: 1em;
+  }
+  .usage-chips li {
+    font-size: 0.85em;
+  }
+  .phone-proof {
+    max-width: 15em;
+    margin: auto;
+  }
+  .proof-ladder {
+    grid-template-columns: 1fr;
+    gap: 0.7em;
+  }
+  .proof-ladder strong {
+    font-size: 1em;
+  }
+  .proof-ladder small {
+    font-size: 0.8em;
+  }
+  .result-board {
+    padding-left: 0;
+    min-height: 0;
+  }
+  .result-board > strong {
+    position: static;
+    display: block;
+    font-size: 3em;
+    margin-bottom: 0.7em;
+  }
+  .result-board > strong span {
+    font-size: 0.22em;
+  }
+  .case-cells {
+    gap: 0.3em;
+  }
+  .case-cells li {
+    height: 1.5em;
+  }
+  .followup-note,
+  .team-foot,
+  .diagram-caption {
+    font-size: 0.8em !important;
+  }
+  .site-footer {
+    gap: 0.8rem;
+    font-size: 0.75rem;
+  }
+}
+@media print {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .visual {
+    padding: 2.7em 3.6em 2.6em;
+  }
+  .visual > header {
+    min-height: 4.4em;
+    margin-bottom: 1.1em;
+  }
+  .visual > :not(.speaker) {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .scene-controls button,
+  .role-lab menu,
+  .case-switch,
+  .stream-lab menu {
+    display: none !important;
+  }
+  .scene-controls output {
+    margin-left: 0;
+  }
+  .scene-nodes button {
+    border: 1px solid var(--ink);
+    background: white !important;
+  }
+  .scene-nodes button strong,
+  .scene-nodes button small {
+    color: var(--ink);
+  }
+  .scene-nodes li::before {
+    display: none;
+  }
+  .flip-inner {
+    transform: none !important;
+  }
+  .flip-front {
+    display: none;
+  }
+  .flip-back {
+    transform: none;
+    position: static;
+    height: 100%;
+    background: var(--yellow);
+    color: var(--ink);
+  }
+  .v-orbit .backdrop {
+    opacity: 1;
+  }
+  .case-switch {
+    margin: 0;
+  }
+}

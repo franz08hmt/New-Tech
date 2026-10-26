@@ -1,0 +1,275 @@
+{
+  "schema": "examate-technology-knowledge-v1",
+  "sourceCheckpoint": "69eab36",
+  "language": "vi",
+  "sections": [
+    {
+      "id": "cover",
+      "title": "ExaMate Công nghệ phía sau trải nghiệm.",
+      "content": [],
+      "notes": "Tài · mở đầu 25 giây “Bộ slide này giải thích vì sao nhóm chọn công nghệ và công nghệ đó\n            giải quyết phần nào của ExaMate. Nhóm dùng model có sẵn, không tự\n            train. Hai năng lực AI chính là RAG có nguồn và structured output\n            được đưa vào luồng luyện tập.” Đây là bản bổ sung kỹ thuật, không\n            thay slide demo ngắn. Không đọc cả 15 slide nếu thời gian bảo vệ chỉ\n            8 phút.",
+      "figures": []
+    },
+    {
+      "id": "architecture",
+      "title": "Mỗi lớp có một trách nhiệm.",
+      "content": [
+        "Trình duyệt → nginx → NestJS → dữ liệu/provider đã được kiểm quyền"
+      ],
+      "notes": "Thắng · 40 giây, Tài bổ sung quyền “React không gọi SQL hay cầm server key. Nest gom nghiệp vụ và xác\n            minh principal; PostgreSQL lưu cả dữ liệu học tập lẫn vector.\n            Supabase Auth và Storage là hai dịch vụ khác nhau. Gemini cần mạng,\n            còn Whisper chạy trên API host. Nhóm không giữ DB transaction trong\n            lúc chờ Gemini/Storage.” Sơ đồ là khái niệm theo source, không phải\n            trace network mới. Code: App.tsx, app.module.ts,\n            database.service.ts, compose.yaml.",
+      "figures": []
+    },
+    {
+      "id": "frontend",
+      "title": "UI dễ dùng, dữ liệu có kiểm soát.",
+      "content": [
+        "React 19 + TypeScript + Vite",
+        "Component tái sử dụng; hook tách data/lifecycle khỏi giao diện.",
+        "Contracts chung giữ FE/BE đồng bộ kiểu dữ liệu.",
+        "Tailwind 4 + CSS riêng, Poppins và Heroicons.",
+        "Server search/paging; abort + key/revision chặn response cũ.",
+        "Vì sao chọn? Phù hợp nhiều màn tương tác; Vite hỗ\n              trợ dev/build, không ép dùng server rendering cho workspace riêng\n              tư.",
+        "Đánh đổi: state/effect phức tạp; TypeScript không\n              thay validation runtime hoặc phân quyền backend.",
+        "Điểm chỉ code: App.tsx → TasksPanel.tsx → use-paged-search.ts → api.ts"
+      ],
+      "notes": "Tài · 45 giây “React giúp chia các màn thành component, còn hook quản lý request\n            và state. Khi đổi từ khóa ở trang hai, request mới phải về trang một\n            ngay; abort chỉ dừng tài nguyên, key/epoch mới quyết định response\n            được apply. Giao diện dùng palette sẵn, Poppins/Heroicons, focus và\n            control dễ thao tác.” Ví dụ kể lỗi query mới dùng page cũ hoặc\n            response account cũ. Không nói dùng localStorage làm nguồn server,\n            không coi ẩn nút là đủ phân quyền. Nếu hỏi sao không Next.js: chưa\n            có nhu cầu SSR/SEO cho vùng workspace riêng tư; Vite đáp ứng\n            dev/build hiện tại.",
+      "figures": [
+        {
+          "id": "courses",
+          "caption": "Ảnh đã lưu 24/10 · Nest/PG17 thật; Auth/provider synthetic.\n              Progress Courses là minh họa, không tính tự động."
+        }
+      ]
+    },
+    {
+      "id": "backend",
+      "title": "Một API, nhiều lớp kiểm soát.",
+      "content": [
+        "Vì sao chọn? Modules, dependency injection và\n              test boundary rõ; cùng hệ TypeScript với frontend và contracts.",
+        "Đánh đổi: decorator/DI cần cấu hình nhất quán.\n              DTO, authorization và error envelope vẫn phải kiểm ở HTTP thật.",
+        "Controller mỏng → service nghiệp vụ → runtime DB; @examate/contracts\n          không thay DTO."
+      ],
+      "notes": "Thắng · 40 giây “Thắng đóng góp nền backend/Supabase và Gemini ban đầu; Tài tích hợp\n            tiếp Auth/RLS và nghiệp vụ. Nest giúp controller không chứa cả\n            pipeline AI. DI cho phép test giả SDK/Auth upstream trong khi Nest,\n            authorization, service và PostgreSQL vẫn thật.” Code:\n            assistant.controller.ts, auth.guard.ts, common/http.ts,\n            packages/contracts/index.d.ts. TypeScript type bị xóa khi compile,\n            nên body từ mạng phải validate. Không nối sort identifier từ client;\n            dùng allowlist.",
+      "figures": []
+    },
+    {
+      "id": "auth",
+      "title": "Đăng nhập đúng, vào đúng workspace.",
+      "content": [
+        "Supabase Auth + Google OAuth",
+        "Google/Supabase xác minh danh tính.",
+        "Backend xử lý PKCE/callback và kiểm JWT.",
+        "Browser dùng cookie opaque HttpOnly + CSRF.",
+        "Membership hiện hành quyết định workspace/role.",
+        "Vì sao chọn? Tái sử dụng dịch vụ danh tính, không\n              tự lưu mật khẩu; quyền nghiệp vụ vẫn do server kiểm.",
+        "Đánh đổi: phụ thuộc Auth upstream và cấu hình\n              callback; HttpOnly không tự chống mọi XSS/CSRF.",
+        "Manager / Member / Viewer · Google login không tự cấp membership hay\n          quyền manager."
+      ],
+      "notes": "Tài · 45 giây “Authentication trả lời bạn là ai, authorization trả lời bạn được\n            làm gì. Phiên opaque HttpOnly khác JWT: browser không tự giữ access\n            token trong localStorage. Mỗi workspace request dùng principal\n            server xác minh; viewer không ghi dù sửa DOM. Manager cũng không đọc\n            hội thoại/quiz riêng của người khác.” Google callback về Supabase\n            khác callback về app. Code: auth.service.ts, auth.guard.ts,\n            use-pilot-session.ts, PilotAccess.tsx. Không chiếu\n            .env/cookie/token.",
+      "figures": [
+        {
+          "id": "dashboard",
+          "caption": "Ảnh đã lưu 23/10 · runtime Supabase thật. Ảnh không thay một lần\n              kiểm đăng nhập Google mới."
+        }
+      ]
+    },
+    {
+      "id": "database",
+      "title": "Dữ liệu quan hệ và vector, cùng một nền.",
+      "content": [
+        "PostgreSQL 17 + pgvector",
+        "Quan hệ/FK, transaction và aggregate tính trên toàn bộ tập lọc.",
+        "Vector 768 chiều, cosine distance cho retrieval.",
+        "SQL tenant predicates + RLS; business/Auth LOGIN tách riêng.",
+        "Runtime non-owner, NOBYPASSRLS; context theo transaction.",
+        "Vì sao chọn? Dữ liệu quan hệ và vector cùng nền\n              PostgreSQL; không thêm một vector service riêng cho phạm vi nhóm.",
+        "Đánh đổi: RLS/grants và migration cần kiểm kỹ.\n              Vector search hiện tại chưa phải chứng minh quy mô ANN lớn.",
+        "workspaceTransaction → set_config(..., true) · scope trước count /\n          aggregate / LIMIT"
+      ],
+      "notes": "Tài · 45 giây; Thắng nắm nền database “PostgreSQL đáp ứng dữ liệu quan hệ còn pgvector bổ sung kiểu vector\n            và phép khoảng cách. RLS là lớp DB, WHERE là scope ứng dụng; dùng cả\n            hai. Runtime owner/BYPASSRLS sẽ làm mất ý nghĩa bảo vệ nên nhóm tách\n            LOGIN business/Auth. Context transaction-local tránh rò pool giữa\n            request.” Giải thích score 1 − cosine distance không là xác suất\n            đúng; không nhận đã tối ưu ANN cho dữ liệu lớn. Code:\n            database.service.ts, runtime-capability-contract.ts,\n            rag-retrieval.service.ts.",
+      "figures": [
+        {
+          "id": "expenses",
+          "caption": "Ảnh đã lưu · regression Nest/PG17 thật, dữ liệu tổng hợp.\n              Aggregate không lấy từ items của một trang."
+        }
+      ]
+    },
+    {
+      "id": "pdf",
+      "title": "Không đưa cả PDF vào mọi câu hỏi.",
+      "content": [
+        "Private Storage + PDF.js",
+        "Upload PDF và metadata có scope.",
+        "Trích text từng trang, kiểm chất lượng.",
+        "Chunk 1.200 / max 1.800 / overlap 200 ký tự.",
+        "Embedding → chunks/vector → Ready.",
+        "Vì sao chọn? PDF.js giữ liên hệ text/trang;\n              bucket private giữ file gốc, DB giữ metadata và vector.",
+        "Đánh đổi: scan/bảng có thể trích thiếu. OCR là\n              opt-in có phí; Ready không bảo đảm đọc đủ mọi trang.",
+        "PDF preview/download: kiểm quyền hiện tại → signed URL mới (60 giây) →\n          đúng trang."
+      ],
+      "notes": "Thắng + Tài · 45 giây “Nhóm chia theo trang và giữ overlap để giảm mất ngữ cảnh ở ranh\n            giới. Các số là ký tự, không phải token. Signed URL được tạo sau\n            authorize, không do model cung cấp. OCR chỉ dành trang không trích\n            được text hữu ích, không tự chạy lại mọi tài liệu.” Cấu hình local\n            ngày 26/10 đã đổi riêng GEMINI_OCR_MODEL sang gemini-3.5-flash-lite\n            nhưng OCR vẫn tắt; source fallback vẫn 2.5-flash. Đó không phải kết\n            quả benchmark OCR hoặc thay model generation của evaluation. Code:\n            document-ingestion.service.ts, document-chunker.ts,\n            document-ocr.service.ts.",
+      "figures": [
+        {
+          "id": "documents",
+          "caption": "Ảnh đã lưu 23/10 · Nest/PG17 thật, upstream synthetic; crop phần\n              trên viewport."
+        }
+      ]
+    },
+    {
+      "id": "rag",
+      "title": "Tìm đúng nguồn trước khi tạo câu trả lời.",
+      "content": [
+        "Embedding → retrieval → generation",
+        "gemini-embedding-001, vector 768 chiều.",
+        "Lọc workspace/course/document trước LIMIT.",
+        "TopK 6, candidate 10; threshold là cấu hình.",
+        "Thiếu evidence: từ chối, không gọi answer generation.",
+        "Vì sao chọn? Hỏi theo tài liệu hiện hành, có thể\n              mở nguồn; không cần fine-tune model để đưa PDF vào context.",
+        "Đánh đổi: retrieval có thể thiếu/nhiễu. Có\n              citation hợp lệ không chứng minh mọi claim đều đúng.",
+        "PDF là dữ liệu không tin cậy · source IDs chỉ thuộc evidence của chính\n          lượt hỏi."
+      ],
+      "notes": "Tài + Thắng · 50 giây “RAG không train hay fine-tune; lấy evidence đúng quyền rồi mới yêu\n            cầu model trả lời. Embedding dùng để so liên quan, generation mới\n            viết answer. Ngưỡng 0,55 là source default, không 55% accuracy;\n            runtime có thể khác. Citation map ID về document/page trên server,\n            nhưng claim grounding còn phải đối chiếu.” Thắng có đóng góp RAG đã\n            được Tài xác nhận, không gán riêng toàn bộ cho một người. Code:\n            rag-retrieval.service.ts, rag-context.ts, source-markers.ts,\n            prompt-registry.ts. Hỏi ngoài PDF có thể tốn query embedding nhưng\n            không answer generation.",
+      "figures": [
+        {
+          "id": "rag",
+          "caption": "Ảnh đã lưu · Nest/PDF.js/PG17 thật; Auth, Storage và provider\n              synthetic. Không phải output live mới."
+        }
+      ]
+    },
+    {
+      "id": "structured",
+      "title": "JSON đúng cú pháp vẫn chưa đủ.",
+      "content": [
+        "Google GenAI SDK + schema versioned",
+        "responseMimeType + responseJsonSchema.",
+        "Backend kiểm kiểu, exact keys, độ dài và số mục.",
+        "Quiz: đúng 4 lựa chọn, correctIndex 0–3.",
+        "Flashcards: front/back không rỗng, không trùng; nguồn đúng\n                evidence.",
+        "Vì sao chọn? Đầu ra có cấu trúc để preview, lưu\n              và luyện tập; không chỉ in JSON trong chat.",
+        "Đánh đổi: schema/source hợp lệ không bảo đảm đáp\n              án đúng kiến thức; không auto-repair bằng LLM loop.",
+        "Prompt ID/version riêng · server cấp ID và metadata nguồn · model\n          không cấp quyền/URL."
+      ],
+      "notes": "Tài · 45 giây “Nhóm chọn Gemini qua wrapper đang có, hỗ trợ generation và\n            structured output. Không nói model chắc tốt nhất khi chưa so sánh.\n            responseJsonSchema giúp định dạng nhưng server vẫn validate lại,\n            reject JSON lỗi/truncated, thừa field, trùng câu/thẻ hoặc source\n            giả. Answer key đúng kiểu chưa đồng nghĩa đúng kiến thức.” Model\n            generation do GEMINI_MODEL quyết định; baseline giữ\n            gemini-2.5-flash, template và OCR riêng có thể khác. Code:\n            gemini.service.ts, prompt-registry.ts, study-quiz-validation.ts,\n            study-flashcards-validation.ts.",
+      "figures": [
+        {
+          "id": "coach",
+          "caption": "Ảnh đã lưu 23/10 · Nest/PG17 thật; provider synthetic. Không chứng\n              minh chất lượng giáo dục."
+        }
+      ]
+    },
+    {
+      "id": "practice",
+      "title": "Người dùng xác nhận, server giữ nhất quán.",
+      "content": [
+        "Draft → confirm → snapshot → practice",
+        "Draft token/hash, owner/workspace; draft 15 phút.",
+        "Quiz chấm server; Flashcards flip rồi tự đánh giá.",
+        "List/detail/progress từ cùng dữ liệu server.",
+        "Read, save và practice không gọi AI.",
+        "Vì sao chọn? Explicit confirm giữ người học trong\n              vòng kiểm tra; snapshot bất biến bảo toàn cách chấm lịch sử.",
+        "Đánh đổi: cần idempotency và recovery. Unknown\n              không có nghĩa chưa lưu; phải giữ key/payload hoặc GET\n              reconciliation.",
+        "Attempt/review chưa rõ kết quả → khóa write xung đột, giữ nguyên đường\n          khôi phục."
+      ],
+      "notes": "Tài · 50 giây “Generation không tự lưu bộ quiz/thẻ. Confirm riêng mới tạo snapshot\n            cá nhân. Khi nộp bài, server đọc answer key chứ không nhận score\n            client. Flashcards lưu remembered/needs_review, không chứng minh đã\n            thành thạo. Nếu mất ACK sau commit thì retry cùng key/payload, không\n            tạo lượt mới để thoát lỗi; confirm unknown cần GET trước.” Bộ đã lưu\n            mặc định 90 ngày, nguồn xóa báo unavailable, manager không đọc của\n            người khác. Code: StudyCoachPanel.tsx, StudyFlashcardsPanel.tsx,\n            study-coach.service.ts, study-flashcards.service.ts.",
+      "figures": [
+        {
+          "id": "quiz",
+          "caption": "Ảnh đã lưu · kết quả fixture được server chấm, provider synthetic.\n              Flashcards dùng tự đánh giá, không điểm AI."
+        }
+      ]
+    },
+    {
+      "id": "stream",
+      "title": "Phản hồi nhanh, kiểm soát trọn vòng đời.",
+      "content": [
+        "Fetch POST + SSE + AbortController",
+        "General phát delta; Stop chủ động hủy.",
+        "Documents chỉ trả answer sau kiểm schema/citation.",
+        "Parser buffer frame/UTF-8, xử lý stream đứt.",
+        "Receipt/hash, tối đa 6 lượt context hợp lệ; history\n                owner-scoped.",
+        "Vì sao chọn? Luồng server → client phù hợp SSE;\n              chưa cần kênh hai chiều liên tục như WebSocket.",
+        "Đánh đổi: cần chống proxy buffering,\n              backpressure, stale response; Stop không hoàn lại chi phí đã\n              dispatch.",
+        "assistant-stream.ts · assistant.controller.ts · use-assistant.ts ·\n          assistant-conversation.service.ts"
+      ],
+      "notes": "Thắng · SSE 35 giây; Tài · history 15 giây “SSE không bắt buộc EventSource. Nhóm cần POST body và CSRF headers\n            nên dùng fetch/ReadableStream. Một network chunk không bằng một\n            event; parser phải giữ buffer. General được phát delta, RAG giữ nội\n            dung tới khi validator xong, không bỏ SSE toàn ứng dụng.” Tài bổ\n            sung: receipt xác minh snapshot, không chứng minh answer đúng;\n            history mở lại và follow-up không trộn source cũ thành evidence mới.\n            Epoch/revision ngăn stream A cập nhật B.",
+      "figures": [
+        {
+          "id": "history",
+          "caption": "Ảnh đã lưu · Nest/PG17 thật, Auth/provider synthetic. Mở lịch sử\n              là đọc, không tự gửi lại AI."
+        }
+      ]
+    },
+    {
+      "id": "speech",
+      "title": "Giọng nói thành bản nháp có thể sửa.",
+      "content": [
+        "Whisper-small · Transformers.js · ONNX",
+        "MediaRecorder → upload audio.",
+        "ffprobe/FFmpeg → mono 16 kHz.",
+        "Worker CPU/q8 → transcript.",
+        "Người dùng sửa → chèn → tự gửi.",
+        "Vì sao chọn? STT suy luận local trên API host,\n              không gửi audio tới một speech provider bên ngoài.",
+        "Đánh đổi: tốn CPU/RAM, cần weights và timeout;\n              micro/tiếng Việt vẫn cần benchmark. Không TTS.",
+        "Giới hạn audio 60 giây · cửa sổ 30 / stride 5 · inference 120s → API\n          150s → client/nginx 180s"
+      ],
+      "notes": "Thắng · 50 giây “Whisper pretrained chạy trên API host, không trong browser và không\n            do nhóm train. ONNX là định dạng/runtime; q8 giảm tài nguyên nhưng\n            có trade-off. Audio dài trong trần 60 giây dùng chunk 30/stride 5 để\n            không chỉ đọc cửa sổ đầu. Timeout phải terminate worker/subprocess\n            và cleanup, không chỉ Promise.race.” Không gọi toàn app offline:\n            Supabase/Gemini vẫn cần mạng. Code: audio-inspector.ts,\n            local-inference-options.ts, local-speech-runtime.ts,\n            use-speech-input.ts.",
+      "figures": [
+        {
+          "id": "speech",
+          "caption": "Ảnh đã lưu · readiness runtime local; không chứng minh microphone\n              vật lý hay độ chính xác tiếng Việt."
+        }
+      ]
+    },
+    {
+      "id": "controls",
+      "title": "Giữ chỗ trước, đo đúng sau lời gọi.",
+      "content": [
+        "Admission ledger + AiUsageService",
+        "Quota/concurrency/fan-out trước dispatch.",
+        "Tách logical operation với provider calls.",
+        "Token/cost known đi cùng coverage; missing ≠ 0.",
+        "Manager dashboard: cohort, filter, paging và refresh.",
+        "Vì sao chọn? Ngăn phát sinh quá giới hạn và giúp\n              giải thích model/prompt/outcome/latency.",
+        "Đánh đổi: telemetry best-effort, không phải hóa\n              đơn hoặc quota ledger; tiền tách currency/pricing version.",
+        "1 operation ≠ 1 call · latency operation ≠ latency provider · lỗi\n          không tự retry/replay."
+      ],
+      "notes": "Tài · 45 giây “Telemetry ghi sau không ngăn chi phí đã xảy ra, nên admission\n            reserve trước provider. Một RAG request có thể có embedding và\n            generation; chỉ đếm HTTP request là thiếu. Token null không coi là\n            zero, cộng decimal/BIGINT không dùng Number tùy tiện. Dashboard chỉ\n            manager và membership được kiểm mới trong transaction.” Refresh dùng\n            generation chung cho overview/cost/detail; chuyển page operation\n            không ép đọc cost nếu cohort giữ nguyên. Code:\n            ai-admission.service.ts, ai-usage.service.ts,\n            ai-usage-dashboard.service.ts.",
+      "figures": [
+        {
+          "id": "usage",
+          "caption": "Ảnh đã lưu · telemetry tổng hợp trên Nest/PG17 thật; không phải\n              hóa đơn Gemini hay số liệu mới."
+        }
+      ]
+    },
+    {
+      "id": "deployment",
+      "title": "Đóng gói runtime, giữ dữ liệu bền.",
+      "content": [
+        "Docker Compose + nginx",
+        "Web static + API image, health checks và proxy /api.",
+        "Supabase DB/Storage thật giữ dữ liệu qua lần restart.",
+        "Business/Auth LOGIN tách, CA/TLS xác minh.",
+        "Ảnh/chữ responsive; không cần PWA để có mobile web.",
+        "Vì sao chọn? Môi trường demo nhất quán, đơn giản\n              hóa khởi động và cô lập dependency hệ thống như FFmpeg.",
+        "Đánh đổi: vẫn phụ thuộc Docker, mạng và dịch vụ\n              thật. Health xanh không bảo đảm Google/Gemini đang trả lời.",
+        "Demo thật: compose.yaml + compose.ca.yaml · loopback :8080 · không\n          dùng synthetic demo stack làm bằng chứng live."
+      ],
+      "notes": "Tài · 40 giây “Container chỉ đóng gói ứng dụng, không tự làm Auth/Storage/Gemini\n            offline. Dữ liệu bền do DB/Storage, không vì state React hay image\n            Docker. nginx giữ proxy/Origin và không buffer SSE; TLS CA phải được\n            giữ, không tắt kiểm chứng để kết nối.” Không trình chiếu .env, không\n            chạy lại migration/cloud write khi chỉ khởi động demo. Đây là mô tả\n            deployment đã lưu, không một đợt triển khai mới. Code: compose.yaml,\n            compose.ca.yaml, Dockerfiles và infra/nginx/default.conf.",
+      "figures": [
+        {
+          "id": "mobile",
+          "caption": "Ảnh đã lưu 23/10 · dịch vụ thật, responsive emulation; không phải\n              kiểm máy vật lý mới."
+        }
+      ]
+    },
+    {
+      "id": "verification",
+      "title": "Kiểm cấu trúc, kiểm luồng chạy, rồi đối chiếu chất lượng.",
+      "content": [
+        "Baseline lịch sử: 15 PASS / 3 FAIL / 2 INCONCLUSIVE\n          trên 20 case. Lượt cải tiến: 1 PASS / 2 lỗi\n          provider / 17 case chưa chạy — chưa đủ kết luận tốt hơn.",
+        "Tài: FE, tích hợp, Auth/RLS, Study Coach, kiểm soát AI &\n          evaluation. Thắng: backend/Gemini nền, SSE & STT. RAG có đóng góp của cả hai."
+      ],
+      "notes": "Cả hai · kết 40 giây “Không lớp test nào tự chứng minh mọi câu AI đúng. Fixture provider\n            kiểm đường runtime, không chất lượng model; citation tồn tại chưa\n            chứng minh claim grounding. Baseline strict 75% khác\n            semantic-content 90%; không dùng 1/1 của lượt cải tiến để nhận 100%.\n            Human review Study Coach, micro/máy Thắng và các matrix pending vẫn\n            theo bằng chứng.” Tài và Thắng nhận phần thực sự làm/hiểu; AI_USAGE\n            công khai hỗ trợ và lỗi. Không nhận capability B có ≥3 LLM-called\n            tools, không thêm TTS. Hướng capability là A RAG + C structured\n            output, không tuyên bố RUBRIC_PASSED thay giảng viên.",
+      "figures": []
+    }
+  ]
+}

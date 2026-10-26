@@ -1,5 +1,36 @@
 # AI Assistance Log
 
+## 2026-10-26 - visual technology storytelling and offline interactions
+
+At the user's request, AI replaced the repeated text/image composition with
+fifteen visual layouts, concise copy, locally embedded technology logos and
+labelled offline illustrations. Full reasons, trade-offs and original speaker
+notes were preserved from 69eab36 in a separate knowledge companion. Fourteen
+Simple Icons SVGs were downloaded at a pinned public source revision, with hashes
+and CC0 license material. No logo or application screenshot was fabricated by a model.
+
+Six new visual/interaction checks were RED on the previous edition, then GREEN.
+Tests retain rationale assertions against the companion instead of deleting those
+requirements. Browser checks cover manual/play/pause, actual keyboard flip, RAG
+refusal illustration, role switch, stopped typewriter and reduced motion. A
+picture overlapped the identity diagram in print and was corrected into separate
+grid rows. An old print oracle targeted the replaced split layout; it now checks
+the complete four-node pipeline. A browser race sampled the previous document;
+fresh query-bound documents and a navigation marker corrected the harness.
+An observer queued during JSDOM close was guarded against detached roots.
+
+PDF/PPTX remain honest static snapshots (PPTX adds fade transitions). No app,
+DB/Auth, model, cloud, paid call or acceptance matrix was changed. Raw failures,
+screenshots and isolated-browser evidence remain ignored, not erased.
+
+Final document checks: 19 Node tests, 4 PDF/PPTX/companion tests, 75 browser
+slide/width checks, 31 native interaction checks and 3 companion checks passed.
+Visible slide copy averages 54 words (captions and notes excluded). A separate
+LF-byte regression exposed Windows line-ending drift before publication; the
+technology builder now normalizes published HTML before hashing. English deck
+bytes and app/runtime remain unchanged. Owned browser/static servers closed;
+no container/database was created. These are document checks, not app acceptance.
+
 ## 2026-10-26 - Vietnamese technology presentation
 
 AI authored a separate fifteen-slide Vietnamese technology edition from the

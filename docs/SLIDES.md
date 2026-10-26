@@ -2,6 +2,14 @@
 
 ## Vietnamese technology edition - 26 October 2026
 
+**Interactive visual revision:** the same 15 topics now use logo-led diagrams,
+guided pipelines, role/RAG scenario switches, a flip card, typewriter and waveform
+illustrations. Main-slide copy is concise (at most 115 visible words in the
+automated budget, excluding captions/notes). Full selection rationale, trade-offs
+and original speaking notes are preserved in the separate
+[technology knowledge companion](submission/ExaMate-Technologies-Knowledge-VI-20261026.html),
+from `docs/presentation/technology-knowledge.json` at source `69eab36`.
+
 [Offline HTML](submission/ExaMate-Technologies-VI-20261026.html),
 [PDF](submission/ExaMate-Technologies-VI-20261026.pdf),
 [PowerPoint](submission/ExaMate-Technologies-VI-20261026.pptx) and
@@ -18,19 +26,29 @@ contracts; 5 Supabase Auth/Google/PKCE/session; 6 PostgreSQL/pgvector/RLS;
 7 PDF.js/private Storage/OCR; 8 RAG; 9 Gemini/structured output; 10 Study Coach
 persistence/practice; 11 SSE/cancel/history; 12 Whisper/ONNX/FFmpeg STT;
 13 admission/telemetry; 14 Docker/nginx/TLS; 15 testing/evaluation and ownership.
-Technology pages explain purpose, selection rationale, trade-offs and source
-anchors in Vietnamese notes. RAG credit is shared by Tài and Thắng.
+Slide illustrations explain the flow; detailed reasons, limitations and source
+anchors stay in the companion and Vietnamese speaker notes. RAG credit is shared
+by Tài and Thắng. Fourteen pinned Simple Icons SVGs have local provenance and
+CC0 license material under `docs/presentation/assets/logos/`; trademarks remain
+with their owners and no endorsement is claimed.
 
-HTML: open directly, use arrows, **Tổng quan** and **Lời nói**. For a short defense,
+HTML: open directly, use arrows, **Tổng quan**, **Lời nói** and **Dừng hoạt ảnh**.
+Use **Chạy luồng / Bước tiếp**, RAG evidence switches, role buttons, flip card and
+stream Stop to illustrate the implementation. These never call the application,
+AI, microphone or provider; they are explicitly labelled simulations. Reduced
+motion and hidden-slide/page cleanup are supported. Overview reveals slides on
+scroll. For a short defense,
 choose the relevant pages rather than reading every technical page. Suggested
 route: **1 → 2 → 3 → 8 → 9 → 10 → 12 → 14 → 15**, then web demo as time permits.
 The PowerPoint is deliberately **layout-preserving slide artwork** with editable
-speaker notes, not editable slide text. Edit `docs/presentation/technology.html`
-and `technology.css`, then rebuild; the original editable PPTX is a different edition.
+speaker notes, not editable slide text. PPTX has fade slide transitions; the rich
+within-slide interactions are HTML-only. PDF and PPTX use readable static states.
+Edit `technology.html`, `technology-visual.css` and `technology-motion.js` under
+`docs/presentation/`, then rebuild; the original editable PPTX is a different edition.
 
 ```powershell
 node scripts/build-visual-presentation.mjs --technology
-node --test scripts/technology-presentation.test.mjs scripts/visual-presentation.test.mjs
+node --test scripts/technology-motion.test.mjs scripts/technology-presentation.test.mjs scripts/visual-presentation.test.mjs
 node scripts/verify-visual-presentation.mjs --technology
 python scripts/build-technology-pptx.py
 python -m unittest discover -s scripts -p test_technology_presentation.py

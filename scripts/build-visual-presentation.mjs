@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import * as icons from "@heroicons/react/24/outline";
+import { buildTechnologyKnowledge } from "./build-technology-knowledge.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const source = resolve(root, "docs/presentation");
@@ -33,7 +34,13 @@ for (const record of provenance.records) {
 }
 let css = readFileSync(resolve(source, "deck.css"), "utf8");
 if (technology)
-  css += `\n${readFileSync(resolve(source, "technology.css"), "utf8")}`;
+  css += `\n${readFileSync(resolve(source, "technology.css"), "utf8")}\n${readFileSync(resolve(source, "technology-visual.css"), "utf8")}`;
+const logoManifest = technology
+  ? JSON.parse(
+      readFileSync(resolve(source, "assets/technology-logos.json"), "utf8"),
+    )
+  : undefined;
+const knowledge = technology ? buildTechnologyKnowledge(root) : undefined;
 for (const weight of [400, 500, 600, 700]) {
   for (const subset of ["latin", "latin-ext"]) {
     const font = data(
@@ -68,6 +75,15 @@ let html = readFileSync(
         "utf8",
       ),
       photos: readFileSync(resolve(source, "assets/Photo-CREDITS.md"), "utf8"),
+      ...(technology
+        ? {
+            technologyLogos: logoManifest,
+            technologyLogosLicense: readFileSync(
+              resolve(source, "assets/logos/LICENSE.md"),
+              "utf8",
+            ),
+          }
+        : {}),
     }).replaceAll("<", "\\u003c")}</script>`,
   )
   .replace("<!-- STYLES -->", `<style>${css}</style>`)
@@ -78,8 +94,19 @@ let html = readFileSync(
       technology
         ? "Chưa mở được toàn màn hình. Dùng chức năng toàn màn hình của trình duyệt."
         : "Fullscreen unavailable. Use the browser fullscreen control.",
-    )}</script>`,
+    )}${technology ? `\n${readFileSync(resolve(source, "technology-motion.js"), "utf8")}` : ""}</script>`,
   )
+  .replaceAll(/\[\[logo:([a-z0-9]+)\]\]/g, (_, name) => {
+    const record = logoManifest?.records.find((item) => item.id === name);
+    if (!record) throw new Error(`Unknown technology logo: ${name}`);
+    const svg = readFileSync(resolve(source, "assets", record.path), "utf8");
+    if (hash(svg) !== record.sha256)
+      throw new Error(`Logo binding mismatch: ${name}`);
+    return svg.replace(
+      "<svg ",
+      `<svg class="tech-logo" role="img" aria-label="${name}" focusable="false" `,
+    );
+  })
   .replaceAll(/\[\[icon:([A-Za-z0-9]+)\]\]/g, (_, name) => {
     const Icon = icons[`${name}Icon`];
     if (!Icon) throw new Error(`Unknown Heroicon: ${name}`);
@@ -104,6 +131,7 @@ let html = readFileSync(
     "[[library]]",
     data(resolve(root, "apps/web/public/img/course-lit.webp"), "image/webp"),
   );
+if (technology) html = html.replace(/\r\n/g, "\n");
 if (/\[\[|<!-- (STYLES|SCRIPT|LICENSES) -->/.test(html))
   throw new Error("Unresolved template");
 writeFileSync(destination, html);
@@ -120,7 +148,19 @@ writeFileSync(
         ? "examate-technology-deck-v1"
         : "examate-visual-deck-v1",
       revision: technology ? "2026-10-26" : "2026-10-25",
-      ...(technology ? { language: "vi", sourceCheckpoint: "308389a" } : {}),
+      ...(technology
+        ? {
+            language: "vi",
+            sourceCheckpoint: "69eab36",
+            visualRevision: "interactive-v2",
+            knowledge: knowledge.path.split(/[\\/]/).at(-1),
+            knowledgeSha256: hash(knowledge.html),
+            logos: logoManifest.records.map(({ id, sha256 }) => ({
+              id,
+              sha256,
+            })),
+          }
+        : {}),
       slides: 15,
       status:
         "DRAFT — incomplete follow-up evaluation and personal/device confirmations",

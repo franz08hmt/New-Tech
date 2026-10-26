@@ -1,0 +1,92 @@
+{
+  "schema": "examate-logo-provenance-v1",
+  "repository": "https://github.com/simple-icons/simple-icons",
+  "revision": "90646e4bf7f3b89df6c37e65baf3e7bc759a517c",
+  "license": "CC0-1.0; trademarks remain with their owners; no endorsement claimed",
+  "records": [
+    {
+      "id": "react",
+      "path": "logos/react.svg",
+      "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/90646e4bf7f3b89df6c37e65baf3e7bc759a517c/icons/react.svg",
+      "sha256": "ab9136a1a4a8be72ac6743e1bdd1912d878bd68d57787ea7a6c6838e3b23c01c"
+    },
+    {
+      "id": "typescript",
+      "path": "logos/typescript.svg",
+      "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/90646e4bf7f3b89df6c37e65baf3e7bc759a517c/icons/typescript.svg",
+      "sha256": "7f023e8d1e767370306ec9437d2de5d5af97491d6208dd7799a3808a7c10a36a"
+    },
+    {
+      "id": "vite",
+      "path": "logos/vite.svg",
+      "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/90646e4bf7f3b89df6c37e65baf3e7bc759a517c/icons/vite.svg",
+      "sha256": "642bb261d6476ddf326b8ed7757543b3443a93a77fef1e434021fc201defa21c"
+    },
+    {
+      "id": "tailwindcss",
+      "path": "logos/tailwindcss.svg",
+      "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/90646e4bf7f3b89df6c37e65baf3e7bc759a517c/icons/tailwindcss.svg",
+      "sha256": "5d4ede3c95da824f543c6eefbe7c78b45ecce6796f6633de196dd712a7841140"
+    },
+    {
+      "id": "nestjs",
+      "path": "logos/nestjs.svg",
+      "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/90646e4bf7f3b89df6c37e65baf3e7bc759a517c/icons/nestjs.svg",
+      "sha256": "903a08f64eedd64fb3f65fb733628353d3d42f9e7525ca9d989936f3e38322ef"
+    },
+    {
+      "id": "postgresql",
+      "path": "logos/postgresql.svg",
+      "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/90646e4bf7f3b89df6c37e65baf3e7bc759a517c/icons/postgresql.svg",
+      "sha256": "c8ccadbd88c9312c2ad3734c4861b31d3485ce179ee91d64793143f83cfa745c"
+    },
+    {
+      "id": "supabase",
+      "path": "logos/supabase.svg",
+      "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/90646e4bf7f3b89df6c37e65baf3e7bc759a517c/icons/supabase.svg",
+      "sha256": "61bf16d93be418f723ae1e137e57afdad4f185352fbc6dea9482af1e0a89ccf7"
+    },
+    {
+      "id": "googlegemini",
+      "path": "logos/googlegemini.svg",
+      "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/90646e4bf7f3b89df6c37e65baf3e7bc759a517c/icons/googlegemini.svg",
+      "sha256": "a6228d8846040401e941a39ed17459785e8324dbb7b870ce84233c9b3e9863a0"
+    },
+    {
+      "id": "docker",
+      "path": "logos/docker.svg",
+      "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/90646e4bf7f3b89df6c37e65baf3e7bc759a517c/icons/docker.svg",
+      "sha256": "65571291c261ef869c31540a38f3ca0f0ee3bb73f179c172211c8860f19a6359"
+    },
+    {
+      "id": "nginx",
+      "path": "logos/nginx.svg",
+      "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/90646e4bf7f3b89df6c37e65baf3e7bc759a517c/icons/nginx.svg",
+      "sha256": "236d53b2b746706df75e2a01668cb84e6f3fc7c8923a9ce824f8534db007a438"
+    },
+    {
+      "id": "onnx",
+      "path": "logos/onnx.svg",
+      "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/90646e4bf7f3b89df6c37e65baf3e7bc759a517c/icons/onnx.svg",
+      "sha256": "531d7a9aad43bc520f7a3a4d8f6c68df5e1b28ec8e91c27d53c63e158ef01eef"
+    },
+    {
+      "id": "ffmpeg",
+      "path": "logos/ffmpeg.svg",
+      "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/90646e4bf7f3b89df6c37e65baf3e7bc759a517c/icons/ffmpeg.svg",
+      "sha256": "076e200007de7d3f03ddc970e63a23f7cb46a772d1f4e7c670ceb22a9d46ed35"
+    },
+    {
+      "id": "huggingface",
+      "path": "logos/huggingface.svg",
+      "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/90646e4bf7f3b89df6c37e65baf3e7bc759a517c/icons/huggingface.svg",
+      "sha256": "aa81744034eecf4ac6b3fb7108dd71223965c7af3c534932391314563b150109"
+    },
+    {
+      "id": "google",
+      "path": "logos/google.svg",
+      "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/90646e4bf7f3b89df6c37e65baf3e7bc759a517c/icons/google.svg",
+      "sha256": "d8cf9fb2d5e234e03254f1d6400d8cc8160c309b010d031a64f37084b5a21d01"
+    }
+  ]
+}

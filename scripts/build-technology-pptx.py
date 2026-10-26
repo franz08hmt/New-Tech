@@ -15,6 +15,7 @@ import fitz
 from bs4 import BeautifulSoup
 from PIL import Image, ImageDraw, ImageOps
 from pptx import Presentation
+from pptx.oxml.xmlchemy import OxmlElement
 from pptx.util import Inches
 
 
@@ -52,6 +53,10 @@ def build() -> None:
             )
             title = section.select_one("h1,h2").get_text(" ", strip=True)
             artwork._element.nvPicPr.cNvPr.set("descr", f"{index + 1:02}. {title}")
+            transition = OxmlElement("p:transition")
+            transition.set("spd", "med")
+            transition.append(OxmlElement("p:fade"))
+            slide._element.append(transition)
             slide.notes_slide.notes_text_frame.text = (
                 section.select_one(".speaker").get_text("\n", strip=True)
                 + "\n\nBố cục cố định từ PDF; chỉnh nội dung trong technology.html/CSS rồi dựng lại."
@@ -71,11 +76,11 @@ def build() -> None:
     manifest.update({
         "pptx": f"{stem}.pptx",
         "pptxSha256": hashlib.sha256((output / f"{stem}.pptx").read_bytes()).hexdigest(),
-        "pptxArtwork": "raster-snapshot-from-pdf; editable speaker notes",
+        "pptxArtwork": "raster-snapshot-from-pdf; fade transitions; editable speaker notes",
         "preview": f"{stem}-preview.jpg",
         "previewSha256": hashlib.sha256((output / f"{stem}-preview.jpg").read_bytes()).hexdigest(),
     })
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
     print("Built layout-preserving PPTX: 15 slides with Vietnamese speaker notes; HTML is editable source.")
 
 
