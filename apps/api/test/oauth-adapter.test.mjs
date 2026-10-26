@@ -118,3 +118,41 @@ test("exchange deadline aborts once, maps safely and never retries the code", as
     clearTimeout(keepAlive);
   }
 });
+
+test("verified identity carries an e-mail only when Auth confirms it, and a bounded display name", async (t) => {
+  const f = authFixture(),
+    adapter = new SupabaseAuthAdapter(() => f.config);
+  let user;
+  t.mock.method(globalThis, "fetch", async () => Response.json(user));
+  const good = {
+    sub: f.userId,
+    session_id: f.sessionId,
+    exp: Math.floor(Date.now() / 1000) + 3600,
+    iss: f.config.url + "/auth/v1",
+    aud: "authenticated",
+  };
+  user = {
+    id: f.userId,
+    email: " Student@Example.TEST ",
+    email_confirmed_at: "2026-10-01T00:00:00Z",
+    user_metadata: { full_name: "  Student\u0007 " + "x".repeat(200) },
+  };
+  const confirmed = await adapter.verify(token(good));
+  assert.equal(confirmed.email, "student@example.test");
+  assert.equal(confirmed.displayName.length, 120);
+  assert.ok(!/[\u0000-\u001f]/.test(confirmed.displayName));
+  user = {
+    id: f.userId,
+    email: "student@example.test",
+    email_confirmed_at: null,
+  };
+  const unconfirmed = await adapter.verify(token(good));
+  assert.equal(unconfirmed.email, undefined);
+  assert.equal(unconfirmed.userId, f.userId);
+  user = { id: f.userId, user_metadata: { name: "Only Name" } };
+  const nameOnly = await adapter.verify(token(good));
+  assert.deepEqual(
+    [nameOnly.email, nameOnly.displayName],
+    [undefined, "Only Name"],
+  );
+});

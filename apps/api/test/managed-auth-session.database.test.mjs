@@ -17,7 +17,9 @@ import {
 } from "../scripts/migrate.mjs";
 
 test("managed Auth RLS stays enabled while the runtime verifies only session/user/expiry", async (t) => {
-  const f = await openDocumentsTenantFixture(),
+  // The 025 rollback is defined on the exact 001-025 chain; later additive
+  // migrations (027 members) depend on the schema it would drop.
+  const f = await openDocumentsTenantFixture({ migrationLimit: 25 }),
     role = `auth_bridge_${randomBytes(8).toString("hex")}`,
     password = randomBytes(24).toString("hex");
   let db;

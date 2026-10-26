@@ -52,10 +52,18 @@ export async function loadMigrations(
         path: `${directory}/${name}`,
       })),
   ];
+  // Canonical migrations after 025 (027 onwards) are additive and identical in
+  // both profiles; the managed profile applies them after its own 026.
+  const laterMigrations = [];
   if (profile === "supabase-managed") {
-    if (files.length !== 25)
+    if (files.length < 25)
       throw new ConfigurationError(
         "Managed profile requires reviewed 001-025 source manifest.",
+      );
+    laterMigrations.push(...files.splice(25));
+    if (laterMigrations.some((file) => !/^0(2[7-9]|[3-9]\d)_/.test(file.name)))
+      throw new ConfigurationError(
+        "Managed profile only accepts additive migrations numbered 027 or later after the reviewed manifest.",
       );
     for (const index of [16, 24]) {
       if (
@@ -76,6 +84,7 @@ export async function loadMigrations(
       name: "026_managed_platform_connect.sql",
       path: "infra/postgres/managed-migrations/026_managed_platform_connect.sql",
     });
+  files.push(...laterMigrations);
   for (const file of files) {
     try {
       file.sql = await readFile(resolve(root, file.path), "utf8");

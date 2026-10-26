@@ -173,7 +173,70 @@ test("restricted managed installer is atomic, preserves Auth and accepts only pi
   assert.equal(
     (await installer.query("SELECT count(*)::int n FROM schema_migrations"))
       .rows[0].n,
-    26,
+    27,
+  );
+  // 027 (member management) is additive: closed tables, only the intended
+  // runtime capability can execute each function, and hosted API roles cannot.
+  const members = (
+    await installer.query(`
+      SELECT p.proname,pg_get_userbyid(p.proowner) owner,p.prosecdef,
+        has_function_privilege('examate_business',p.oid,'EXECUTE') business,
+        has_function_privilege('examate_auth',p.oid,'EXECUTE') auth,
+        has_function_privilege('anon',p.oid,'EXECUTE') anon,
+        has_function_privilege('authenticated',p.oid,'EXECUTE') authenticated
+      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+      WHERE n.nspname IN ('public','examate_private')
+        AND (p.proname LIKE 'examate\_member%' OR p.proname IN
+          ('examate_members_list','examate_invitations_list','examate_invitation_revoke',
+           'record_member_profile','accept_workspace_invitation'))
+      ORDER BY p.proname`)
+  ).rows;
+  assert.equal(members.length, 11);
+  for (const row of members) {
+    assert.equal(row.owner, "postgres", row.proname);
+    assert.equal(row.prosecdef, true, row.proname);
+    assert.equal(row.anon || row.authenticated, false, row.proname);
+    assert.equal(
+      row.auth,
+      ["record_member_profile", "accept_workspace_invitation"].includes(
+        row.proname,
+      ),
+      row.proname,
+    );
+    assert.equal(
+      row.business,
+      ![
+        "record_member_profile",
+        "accept_workspace_invitation",
+        "examate_member_caller",
+      ].includes(row.proname),
+      row.proname,
+    );
+  }
+  assert.deepEqual(
+    (
+      await installer.query(`
+        SELECT c.relname,c.relrowsecurity,
+          has_table_privilege('anon',c.oid,'SELECT') anon,
+          has_table_privilege('examate_business',c.oid,'SELECT') business
+        FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+        WHERE n.nspname='public' AND c.relname IN ('workspace_member_profiles','workspace_invitations')
+        ORDER BY c.relname`)
+    ).rows,
+    [
+      {
+        relname: "workspace_invitations",
+        relrowsecurity: true,
+        anon: false,
+        business: false,
+      },
+      {
+        relname: "workspace_member_profiles",
+        relrowsecurity: true,
+        anon: false,
+        business: false,
+      },
+    ],
   );
   await assert.rejects(migrate(installUrl.href), /history|profile/i);
   const digest = await runtimeCapabilityCatalogDigest(

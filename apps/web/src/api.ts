@@ -94,6 +94,10 @@ export type {
   TaskSearchQuery,
   TaskSearchSort,
   TaskStatus,
+  WorkspaceInvitation,
+  WorkspaceMember,
+  WorkspaceMemberRequest,
+  WorkspaceMembersResponse,
   WorkspaceSearchItem,
   WorkspaceSearchKind,
   WorkspaceSearchPage,
@@ -202,6 +206,11 @@ import type {
   TaskSearchQuery,
   TaskSearchSort,
   TaskStatus,
+  WorkspaceMembersResponse,
+  UpdateWorkspaceMemberRequest,
+  GrantWorkspaceMemberRequest,
+  InviteWorkspaceMemberRequest,
+  InviteWorkspaceMemberResponse,
   WorkspaceSearchItem,
   WorkspaceSearchKind,
   WorkspaceSearchPage,
@@ -410,6 +419,31 @@ export const api = {
     request<StudyQuizProgressResponse>(
       `/api/study-coach/quizzes/${encodeURIComponent(id)}/progress`,
       { signal },
+    ),
+  workspaceMembers: (signal?: AbortSignal) =>
+    request<WorkspaceMembersResponse>("/api/workspace/members", { signal }),
+  updateWorkspaceMember: (
+    userId: string,
+    input: UpdateWorkspaceMemberRequest,
+  ) =>
+    request<{ userId: string }>(
+      `/api/workspace/members/${encodeURIComponent(userId)}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  grantWorkspaceMember: (userId: string, input: GrantWorkspaceMemberRequest) =>
+    request<{ userId: string }>(
+      `/api/workspace/members/${encodeURIComponent(userId)}/grant`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  inviteWorkspaceMember: (input: InviteWorkspaceMemberRequest) =>
+    request<InviteWorkspaceMemberResponse>("/api/workspace/invitations", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  revokeWorkspaceInvitation: (id: string) =>
+    request<{ id: string }>(
+      `/api/workspace/invitations/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
     ),
   aiUsageDashboard: (query: AiUsageDashboardQuery, signal?: AbortSignal) => {
     const params = new URLSearchParams();

@@ -11,6 +11,37 @@ export interface VerifiedIdentity {
   userId: string;
   sessionId: string;
   expiresAt: number;
+  /** Present only when Auth itself says the address is confirmed. */
+  email?: string;
+  displayName?: string;
+}
+
+// Read from the verified /user response only. A missing or unconfirmed address
+// simply leaves these out; the identity above stays valid.
+function profileFrom(
+  user: any,
+): Pick<VerifiedIdentity, "email" | "displayName"> {
+  const email =
+    typeof user?.email === "string" &&
+    typeof user?.email_confirmed_at === "string" &&
+    user.email_confirmed_at
+      ? user.email.trim().toLowerCase()
+      : undefined;
+  const meta = user?.user_metadata;
+  const rawName =
+    typeof meta?.full_name === "string"
+      ? meta.full_name
+      : typeof meta?.name === "string"
+        ? meta.name
+        : "";
+  const name = rawName
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .trim()
+    .slice(0, 120);
+  return {
+    ...(email && email.length <= 254 ? { email } : {}),
+    ...(name ? { displayName: name } : {}),
+  };
 }
 export interface AuthAdapter {
   exchangeCode?(code: string, verifier: string): Promise<SessionTokens>;
@@ -153,6 +184,7 @@ export class SupabaseAuthAdapter implements AuthAdapter {
         userId: user.id,
         sessionId: claims.session_id,
         expiresAt: claims.exp * 1000,
+        ...profileFrom(user),
       };
     } catch {
       return authInvalid();

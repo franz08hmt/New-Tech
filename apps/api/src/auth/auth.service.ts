@@ -14,7 +14,11 @@ import type {
   PilotGoogleResult,
 } from "@examate/contracts";
 import { normalizeIp } from "../common/client-ip.js";
-import type { PilotSessionResponse, PilotPrincipal } from "@examate/contracts";
+import type {
+  PilotSessionResponse,
+  PilotPrincipal,
+  PilotRole,
+} from "@examate/contracts";
 import {
   AUTH_ADAPTER,
   AUTH_CONFIG,
@@ -64,6 +68,8 @@ export class AuthService {
     { identity: VerifiedIdentity; until: number }
   >();
   private readonly inFlight = new Map<string, Promise<VerifiedIdentity>>();
+  // When each user's profile was last handed to the member list (10 minutes).
+  private readonly profileSent = new Map<string, number>();
   constructor(
     @Inject(AUTH_CONFIG) private readonly config: AuthConfig,
     private readonly store: AuthStore,
@@ -268,6 +274,46 @@ export class AuthService {
       return authUnavailable();
     }
   }
+  /**
+   * Member management side effects of a verified sign-in: accept a waiting
+   * invitation for the confirmed address, and remember the person so a manager
+   * can see them. Strictly best effort: whatever happens here, the sign-in
+   * answer is the one membership alone would have given.
+   */
+  private async syncMember(
+    identity: VerifiedIdentity,
+    role: PilotRole | undefined,
+  ): Promise<PilotRole | undefined> {
+    if (!identity.email) return role;
+    const workspaceId = this.config().workspaceId;
+    let result = role;
+    try {
+      if (!result)
+        result = await this.store.acceptInvitation(
+          workspaceId,
+          identity.userId,
+          identity.email,
+        );
+    } catch {
+      return role;
+    }
+    try {
+      const last = this.profileSent.get(identity.userId) ?? 0;
+      if (Date.now() - last > 600_000) {
+        await this.store.recordMemberProfile(
+          workspaceId,
+          identity.userId,
+          identity.email,
+          identity.displayName,
+        );
+        if (this.profileSent.size >= 1000) this.profileSent.clear();
+        this.profileSent.set(identity.userId, Date.now());
+      }
+    } catch {
+      /* the profile is retried on the next session check */
+    }
+    return result;
+  }
   async session(
     req: AuthRequest,
     res: AuthResponse,
@@ -303,10 +349,10 @@ export class AuthService {
         : null;
       if (tokens && tokens.expiresAt <= Date.now())
         return { status: "refresh_required", csrfToken: row.csrf_token };
-      await this.verified(row);
-      const role = await this.store.membership(
-        this.config().workspaceId,
-        row.user_id!,
+      const identity = await this.verified(row);
+      const role = await this.syncMember(
+        identity,
+        await this.store.membership(this.config().workspaceId, row.user_id!),
       );
       if (!role) return { status: "no_access", csrfToken: row.csrf_token };
       return {

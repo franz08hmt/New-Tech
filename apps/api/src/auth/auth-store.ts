@@ -24,7 +24,23 @@ export interface SessionRow {
 }
 @Injectable()
 export class AuthStore {
+  // Whether migration 027's sign-in functions exist; rechecked every minute so
+  // applying the migration needs no restart, and an older database costs nothing.
+  private membersInstalled: { value: boolean; until: number } | undefined;
   constructor(private readonly db: AuthDatabaseService) {}
+  private async membersReady(tx: DatabaseTransaction) {
+    const now = Date.now();
+    if (this.membersInstalled && this.membersInstalled.until > now)
+      return this.membersInstalled.value;
+    const value =
+      (
+        await tx.query<{ ok: boolean }>(
+          "SELECT to_regprocedure('examate_private.record_member_profile(uuid,uuid,text,text)') IS NOT NULL AS ok",
+        )
+      ).rows[0]?.ok === true;
+    this.membersInstalled = { value, until: now + 60_000 };
+    return value;
+  }
   async markRefreshStarted(hash: string, version: number) {
     // Independent autocommit BEFORE provider dispatch, while the parent holds FOR UPDATE.
     const result = await this.db.query(
@@ -228,6 +244,53 @@ export class AuthStore {
       ? row.role
       : undefined;
   }
+  /**
+   * Remembers who signed in (for the manager's member list) and accepts a
+   * waiting invitation for the confirmed address. Both are no-ops before
+   * migration 027 is applied; callers treat any failure as "no change".
+   */
+  async recordMemberProfile(
+    workspaceId: string,
+    userId: string,
+    email: string,
+    name: string | undefined,
+  ) {
+    await this.db.transaction(async (tx) => {
+      if (!(await this.membersReady(tx))) return;
+      await tx.query(
+        "SELECT set_config('examate.user_id', $1, true), set_config('examate.workspace_id', $2, true)",
+        [userId, workspaceId],
+      );
+      await tx.query(
+        "SELECT examate_private.record_member_profile($1,$2,$3,$4)",
+        [workspaceId, userId, email, name ?? null],
+      );
+    });
+  }
+
+  async acceptInvitation(
+    workspaceId: string,
+    userId: string,
+    email: string,
+  ): Promise<PilotRole | undefined> {
+    const role = await this.db.transaction(async (tx) => {
+      if (!(await this.membersReady(tx))) return undefined;
+      await tx.query(
+        "SELECT set_config('examate.user_id', $1, true), set_config('examate.workspace_id', $2, true)",
+        [userId, workspaceId],
+      );
+      return (
+        await tx.query<{ role: string | null }>(
+          "SELECT examate_private.accept_workspace_invitation($1,$2,$3) AS role",
+          [workspaceId, userId, email],
+        )
+      ).rows[0]?.role;
+    });
+    return role && ["manager", "member", "viewer"].includes(role)
+      ? (role as PilotRole)
+      : undefined;
+  }
+
   async authSessionActive(id: string, userId: string) {
     return (
       (await this.db.query(AUTH_SESSION_ACTIVE_SQL, [id, userId])).rows

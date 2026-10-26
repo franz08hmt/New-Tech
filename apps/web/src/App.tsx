@@ -13,6 +13,7 @@ import {
   DocumentArrowUpIcon,
   ChartBarIcon,
   BookOpenIcon,
+  UserGroupIcon,
 } from "@heroicons/react/24/outline";
 import { AssistantPanel } from "./AssistantPanel";
 import { ApiError, api, type AssistantReasonCode } from "./api";
@@ -106,6 +107,15 @@ const pages = [
     icon: ChartBarIcon,
     title: "Sử dụng AI",
     description: "Xem telemetry sử dụng đã ghi nhận trong workspace hiện tại.",
+  },
+  {
+    id: "members",
+    eyebrow: "YOUR STUDY GROUP",
+    name: "Members",
+    icon: UserGroupIcon,
+    title: "Who is in this group",
+    description:
+      "See who shares this workspace, what each role can do, and who has access.",
   },
   {
     id: "assistant",
@@ -559,7 +569,7 @@ export function WorkspaceApp() {
               >
                 <p className="eyebrow">{page.eyebrow}</p>
                 {isDashboard && (
-                  <p className="hero-greeting">{tr("Welcome back, Tài.")}</p>
+                  <p className="hero-greeting">{tr("Welcome back.")}</p>
                 )}
                 <h1 ref={heading} tabIndex={-1}>
                   {page.title}

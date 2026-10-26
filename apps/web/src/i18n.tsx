@@ -13,6 +13,7 @@ import { dictionaryC } from "./i18n-dictionary-c";
 import { dictionaryD } from "./i18n-dictionary-d";
 import { dictionaryE } from "./i18n-dictionary-e";
 import { dictionaryF } from "./i18n-dictionary-f";
+import { dictionaryG } from "./i18n-dictionary-g";
 
 /**
  * Display language of the interface chrome only: page names, buttons, labels,
@@ -42,6 +43,7 @@ export const dictionaryEntries: readonly DictionaryEntry[] = [
   ...dictionaryD,
   ...dictionaryE,
   ...dictionaryF,
+  ...dictionaryG,
 ];
 for (const [en, vi, ...aliases] of dictionaryEntries) {
   const entry = { en, vi };
@@ -58,13 +60,21 @@ function fill(text: string, params?: TranslateParams) {
     : text;
 }
 
+// API errors carry " (Request ID: …)" after the sentence; the sentence is what
+// the dictionary knows, the identifier is kept as it is.
+const REQUEST_ID_SUFFIX = /^([\s\S]*?)( \(Request ID: [^)]*\))$/;
+
 export function translate(
   text: string,
   mode: Mode,
   params?: TranslateParams,
 ): string {
-  const entry = mode === "legacy" ? undefined : index.get(text);
-  return fill(entry ? entry[mode as UiLanguage] : text, params);
+  if (mode === "legacy") return fill(text, params);
+  const entry = index.get(text);
+  if (entry) return fill(entry[mode], params);
+  const suffixed = REQUEST_ID_SUFFIX.exec(text);
+  const base = suffixed ? index.get(suffixed[1]) : undefined;
+  return fill(base ? base[mode] + suffixed![2] : text, params);
 }
 
 /** True when the dictionary knows this exact wording. */

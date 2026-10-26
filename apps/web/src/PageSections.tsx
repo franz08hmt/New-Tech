@@ -20,6 +20,7 @@ import { CourseDetail } from "./CourseDetail";
 import { CoursesSearchPanel } from "./CoursesSearchPanel";
 import { DocumentsPanel } from "./DocumentsPanel";
 import { AiUsageDashboard } from "./AiUsageDashboard";
+import { MembersPanel } from "./MembersPanel";
 import { StudyCoachWorkspace } from "./StudyCoachWorkspace";
 import type { CoursesState } from "./use-courses";
 import type { CourseLookupState } from "./use-course-lookup";
@@ -141,6 +142,7 @@ export function PageSections({
     return <StudyCoachWorkspace focusId={focusId} />;
   if (pageId === "finances") return <ExpensesSearchPanel focusId={focusId} />;
   if (pageId === "ai-usage") return <AiUsageDashboard />;
+  if (pageId === "members") return <MembersPanel />;
   if (pageId === "assistant")
     return <AssistantSection onOpen={onOpenAssistant} />;
   return null;

@@ -1140,3 +1140,66 @@ export interface StudyFlashcardsProgressResponse {
   deckId: string;
   progress: StudyFlashcardsProgress;
 }
+
+// Workspace members: who is in the study group, and what a manager can change.
+export interface WorkspaceMember {
+  userId: string;
+  role: PilotRole;
+  active: boolean;
+  displayName: string | null;
+  /** Only a manager receives e-mail addresses. */
+  email: string | null;
+  lastSeenAt: string | null;
+  isSelf: boolean;
+}
+export interface WorkspaceMemberRequest {
+  userId: string;
+  email: string;
+  displayName: string | null;
+  lastSeenAt: string;
+}
+export interface WorkspaceInvitation {
+  id: string;
+  email: string;
+  role: PilotRole;
+  createdAt: string;
+  expiresAt: string;
+}
+export interface WorkspaceMembersMe {
+  userId: string;
+  role: PilotRole;
+}
+export type WorkspaceMembersResponse =
+  | { available: false; me: WorkspaceMembersMe }
+  | {
+      available: true;
+      me: WorkspaceMembersMe;
+      members: WorkspaceMember[];
+      /** People who signed in but have no membership yet (managers only). */
+      requests: WorkspaceMemberRequest[];
+      invitations: WorkspaceInvitation[];
+    };
+export interface UpdateWorkspaceMemberRequest {
+  role?: PilotRole;
+  active?: boolean;
+}
+export interface GrantWorkspaceMemberRequest {
+  role: PilotRole;
+}
+export interface InviteWorkspaceMemberRequest {
+  email: string;
+  role: PilotRole;
+}
+export interface InviteWorkspaceMemberResponse {
+  status: "invited" | "granted" | "reactivated";
+}
+export type WorkspaceMemberErrorCode =
+  | "MEMBERS_UNAVAILABLE"
+  | "MEMBER_NOT_FOUND"
+  | "LAST_MANAGER"
+  | "SELF_CHANGE"
+  | "ALREADY_MEMBER"
+  | "EMAIL_INVALID"
+  | "INVITATION_LIMIT"
+  | "ROLE_FORBIDDEN"
+  | "ROLE_INVALID";

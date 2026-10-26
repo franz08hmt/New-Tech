@@ -56,6 +56,8 @@ import { SpeechLimiter } from "./speech/speech-limiter.js";
 import { LocalSpeechProvider } from "./speech/local-speech.provider.js";
 import { AiUsageDashboardController } from "./admin/ai-usage-dashboard.controller.js";
 import { AiUsageDashboardService } from "./admin/ai-usage-dashboard.service.js";
+import { MembersController } from "./members/members.controller.js";
+import { MembersService } from "./members/members.service.js";
 import {
   localSpeechRuntimeProvider,
   localSpeechWorkerFactoryProvider,
@@ -78,6 +80,7 @@ import { SPEECH_PROVIDER } from "./speech/speech.types.js";
     ExpensesController,
     WorkspaceSearchController,
     AiUsageDashboardController,
+    MembersController,
     SpeechController,
     StudyCoachController,
     StudyFlashcardsController,
@@ -113,6 +116,7 @@ import { SPEECH_PROVIDER } from "./speech/speech.types.js";
     WorkspaceAssistantService,
     AiUsageService,
     AiUsageDashboardService,
+    MembersService,
     AiAdmissionService,
     StudyCoachService,
     StudyFlashcardsService,

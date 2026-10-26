@@ -49,6 +49,12 @@ function safeRequestPath(url: string) {
     return path === "/api/courses" ? path : "/api/courses/:slug";
   if (path === "/api/documents/search") return path;
   if (path === "/api/search") return path;
+  if (
+    /^\/api\/workspace\/(members|invitations)(\/[0-9a-f-]{36}(\/grant)?)?$/i.test(
+      path,
+    )
+  )
+    return path.replace(/[0-9a-f-]{36}/gi, ":id");
   return /^\/api\/(health|tasks|documents|assistant\/(status|chat(?:\/stream)?|feedback))(\/[0-9a-f-]{36}(\/status|\/download|\/course|\/process)?)?$/i.test(
     path,
   )

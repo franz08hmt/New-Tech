@@ -13,8 +13,12 @@ test("managed profile is explicit, immutable-history preserving and honestly che
     profile: "supabase-managed",
   });
   assert.equal(managed.length, canonical.length + 1);
-  assert.equal(managed.at(-1).name, "026_managed_platform_connect.sql");
-  for (let i = 0; i < canonical.length; i++) {
+  // Managed 026 follows the reviewed 001-025 manifest; later additive
+  // migrations (027 onwards) are the canonical files, unchanged.
+  assert.equal(managed[25].name, "026_managed_platform_connect.sql");
+  assert.deepEqual(managed.slice(26), canonical.slice(25));
+  assert.equal(managed.at(-1).name, "027_workspace_members.sql");
+  for (let i = 0; i < 25; i++) {
     if ([16, 24].includes(i)) {
       assert.notEqual(managed[i].name, canonical[i].name);
       assert.notEqual(

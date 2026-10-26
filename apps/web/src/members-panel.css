@@ -1,0 +1,162 @@
+/* Members page: role matrix, group list and the manager's add-member form. */
+.members-self {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 0 14px;
+}
+.members-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.members-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.members-matrix caption {
+  margin-bottom: 6px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+}
+.members-matrix th,
+.members-matrix td {
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--color-line);
+  text-align: center;
+  vertical-align: middle;
+}
+.members-matrix thead th {
+  font-size: 11px;
+  font-weight: 600;
+}
+.members-matrix tbody th {
+  font-weight: 400;
+  text-align: left;
+}
+.members-matrix th:first-child {
+  width: 52%;
+}
+.members-matrix [data-current="true"] {
+  background: var(--color-ai-accent-soft);
+}
+.members-matrix svg {
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+}
+.members-matrix td svg {
+  stroke: var(--color-ai-accent);
+}
+.members-matrix td svg.members-no {
+  stroke: var(--color-muted);
+}
+.members-scope {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 13px;
+}
+.members-scope p {
+  margin: 0;
+}
+.members-list {
+  display: grid;
+  gap: 0;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.members-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-line);
+}
+.members-list > li[data-active="false"] {
+  opacity: 0.7;
+}
+.members-identity {
+  display: flex;
+  flex: 1 1 220px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.members-identity strong {
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+.members-you {
+  align-self: flex-start;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--color-ai-accent-soft);
+  font-size: 11px;
+  font-weight: 600;
+}
+.members-email,
+.members-meta {
+  overflow-wrap: anywhere;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+.members-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.members-controls select,
+.members-controls button {
+  min-height: 44px;
+}
+.members-block {
+  margin-top: 22px;
+}
+.members-block h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.members-invite {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+.members-invite label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.members-invite input,
+.members-invite select {
+  min-height: 44px;
+  width: 100%;
+  min-width: 0;
+}
+.members-invite .primary-button {
+  min-height: 44px;
+}
+@media (max-width: 600px) {
+  .members-invite {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .members-controls {
+    width: 100%;
+  }
+  .members-controls select {
+    flex: 1 1 140px;
+  }
+  .members-matrix th:first-child {
+    width: 44%;
+  }
+}
