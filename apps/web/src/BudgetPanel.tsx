@@ -19,6 +19,7 @@ import {
 import { revealClass, useReveal } from "./use-reveal";
 import type { Expense, ExpenseCategory } from "./api";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
+import { useTr } from "./i18n";
 
 const money = new Intl.NumberFormat("vi-VN");
 const PERIODS: Period[] = ["day", "week", "month", "all"];
@@ -37,6 +38,7 @@ function DeleteExpense({
   busy: boolean;
   onDelete: () => void;
 }) {
+  const tr = useTr();
   const [confirming, setConfirming] = useState(false);
 
   if (!confirming) {
@@ -44,7 +46,9 @@ function DeleteExpense({
       <button
         type="button"
         className="exam-remove"
-        aria-label={`Delete expense: ${expense.description}`}
+        aria-label={tr("Delete expense: {description}", {
+          description: expense.description,
+        })}
         disabled={busy}
         onClick={() => setConfirming(true)}
       >
@@ -54,14 +58,14 @@ function DeleteExpense({
   }
   return (
     <span className="exam-confirm">
-      <span>Xoá khoản này?</span>
+      <span>{tr("Xoá khoản này?")}</span>
       <button
         type="button"
         className="exam-confirm-yes"
         disabled={busy}
         onClick={onDelete}
       >
-        Xoá
+        {tr("Xoá")}
       </button>
       <button
         type="button"
@@ -69,13 +73,14 @@ function DeleteExpense({
         disabled={busy}
         onClick={() => setConfirming(false)}
       >
-        Giữ lại
+        {tr("Giữ lại")}
       </button>
     </span>
   );
 }
 
 export function BudgetPanel({ focusId }: { focusId?: string }) {
+  const tr = useTr();
   const principal = useContext(PilotPrincipalContext);
   const canWrite =
     principal?.role === "manager" || principal?.role === "member";
@@ -127,11 +132,11 @@ export function BudgetPanel({ focusId }: { focusId?: string }) {
     const amount = Number(data.get("amount"));
     const description = String(data.get("description") || "").trim();
     if (!Number.isInteger(amount) || amount <= 0) {
-      setNotice("Số tiền cần là một số nguyên dương, tính bằng đồng.");
+      setNotice(tr("Số tiền cần là một số nguyên dương, tính bằng đồng."));
       return;
     }
     if (description.length < 2) {
-      setNotice("Ghi vắn tắt khoản này là gì giúp mình nhé.");
+      setNotice(tr("Ghi vắn tắt khoản này là gì giúp mình nhé."));
       return;
     }
     const ok = await store.create({
@@ -143,44 +148,45 @@ export function BudgetPanel({ focusId }: { focusId?: string }) {
     });
     if (ok) {
       form.reset();
-      setNotice("Đã ghi khoản chi.");
+      setNotice(tr("Đã ghi khoản chi."));
     }
   }
 
   if (store.loading) {
     return (
-      <Panel title="Student budget" icon={<WalletIcon />}>
+      <Panel title={tr("Student budget")} icon={<WalletIcon />}>
         <p role="status" className="empty-message">
-          Đang mở sổ chi tiêu…
+          {tr("Đang mở sổ chi tiêu…")}
         </p>
       </Panel>
     );
   }
 
   return (
-    <Panel title="Student budget" icon={<WalletIcon />}>
+    <Panel title={tr("Student budget")} icon={<WalletIcon />}>
       {!canWrite && (
         <p className="page-note">
-          Bạn đang có quyền xem các khoản chi. Nhờ thành viên hoặc người quản lý
-          ghi khoản chi mới nhé.
+          {tr(
+            "Bạn đang có quyền xem các khoản chi. Nhờ thành viên hoặc người quản lý ghi khoản chi mới nhé.",
+          )}
         </p>
       )}
       <p className="view-label">
         <WalletIcon /> {PERIOD_LABELS[period]}
-        <span className="example-label">Illustrative budget · VND</span>
+        <span className="example-label">{tr("Illustrative budget · VND")}</span>
       </p>
 
       {store.error && (
         <p role="alert" className="error-message">
           {store.error}
           <button className="text-button" type="button" onClick={store.reload}>
-            <ArrowPathIcon /> Retry budget
+            <ArrowPathIcon /> {tr("Retry budget")}
           </button>
         </p>
       )}
 
       <fieldset className="period-switch">
-        <legend className="sr-only">Chọn khoảng thời gian</legend>
+        <legend className="sr-only">{tr("Chọn khoảng thời gian")}</legend>
         {PERIODS.map((value) => (
           <label key={value} className={period === value ? "is-active" : ""}>
             <input
@@ -198,15 +204,17 @@ export function BudgetPanel({ focusId }: { focusId?: string }) {
       <div ref={ref} className={revealClass(revealed)}>
         <dl className="budget-grid grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <dt>Đã chi {PERIOD_LABELS[period].toLowerCase()}</dt>
+            <dt>
+              {tr("Đã chi")} {PERIOD_LABELS[period].toLowerCase()}
+            </dt>
             <dd>{money.format(total)} ₫</dd>
           </div>
           <div>
-            <dt>Số khoản</dt>
+            <dt>{tr("Số khoản")}</dt>
             <dd>{visible.length}</dd>
           </div>
           <div>
-            <dt>Khoản lớn nhất</dt>
+            <dt>{tr("Khoản lớn nhất")}</dt>
             <dd>
               {money.format(
                 visible.reduce((max, item) => Math.max(max, item.amount), 0),
@@ -219,7 +227,7 @@ export function BudgetPanel({ focusId }: { focusId?: string }) {
         {byCourse.length > 0 && (
           <section aria-labelledby="spend-by-course">
             <h3 id="spend-by-course" className="exam-group">
-              Chi theo môn học
+              {tr("Chi theo môn học")}
             </h3>
             <ul className="budget-bars">
               {byCourse.map((row) => (
@@ -252,7 +260,7 @@ export function BudgetPanel({ focusId }: { focusId?: string }) {
 
         <section aria-labelledby="expense-list">
           <h3 id="expense-list" className="exam-group">
-            Các khoản đã ghi
+            {tr("Các khoản đã ghi")}
           </h3>
           {visible.length ? (
             <ul className="expense-list">
@@ -287,9 +295,11 @@ export function BudgetPanel({ focusId }: { focusId?: string }) {
           ) : (
             !store.error && (
               <p className="empty-message">
-                Chưa ghi khoản nào trong {PERIOD_LABELS[period].toLowerCase()}.
-                Thử đổi sang khoảng thời gian khác, hoặc ghi khoản đầu tiên bên
-                dưới.
+                {tr("Chưa ghi khoản nào trong")}{" "}
+                {PERIOD_LABELS[period].toLowerCase()}
+                {tr(
+                  ". Thử đổi sang khoảng thời gian khác, hoặc ghi khoản đầu tiên bên dưới.",
+                )}
               </p>
             )
           )}
@@ -302,7 +312,7 @@ export function BudgetPanel({ focusId }: { focusId?: string }) {
           onSubmit={(event) => void submit(event)}
         >
           <label>
-            Amount (₫)
+            {tr("Amount (₫)")}
             <input
               name="amount"
               type="number"
@@ -313,21 +323,21 @@ export function BudgetPanel({ focusId }: { focusId?: string }) {
             />
           </label>
           <label>
-            Date
+            {tr("Date")}
             <input name="spentOn" type="date" required />
           </label>
           <label className="sm:col-span-2">
-            Description
+            {tr("Description")}
             <input
               name="description"
-              placeholder="Ví dụ: In tài liệu ôn thi"
+              placeholder={tr("Ví dụ: In tài liệu ôn thi")}
               minLength={2}
               maxLength={160}
               required
             />
           </label>
           <label>
-            Category
+            {tr("Category")}
             <select name="category" defaultValue="books">
               {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map(
                 (key) => (
@@ -339,9 +349,9 @@ export function BudgetPanel({ focusId }: { focusId?: string }) {
             </select>
           </label>
           <label>
-            Course
+            {tr("Course")}
             <select name="courseId" defaultValue="">
-              <option value="">Không thuộc môn nào</option>
+              <option value="">{tr("Không thuộc môn nào")}</option>
               {courses.courses.map((course) => (
                 <option key={course.id} value={course.id}>
                   {course.name} ({course.code})
@@ -351,15 +361,16 @@ export function BudgetPanel({ focusId }: { focusId?: string }) {
           </label>
           <button className="primary-button" disabled={store.busy}>
             <PlusIcon />
-            {store.busy ? "Đang lưu…" : "Add expense"}
+            {store.busy ? tr("Đang lưu…") : tr("Add expense")}
           </button>
           <p role="status">{notice}</p>
         </form>
       )}
 
       <p className="page-note">
-        Đây là sổ chi tiêu minh hoạ của workspace, không kết nối với tài khoản
-        ngân hàng nào và không phải số liệu tài chính thật.
+        {tr(
+          "Đây là sổ chi tiêu minh hoạ của workspace, không kết nối với tài khoản ngân hàng nào và không phải số liệu tài chính thật.",
+        )}
       </p>
     </Panel>
   );

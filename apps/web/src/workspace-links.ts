@@ -2,6 +2,7 @@ import type {
   AssistantWorkspaceSource,
   AssistantWorkspaceSourceKind,
 } from "@examate/contracts";
+import { lazyLabels } from "./i18n";
 
 /*
  * Links from a workspace answer to the records it rests on.
@@ -24,14 +25,14 @@ const PAGE: Record<Exclude<AssistantWorkspaceSourceKind, "course">, string> = {
 };
 
 export const workspaceKindLabel: Record<AssistantWorkspaceSourceKind, string> =
-  {
+  lazyLabels({
     task: "Task",
     exam: "Exam",
     study_plan: "Study plan",
     expense: "Expense",
     document: "Document",
     course: "Course",
-  };
+  });
 
 export function workspaceSourceHref(source: AssistantWorkspaceSource) {
   if (source.kind === "course")

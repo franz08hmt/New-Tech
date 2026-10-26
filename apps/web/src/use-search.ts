@@ -7,6 +7,7 @@ import type {
 import { ApiError, api } from "./api";
 import { CATEGORY_LABELS } from "./use-expenses";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
+import { lazyLabels, tl } from "./i18n";
 
 export type HitKind = Exclude<WorkspaceSearchKind, "all">;
 
@@ -16,14 +17,14 @@ export interface SearchHit extends WorkspaceSearchItem {
 }
 
 /** Captions are also used in the type filter and are never derived from data. */
-export const KIND_LABELS: Record<HitKind, string> = {
+export const KIND_LABELS: Record<HitKind, string> = lazyLabels({
   course: "Môn học",
   exam: "Kỳ thi",
   plan: "Việc cần ôn",
   document: "Tài liệu",
   expense: "Khoản chi",
   task: "Công việc",
-};
+});
 
 const SEARCH_KINDS: Exclude<WorkspaceSearchKind, "all">[] = [
   "course",
@@ -193,7 +194,9 @@ export function useWorkspaceSearch(query: string) {
           setState({
             key,
             loading: false,
-            error: "Chưa tìm được lúc này. Kiểm tra kết nối rồi thử lại nhé.",
+            error: tl(
+              "Chưa tìm được lúc này. Kiểm tra kết nối rồi thử lại nhé.",
+            ),
             unsupported: false,
             data: null,
           });

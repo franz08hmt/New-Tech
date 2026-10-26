@@ -7,6 +7,7 @@ import type {
 import type { AssistantMessage } from "./use-assistant";
 import { api, ApiError } from "./api";
 import { createUuid } from "./create-uuid";
+import { useTr } from "./i18n";
 
 const reasons: [AssistantFeedbackReason, string][] = [
   ["wrong_source", "Sai nguồn"],
@@ -22,6 +23,7 @@ export function AssistantFeedback({
   feedback: NonNullable<AssistantMessage["feedback"]>;
   number: number;
 }) {
+  const tr = useTr();
   const id = useId();
   const [rating, setRating] = useState<AssistantFeedbackRating | null>(null);
   const [selected, setSelected] = useState<AssistantFeedbackReason[]>([]);
@@ -39,7 +41,7 @@ export function AssistantFeedback({
   const submission = useRef<CreateAssistantFeedbackRequest | null>(null);
   const inFlight = useRef(false);
   const locked = status !== "draft";
-  const name = `câu trả lời ${number}`;
+  const name = tr("câu trả lời {number}", { number });
   async function send() {
     if (
       !rating ||
@@ -49,7 +51,7 @@ export function AssistantFeedback({
       return;
     if (!submission.current) {
       if (rating === "unhelpful" && !selected.length) {
-        setValidation("Chọn ít nhất một lý do trước khi gửi.");
+        setValidation(tr("Chọn ít nhất một lý do trước khi gửi."));
         return;
       }
       if (
@@ -57,7 +59,7 @@ export function AssistantFeedback({
         selected.includes("other") &&
         !comment.trim()
       ) {
-        setValidation("Thêm ghi chú khi chọn Khác.");
+        setValidation(tr("Thêm ghi chú khi chọn Khác."));
         return;
       }
       const snapshot = feedback.snapshot;
@@ -71,14 +73,18 @@ export function AssistantFeedback({
           snapshot.response.workspaceSources.length > 40)
       ) {
         setValidation(
-          "Nội dung vượt giới hạn lưu phản hồi. Câu trả lời vẫn được giữ đầy đủ; không cắt nội dung để gửi.",
+          tr(
+            "Nội dung vượt giới hạn lưu phản hồi. Câu trả lời vẫn được giữ đầy đủ; không cắt nội dung để gửi.",
+          ),
         );
         return;
       }
       const submissionId = createUuid();
       if (!submissionId) {
         setValidation(
-          "Trình duyệt chưa tạo được mã gửi phản hồi. Nội dung vẫn còn; hãy kiểm tra trình duyệt trước khi gửi lại.",
+          tr(
+            "Trình duyệt chưa tạo được mã gửi phản hồi. Nội dung vẫn còn; hãy kiểm tra trình duyệt trước khi gửi lại.",
+          ),
         );
         return;
       }
@@ -120,12 +126,15 @@ export function AssistantFeedback({
     }
   }
   return (
-    <section className="assistant-feedback" aria-label={`Phản hồi ${name}`}>
+    <section
+      className="assistant-feedback"
+      aria-label={tr("Phản hồi {name}", { name })}
+    >
       <div className="assistant-feedback-ratings">
         {(
           [
-            ["helpful", "Hữu ích"],
-            ["unhelpful", "Chưa đúng"],
+            ["helpful", tr("Hữu ích")],
+            ["unhelpful", tr("Chưa đúng")],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -149,12 +158,14 @@ export function AssistantFeedback({
             event.preventDefault();
             void send();
           }}
-          aria-label={`Gửi phản hồi ${name}`}
+          aria-label={tr("Gửi phản hồi {name}", { name })}
           aria-busy={status === "saving"}
         >
           {rating === "unhelpful" && (
             <fieldset disabled={locked}>
-              <legend>Lý do — {name}</legend>
+              <legend>
+                {tr("Lý do —")} {name}
+              </legend>
               {reasons.map(([value, label]) => (
                 <label key={value}>
                   <input
@@ -169,12 +180,14 @@ export function AssistantFeedback({
                       setValidation("");
                     }}
                   />
-                  {label}
+                  {tr(label)}
                 </label>
               ))}
             </fieldset>
           )}
-          <label htmlFor={`${id}-note`}>Ghi chú — {name}</label>
+          <label htmlFor={`${id}-note`}>
+            {tr("Ghi chú —")} {name}
+          </label>
           <textarea
             id={`${id}-note`}
             value={comment}
@@ -187,38 +200,42 @@ export function AssistantFeedback({
             }}
           />
           <small id={`${id}-limit`}>
-            Tùy chọn, tối đa 1.000 ký tự ({[...comment].length}/1.000). Chọn
-            Khác cần ghi chú.
+            {tr("Tùy chọn, tối đa 1.000 ký tự (")}
+            {[...comment].length}
+            {tr("/1.000). Chọn Khác cần ghi chú.")}
           </small>
           <p id={`${id}-disclosure`}>
-            Phản hồi sẽ lưu câu hỏi, câu trả lời này và thông tin nguồn để nhóm
-            kiểm tra.
+            {tr(
+              "Phản hồi sẽ lưu câu hỏi, câu trả lời này và thông tin nguồn để nhóm kiểm tra.",
+            )}
           </p>
           {validation && <p role="alert">{validation}</p>}
           {status === "error" && (
             <p role="alert">
-              Chưa lưu được phản hồi. Nội dung bạn chọn vẫn còn, thử lại nhé.
-              Nội dung lần gửi được giữ nguyên để tránh lưu trùng.
+              {tr(
+                "Chưa lưu được phản hồi. Nội dung bạn chọn vẫn còn, thử lại nhé. Nội dung lần gửi được giữ nguyên để tránh lưu trùng.",
+              )}
             </p>
           )}
           {status === "rejected" && (
             <p role="alert">
-              Chưa lưu phản hồi vì dữ liệu gửi không hợp lệ. Nội dung đã chọn
-              vẫn còn. Nhóm cần kiểm tra dữ liệu trước khi gửi lại; gửi lại cùng
-              nội dung sẽ không giải quyết lỗi.
+              {tr(
+                "Chưa lưu phản hồi vì dữ liệu gửi không hợp lệ. Nội dung đã chọn vẫn còn. Nhóm cần kiểm tra dữ liệu trước khi gửi lại; gửi lại cùng nội dung sẽ không giải quyết lỗi.",
+              )}
             </p>
           )}
           {status === "conflict" && (
             <p role="alert">
-              Máy chủ đã có phản hồi cho câu trả lời hoặc khóa gửi này với nội
-              dung khác. Nội dung bạn chọn vẫn còn; bản đang gửi chưa được xác
-              nhận lưu. Không thể ghi đè bằng cách thử lại.
+              {tr(
+                "Máy chủ đã có phản hồi cho câu trả lời hoặc khóa gửi này với nội dung khác. Nội dung bạn chọn vẫn còn; bản đang gửi chưa được xác nhận lưu. Không thể ghi đè bằng cách thử lại.",
+              )}
             </p>
           )}
           {status === "not_found" && (
             <p role="alert">
-              Chưa tìm thấy câu trả lời của bạn để lưu phản hồi. Nội dung bạn
-              chọn vẫn còn; hãy gửi câu hỏi mới trước khi phản hồi lại nhé.
+              {tr(
+                "Chưa tìm thấy câu trả lời của bạn để lưu phản hồi. Nội dung bạn chọn vẫn còn; hãy gửi câu hỏi mới trước khi phản hồi lại nhé.",
+              )}
             </p>
           )}
           {status !== "rejected" &&
@@ -227,22 +244,23 @@ export function AssistantFeedback({
               <button
                 type="submit"
                 disabled={status === "saving"}
-                aria-label={`${status === "error" ? "Thử lại" : "Gửi phản hồi"} — ${name}`}
+                aria-label={`${status === "error" ? tr("Thử lại") : tr("Gửi phản hồi")} — ${name}`}
               >
                 {status === "saving"
-                  ? "Đang lưu…"
+                  ? tr("Đang lưu…")
                   : status === "error"
-                    ? "Thử lại"
-                    : "Gửi phản hồi"}
+                    ? tr("Thử lại")
+                    : tr("Gửi phản hồi")}
               </button>
             )}
         </form>
       )}
-      {status === "saving" && <p role="status">Đang lưu phản hồi…</p>}
+      {status === "saving" && <p role="status">{tr("Đang lưu phản hồi…")}</p>}
       {status === "saved" && (
         <p role="status">
-          Đã lưu phản hồi. Nhóm sẽ đối chiếu với nguồn trước khi cập nhật bộ
-          kiểm thử.
+          {tr(
+            "Đã lưu phản hồi. Nhóm sẽ đối chiếu với nguồn trước khi cập nhật bộ kiểm thử.",
+          )}
         </p>
       )}
     </section>

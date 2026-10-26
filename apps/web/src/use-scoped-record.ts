@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { tl } from "./i18n";
 
 interface LookupState<RecordType> {
   key: string;
@@ -64,7 +65,7 @@ export function useScopedRecord<RecordType>(
           key: requestKey,
           loading: false,
           record: null,
-          error: "This item is not available in the current workspace.",
+          error: tl("This item is not available in the current workspace."),
         });
       });
     return () => {

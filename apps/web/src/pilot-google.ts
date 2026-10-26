@@ -1,4 +1,4 @@
-// Navigation only; tokens/verifiers never enter browser state or storage.
+import { tl } from "./i18n"; // Navigation only; tokens/verifiers never enter browser state or storage.
 export function navigateGoogle(value: string) {
   const url = new URL(value);
   if (
@@ -29,10 +29,16 @@ export function consumeGoogleResult() {
 }
 export function googleResultMessage(result?: string) {
   return result === "cancelled"
-    ? "Bạn đã hủy đăng nhập Google. Có thể thử lại hoặc dùng email và mật khẩu."
+    ? tl(
+        "Bạn đã hủy đăng nhập Google. Có thể thử lại hoặc dùng email và mật khẩu.",
+      )
     : result === "restart_required"
-      ? "Chưa hoàn tất đăng nhập Google. Hãy bắt đầu lại; yêu cầu cũ không được gửi lại tự động."
+      ? tl(
+          "Chưa hoàn tất đăng nhập Google. Hãy bắt đầu lại; yêu cầu cũ không được gửi lại tự động.",
+        )
       : result === "unavailable"
-        ? "Đăng nhập Google chưa sẵn sàng. Bạn có thể dùng email và mật khẩu."
+        ? tl(
+            "Đăng nhập Google chưa sẵn sàng. Bạn có thể dùng email và mật khẩu.",
+          )
         : "";
 }

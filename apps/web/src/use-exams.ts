@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type Exam } from "./api";
+import { tl } from "./i18n";
 
 export interface ExamsState {
   exams: Exam[];
@@ -56,7 +57,9 @@ export function useExams({
         if (active) {
           setExams([]);
           setError(
-            "Chưa xem được lịch thi. Có thể kết nối đang trục trặc một chút, thử lại giúp mình nhé.",
+            tl(
+              "Chưa xem được lịch thi. Có thể kết nối đang trục trặc một chút, thử lại giúp mình nhé.",
+            ),
           );
         }
       })
@@ -85,7 +88,9 @@ export function useExams({
       );
       return true;
     } catch {
-      setError("Chưa lưu được kỳ thi này. Xem lại thông tin rồi thử lại nhé.");
+      setError(
+        tl("Chưa lưu được kỳ thi này. Xem lại thông tin rồi thử lại nhé."),
+      );
       return false;
     } finally {
       setBusy(false);
@@ -110,7 +115,9 @@ export function useExams({
       );
       return true;
     } catch {
-      setError("Chưa lưu được thay đổi. Xem lại thông tin rồi thử lại nhé.");
+      setError(
+        tl("Chưa lưu được thay đổi. Xem lại thông tin rồi thử lại nhé."),
+      );
       return false;
     } finally {
       setBusy(false);
@@ -125,7 +132,7 @@ export function useExams({
       setExams((current) => current.filter((exam) => exam.id !== id));
       return true;
     } catch {
-      setError("Chưa xoá được kỳ thi này. Thử lại một lần nữa nhé.");
+      setError(tl("Chưa xoá được kỳ thi này. Thử lại một lần nữa nhé."));
       return false;
     } finally {
       setBusy(false);
@@ -152,9 +159,9 @@ export function daysUntil(examDate: string, today = new Date()): number {
 }
 
 export function countdownLabel(days: number): string {
-  if (days === 0) return "Hôm nay";
-  if (days === 1) return "Ngày mai";
-  if (days > 0) return `Còn ${days} ngày`;
-  if (days === -1) return "Hôm qua";
-  return `${Math.abs(days)} ngày trước`;
+  if (days === 0) return tl("Hôm nay");
+  if (days === 1) return tl("Ngày mai");
+  if (days > 0) return tl("Còn {days} ngày", { days });
+  if (days === -1) return tl("Hôm qua");
+  return tl("{value} ngày trước", { value: Math.abs(days) });
 }

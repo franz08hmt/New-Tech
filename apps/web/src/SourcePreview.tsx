@@ -7,6 +7,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useCallback, useRef, useState, type ReactNode, type Ref } from "react";
 import type { AssistantCitation } from "./use-assistant";
+import { useTr, tl } from "./i18n";
 
 /** The citation being read, and where in the conversation it came from. */
 export interface SourceSelection {
@@ -71,10 +72,10 @@ export function useSourcePreview(
 
 /** "Trang 3", or honest about having no page. */
 function whereInDocument(citation: AssistantCitation) {
-  if (citation.page) return `Trang ${citation.page}`;
+  if (citation.page) return tl("Trang {page}", { page: citation.page });
   return citation.locator
-    ? `Không có số trang · ${citation.locator}`
-    : "Không có số trang";
+    ? tl("Không có số trang · {locator}", { locator: citation.locator })
+    : tl("Không có số trang");
 }
 
 interface SourcePreviewProps {
@@ -102,6 +103,7 @@ export function SourcePreview({
   openingInTab = false,
   tabNotice,
 }: SourcePreviewProps) {
+  const tr = useTr();
   if (!selection)
     return (
       <section
@@ -110,15 +112,20 @@ export function SourcePreview({
       >
         <DocumentTextIcon aria-hidden="true" />
         <h2 id="assistant-source-title" tabIndex={-1} ref={headingRef}>
-          Chưa chọn nguồn
+          {tr("Chưa chọn nguồn")}
         </h2>
-        <p>Chọn một nguồn dưới câu trả lời để đọc tài liệu ngay tại đây.</p>
+        <p>
+          {tr("Chọn một nguồn dưới câu trả lời để đọc tài liệu ngay tại đây.")}
+        </p>
       </section>
     );
 
   const { citation } = selection;
   const frameTitle = citation.page
-    ? `${citation.title}, trang ${citation.page}`
+    ? tr("{title}, trang {page}", {
+        title: citation.title,
+        page: citation.page,
+      })
     : citation.title;
 
   return (
@@ -134,14 +141,14 @@ export function SourcePreview({
             onClick={onClose}
           >
             <ArrowLeftIcon aria-hidden="true" />
-            Quay lại hội thoại
+            {tr("Quay lại hội thoại")}
           </button>
         ) : (
           <button
             type="button"
             className="assistant-source-close"
-            aria-label="Ẩn vùng nguồn"
-            title="Ẩn vùng nguồn"
+            aria-label={tr("Ẩn vùng nguồn")}
+            title={tr("Ẩn vùng nguồn")}
             onClick={onClose}
           >
             <XMarkIcon aria-hidden="true" />
@@ -152,14 +159,14 @@ export function SourcePreview({
             {citation.title}
           </h2>
           <p>
-            {whereInDocument(citation)} · Nguồn của câu trả lời{" "}
+            {whereInDocument(citation)} {tr("· Nguồn của câu trả lời")}{" "}
             {selection.answerNumber}
           </p>
         </div>
         <div className="assistant-source-actions">
           <button type="button" onClick={onReload}>
             <ArrowPathIcon aria-hidden="true" />
-            Tải lại nguồn
+            {tr("Tải lại nguồn")}
           </button>
           {status.kind === "ready" ? (
             <button
@@ -170,12 +177,12 @@ export function SourcePreview({
               aria-busy={openingInTab}
             >
               <ArrowTopRightOnSquareIcon aria-hidden="true" />
-              {openingInTab ? "Đang mở…" : "Mở trong tab mới"}
+              {openingInTab ? tr("Đang mở…") : tr("Mở trong tab mới")}
             </button>
           ) : (
             <button type="button" disabled>
               <ArrowTopRightOnSquareIcon aria-hidden="true" />
-              Mở trong tab mới
+              {tr("Mở trong tab mới")}
             </button>
           )}
         </div>
@@ -184,14 +191,14 @@ export function SourcePreview({
       <div className="assistant-source-body">
         {status.kind === "loading" && (
           <p role="status" className="assistant-source-message">
-            Đang mở tài liệu nguồn…
+            {tr("Đang mở tài liệu nguồn…")}
           </p>
         )}
         {status.kind === "error" && (
           <div role="alert" className="assistant-source-message">
-            <p>Chưa mở được tài liệu nguồn.</p>
+            <p>{tr("Chưa mở được tài liệu nguồn.")}</p>
             <button type="button" onClick={onReload}>
-              Thử lại
+              {tr("Thử lại")}
             </button>
           </div>
         )}
@@ -208,8 +215,9 @@ export function SourcePreview({
               referrerPolicy="no-referrer"
             />
             <p className="assistant-source-hint">
-              Link xem chỉ có hiệu lực khoảng một phút. Nếu khung trống hoặc báo
-              hết hạn, bấm “Tải lại nguồn”.
+              {tr(
+                "Link xem chỉ có hiệu lực khoảng một phút. Nếu khung trống hoặc báo hết hạn, bấm “Tải lại nguồn”.",
+              )}
             </p>
           </>
         )}

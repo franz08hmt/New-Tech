@@ -14,6 +14,7 @@ import { CATEGORY_LABELS, useExpenses } from "./use-expenses";
 import { useDocuments } from "./use-documents";
 import type { Course, ExpenseCategory } from "./api";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
+import { useTr } from "./i18n";
 
 const money = new Intl.NumberFormat("vi-VN");
 
@@ -32,6 +33,7 @@ function RemoveButton({
   busy: boolean;
   onDelete: () => void;
 }) {
+  const tr = useTr();
   const [confirming, setConfirming] = useState(false);
   if (!confirming) {
     return (
@@ -54,7 +56,7 @@ function RemoveButton({
         disabled={busy}
         onClick={onDelete}
       >
-        Xoá
+        {tr("Xoá")}
       </button>
       <button
         type="button"
@@ -62,7 +64,7 @@ function RemoveButton({
         disabled={busy}
         onClick={() => setConfirming(false)}
       >
-        Giữ
+        {tr("Giữ")}
       </button>
     </span>
   );
@@ -81,6 +83,7 @@ function Block({
   loading: boolean;
   children: ReactNode;
 }) {
+  const tr = useTr();
   return (
     <section className="cw-block" aria-label={title}>
       <h3>
@@ -92,7 +95,7 @@ function Block({
       </h3>
       {loading ? (
         <p role="status" className="empty-message">
-          Đang tải…
+          {tr("Đang tải…")}
         </p>
       ) : (
         children
@@ -116,6 +119,7 @@ export function CourseWorkspace({
   course: Course;
   onDocumentsChanged?: () => void;
 }) {
+  const tr = useTr();
   const principal = useContext(PilotPrincipalContext);
   const canWrite =
     principal?.role === "manager" || principal?.role === "member";
@@ -150,7 +154,7 @@ export function CourseWorkspace({
   async function removeAnd(
     action: Promise<boolean>,
     what: string,
-    verb = "đã được xoá",
+    verb = tr("đã được xoá"),
     afterSettled?: () => void,
   ) {
     setNotice("");
@@ -163,7 +167,8 @@ export function CourseWorkspace({
     if (!canWrite) return;
     setNotice("");
     const ok = await documents.upload(file, course.id);
-    if (ok) setNotice(`Đã tải "${file.name}" lên cho môn này.`);
+    if (ok)
+      setNotice(tr('Đã tải "{name}" lên cho môn này.', { name: file.name }));
     onDocumentsChanged?.();
   }
 
@@ -181,7 +186,7 @@ export function CourseWorkspace({
     });
     if (ok) {
       form.reset();
-      setNotice("Đã thêm kỳ thi cho môn này.");
+      setNotice(tr("Đã thêm kỳ thi cho môn này."));
     }
   }
 
@@ -197,7 +202,7 @@ export function CourseWorkspace({
     });
     if (ok) {
       form.reset();
-      setNotice("Đã thêm việc cần ôn.");
+      setNotice(tr("Đã thêm việc cần ôn."));
     }
   }
 
@@ -208,7 +213,7 @@ export function CourseWorkspace({
     const data = new FormData(form);
     const amount = Number(data.get("amount"));
     if (!Number.isInteger(amount) || amount <= 0) {
-      setNotice("Số tiền cần là một số nguyên dương.");
+      setNotice(tr("Số tiền cần là một số nguyên dương."));
       return;
     }
     const ok = await expenses.create({
@@ -220,31 +225,32 @@ export function CourseWorkspace({
     });
     if (ok) {
       form.reset();
-      setNotice("Đã ghi khoản chi cho môn này.");
+      setNotice(tr("Đã ghi khoản chi cho môn này."));
     }
   }
 
   return (
     <section className="course-workspace" aria-labelledby="course-workspace">
-      <h2 id="course-workspace">Workspace for this course</h2>
+      <h2 id="course-workspace">{tr("Workspace for this course")}</h2>
       <p className="page-note">
-        Mọi thứ bạn thêm ở đây đều được gắn sẵn cho môn này, và cũng hiện ở
-        trang tương ứng của nó.
+        {tr(
+          "Mọi thứ bạn thêm ở đây đều được gắn sẵn cho môn này, và cũng hiện ở trang tương ứng của nó.",
+        )}
       </p>
       {!canWrite && (
         <p className="page-note">
-          Bạn đang có quyền xem lịch thi, kế hoạch ôn tập và các khoản chi của
-          môn này. Nhờ thành viên hoặc người quản lý thêm và cập nhật các mục
-          này nhé.
+          {tr(
+            "Bạn đang có quyền xem lịch thi, kế hoạch ôn tập và các khoản chi của môn này. Nhờ thành viên hoặc người quản lý thêm và cập nhật các mục này nhé.",
+          )}
         </p>
       )}
 
       <div className="cw-grid">
         <Block
-          title="Exams"
+          title={tr("Exams")}
           loading={exams.loading}
           icon={<CalendarDaysIcon aria-hidden="true" />}
-          summary={`${courseExams.length} sắp tới`}
+          summary={tr("{length} sắp tới", { length: courseExams.length })}
         >
           <ul className="cw-list">
             {courseExams.map((exam) => (
@@ -263,11 +269,11 @@ export function CourseWorkspace({
                 </span>
                 {canDelete && (
                   <RemoveButton
-                    label={`Delete exam: ${exam.topic}`}
+                    label={tr("Delete exam: {topic}", { topic: exam.topic })}
                     busy={exams.busy}
                     onDelete={() => {
                       if (!canDelete) return;
-                      void removeAnd(exams.remove(exam.id), "Kỳ thi");
+                      void removeAnd(exams.remove(exam.id), tr("Kỳ thi"));
                     }}
                   />
                 )}
@@ -275,49 +281,49 @@ export function CourseWorkspace({
             ))}
           </ul>
           {!courseExams.length && (
-            <p className="empty-message">Chưa có kỳ thi nào sắp tới.</p>
+            <p className="empty-message">{tr("Chưa có kỳ thi nào sắp tới.")}</p>
           )}
           {canWrite && (
             <form className="cw-form" onSubmit={(event) => void addExam(event)}>
               <label>
-                <span className="sr-only">Exam name</span>
+                <span className="sr-only">{tr("Exam name")}</span>
                 <input
                   name="topic"
-                  placeholder="Tên kỳ thi"
+                  placeholder={tr("Tên kỳ thi")}
                   minLength={3}
                   maxLength={160}
                   required
                 />
               </label>
               <label>
-                <span className="sr-only">Exam date</span>
+                <span className="sr-only">{tr("Exam date")}</span>
                 <input name="examDate" type="date" required />
               </label>
               <label>
-                <span className="sr-only">Exam time</span>
+                <span className="sr-only">{tr("Exam time")}</span>
                 <input name="examTime" type="time" required />
               </label>
               <label>
-                <span className="sr-only">Exam room</span>
+                <span className="sr-only">{tr("Exam room")}</span>
                 <input
                   name="room"
-                  placeholder="Phòng"
+                  placeholder={tr("Phòng")}
                   maxLength={80}
                   required
                 />
               </label>
               <button className="text-button" disabled={exams.busy}>
-                <PlusIcon /> Add exam
+                <PlusIcon /> {tr("Add exam")}
               </button>
             </form>
           )}
         </Block>
 
         <Block
-          title="Study plan"
+          title={tr("Study plan")}
           loading={plans.loading}
           icon={<ClipboardDocumentCheckIcon aria-hidden="true" />}
-          summary={`${planRemaining} việc còn lại`}
+          summary={tr("{planRemaining} việc còn lại", { planRemaining })}
         >
           <ul className="cw-list">
             {coursePlans.map((plan) => {
@@ -327,7 +333,7 @@ export function CourseWorkspace({
                   <button
                     type="button"
                     className={`task-check ${done ? "checked" : ""}`}
-                    aria-label={`${done ? "Mark as not done" : "Mark as done"}: ${plan.title}`}
+                    aria-label={`${done ? tr("Mark as not done") : tr("Mark as done")}: ${plan.title}`}
                     disabled={plans.busy || !canWrite}
                     onClick={() => {
                       if (!canWrite) return;
@@ -350,11 +356,16 @@ export function CourseWorkspace({
                   </span>
                   {canDelete && (
                     <RemoveButton
-                      label={`Delete revision item: ${plan.title}`}
+                      label={tr("Delete revision item: {title}", {
+                        title: plan.title,
+                      })}
                       busy={plans.busy}
                       onDelete={() => {
                         if (!canDelete) return;
-                        void removeAnd(plans.remove(plan.id), "Việc cần ôn");
+                        void removeAnd(
+                          plans.remove(plan.id),
+                          tr("Việc cần ôn"),
+                        );
                       }}
                     />
                   )}
@@ -363,33 +374,33 @@ export function CourseWorkspace({
             })}
           </ul>
           {!coursePlans.length && (
-            <p className="empty-message">Chưa có việc nào cần ôn.</p>
+            <p className="empty-message">{tr("Chưa có việc nào cần ôn.")}</p>
           )}
           {canWrite && (
             <form className="cw-form" onSubmit={(event) => void addPlan(event)}>
               <label>
-                <span className="sr-only">What to revise</span>
+                <span className="sr-only">{tr("What to revise")}</span>
                 <input
                   name="title"
-                  placeholder="Cần ôn gì?"
+                  placeholder={tr("Cần ôn gì?")}
                   minLength={3}
                   maxLength={160}
                   required
                 />
               </label>
               <label>
-                <span className="sr-only">Revision due date</span>
+                <span className="sr-only">{tr("Revision due date")}</span>
                 <input name="dueDate" type="date" />
               </label>
               <button className="text-button" disabled={plans.busy}>
-                <PlusIcon /> Add revision item
+                <PlusIcon /> {tr("Add revision item")}
               </button>
             </form>
           )}
         </Block>
 
         <Block
-          title="Spending"
+          title={tr("Spending")}
           loading={expenses.loading}
           icon={<WalletIcon aria-hidden="true" />}
           summary={`${money.format(spent)} ₫`}
@@ -411,11 +422,13 @@ export function CourseWorkspace({
                 </span>
                 {canDelete && (
                   <RemoveButton
-                    label={`Delete expense: ${item.description}`}
+                    label={tr("Delete expense: {description}", {
+                      description: item.description,
+                    })}
                     busy={expenses.busy}
                     onDelete={() => {
                       if (!canDelete) return;
-                      void removeAnd(expenses.remove(item.id), "Khoản chi");
+                      void removeAnd(expenses.remove(item.id), tr("Khoản chi"));
                     }}
                   />
                 )}
@@ -423,7 +436,9 @@ export function CourseWorkspace({
             ))}
           </ul>
           {!courseExpenses.length && (
-            <p className="empty-message">Chưa ghi khoản chi nào cho môn này.</p>
+            <p className="empty-message">
+              {tr("Chưa ghi khoản chi nào cho môn này.")}
+            </p>
           )}
           {canWrite && (
             <form
@@ -431,32 +446,32 @@ export function CourseWorkspace({
               onSubmit={(event) => void addExpense(event)}
             >
               <label>
-                <span className="sr-only">Expense amount</span>
+                <span className="sr-only">{tr("Expense amount")}</span>
                 <input
                   name="amount"
                   type="number"
                   min={1}
                   step={1}
-                  placeholder="Số tiền"
+                  placeholder={tr("Số tiền")}
                   required
                 />
               </label>
               <label>
-                <span className="sr-only">Expense description</span>
+                <span className="sr-only">{tr("Expense description")}</span>
                 <input
                   name="description"
-                  placeholder="Chi cho việc gì?"
+                  placeholder={tr("Chi cho việc gì?")}
                   minLength={2}
                   maxLength={160}
                   required
                 />
               </label>
               <label>
-                <span className="sr-only">Expense date</span>
+                <span className="sr-only">{tr("Expense date")}</span>
                 <input name="spentOn" type="date" required />
               </label>
               <label>
-                <span className="sr-only">Expense category</span>
+                <span className="sr-only">{tr("Expense category")}</span>
                 <select name="category" defaultValue="books">
                   {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map(
                     (key) => (
@@ -468,17 +483,17 @@ export function CourseWorkspace({
                 </select>
               </label>
               <button className="text-button" disabled={expenses.busy}>
-                <PlusIcon /> Add expense
+                <PlusIcon /> {tr("Add expense")}
               </button>
             </form>
           )}
         </Block>
 
         <Block
-          title="Documents"
+          title={tr("Documents")}
           loading={documents.loading}
           icon={<DocumentTextIcon aria-hidden="true" />}
-          summary={`${courseDocuments.length} tệp`}
+          summary={tr("{length} tệp", { length: courseDocuments.length })}
         >
           <ul className="cw-list">
             {courseDocuments.map((item) => (
@@ -491,14 +506,14 @@ export function CourseWorkspace({
                 </span>
                 {canWrite && (
                   <RemoveButton
-                    label={`Detach document: ${item.name}`}
+                    label={tr("Detach document: {name}", { name: item.name })}
                     busy={documents.busy}
                     onDelete={() => {
                       if (!canWrite) return;
                       void removeAnd(
                         documents.setCourse(item.id, null),
-                        "Tài liệu",
-                        "đã được gỡ khỏi môn này",
+                        tr("Tài liệu"),
+                        tr("đã được gỡ khỏi môn này"),
                         onDocumentsChanged,
                       );
                     }}
@@ -508,7 +523,9 @@ export function CourseWorkspace({
             ))}
           </ul>
           {!courseDocuments.length && (
-            <p className="empty-message">Chưa có tài liệu nào cho môn này.</p>
+            <p className="empty-message">
+              {tr("Chưa có tài liệu nào cho môn này.")}
+            </p>
           )}
           {/* One picker, filed under this course automatically. The checks
               that matter — PDF signature, 10 MiB ceiling, filename length —
@@ -516,7 +533,9 @@ export function CourseWorkspace({
               page: both call the same endpoint. */}
           {canWrite && (
             <label className="file-picker cw-upload">
-              {documents.busy ? "Đang tải lên…" : "Chọn tệp PDF cho môn này"}
+              {documents.busy
+                ? tr("Đang tải lên…")
+                : tr("Chọn tệp PDF cho môn này")}
               <input
                 type="file"
                 accept=".pdf,application/pdf"
@@ -533,8 +552,9 @@ export function CourseWorkspace({
           )}
           {!canWrite && (
             <p className="page-note">
-              Bạn đang có quyền xem tài liệu của môn này. Nhờ thành viên hoặc
-              người quản lý tải lên và đổi môn cho tài liệu giúp nhé.
+              {tr(
+                "Bạn đang có quyền xem tài liệu của môn này. Nhờ thành viên hoặc người quản lý tải lên và đổi môn cho tài liệu giúp nhé.",
+              )}
             </p>
           )}
           {documents.error && (
@@ -543,7 +563,7 @@ export function CourseWorkspace({
             </p>
           )}
           <a className="text-button" href="#documents">
-            Mở trang Documents
+            {tr("Mở trang Documents")}
           </a>
         </Block>
       </div>

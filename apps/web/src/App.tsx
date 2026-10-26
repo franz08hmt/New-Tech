@@ -26,6 +26,7 @@ import { useDocuments } from "./use-documents";
 import { useWorkspace } from "./use-workspace";
 import { PilotAccess } from "./PilotAccess";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
+import { useTr, tl } from "./i18n";
 
 const pages = [
   {
@@ -145,12 +146,16 @@ const assistantFailureMessage: Record<string, string> = {
 function assistantErrorMessage(error: unknown) {
   if (!(error instanceof ApiError))
     return error instanceof Error
-      ? error.message
-      : "Chưa gửi được câu hỏi. Bản nháp vẫn còn nguyên, thử lại nhé.";
-  const friendly = assistantFailureMessage[error.code];
-  if (!friendly) return error.message;
+      ? tl(error.message)
+      : tl("Chưa gửi được câu hỏi. Bản nháp vẫn còn nguyên, thử lại nhé.");
+  const known = assistantFailureMessage[error.code];
+  if (!known) return error.message;
+  const friendly = tl(known);
   return error.requestId
-    ? `${friendly} Mã yêu cầu: ${error.requestId}`
+    ? tl("{friendly} Mã yêu cầu: {requestId}", {
+        friendly,
+        requestId: error.requestId,
+      })
     : friendly;
 }
 type Page = (typeof pages)[number];
@@ -233,6 +238,7 @@ export default function App() {
   );
 }
 export function WorkspaceApp() {
+  const tr = useTr();
   const principal = useContext(PilotPrincipalContext);
   const navigationPages =
     principal?.role === "manager"
@@ -309,7 +315,9 @@ export function WorkspaceApp() {
         const translated = assistantOutcomeMessage[response.reasonCode];
         const coverageWarning =
           response.reasonCode === "PARTIAL_COVERAGE"
-            ? "Lưu ý: bản tóm tắt chỉ bao phủ phần nội dung đọc được; một số trang có thể cần OCR."
+            ? tr(
+                "Lưu ý: bản tóm tắt chỉ bao phủ phần nội dung đọc được; một số trang có thể cần OCR.",
+              )
             : "";
         return {
           answerId,
@@ -326,8 +334,8 @@ export function WorkspaceApp() {
             title: citation.title,
             locator:
               citation.page === null
-                ? `đoạn ${citation.chunkIndex + 1}`
-                : `tr. ${citation.page}`,
+                ? tr("đoạn {value}", { value: citation.chunkIndex + 1 })
+                : tr("tr. {page}", { page: citation.page }),
             documentId: citation.documentId,
             page: citation.page,
           })),
@@ -342,7 +350,9 @@ export function WorkspaceApp() {
             [502, 503, 504].includes(error.status));
         if (mode === "workspace" && unreachable)
           throw new Error(
-            "Chưa kết nối được máy chủ ExaMate để đọc dữ liệu workspace. Bản nháp vẫn được giữ để thử lại.",
+            tr(
+              "Chưa kết nối được máy chủ ExaMate để đọc dữ liệu workspace. Bản nháp vẫn được giữ để thử lại.",
+            ),
           );
         throw new Error(assistantErrorMessage(error));
       }
@@ -378,21 +388,29 @@ export function WorkspaceApp() {
       ? {
           ...route.page,
           eyebrow: selectedCourse
-            ? `${selectedCourse.code} · ILLUSTRATIVE COURSE`
-            : "COURSE DIRECTORY",
+            ? tr("{code} · ILLUSTRATIVE COURSE", { code: selectedCourse.code })
+            : tr("COURSE DIRECTORY"),
           name:
             selectedCourse?.name ??
-            (courseResolved ? "Course not found" : "Course details"),
+            (courseResolved ? tr("Course not found") : tr("Course details")),
           title:
             selectedCourse?.name ??
-            (courseResolved ? "Course not found" : "Course details"),
+            (courseResolved ? tr("Course not found") : tr("Course details")),
           description:
             selectedCourse?.detail ??
             (courseResolved
-              ? "That address does not match a course in the example gallery."
-              : "Loading this course from the ExaMate workspace."),
+              ? tr(
+                  "That address does not match a course in the example gallery.",
+                )
+              : tr("Loading this course from the ExaMate workspace.")),
         }
-      : route.page;
+      : {
+          ...route.page,
+          eyebrow: tr(route.page.eyebrow),
+          name: tr(route.page.name),
+          title: tr(route.page.title),
+          description: tr(route.page.description),
+        };
 
   function openAssistant(from: HTMLElement | null) {
     opener.current = from;
@@ -483,18 +501,18 @@ export function WorkspaceApp() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   useEffect(() => {
-    document.title = `${page.name} · ExaMate AI`;
+    document.title = tr("{name} · ExaMate AI", { name: page.name });
     document
       .querySelector('meta[name="description"]')
       ?.setAttribute("content", page.description);
-  }, [page]);
+  }, [page.name, page.description, tr]);
   const isDashboard = page.id === "dashboard";
   return (
     <>
       {/* Outside the shell, so it needs its own inert: leave it reachable and
           Tab escapes a modal sheet through it. */}
       <a href="#main-content" className="skip-link" inert={modal}>
-        Skip to main content
+        {tr("Skip to main content")}
       </a>
       <div className="desktop-shell" inert={modal}>
         <Sidebar
@@ -514,18 +532,18 @@ export function WorkspaceApp() {
               className="menu-toggle"
               ref={menuToggle}
               aria-controls="workspace-navigation"
-              aria-label="Open navigation"
+              aria-label={tr("Open navigation")}
               aria-expanded={menu}
               onClick={() => setMenu(!menu)}
             >
               <Bars3Icon />
             </button>
             <span>
-              <AcademicCapIcon /> Workspace{" "}
+              <AcademicCapIcon /> {tr("Workspace")}{" "}
               <span className="crumb-divider">/</span> {page.name}
             </span>
             <span className="workspace-actions">
-              <span className="private-label">Personal workspace</span>
+              <span className="private-label">{tr("Personal workspace")}</span>
             </span>
           </header>
           <main id="main-content" tabIndex={-1}>
@@ -535,27 +553,33 @@ export function WorkspaceApp() {
             <header
               className={`study-hero ${isDashboard ? "" : "study-hero--compact"}`}
             >
-              <section className="page-heading" aria-label="Page introduction">
+              <section
+                className="page-heading"
+                aria-label={tr("Page introduction")}
+              >
                 <p className="eyebrow">{page.eyebrow}</p>
                 {isDashboard && (
-                  <p className="hero-greeting">Welcome back, Tài.</p>
+                  <p className="hero-greeting">{tr("Welcome back, Tài.")}</p>
                 )}
                 <h1 ref={heading} tabIndex={-1}>
                   {page.title}
                 </h1>
                 <p className="hero-description">{page.description}</p>
                 {isDashboard && (
-                  <nav className="hero-actions" aria-label="Study shortcuts">
+                  <nav
+                    className="hero-actions"
+                    aria-label={tr("Study shortcuts")}
+                  >
                     <a className="primary-button" href="#documents">
                       <DocumentArrowUpIcon aria-hidden="true" />
-                      Open documents
+                      {tr("Open documents")}
                     </a>
                     <button
                       className="hero-ai-button"
                       onClick={(event) => openAssistant(event.currentTarget)}
                     >
                       <SparklesIcon aria-hidden="true" />
-                      Ask ExaMate
+                      {tr("Ask ExaMate")}
                     </button>
                   </nav>
                 )}
@@ -564,13 +588,17 @@ export function WorkspaceApp() {
                 <figure className="study-photo">
                   <img
                     src="/img/hero-study.webp"
-                    alt="Bright, quiet study space with a desk, books and natural daylight"
+                    alt={tr(
+                      "Bright, quiet study space with a desk, books and natural daylight",
+                    )}
                     width="1200"
                     height="800"
                     fetchPriority="high"
                     decoding="async"
                   />
-                  <figcaption>A place to think. A space to grow.</figcaption>
+                  <figcaption>
+                    {tr("A place to think. A space to grow.")}
+                  </figcaption>
                 </figure>
               )}
             </header>
@@ -585,9 +613,9 @@ export function WorkspaceApp() {
               focusId={route.focusId}
             />
             <footer className="page-footer">
-              <span>Make a little progress, every day.</span>
+              <span>{tr("Make a little progress, every day.")}</span>
               <a href="#tasks">
-                Your next step <ArrowUpRightIcon />
+                {tr("Your next step")} <ArrowUpRightIcon />
               </a>
             </footer>
           </main>
@@ -645,20 +673,20 @@ export function WorkspaceApp() {
           neither can land on top of the other. */}
       <div className="floating-controls" inert={modal}>
         <details className="help">
-          <summary aria-label="About this workspace">
+          <summary aria-label={tr("About this workspace")}>
             <QuestionMarkCircleIcon />
           </summary>
           <p>
-            ExaMate AI · A student project by Tài & Thắng. Tasks connect to the
-            project API. Academic examples are labelled; notes stay in this
-            browser.
+            {tr(
+              "ExaMate AI · A student project by Tài & Thắng. Tasks connect to the project API. Academic examples are labelled; notes stay in this browser.",
+            )}
           </p>
         </details>
         <button
           ref={launcher}
           type="button"
           className="ai-launcher"
-          aria-label="Open ExaMate AI"
+          aria-label={tr("Open ExaMate AI")}
           aria-controls="examate-ai-panel"
           aria-expanded={assistantOpen}
           onClick={(event) =>
@@ -669,7 +697,7 @@ export function WorkspaceApp() {
         >
           <SparklesIcon aria-hidden="true" />
           <span className="ai-launcher-tip" aria-hidden="true">
-            {assistantOpen ? "Hide ExaMate AI" : "Ask ExaMate AI"}
+            {assistantOpen ? tr("Hide ExaMate AI") : tr("Ask ExaMate AI")}
           </span>
         </button>
       </div>

@@ -6,6 +6,7 @@ import {
   ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 import type { CourseSearchItem } from "./api";
+import { useTr } from "./i18n";
 
 function pad(value: number) {
   return String(value).padStart(2, "0");
@@ -21,6 +22,7 @@ function pad(value: number) {
  * explain.
  */
 export function CourseCarousel({ courses }: { courses: CourseSearchItem[] }) {
+  const tr = useTr();
   const [activeId, setActiveId] = useState<string>();
   // Derive a valid selection during render: filtering/paging can replace a
   // twenty-item page with one item, and must never dereference an old index.
@@ -85,8 +87,8 @@ export function CourseCarousel({ courses }: { courses: CourseSearchItem[] }) {
   return (
     <section
       className="course-stage"
-      aria-roledescription="carousel"
-      aria-label="Course gallery"
+      aria-roledescription={tr("carousel")}
+      aria-label={tr("Course gallery")}
       onKeyDown={onKeyDown}
     >
       {/* Backdrops are stacked and swapped by opacity. The visible state is a
@@ -108,20 +110,20 @@ export function CourseCarousel({ courses }: { courses: CourseSearchItem[] }) {
         <header className="stage-copy">
           <p className="stage-eyebrow">
             <BookOpenIcon aria-hidden="true" />
-            {course.code} · Class
+            {course.code} {tr("· Class")}
           </p>
           <h2>{course.name}</h2>
           <p className="stage-detail">{course.detail}</p>
           <p className="stage-progress">
             <label htmlFor="stage-progress-bar">
-              Progress <span>{course.progress}%</span>
+              {tr("Progress")} <span>{course.progress}%</span>
             </label>
             <progress id="stage-progress-bar" value={course.progress} max={100}>
               {course.progress}%
             </progress>
           </p>
           <a className="stage-course-link" href={`#courses/${course.slug}`}>
-            Explore {course.name} course
+            {tr("Explore")} {course.name} {tr("course")}
             <ArrowUpRightIcon aria-hidden="true" />
           </a>
         </header>
@@ -137,7 +139,7 @@ export function CourseCarousel({ courses }: { courses: CourseSearchItem[] }) {
               <button
                 type="button"
                 className={`stage-thumb ${index === active ? "is-active" : ""}`}
-                aria-label={`Select ${item.name} course`}
+                aria-label={tr("Select {name} course", { name: item.name })}
                 aria-current={index === active ? "true" : undefined}
                 onClick={() => go(index)}
               >
@@ -155,14 +157,14 @@ export function CourseCarousel({ courses }: { courses: CourseSearchItem[] }) {
           <span className="stage-buttons">
             <button
               type="button"
-              aria-label="Previous course"
+              aria-label={tr("Previous course")}
               onClick={() => go(active - 1)}
             >
               <ChevronLeftIcon aria-hidden="true" />
             </button>
             <button
               type="button"
-              aria-label="Next course"
+              aria-label={tr("Next course")}
               onClick={() => go(active + 1)}
             >
               <ChevronRightIcon aria-hidden="true" />
@@ -175,7 +177,8 @@ export function CourseCarousel({ courses }: { courses: CourseSearchItem[] }) {
       </div>
 
       <p className="sr-only" aria-live="polite">
-        Course {active + 1} of {courses.length}: {course.name}, {course.detail}
+        {tr("Course")} {active + 1} {tr("of")} {courses.length}: {course.name},{" "}
+        {course.detail}
       </p>
     </section>
   );

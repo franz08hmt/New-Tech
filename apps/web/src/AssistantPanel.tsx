@@ -16,6 +16,7 @@ import { SourcePreview, useSourcePreview } from "./SourcePreview";
 import { workspaceKindLabel, workspaceSourceHref } from "./workspace-links";
 import type { AssistantCitation, AssistantState } from "./use-assistant";
 import type { StoredDocument } from "./api";
+import { tl, useTr } from "./i18n";
 
 function documentMentionedIn(
   question: string,
@@ -30,7 +31,7 @@ function documentMentionedIn(
 
 /** The accessible name shared by a source's button and its fallback link. */
 function sourceLabel(citation: AssistantCitation) {
-  return `Mở nguồn ${citation.title}${citation.locator ? `, ${citation.locator}` : ""}`;
+  return `${tl("Mở nguồn")} ${citation.title}${citation.locator ? `, ${citation.locator}` : ""}`;
 }
 
 /**
@@ -158,6 +159,7 @@ export function AssistantPanel({
   onFollowWorkspaceSource,
   onClose,
 }: AssistantPanelProps) {
+  const tr = useTr();
   const panel = useRef<HTMLElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const [openingCitation, setOpeningCitation] = useState<string | null>(null);
@@ -398,7 +400,9 @@ export function AssistantPanel({
         setBlockedSource({ label: sourceLabel(citation), url: blockedUrl });
     } catch {
       if (openedIn !== sourceEpoch.current) return;
-      setCitationError("Chưa mở được tài liệu nguồn. Thử lại giúp mình nhé.");
+      setCitationError(
+        tr("Chưa mở được tài liệu nguồn. Thử lại giúp mình nhé."),
+      );
     } finally {
       if (openedIn === sourceEpoch.current) {
         setOpeningCitation(null);
@@ -418,12 +422,13 @@ export function AssistantPanel({
           the student: a click on a real link is never treated as a popup. */}
       {blockedSource && (
         <p role="status" className="assistant-blocked-source">
-          Trình duyệt đã chặn tab mới.{" "}
+          {tr("Trình duyệt đã chặn tab mới.")}{" "}
           <a href={blockedSource.url} target="_blank" rel="noopener noreferrer">
             {blockedSource.label}
           </a>
-          . Link chỉ dùng được trong thời gian ngắn; nếu hết hạn, bấm lại vào
-          nguồn.
+          {tr(
+            ". Link chỉ dùng được trong thời gian ngắn; nếu hết hạn, bấm lại vào nguồn.",
+          )}
         </p>
       )}
     </>
@@ -434,7 +439,7 @@ export function AssistantPanel({
       ref={panel}
       id="examate-ai-panel"
       className={`assistant-panel ${sheet ? "is-sheet" : "is-window"}${expanded ? " is-expanded" : ""}${showSource ? (split ? " is-split" : " is-source-screen") : ""}`}
-      aria-label="ExaMate AI"
+      aria-label={tr("ExaMate AI")}
       // An aside is complementary content beside the page. Once it covers the
       // page and holds focus — a sheet, or an expanded window on a tablet — it
       // is a modal dialog, and says so.
@@ -453,15 +458,19 @@ export function AssistantPanel({
           <SparklesIcon />
         </span>
         <span>
-          <strong>ExaMate AI</strong>
-          <small>Ngữ cảnh: {pageName}</small>
+          <strong>{tr("ExaMate AI")}</strong>
+          <small>
+            {tr("Ngữ cảnh:")} {pageName}
+          </small>
         </span>
         {/* One button whose name says what it will do next. A pressed state
             on top of a changing name would announce the same thing twice. */}
         <button
           type="button"
-          aria-label={expanded ? "Thu nhỏ ExaMate AI" : "Mở rộng ExaMate AI"}
-          title={expanded ? "Thu nhỏ khung chat" : "Mở rộng khung chat"}
+          aria-label={
+            expanded ? tr("Thu nhỏ ExaMate AI") : tr("Mở rộng ExaMate AI")
+          }
+          title={expanded ? tr("Thu nhỏ khung chat") : tr("Mở rộng khung chat")}
           onClick={onToggleExpanded}
         >
           {expanded ? (
@@ -472,8 +481,8 @@ export function AssistantPanel({
         </button>
         <button
           type="button"
-          aria-label="Đóng ExaMate AI"
-          title="Đóng — bản nháp vẫn được giữ"
+          aria-label={tr("Đóng ExaMate AI")}
+          title={tr("Đóng — bản nháp vẫn được giữ")}
           onClick={onClose}
         >
           <XMarkIcon aria-hidden="true" />
@@ -484,7 +493,7 @@ export function AssistantPanel({
         {!preview && (
           <section
             className="assistant-conversation-tools"
-            aria-label="Ngữ cảnh hội thoại"
+            aria-label={tr("Ngữ cảnh hội thoại")}
           >
             <button
               type="button"
@@ -493,7 +502,7 @@ export function AssistantPanel({
                 composer.current?.focus();
               }}
             >
-              Cuộc trò chuyện mới
+              {tr("Cuộc trò chuyện mới")}
             </button>
             <button
               type="button"
@@ -504,17 +513,19 @@ export function AssistantPanel({
                 if (opening) void assistant.loadConversationHistory(false);
               }}
             >
-              {historyOpen ? "Đóng lịch sử" : "Lịch sử đã lưu"}
+              {historyOpen ? tr("Đóng lịch sử") : tr("Lịch sử đã lưu")}
             </button>
             {assistant.conversationSaveState && (
               <p role="status" className="assistant-save-status">
                 {assistant.conversationSaveState === "saved"
-                  ? "Đã lưu cuộc trò chuyện"
+                  ? tr("Đã lưu cuộc trò chuyện")
                   : assistant.conversationSaveState === "saving"
-                    ? "Đang lưu câu trả lời…"
+                    ? tr("Đang lưu câu trả lời…")
                     : assistant.conversationSaveState === "unknown"
-                      ? "Chưa xác định được trạng thái lưu. Hãy đối chiếu lịch sử trước khi thử lưu tiếp."
-                      : "Câu trả lời chưa được lưu vào hội thoại."}
+                      ? tr(
+                          "Chưa xác định được trạng thái lưu. Hãy đối chiếu lịch sử trước khi thử lưu tiếp.",
+                        )
+                      : tr("Câu trả lời chưa được lưu vào hội thoại.")}
                 {assistant.conversationSaveState !== "saved" &&
                   assistant.activeConversation &&
                   assistant.messages.some((message) => message.feedback) && (
@@ -523,8 +534,8 @@ export function AssistantPanel({
                       onClick={() => void assistant.retryConversationSave()}
                     >
                       {assistant.conversationSaveState === "unknown"
-                        ? "Đối chiếu trạng thái lưu"
-                        : "Thử lưu lại (không gửi lại AI)"}
+                        ? tr("Đối chiếu trạng thái lưu")
+                        : tr("Thử lưu lại (không gửi lại AI)")}
                     </button>
                   )}
                 {assistant.conversationSaveError && (
@@ -534,13 +545,14 @@ export function AssistantPanel({
             )}
             {assistant.activeConversation && !activeScopeMatches && (
               <p role="status">
-                Cuộc trò chuyện thuộc ngữ cảnh khác. Bạn có thể đọc lại; hãy bắt
-                đầu cuộc trò chuyện mới để hỏi trong ngữ cảnh hiện tại.
+                {tr(
+                  "Cuộc trò chuyện thuộc ngữ cảnh khác. Bạn có thể đọc lại; hãy bắt đầu cuộc trò chuyện mới để hỏi trong ngữ cảnh hiện tại.",
+                )}
               </p>
             )}
             {assistant.conversationOpenState?.status === "loading" && (
               <p role="status" aria-live="polite">
-                Đang mở cuộc trò chuyện đã lưu…
+                {tr("Đang mở cuộc trò chuyện đã lưu…")}
               </p>
             )}
             {assistant.conversationOpenState?.status === "error" && (
@@ -555,7 +567,7 @@ export function AssistantPanel({
                         .then(applyOpenedConversation)
                     }
                   >
-                    Thử mở lại
+                    {tr("Thử mở lại")}
                   </button>
                 )}{" "}
                 <button
@@ -565,34 +577,34 @@ export function AssistantPanel({
                     void assistant.loadConversationHistory(false);
                   }}
                 >
-                  Làm mới lịch sử
+                  {tr("Làm mới lịch sử")}
                 </button>{" "}
                 <button
                   type="button"
                   onClick={() => assistant.resetConversation()}
                 >
-                  Cuộc trò chuyện mới
+                  {tr("Cuộc trò chuyện mới")}
                 </button>
               </div>
             )}
             {historyOpen && (
               <section
                 className="assistant-saved-history"
-                aria-label="Lịch sử hội thoại đã lưu"
+                aria-label={tr("Lịch sử hội thoại đã lưu")}
               >
                 <div className="assistant-history-heading">
-                  <strong>Lịch sử của bạn</strong>
+                  <strong>{tr("Lịch sử của bạn")}</strong>
                   <button
                     type="button"
                     onClick={() =>
                       void assistant.loadConversationHistory(false)
                     }
                   >
-                    Làm mới
+                    {tr("Làm mới")}
                   </button>
                 </div>
                 {assistant.historyLoading && (
-                  <p role="status">Đang tải lịch sử…</p>
+                  <p role="status">{tr("Đang tải lịch sử…")}</p>
                 )}
                 {assistant.historyError && (
                   <p role="alert">
@@ -603,14 +615,14 @@ export function AssistantPanel({
                         void assistant.loadConversationHistory(false)
                       }
                     >
-                      Thử đọc lại
+                      {tr("Thử đọc lại")}
                     </button>
                   </p>
                 )}
                 {!assistant.historyLoading &&
                   !assistant.historyError &&
                   assistant.savedConversations.length === 0 && (
-                    <p>Chưa có cuộc trò chuyện đã lưu.</p>
+                    <p>{tr("Chưa có cuộc trò chuyện đã lưu.")}</p>
                   )}
                 {assistant.savedConversations.map((item) => (
                   <div className="assistant-history-row" key={item.id}>
@@ -629,7 +641,7 @@ export function AssistantPanel({
                     </button>
                     {confirmDeleteId === item.id ? (
                       <span>
-                        <span>Xóa hẳn nội dung?</span>{" "}
+                        <span>{tr("Xóa hẳn nội dung?")}</span>{" "}
                         <button
                           type="button"
                           onClick={() => {
@@ -637,22 +649,22 @@ export function AssistantPanel({
                             void assistant.deleteConversation(item.id);
                           }}
                         >
-                          Xóa
+                          {tr("Xóa")}
                         </button>
                         <button
                           type="button"
                           onClick={() => setConfirmDeleteId(null)}
                         >
-                          Hủy
+                          {tr("Hủy")}
                         </button>
                       </span>
                     ) : (
                       <button
                         type="button"
-                        aria-label={`Xóa ${item.title}`}
+                        aria-label={tr("Xóa {title}", { title: item.title })}
                         onClick={() => setConfirmDeleteId(item.id)}
                       >
-                        Xóa
+                        {tr("Xóa")}
                       </button>
                     )}
                   </div>
@@ -663,7 +675,7 @@ export function AssistantPanel({
                     disabled={assistant.historyLoading}
                     onClick={() => void assistant.loadConversationHistory(true)}
                   >
-                    Xem hội thoại cũ hơn
+                    {tr("Xem hội thoại cũ hơn")}
                   </button>
                 )}
               </section>
@@ -678,11 +690,12 @@ export function AssistantPanel({
             className="assistant-intro"
             aria-labelledby="assistant-title"
           >
-            <span className="preview-badge">Xem trước giao diện</span>
-            <h2 id="assistant-title">Hỏi đáp cùng nguồn tài liệu</h2>
+            <span className="preview-badge">{tr("Xem trước giao diện")}</span>
+            <h2 id="assistant-title">{tr("Hỏi đáp cùng nguồn tài liệu")}</h2>
             <p>
-              Phần AI đang được Thắng kết nối. Bạn có thể chuẩn bị câu hỏi,
-              nhưng chưa gửi để nhận trả lời được.
+              {tr(
+                "Phần AI đang được Thắng kết nối. Bạn có thể chuẩn bị câu hỏi, nhưng chưa gửi để nhận trả lời được.",
+              )}
             </p>
           </section>
         )}
@@ -693,7 +706,7 @@ export function AssistantPanel({
               className="assistant-mode"
               disabled={assistant.status === "sending"}
             >
-              <legend>Chế độ</legend>
+              <legend>{tr("Chế độ")}</legend>
               <label
                 className={
                   assistant.mode !== "workspace" ? "is-selected" : undefined
@@ -706,7 +719,7 @@ export function AssistantPanel({
                   checked={assistant.mode !== "workspace"}
                   onChange={() => assistant.setMode(aiSourceMode)}
                 />
-                AI Chat
+                {tr("AI Chat")}
               </label>
               <label
                 className={
@@ -720,16 +733,16 @@ export function AssistantPanel({
                   checked={assistant.mode === "workspace"}
                   onChange={() => assistant.setMode("workspace")}
                 />
-                Hỏi workspace
+                {tr("Hỏi workspace")}
               </label>
             </fieldset>
             {assistant.mode !== "workspace" && (
               <fieldset
                 className="assistant-mode assistant-source-mode"
-                aria-label="Phạm vi AI Chat"
+                aria-label={tr("Phạm vi AI Chat")}
                 disabled={assistant.status === "sending"}
               >
-                <legend>Trả lời theo</legend>
+                <legend>{tr("Trả lời theo")}</legend>
                 <label
                   className={
                     assistant.mode === "general" ? "is-selected" : undefined
@@ -745,7 +758,7 @@ export function AssistantPanel({
                       assistant.setMode("general");
                     }}
                   />
-                  Kiến thức chung
+                  {tr("Kiến thức chung")}
                 </label>
                 <label
                   className={
@@ -762,22 +775,28 @@ export function AssistantPanel({
                       assistant.setMode("documents");
                     }}
                   />
-                  Tài liệu
+                  {tr("Tài liệu")}
                 </label>
               </fieldset>
             )}
             <p className="assistant-capability">
               {assistant.mode === "documents"
-                ? "AI Chat tìm trong tài liệu đã lập chỉ mục và hiển thị nguồn đã kiểm chứng. Thông tin môn học lấy từ dữ liệu metadata riêng."
+                ? tr(
+                    "AI Chat tìm trong tài liệu đã lập chỉ mục và hiển thị nguồn đã kiểm chứng. Thông tin môn học lấy từ dữ liệu metadata riêng.",
+                  )
                 : assistant.mode === "workspace"
-                  ? "Tra cứu dữ liệu đã lưu trong workspace như môn học, task, kỳ thi, kế hoạch ôn tập và khoản chi. Không đọc nội dung PDF hoặc ghi chú nhanh, và không thay đổi dữ liệu."
-                  : "AI Chat trả lời bằng kiến thức chung; nội dung sẽ xuất hiện dần khi AI tạo câu trả lời. Không đọc hoặc suy đoán dữ liệu riêng trong ứng dụng."}
+                  ? tr(
+                      "Tra cứu dữ liệu đã lưu trong workspace như môn học, task, kỳ thi, kế hoạch ôn tập và khoản chi. Không đọc nội dung PDF hoặc ghi chú nhanh, và không thay đổi dữ liệu.",
+                    )
+                  : tr(
+                      "AI Chat trả lời bằng kiến thức chung; nội dung sẽ xuất hiện dần khi AI tạo câu trả lời. Không đọc hoặc suy đoán dữ liệu riêng trong ứng dụng.",
+                    )}
             </p>
             {open && assistant.mode === "documents" && (
               <label className="assistant-document-picker">
-                Tài liệu
+                {tr("Tài liệu")}
                 <select
-                  aria-label="Chọn tài liệu để tra cứu"
+                  aria-label={tr("Chọn tài liệu để tra cứu")}
                   value={documentId}
                   disabled={
                     documentsUnavailable || assistant.status === "sending"
@@ -787,7 +806,9 @@ export function AssistantPanel({
                     setSelectionError("");
                   }}
                 >
-                  <option value="">Tất cả tài liệu đã lập chỉ mục</option>
+                  <option value="">
+                    {tr("Tất cả tài liệu đã lập chỉ mục")}
+                  </option>
                   {availableDocuments.map((document) => (
                     <option key={document.id} value={document.id}>
                       {document.name}
@@ -802,21 +823,40 @@ export function AssistantPanel({
                 role={documentsError ? "alert" : "status"}
               >
                 {documentsLoading
-                  ? "Đang tải danh sách tài liệu…"
+                  ? tr("Đang tải danh sách tài liệu…")
                   : documentsError
-                    ? "Chưa thể xác nhận danh sách tài liệu. " + documentsError
+                    ? tr("Chưa thể xác nhận danh sách tài liệu. ") +
+                      documentsError
                     : selectedDocument?.index_quality
-                      ? `${selectedDocument.name} · ${selectedDocument.index_quality.indexed_chunk_count} đoạn đã lập chỉ mục; ${selectedDocument.index_quality.useful_text_page_count}/${selectedDocument.index_quality.total_page_count} trang có văn bản dùng được.`
+                      ? tr(
+                          "{name} · {indexed_chunk_count} đoạn đã lập chỉ mục; {useful_text_page_count}/{total_page_count} trang có văn bản dùng được.",
+                          {
+                            name: selectedDocument.name,
+                            indexed_chunk_count:
+                              selectedDocument.index_quality
+                                .indexed_chunk_count,
+                            useful_text_page_count:
+                              selectedDocument.index_quality
+                                .useful_text_page_count,
+                            total_page_count:
+                              selectedDocument.index_quality.total_page_count,
+                          },
+                        )
                       : selectedDocument
-                        ? `${selectedDocument.name} · Đã lập chỉ mục theo phiên bản cũ; chưa có thống kê độ phủ. Hãy lập chỉ mục lại trong mục Tài liệu để kiểm tra.`
+                        ? tr(
+                            "{name} · Đã lập chỉ mục theo phiên bản cũ; chưa có thống kê độ phủ. Hãy lập chỉ mục lại trong mục Tài liệu để kiểm tra.",
+                            { name: selectedDocument.name },
+                          )
                         : availableDocuments.length
-                          ? "Đang tìm trong tất cả tài liệu. Chọn một file cụ thể để xem trạng thái, tóm tắt hoặc tra cứu môn học của tài liệu đó."
-                          : "Chưa có tài liệu sẵn sàng để hỏi."}
+                          ? tr(
+                              "Đang tìm trong tất cả tài liệu. Chọn một file cụ thể để xem trạng thái, tóm tắt hoặc tra cứu môn học của tài liệu đó.",
+                            )
+                          : tr("Chưa có tài liệu sẵn sàng để hỏi.")}
                 {documentsError && onRetryDocuments && (
                   <>
                     {" "}
                     <button type="button" onClick={onRetryDocuments}>
-                      Thử lại danh sách tài liệu
+                      {tr("Thử lại danh sách tài liệu")}
                     </button>
                   </>
                 )}
@@ -826,7 +866,7 @@ export function AssistantPanel({
         )}
 
         {assistant.messages.length > 0 && (
-          <ol className="assistant-messages" aria-label="Cuộc hội thoại">
+          <ol className="assistant-messages" aria-label={tr("Cuộc hội thoại")}>
             {assistant.messages.map((message, index) => (
               <li
                 key={message.id}
@@ -845,20 +885,21 @@ export function AssistantPanel({
                 {message.streaming && (
                   <p role="status" className="assistant-streaming-status">
                     {assistant.streamStage === "retrieving"
-                      ? "Đang tìm bằng chứng trong tài liệu…"
-                      : "Đang tạo câu trả lời…"}
+                      ? tr("Đang tìm bằng chứng trong tài liệu…")
+                      : tr("Đang tạo câu trả lời…")}
                   </p>
                 )}
                 {message.incomplete && (
                   <p role="status" className="assistant-streaming-status">
-                    Câu trả lời chưa hoàn tất; lượt này không được dùng làm ngữ
-                    cảnh cho câu hỏi tiếp theo.
+                    {tr(
+                      "Câu trả lời chưa hoàn tất; lượt này không được dùng làm ngữ cảnh cho câu hỏi tiếp theo.",
+                    )}
                   </p>
                 )}
                 {message.citations.length > 0 && (
                   <ul
                     className="assistant-citations"
-                    aria-label="Nguồn tham khảo"
+                    aria-label={tr("Nguồn tham khảo")}
                   >
                     {message.citations.map((citation) => (
                       <li
@@ -903,11 +944,11 @@ export function AssistantPanel({
                   message.workspaceSources.length > 0 && (
                     <ul
                       className="assistant-workspace-sources"
-                      aria-label="Nguồn workspace"
+                      aria-label={tr("Nguồn workspace")}
                     >
                       {message.workspaceSources.map((source) => {
                         const href = workspaceSourceHref(source);
-                        const text = `${workspaceKindLabel[source.kind] ?? "Bản ghi"}: ${source.label}`;
+                        const text = `${workspaceKindLabel[source.kind] ?? tr("Bản ghi")}: ${source.label}`;
                         return (
                           <li key={`${source.kind}-${source.id}`}>
                             <CircleStackIcon aria-hidden="true" />
@@ -931,14 +972,14 @@ export function AssistantPanel({
                   )}
                 {message.metadataSource && (
                   <p className="assistant-metadata-source">
-                    Nguồn: thông tin tài liệu trong workspace ·{" "}
+                    {tr("Nguồn: thông tin tài liệu trong workspace ·")}{" "}
                     {message.metadataSource.courseSlug ? (
                       <a href={`#courses/${message.metadataSource.courseSlug}`}>
                         {message.metadataSource.courseName} (
                         {message.metadataSource.courseCode})
                       </a>
                     ) : (
-                      "Chưa gắn môn học"
+                      tr("Chưa gắn môn học")
                     )}
                   </p>
                 )}
@@ -951,9 +992,9 @@ export function AssistantPanel({
                 {message.role === "assistant" &&
                   message.feedbackUnavailable && (
                     <p role="status">
-                      Câu trả lời vẫn được giữ, nhưng chưa nhận được mã xác nhận
-                      từ server. Lượt này chưa thể gửi đánh giá và sẽ không dùng
-                      làm ngữ cảnh.
+                      {tr(
+                        "Câu trả lời vẫn được giữ, nhưng chưa nhận được mã xác nhận từ server. Lượt này chưa thể gửi đánh giá và sẽ không dùng làm ngữ cảnh.",
+                      )}
                     </p>
                   )}
               </li>
@@ -965,12 +1006,12 @@ export function AssistantPanel({
           !assistant.messages.some((message) => message.streaming) && (
             <p role="status" className="assistant-streaming-status">
               {assistant.streamStage === "retrieving"
-                ? "Đang tìm bằng chứng trong tài liệu…"
+                ? tr("Đang tìm bằng chứng trong tài liệu…")
                 : assistant.streamStage === "querying_workspace"
-                  ? "Đang tra cứu dữ liệu workspace…"
+                  ? tr("Đang tra cứu dữ liệu workspace…")
                   : assistant.streamStage === "generating"
-                    ? "Đang tạo câu trả lời…"
-                    : "Đang kết nối và chuẩn bị câu trả lời…"}
+                    ? tr("Đang tạo câu trả lời…")
+                    : tr("Đang kết nối và chuẩn bị câu trả lời…")}
             </p>
           )}
 
@@ -980,7 +1021,7 @@ export function AssistantPanel({
           className="assistant-suggestions"
           aria-labelledby="suggestions-title"
         >
-          <h3 id="suggestions-title">Gợi ý câu hỏi</h3>
+          <h3 id="suggestions-title">{tr("Gợi ý câu hỏi")}</h3>
           <ul>
             {prompts.map((prompt) => (
               <li key={prompt}>
@@ -1003,19 +1044,24 @@ export function AssistantPanel({
             <header>
               <DocumentMagnifyingGlassIcon aria-hidden="true" />
               <span>
-                <small>Ví dụ câu trả lời có nguồn</small>
-                <h3 id="answer-preview-title">Nguồn luôn có thể kiểm chứng</h3>
+                <small>{tr("Ví dụ câu trả lời có nguồn")}</small>
+                <h3 id="answer-preview-title">
+                  {tr("Nguồn luôn có thể kiểm chứng")}
+                </h3>
               </span>
             </header>
             <p>
-              Bài tập 3A yêu cầu điều hướng, các màn hình chính, biểu mẫu có
-              kiểm tra dữ liệu, trạng thái giao diện rõ ràng và bố cục đáp ứng.
+              {tr(
+                "Bài tập 3A yêu cầu điều hướng, các màn hình chính, biểu mẫu có kiểm tra dữ liệu, trạng thái giao diện rõ ràng và bố cục đáp ứng.",
+              )}
             </p>
             <footer>
               <BookOpenIcon aria-hidden="true" />
               <span>
-                <strong>Tài liệu hướng dẫn tuần 3 · tr. 5</strong>
-                <small>Nguồn minh họa · chưa được truy xuất thực tế</small>
+                <strong>{tr("Tài liệu hướng dẫn tuần 3 · tr. 5")}</strong>
+                <small>
+                  {tr("Nguồn minh họa · chưa được truy xuất thực tế")}
+                </small>
               </span>
             </footer>
           </section>
@@ -1029,7 +1075,7 @@ export function AssistantPanel({
           event.preventDefault();
           if (!activeScopeMatches) {
             setSelectionError(
-              "Hãy bắt đầu cuộc trò chuyện mới trong phạm vi hiện tại.",
+              tr("Hãy bắt đầu cuộc trò chuyện mới trong phạm vi hiện tại."),
             );
             return;
           }
@@ -1042,7 +1088,9 @@ export function AssistantPanel({
             : undefined;
           if (mentionsPdf && !mentionedDocument) {
             setSelectionError(
-              "Không tìm thấy đúng tài liệu PDF này trong danh sách sẵn sàng. Hãy chọn file trong mục Tài liệu hoặc kiểm tra lại tên trước khi gửi.",
+              tr(
+                "Không tìm thấy đúng tài liệu PDF này trong danh sách sẵn sàng. Hãy chọn file trong mục Tài liệu hoặc kiểm tra lại tên trước khi gửi.",
+              ),
             );
             return;
           }
@@ -1069,7 +1117,7 @@ export function AssistantPanel({
           );
         }}
       >
-        <label htmlFor="assistant-question">Câu hỏi cho ExaMate</label>
+        <label htmlFor="assistant-question">{tr("Câu hỏi cho ExaMate")}</label>
         <textarea
           id="assistant-question"
           ref={composer}
@@ -1079,7 +1127,7 @@ export function AssistantPanel({
             assistant.setDraft(event.target.value);
             setSelectionError("");
           }}
-          placeholder="Nhập câu hỏi của bạn…"
+          placeholder={tr("Nhập câu hỏi của bạn…")}
         />
         <SpeechInput
           active={open && !sourceScreen && assistant.status !== "sending"}
@@ -1100,11 +1148,13 @@ export function AssistantPanel({
         ) : assistant.status === "error" ? (
           <p role="alert" className="assistant-status">
             {assistant.errorMessage ||
-              "Chưa gửi được câu hỏi. Bản nháp vẫn còn nguyên, thử lại nhé."}
+              tr(
+                "Chưa gửi được câu hỏi. Bản nháp vẫn còn nguyên, thử lại nhé.",
+              )}
           </p>
         ) : (
           <p role="status" className="assistant-status">
-            {assistant.status === "sending" ? "Đang xử lý câu hỏi…" : ""}
+            {assistant.status === "sending" ? tr("Đang xử lý câu hỏi…") : ""}
           </p>
         )}
         <button
@@ -1118,7 +1168,7 @@ export function AssistantPanel({
           }
         >
           <PaperAirplaneIcon aria-hidden="true" />
-          Gửi câu hỏi
+          {tr("Gửi câu hỏi")}
         </button>
         {assistant.status === "sending" && (
           <button
@@ -1126,7 +1176,7 @@ export function AssistantPanel({
             type="button"
             onClick={assistant.cancel}
           >
-            Dừng trả lời
+            {tr("Dừng trả lời")}
           </button>
         )}
         {assistant.mode === "documents" && selectedDocument && (
@@ -1157,7 +1207,7 @@ export function AssistantPanel({
                 )
               }
             >
-              Tóm tắt tài liệu
+              {tr("Tóm tắt tài liệu")}
             </button>
             <button
               className="assistant-secondary-action"
@@ -1185,7 +1235,7 @@ export function AssistantPanel({
                 )
               }
             >
-              Môn học của tài liệu
+              {tr("Môn học của tài liệu")}
             </button>
           </>
         )}

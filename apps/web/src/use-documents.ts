@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type StoredDocument } from "./api";
+import { tl } from "./i18n";
 
 export interface DocumentsState {
   documents: StoredDocument[];
@@ -41,7 +42,9 @@ export function useDocuments(): DocumentsState {
         if (active) {
           setDocuments([]);
           setError(
-            "Chưa xem được tài liệu. Có thể kết nối đang trục trặc một chút, thử lại giúp mình nhé.",
+            tl(
+              "Chưa xem được tài liệu. Có thể kết nối đang trục trặc một chút, thử lại giúp mình nhé.",
+            ),
           );
         }
       })
@@ -65,7 +68,7 @@ export function useDocuments(): DocumentsState {
         return true;
       } catch {
         setError(
-          "Chưa đổi được môn cho tài liệu này. Thử lại một lần nữa nhé.",
+          tl("Chưa đổi được môn cho tài liệu này. Thử lại một lần nữa nhé."),
         );
         return false;
       } finally {
@@ -89,7 +92,7 @@ export function useDocuments(): DocumentsState {
         setError(
           cause instanceof Error
             ? cause.message
-            : "Chưa tải được tệp lên. Thử lại một lần nữa nhé.",
+            : tl("Chưa tải được tệp lên. Thử lại một lần nữa nhé."),
         );
         return false;
       } finally {

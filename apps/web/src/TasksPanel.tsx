@@ -13,6 +13,7 @@ import type { Workspace } from "./use-workspace";
 import { usePagedSearch } from "./use-paged-search";
 import { useScopedRecord } from "./use-scoped-record";
 import { TaskStatusBadge } from "./WorkspaceBadges";
+import { useTr } from "./i18n";
 
 const INITIAL_SEARCH: TaskSearchQuery & { page: number; pageSize: number } = {
   q: "",
@@ -45,6 +46,7 @@ export function TasksPanel({
 }
 
 function DashboardTasks({ workspace }: { workspace: Workspace }) {
+  const tr = useTr();
   const principal = useContext(PilotPrincipalContext);
   const canWrite =
     principal?.role === "member" || principal?.role === "manager";
@@ -52,22 +54,22 @@ function DashboardTasks({ workspace }: { workspace: Workspace }) {
     .filter((task) => task.status !== "done")
     .slice(0, 4);
   return (
-    <Panel title="Urgent tasks" warm icon={<ClipboardDocumentListIcon />}>
+    <Panel title={tr("Urgent tasks")} warm icon={<ClipboardDocumentListIcon />}>
       <p className="view-label">
-        <ClipboardDocumentListIcon /> Progress tasks
+        <ClipboardDocumentListIcon /> {tr("Progress tasks")}
         <span>
           {workspace.tasks.filter((task) => task.status === "done").length}{" "}
-          complete
+          {tr("complete")}
         </span>
       </p>
       {!canWrite && (
         <p className="page-note">
-          You have read-only access to workspace tasks.
+          {tr("You have read-only access to workspace tasks.")}
         </p>
       )}
       {workspace.loading ? (
         <p role="status" className="empty-message">
-          Loading project tasks…
+          {tr("Loading project tasks…")}
         </p>
       ) : workspace.error ? (
         <p role="alert" className="error-message">
@@ -77,7 +79,7 @@ function DashboardTasks({ workspace }: { workspace: Workspace }) {
             disabled={workspace.busy}
             onClick={() => void workspace.reload()}
           >
-            <ArrowPathIcon /> Retry
+            <ArrowPathIcon /> {tr("Retry")}
           </button>
         </p>
       ) : tasks.length ? (
@@ -89,17 +91,17 @@ function DashboardTasks({ workspace }: { workspace: Workspace }) {
         />
       ) : (
         <p className="empty-message">
-          Nothing urgent. A little room to breathe.
+          {tr("Nothing urgent. A little room to breathe.")}
         </p>
       )}
       <a className="text-button" href="#tasks">
         {canWrite ? (
           <>
-            <PlusIcon /> Add or view tasks
+            <PlusIcon /> {tr("Add or view tasks")}
           </>
         ) : (
           <>
-            <ClipboardDocumentListIcon /> View tasks
+            <ClipboardDocumentListIcon /> {tr("View tasks")}
           </>
         )}
       </a>
@@ -114,6 +116,7 @@ function ExpandedTasks({
   workspace: Workspace;
   focusId?: string;
 }) {
+  const tr = useTr();
   const principal = useContext(PilotPrincipalContext);
   const identity = principal
     ? `${principal.userId}:${principal.workspaceId}:${principal.role}`
@@ -151,7 +154,7 @@ function ExpandedTasks({
   async function update(task: Task, status: TaskStatus) {
     const saved = await workspace.update(task.id, status);
     if (saved) {
-      setNotice("Task status updated.");
+      setNotice(tr("Task status updated."));
       search.refresh();
       setFocusRevision((revision) => revision + 1);
     }
@@ -165,7 +168,7 @@ function ExpandedTasks({
     const data = new FormData(form);
     const title = String(data.get("title") || "").trim();
     if (title.length < 3) {
-      setNotice("Task title must contain at least three characters.");
+      setNotice(tr("Task title must contain at least three characters."));
       return;
     }
     if (
@@ -177,24 +180,27 @@ function ExpandedTasks({
       })
     ) {
       form.reset();
-      setNotice("Task added successfully.");
+      setNotice(tr("Task added successfully."));
       search.refresh();
     }
   }
 
   return (
-    <Panel title="Team tasks" icon={<ClipboardDocumentListIcon />}>
+    <Panel title={tr("Team tasks")} icon={<ClipboardDocumentListIcon />}>
       <p className="view-label">
-        <ClipboardDocumentListIcon /> Task list
+        <ClipboardDocumentListIcon /> {tr("Task list")}
         {search.page && (
           <span>
-            {search.page.summary.done} / {search.page.summary.total} complete
+            {search.page.summary.done} / {search.page.summary.total}{" "}
+            {tr("complete")}
           </span>
         )}
       </p>
       {!canWrite && (
         <p className="page-note">
-          You have read-only access. Ask a member or manager to update tasks.
+          {tr(
+            "You have read-only access. Ask a member or manager to update tasks.",
+          )}
         </p>
       )}
       {workspace.error && (
@@ -205,20 +211,20 @@ function ExpandedTasks({
 
       <div className="paged-search-toolbar task-search-toolbar">
         <label className="paged-search-field">
-          Search tasks
+          {tr("Search tasks")}
           <input
-            aria-label="Search tasks"
+            aria-label={tr("Search tasks")}
             type="search"
             maxLength={120}
             value={search.query.q ?? ""}
             onChange={(event) => search.setQuery({ q: event.target.value })}
-            placeholder="Search title or owner"
+            placeholder={tr("Search title or owner")}
           />
         </label>
         <label>
-          Status
+          {tr("Status")}
           <select
-            aria-label="Filter tasks by status"
+            aria-label={tr("Filter tasks by status")}
             value={search.query.status ?? "all"}
             onChange={(event) =>
               search.setQuery({
@@ -226,16 +232,16 @@ function ExpandedTasks({
               })
             }
           >
-            <option value="all">All tasks</option>
-            <option value="todo">To do</option>
-            <option value="in_progress">In progress</option>
-            <option value="done">Done</option>
+            <option value="all">{tr("All tasks")}</option>
+            <option value="todo">{tr("To do")}</option>
+            <option value="in_progress">{tr("In progress")}</option>
+            <option value="done">{tr("Done")}</option>
           </select>
         </label>
         <label>
-          Owner
+          {tr("Owner")}
           <select
-            aria-label="Filter tasks by owner"
+            aria-label={tr("Filter tasks by owner")}
             value={ownerMode}
             onChange={(event) => {
               const next = event.target.value as typeof ownerMode;
@@ -245,16 +251,16 @@ function ExpandedTasks({
               });
             }}
           >
-            <option value="all">All owners</option>
-            <option value="unassigned">Unassigned</option>
-            <option value="named">Named owner…</option>
+            <option value="all">{tr("All owners")}</option>
+            <option value="unassigned">{tr("Unassigned")}</option>
+            <option value="named">{tr("Named owner…")}</option>
           </select>
         </label>
         {ownerMode === "named" && (
           <label>
-            Owner name
+            {tr("Owner name")}
             <input
-              aria-label="Owner name filter"
+              aria-label={tr("Owner name filter")}
               maxLength={80}
               value={search.query.owner ?? ""}
               onChange={(event) =>
@@ -264,9 +270,9 @@ function ExpandedTasks({
           </label>
         )}
         <label>
-          Sort tasks by
+          {tr("Sort tasks by")}
           <select
-            aria-label="Sort tasks by"
+            aria-label={tr("Sort tasks by")}
             value={search.query.sort ?? "due_date"}
             onChange={(event) =>
               search.setQuery({
@@ -274,16 +280,16 @@ function ExpandedTasks({
               })
             }
           >
-            <option value="due_date">Due date</option>
-            <option value="title">Title</option>
-            <option value="status">Status</option>
-            <option value="created_at">Created</option>
+            <option value="due_date">{tr("Due date")}</option>
+            <option value="title">{tr("Title")}</option>
+            <option value="status">{tr("Status")}</option>
+            <option value="created_at">{tr("Created")}</option>
           </select>
         </label>
         <label>
-          Direction
+          {tr("Direction")}
           <select
-            aria-label="Task sort direction"
+            aria-label={tr("Task sort direction")}
             value={search.query.direction ?? "asc"}
             onChange={(event) =>
               search.setQuery({
@@ -291,14 +297,14 @@ function ExpandedTasks({
               })
             }
           >
-            <option value="asc">Ascending</option>
-            <option value="desc">Descending</option>
+            <option value="asc">{tr("Ascending")}</option>
+            <option value="desc">{tr("Descending")}</option>
           </select>
         </label>
         <label>
-          Page size
+          {tr("Page size")}
           <select
-            aria-label="Tasks per page"
+            aria-label={tr("Tasks per page")}
             value={search.query.pageSize}
             onChange={(event) =>
               search.setQuery({ pageSize: Number(event.target.value) })
@@ -317,39 +323,42 @@ function ExpandedTasks({
             search.setQuery({ ...INITIAL_SEARCH });
           }}
         >
-          Reset filters
+          {tr("Reset filters")}
         </button>
       </div>
 
       {!identity ? (
         <p role="status" className="page-note">
-          Sign in to view tasks.
+          {tr("Sign in to view tasks.")}
         </p>
       ) : search.tooShort ? (
         <p role="status" className="page-note">
-          Enter at least two characters to search, or clear the field to browse
-          all tasks.
+          {tr(
+            "Enter at least two characters to search, or clear the field to browse all tasks.",
+          )}
         </p>
       ) : search.unsupported ? (
         <p role="status" className="page-note">
-          This search text has no supported characters. Try a different term.
+          {tr(
+            "This search text has no supported characters. Try a different term.",
+          )}
         </p>
       ) : search.loading && !search.page ? (
         <p role="status" aria-busy="true" className="empty-message">
-          Loading tasks…
+          {tr("Loading tasks…")}
         </p>
       ) : search.error ? (
         <p role="alert" className="error-message">
           {search.error}
           <button type="button" className="text-button" onClick={search.retry}>
-            <ArrowPathIcon /> Retry tasks
+            <ArrowPathIcon /> {tr("Retry tasks")}
           </button>
         </p>
       ) : (
         <>
           {focused.loading && (
             <p role="status" className="page-note">
-              Loading linked task…
+              {tr("Loading linked task…")}
             </p>
           )}
           {focused.error && focusId && (
@@ -361,10 +370,12 @@ function ExpandedTasks({
             !search.items.some((task) => task.id === focused.record?.id) && (
               <section
                 className="focused-record-card"
-                aria-label="Linked task outside current results"
+                aria-label={tr("Linked task outside current results")}
               >
                 <p className="page-note">
-                  This linked task is outside the current page or filters.
+                  {tr(
+                    "This linked task is outside the current page or filters.",
+                  )}
                 </p>
                 <TaskRows
                   tasks={[focused.record]}
@@ -386,32 +397,37 @@ function ExpandedTasks({
           ) : (
             <p className="empty-message">
               {search.page?.total
-                ? "No tasks on this page."
-                : "No tasks match this search."}
+                ? tr("No tasks on this page.")
+                : tr("No tasks match this search.")}
             </p>
           )}
-          <nav className="document-pagination" aria-label="Task pages">
+          <nav className="document-pagination" aria-label={tr("Task pages")}>
             <button
               type="button"
               disabled={!search.page || search.page.page <= 1}
               onClick={() => search.setPage(search.query.page - 1)}
             >
-              Previous
+              {tr("Previous")}
             </button>
             <span>
               {search.page
-                ? `Page ${search.page.page} of ${search.page.totalPages || 1} · ${search.page.total} ${search.page.total === 1 ? "task" : "tasks"}`
-                : "0 tasks"}
+                ? tr("Page {page} of {totalPages} · {total} {noun}", {
+                    page: search.page.page,
+                    totalPages: search.page.totalPages || 1,
+                    total: search.page.total,
+                    noun: search.page.total === 1 ? tr("task") : tr("tasks"),
+                  })
+                : tr("0 tasks")}
             </span>
             <button
               type="button"
-              aria-label="Next"
+              aria-label={tr("Next")}
               disabled={
                 !search.page || search.page.page >= search.page.totalPages
               }
               onClick={() => search.setPage(search.query.page + 1)}
             >
-              Next
+              {tr("Next")}
             </button>
           </nav>
         </>
@@ -423,35 +439,35 @@ function ExpandedTasks({
           onSubmit={(event) => void submit(event)}
         >
           <label className="sm:col-span-2">
-            Task title
+            {tr("Task title")}
             <input
               name="title"
-              placeholder="What is the next small step?"
+              placeholder={tr("What is the next small step?")}
               minLength={3}
               maxLength={160}
               required
             />
           </label>
           <label>
-            Owner
+            {tr("Owner")}
             <input
-              aria-label="Task owner"
+              aria-label={tr("Task owner")}
               name="ownerName"
-              placeholder="Enter any owner name"
+              placeholder={tr("Enter any owner name")}
               maxLength={80}
             />
           </label>
           <label>
-            Due date
+            {tr("Due date")}
             <input name="dueDate" type="date" />
           </label>
           <label>
-            Evidence type
+            {tr("Evidence type")}
             <input name="evidenceType" maxLength={80} />
           </label>
           <button className="primary-button" disabled={workspace.busy}>
             <PlusIcon />
-            {workspace.busy ? "Saving…" : "Add task"}
+            {workspace.busy ? tr("Saving…") : tr("Add task")}
           </button>
           <p role="status">{notice}</p>
         </form>
@@ -473,6 +489,7 @@ function TaskRows({
   onUpdate: (task: Task, status: TaskStatus) => unknown;
   focusedId?: string;
 }) {
+  const tr = useTr();
   return (
     <ul className="task-list">
       {tasks.map((task) => (
@@ -485,7 +502,7 @@ function TaskRows({
           <button
             type="button"
             className={`task-check ${task.status === "done" ? "checked" : ""}`}
-            aria-label={`${task.status === "done" ? "Reopen" : "Complete"} ${task.title}`}
+            aria-label={`${task.status === "done" ? tr("Reopen") : tr("Complete")} ${task.title}`}
             disabled={busy || !canWrite}
             onClick={() =>
               canWrite &&
@@ -500,7 +517,7 @@ function TaskRows({
               <TaskStatusBadge status={task.status} />
             </span>
             <small>
-              {task.owner_name || "Unassigned"}
+              {task.owner_name || tr("Unassigned")}
               {task.due_date && (
                 <>
                   {" "}
@@ -515,16 +532,16 @@ function TaskRows({
           </span>
           <select
             className="task-status-select"
-            aria-label={`Status for ${task.title}`}
+            aria-label={tr("Status for {title}", { title: task.title })}
             value={task.status}
             disabled={busy || !canWrite}
             onChange={(event) =>
               canWrite && void onUpdate(task, event.target.value as TaskStatus)
             }
           >
-            <option value="todo">To do</option>
-            <option value="in_progress">In progress</option>
-            <option value="done">Done</option>
+            <option value="todo">{tr("To do")}</option>
+            <option value="in_progress">{tr("In progress")}</option>
+            <option value="done">{tr("Done")}</option>
           </select>
         </li>
       ))}

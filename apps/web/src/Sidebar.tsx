@@ -10,6 +10,7 @@ import {
   workspaceSearchKinds,
 } from "./use-search";
 import type { WorkspaceSearchKind } from "@examate/contracts";
+import { useTr } from "./i18n";
 
 export type NavPage = {
   id: string;
@@ -36,13 +37,14 @@ export function Sidebar({
   onSearch: (value: string) => void;
   onClose: () => void;
 }) {
+  const tr = useTr();
   const results = useWorkspaceSearch(search);
 
   return (
     <aside
       id="workspace-navigation"
       className={`sidebar ${menuOpen ? "menu-open" : ""}`}
-      aria-label="Workspace navigation"
+      aria-label={tr("Workspace navigation")}
     >
       <header className="sidebar-header">
         <span className="window-dots" aria-hidden="true">
@@ -78,13 +80,13 @@ export function Sidebar({
             </svg>
           </span>
           <span>
-            ExaMate
-            <span className="brand-subtitle">Your academic space</span>
+            {tr("ExaMate")}
+            <span className="brand-subtitle">{tr("Your academic space")}</span>
           </span>
         </a>
         <button
           className="mobile-close"
-          aria-label="Close navigation"
+          aria-label={tr("Close navigation")}
           onClick={onClose}
         >
           <XMarkIcon />
@@ -98,8 +100,8 @@ export function Sidebar({
             name. */}
         <input
           type="search"
-          aria-label="Find an object"
-          placeholder="Find an object…"
+          aria-label={tr("Find an object")}
+          placeholder={tr("Find an object…")}
           value={search}
           onChange={(event) => onSearch(event.target.value)}
         />
@@ -107,30 +109,31 @@ export function Sidebar({
       </label>
 
       {results.searching && (
-        <section className="sidebar-results" aria-label="Search results">
+        <section className="sidebar-results" aria-label={tr("Search results")}>
           {results.tooShort && (
             <p role="status" className="search-empty">
-              Nhập ít nhất 2 ký tự có chữ hoặc số.
+              {tr("Nhập ít nhất 2 ký tự có chữ hoặc số.")}
             </p>
           )}
           {results.unsupported && (
             <p role="status" className="search-empty">
-              Từ khóa không có ký tự tìm kiếm phù hợp. Hãy thử chữ tiếng Việt,
-              chữ Latin hoặc chữ số.
+              {tr(
+                "Từ khóa không có ký tự tìm kiếm phù hợp. Hãy thử chữ tiếng Việt, chữ Latin hoặc chữ số.",
+              )}
             </p>
           )}
           {!results.tooShort && (
             <div className="sidebar-search-controls">
               <label>
-                Loại
+                {tr("Loại")}
                 <select
-                  aria-label="Filter search results by type"
+                  aria-label={tr("Filter search results by type")}
                   value={results.kind}
                   onChange={(event) =>
                     results.setKind(event.target.value as WorkspaceSearchKind)
                   }
                 >
-                  <option value="all">Tất cả loại</option>
+                  <option value="all">{tr("Tất cả loại")}</option>
                   {workspaceSearchKinds.map((kind) => (
                     <option key={kind} value={kind}>
                       {KIND_LABELS[kind]}
@@ -139,24 +142,24 @@ export function Sidebar({
                 </select>
               </label>
               <label>
-                Sắp xếp
+                {tr("Sắp xếp")}
                 <select
-                  aria-label="Sort search results"
+                  aria-label={tr("Sort search results")}
                   value={results.sort}
                   onChange={(event) =>
                     results.setSort(event.target.value as "kind" | "label")
                   }
                 >
-                  <option value="kind">Loại</option>
-                  <option value="label">Tên</option>
+                  <option value="kind">{tr("Loại")}</option>
+                  <option value="label">{tr("Tên")}</option>
                 </select>
               </label>
               <button
                 type="button"
                 aria-label={
                   results.direction === "asc"
-                    ? "Change to descending order"
-                    : "Change to ascending order"
+                    ? tr("Change to descending order")
+                    : tr("Change to ascending order")
                 }
                 onClick={() =>
                   results.setDirection(
@@ -164,20 +167,22 @@ export function Sidebar({
                   )
                 }
               >
-                {results.direction === "asc" ? "↑ Tăng dần" : "↓ Giảm dần"}
+                {results.direction === "asc"
+                  ? tr("↑ Tăng dần")
+                  : tr("↓ Giảm dần")}
               </button>
             </div>
           )}
           {results.loading && (
             <p role="status" className="search-empty">
-              Đang tìm…
+              {tr("Đang tìm…")}
             </p>
           )}
           {results.error && (
             <div role="alert" className="search-empty">
               <p>{results.error}</p>
               <button type="button" onClick={results.retry}>
-                Thử tìm lại
+                {tr("Thử tìm lại")}
               </button>
             </div>
           )}
@@ -186,14 +191,14 @@ export function Sidebar({
             !results.loading &&
             !results.error &&
             !results.total && (
-              <p className="search-empty">Không tìm thấy gì khớp.</p>
+              <p className="search-empty">{tr("Không tìm thấy gì khớp.")}</p>
             )}
           {!results.tooShort &&
             !results.unsupported &&
             !results.loading &&
             !results.error && (
               <p className="search-count" role="status">
-                {results.total} kết quả
+                {results.total} {tr("kết quả")}
               </p>
             )}
           {results.hits.length > 0 && !results.unsupported && (
@@ -217,14 +222,14 @@ export function Sidebar({
             !results.error && (
               <nav
                 className="sidebar-search-pagination"
-                aria-label="Search result pages"
+                aria-label={tr("Search result pages")}
               >
                 <button
                   type="button"
                   disabled={results.page <= 1}
                   onClick={results.previousPage}
                 >
-                  Trước
+                  {tr("Trước")}
                 </button>
                 <span>
                   {results.page} / {results.totalPages}
@@ -234,15 +239,15 @@ export function Sidebar({
                   disabled={results.page >= results.totalPages}
                   onClick={results.nextPage}
                 >
-                  Sau
+                  {tr("Sau")}
                 </button>
               </nav>
             )}
         </section>
       )}
 
-      <p className="nav-heading">WORKSPACE</p>
-      <nav aria-label="Primary">
+      <p className="nav-heading">{tr("WORKSPACE")}</p>
+      <nav aria-label={tr("Primary")}>
         <ul>
           {pages.map((item) => (
             <li key={item.id}>
@@ -251,8 +256,8 @@ export function Sidebar({
                 aria-current={currentId === item.id ? "page" : undefined}
               >
                 <item.icon aria-hidden="true" />
-                {item.name}
-                {item.id === "assistant" && <small>Soon</small>}
+                {tr(item.name)}
+                {item.id === "assistant" && <small>{tr("Soon")}</small>}
               </a>
             </li>
           ))}
@@ -261,12 +266,14 @@ export function Sidebar({
 
       <footer className="sidebar-footer">
         <p className="semester-label">
-          <BookOpenIcon /> A fresh chapter<span>Semester 01 · 2026</span>
+          <BookOpenIcon /> {tr("A fresh chapter")}
+          <span>{tr("Semester 01 · 2026")}</span>
         </p>
         <span className="profile">
           <span className="profile-avatar">T</span>
           <span>
-            Tài &amp; Thắng<small>Student workspace</small>
+            {tr("Tài & Thắng")}
+            <small>{tr("Student workspace")}</small>
           </span>
         </span>
       </footer>

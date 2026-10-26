@@ -1,5 +1,6 @@
 import { DocumentTextIcon, TrashIcon } from "@heroicons/react/24/outline";
 import type { StoredDocument } from "./api";
+import { useTr } from "./i18n";
 
 export type DocumentLifecycle =
   "selected" | "uploading" | "stored" | "failed" | "deleting" | "legacy";
@@ -35,12 +36,13 @@ export function DocumentCard({
   onCheckStatus,
   onCreateQuiz,
 }: DocumentCardProps) {
+  const tr = useTr();
   const processLabel =
     processingStatus === "failed"
-      ? "Retry indexing"
+      ? tr("Retry indexing")
       : processingStatus === "ready"
-        ? "Re-index"
-        : "Index";
+        ? tr("Re-index")
+        : tr("Index");
 
   return (
     <article className={`document-card document-card--${state}`}>
@@ -49,30 +51,36 @@ export function DocumentCard({
         <h4>{name}</h4>
         <p>
           {size === null
-            ? "Unknown size"
-            : `${(size / 1024 / 1024).toFixed(2)} MiB`}{" "}
-          · PDF
+            ? tr("Unknown size")
+            : tr("{value} MiB", {
+                value: (size / 1024 / 1024).toFixed(2),
+              })}{" "}
+          {tr("· PDF")}
         </p>
         <p
           className={`document-state document-state--${state}`}
           aria-busy={busy}
         >
-          {state === "selected" && "Selected locally · Not uploaded"}
+          {state === "selected" && tr("Selected locally · Not uploaded")}
           {state === "uploading" && (
             <>
-              Uploading…
-              <progress aria-label={`Upload progress for ${name}`} />
+              {tr("Uploading…")}
+              <progress
+                aria-label={tr("Upload progress for {name}", { name })}
+              />
             </>
           )}
-          {state === "stored" && "Stored · File and metadata saved"}
-          {state === "failed" && "Failed · File kept for retry"}
-          {state === "deleting" && "Deletion pending · Retry delete to finish"}
-          {state === "legacy" && "Legacy metadata · Storage not verified"}
+          {state === "stored" && tr("Stored · File and metadata saved")}
+          {state === "failed" && tr("Failed · File kept for retry")}
+          {state === "deleting" &&
+            tr("Deletion pending · Retry delete to finish")}
+          {state === "legacy" && tr("Legacy metadata · Storage not verified")}
         </p>
         {indexUnconfirmed && (
           <p className="document-state" role="status">
-            Chưa xác nhận được trạng thái chỉ mục. Kiểm tra trạng thái trước khi
-            lập chỉ mục lại.
+            {tr(
+              "Chưa xác nhận được trạng thái chỉ mục. Kiểm tra trạng thái trước khi lập chỉ mục lại.",
+            )}
           </p>
         )}
         {processingStatus && !indexUnconfirmed && (
@@ -81,28 +89,35 @@ export function DocumentCard({
             aria-live="polite"
           >
             {processingStatus === "pending" &&
-              "AI index · Waiting to be indexed"}
-            {processingStatus === "processing" && "AI index · Processing…"}
+              tr("AI index · Waiting to be indexed")}
+            {processingStatus === "processing" && tr("AI index · Processing…")}
             {processingStatus === "ready" &&
-              "AI index · Searchable content ready"}
+              tr("AI index · Searchable content ready")}
             {processingStatus === "failed" &&
-              "AI index · Failed, retry available"}
+              tr("AI index · Failed, retry available")}
           </p>
         )}
         {!indexUnconfirmed && processingStatus === "ready" && indexQuality && (
           <p className="document-index-quality">
-            Độ phủ: đọc được {indexQuality.useful_text_page_count}/
-            {indexQuality.total_page_count} trang ·{" "}
-            {indexQuality.indexed_chunk_count} đoạn tìm kiếm
+            {tr("Độ phủ: đọc được")} {indexQuality.useful_text_page_count}/
+            {indexQuality.total_page_count} {tr("trang ·")}{" "}
+            {indexQuality.indexed_chunk_count} {tr("đoạn tìm kiếm")}
             {indexQuality.ocr_page_count > 0 &&
-              ` · ${indexQuality.ocr_page_count} trang được OCR`}
+              tr(" · {ocr_page_count} trang được OCR", {
+                ocr_page_count: indexQuality.ocr_page_count,
+              })}
             {indexQuality.needs_ocr &&
-              ` · Cảnh báo: ${indexQuality.low_text_page_count} trang có ít chữ; “sẵn sàng” không có nghĩa đã đọc hết nội dung trong ảnh`}
+              tr(
+                " · Cảnh báo: {low_text_page_count} trang có ít chữ; “sẵn sàng” không có nghĩa đã đọc hết nội dung trong ảnh",
+                { low_text_page_count: indexQuality.low_text_page_count },
+              )}
           </p>
         )}
         {!indexUnconfirmed && processingStatus === "ready" && !indexQuality && (
           <p className="document-index-quality">
-            Chưa có thống kê độ phủ · Re-index để kiểm tra chất lượng văn bản
+            {tr(
+              "Chưa có thống kê độ phủ · Re-index để kiểm tra chất lượng văn bản",
+            )}
           </p>
         )}
         {error && (
@@ -120,20 +135,24 @@ export function DocumentCard({
           <button
             type="button"
             disabled={busy}
-            aria-label={state === "failed" ? `Retry ${name}` : `Upload ${name}`}
+            aria-label={
+              state === "failed"
+                ? tr("Retry {name}", { name })
+                : tr("Upload {name}", { name })
+            }
             onClick={onUpload}
           >
-            {state === "failed" ? "Retry" : "Upload"}
+            {state === "failed" ? tr("Retry") : tr("Upload")}
           </button>
         )}
         {onDownload && (
           <button
             type="button"
             disabled={busy || state !== "stored"}
-            aria-label={`Download ${name}`}
+            aria-label={tr("Download {name}", { name })}
             onClick={onDownload}
           >
-            Download
+            {tr("Download")}
           </button>
         )}
         {onProcess && processingStatus && (
@@ -148,7 +167,7 @@ export function DocumentCard({
             aria-label={`${processLabel} ${name}`}
             onClick={onProcess}
           >
-            {processingStatus === "processing" ? "Indexing…" : processLabel}
+            {processingStatus === "processing" ? tr("Indexing…") : processLabel}
           </button>
         )}
         {onCreateQuiz && (
@@ -157,10 +176,10 @@ export function DocumentCard({
             disabled={
               busy || state !== "stored" || processingStatus !== "ready"
             }
-            aria-label={`Create quiz from ${name}`}
+            aria-label={tr("Create quiz from {name}", { name })}
             onClick={onCreateQuiz}
           >
-            Create quiz
+            {tr("Create quiz")}
           </button>
         )}
         {onCheckStatus && (
@@ -168,17 +187,17 @@ export function DocumentCard({
             type="button"
             disabled={busy}
             style={{ minHeight: 44 }}
-            aria-label={`Check index status ${name}`}
+            aria-label={tr("Check index status {name}", { name })}
             onClick={onCheckStatus}
           >
-            Check index status
+            {tr("Check index status")}
           </button>
         )}
         {onRemove && (
           <button
             type="button"
             disabled={busy || state === "legacy"}
-            aria-label={`${onUpload ? "Remove" : "Delete"} ${name}`}
+            aria-label={`${onUpload ? tr("Remove") : tr("Delete")} ${name}`}
             onClick={onRemove}
           >
             <TrashIcon aria-hidden="true" />

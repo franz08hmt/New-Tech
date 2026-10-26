@@ -15,6 +15,7 @@ import { countdownLabel, daysUntil, useExams } from "./use-exams";
 import { revealClass, useReveal } from "./use-reveal";
 import type { Exam } from "./api";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
+import { useTr } from "./i18n";
 
 function formatDate(date: string) {
   const [year, month, day] = date.split("-");
@@ -48,6 +49,7 @@ export function DeleteExam({
   busy: boolean;
   onDelete: () => void;
 }) {
+  const tr = useTr();
   const [confirming, setConfirming] = useState(false);
 
   // Removing an exam loses a date, a room and a revision note, so the action
@@ -57,7 +59,7 @@ export function DeleteExam({
       <button
         type="button"
         className="exam-remove"
-        aria-label={`Delete exam: ${exam.topic}`}
+        aria-label={tr("Delete exam: {topic}", { topic: exam.topic })}
         disabled={busy}
         onClick={() => setConfirming(true)}
       >
@@ -67,14 +69,14 @@ export function DeleteExam({
   }
   return (
     <span className="exam-confirm">
-      <span>Xoá kỳ thi này?</span>
+      <span>{tr("Xoá kỳ thi này?")}</span>
       <button
         type="button"
         className="exam-confirm-yes"
         disabled={busy}
         onClick={onDelete}
       >
-        Xoá
+        {tr("Xoá")}
       </button>
       <button
         type="button"
@@ -82,7 +84,7 @@ export function DeleteExam({
         disabled={busy}
         onClick={() => setConfirming(false)}
       >
-        Giữ lại
+        {tr("Giữ lại")}
       </button>
     </span>
   );
@@ -104,11 +106,12 @@ export function EditButton({
   busy: boolean;
   onEdit: () => void;
 }) {
+  const tr = useTr();
   return (
     <button
       type="button"
       className="exam-remove"
-      aria-label={`Edit exam: ${exam.topic}`}
+      aria-label={tr("Edit exam: {topic}", { topic: exam.topic })}
       disabled={busy}
       onClick={onEdit}
     >
@@ -134,6 +137,7 @@ export function EditExam({
   }) => void;
   onCancel: () => void;
 }) {
+  const tr = useTr();
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -148,11 +152,11 @@ export function EditExam({
   return (
     <form
       className="exam-edit exam-form grid grid-cols-1 sm:grid-cols-2 gap-4"
-      aria-label={`Edit exam: ${exam.topic}`}
+      aria-label={tr("Edit exam: {topic}", { topic: exam.topic })}
       onSubmit={submit}
     >
       <label className="sm:col-span-2">
-        Exam name
+        {tr("Exam name")}
         <input
           name="topic"
           defaultValue={exam.topic}
@@ -162,7 +166,7 @@ export function EditExam({
         />
       </label>
       <label>
-        Date
+        {tr("Date")}
         <input
           name="examDate"
           type="date"
@@ -171,7 +175,7 @@ export function EditExam({
         />
       </label>
       <label>
-        Time
+        {tr("Time")}
         <input
           name="examTime"
           type="time"
@@ -180,11 +184,11 @@ export function EditExam({
         />
       </label>
       <label className="sm:col-span-2">
-        Room
+        {tr("Room")}
         <input name="room" defaultValue={exam.room} maxLength={80} required />
       </label>
       <label className="sm:col-span-2">
-        Revision note
+        {tr("Revision note")}
         <textarea
           name="revisionNote"
           rows={2}
@@ -194,7 +198,7 @@ export function EditExam({
       </label>
       <span className="exam-edit-actions">
         <button className="primary-button" disabled={busy}>
-          {busy ? "Đang lưu…" : "Save changes"}
+          {busy ? tr("Đang lưu…") : tr("Save changes")}
         </button>
         <button
           type="button"
@@ -202,7 +206,7 @@ export function EditExam({
           disabled={busy}
           onClick={onCancel}
         >
-          Huỷ
+          {tr("Huỷ")}
         </button>
       </span>
     </form>
@@ -210,6 +214,7 @@ export function EditExam({
 }
 
 export function ExamsPanel({ compact = false }: { compact?: boolean }) {
+  const tr = useTr();
   const principal = useContext(PilotPrincipalContext);
   const canWrite =
     principal?.role === "manager" || principal?.role === "member";
@@ -246,11 +251,11 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
     const courseId = String(data.get("courseId") || "");
     const topic = String(data.get("topic") || "").trim();
     if (!courseId) {
-      setNotice("Chọn giúp mình môn học của kỳ thi này nhé.");
+      setNotice(tr("Chọn giúp mình môn học của kỳ thi này nhé."));
       return;
     }
     if (topic.length < 3) {
-      setNotice("Tên kỳ thi cần ít nhất ba ký tự.");
+      setNotice(tr("Tên kỳ thi cần ít nhất ba ký tự."));
       return;
     }
     const ok = await exams.create({
@@ -263,7 +268,7 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
     });
     if (ok) {
       form.reset();
-      setNotice("Đã thêm kỳ thi vào lịch.");
+      setNotice(tr("Đã thêm kỳ thi vào lịch."));
     }
   }
 
@@ -281,38 +286,39 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
     const ok = await exams.update(exam.id, input);
     if (ok) {
       setEditingId(null);
-      setNotice("Đã lưu thay đổi cho kỳ thi.");
+      setNotice(tr("Đã lưu thay đổi cho kỳ thi."));
     }
   }
 
   async function remove(exam: Exam) {
     if (!canDelete) return;
     const ok = await exams.remove(exam.id);
-    if (ok) setNotice("Đã xoá kỳ thi khỏi lịch.");
+    if (ok) setNotice(tr("Đã xoá kỳ thi khỏi lịch."));
   }
 
   if (exams.loading) {
     return (
-      <Panel title="Upcoming exams" icon={<CalendarDaysIcon />}>
+      <Panel title={tr("Upcoming exams")} icon={<CalendarDaysIcon />}>
         <p role="status" className="empty-message">
-          Đang xem lại lịch thi…
+          {tr("Đang xem lại lịch thi…")}
         </p>
       </Panel>
     );
   }
 
   return (
-    <Panel title="Upcoming exams" icon={<CalendarDaysIcon />}>
+    <Panel title={tr("Upcoming exams")} icon={<CalendarDaysIcon />}>
       {!canWrite && (
         <p className="page-note">
-          Bạn đang có quyền xem lịch thi. Nhờ thành viên hoặc người quản lý thêm
-          và cập nhật kỳ thi nhé.
+          {tr(
+            "Bạn đang có quyền xem lịch thi. Nhờ thành viên hoặc người quản lý thêm và cập nhật kỳ thi nhé.",
+          )}
         </p>
       )}
       <p className="view-label">
-        <ClockIcon /> Countdown
+        <ClockIcon /> {tr("Countdown")}
         <span>
-          {upcoming.length} sắp tới · {past.length} đã qua
+          {upcoming.length} {tr("sắp tới ·")} {past.length} {tr("đã qua")}
         </span>
       </p>
 
@@ -320,7 +326,7 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
         <p role="alert" className="error-message">
           {exams.error}
           <button className="text-button" type="button" onClick={exams.reload}>
-            <ArrowPathIcon /> Retry exams
+            <ArrowPathIcon /> {tr("Retry exams")}
           </button>
         </p>
       )}
@@ -375,8 +381,9 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
         ) : (
           !exams.error && (
             <p className="empty-message">
-              Chưa có kỳ thi nào sắp tới. Tận hưởng khoảng lặng này một chút
-              nhé.
+              {tr(
+                "Chưa có kỳ thi nào sắp tới. Tận hưởng khoảng lặng này một chút nhé.",
+              )}
             </p>
           )
         )}
@@ -384,7 +391,7 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
         {laterExams.length > 0 && (
           <section aria-labelledby="exams-later">
             <h3 id="exams-later" className="exam-group">
-              Những kỳ thi sau đó
+              {tr("Những kỳ thi sau đó")}
             </h3>
             <ul className="exam-list">
               {(compact ? laterExams.slice(0, 2) : laterExams).map((exam) => (
@@ -435,7 +442,7 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
         {!compact && past.length > 0 && (
           <section aria-labelledby="exams-past">
             <h3 id="exams-past" className="exam-group">
-              Đã qua
+              {tr("Đã qua")}
             </h3>
             <ul className="exam-list is-past">
               {past.map((exam) => (
@@ -467,7 +474,7 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
       {compact ? (
         <a className="text-button" href="#exams">
           {canWrite && <PlusIcon />}{" "}
-          {canWrite ? "Add or view exams" : "View exams"}
+          {canWrite ? tr("Add or view exams") : tr("View exams")}
         </a>
       ) : canWrite ? (
         <form
@@ -475,10 +482,10 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
           onSubmit={(event) => void submit(event)}
         >
           <label className="sm:col-span-2">
-            Course
+            {tr("Course")}
             <select name="courseId" defaultValue="" required>
               <option value="" disabled>
-                Chọn môn học
+                {tr("Chọn môn học")}
               </option>
               {courses.courses.map((course) => (
                 <option key={course.id} value={course.id}>
@@ -488,44 +495,44 @@ export function ExamsPanel({ compact = false }: { compact?: boolean }) {
             </select>
           </label>
           <label className="sm:col-span-2">
-            Exam name
+            {tr("Exam name")}
             <input
               name="topic"
-              placeholder="Ví dụ: Kiểm tra giữa kỳ"
+              placeholder={tr("Ví dụ: Kiểm tra giữa kỳ")}
               minLength={3}
               maxLength={160}
               required
             />
           </label>
           <label>
-            Date
+            {tr("Date")}
             <input name="examDate" type="date" required />
           </label>
           <label>
-            Time
+            {tr("Time")}
             <input name="examTime" type="time" required />
           </label>
           <label className="sm:col-span-2">
-            Room
+            {tr("Room")}
             <input
               name="room"
-              placeholder="Ví dụ: Phòng A201"
+              placeholder={tr("Ví dụ: Phòng A201")}
               maxLength={80}
               required
             />
           </label>
           <label className="sm:col-span-2">
-            Revision note
+            {tr("Revision note")}
             <textarea
               name="revisionNote"
               rows={2}
               maxLength={500}
-              placeholder="Cần ôn lại những gì trước ngày thi?"
+              placeholder={tr("Cần ôn lại những gì trước ngày thi?")}
             />
           </label>
           <button className="primary-button" disabled={exams.busy}>
             <PlusIcon />
-            {exams.busy ? "Đang lưu…" : "Add exam"}
+            {exams.busy ? tr("Đang lưu…") : tr("Add exam")}
           </button>
           <p role="status">{notice}</p>
         </form>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type StudyPlan } from "./api";
+import { tl } from "./i18n";
 
 export interface StudyPlansState {
   plans: StudyPlan[];
@@ -82,7 +83,9 @@ export function useStudyPlans({
         if (active) {
           setPlans([]);
           setError(
-            "Chưa xem được kế hoạch ôn tập. Có thể kết nối đang trục trặc một chút, thử lại giúp mình nhé.",
+            tl(
+              "Chưa xem được kế hoạch ôn tập. Có thể kết nối đang trục trặc một chút, thử lại giúp mình nhé.",
+            ),
           );
         }
       })
@@ -102,7 +105,9 @@ export function useStudyPlans({
       setPlans((current) => [...current, created]);
       return true;
     } catch {
-      setError("Chưa lưu được việc này. Xem lại thông tin rồi thử lại nhé.");
+      setError(
+        tl("Chưa lưu được việc này. Xem lại thông tin rồi thử lại nhé."),
+      );
       return false;
     } finally {
       setBusy(false);
@@ -120,7 +125,7 @@ export function useStudyPlans({
         );
         return true;
       } catch {
-        setError("Chưa đổi được trạng thái. Thử lại một lần nữa nhé.");
+        setError(tl("Chưa đổi được trạng thái. Thử lại một lần nữa nhé."));
         return false;
       } finally {
         setBusy(false);
@@ -137,7 +142,7 @@ export function useStudyPlans({
       setPlans((current) => current.filter((plan) => plan.id !== id));
       return true;
     } catch {
-      setError("Chưa xoá được việc này. Thử lại một lần nữa nhé.");
+      setError(tl("Chưa xoá được việc này. Thử lại một lần nữa nhé."));
       return false;
     } finally {
       setBusy(false);

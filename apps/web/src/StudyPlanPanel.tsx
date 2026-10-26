@@ -14,6 +14,7 @@ import { countdownLabel, daysUntil } from "./use-exams";
 import { revealClass, useReveal } from "./use-reveal";
 import type { StudyPlan } from "./api";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
+import { useTr } from "./i18n";
 
 export function DeletePlan({
   plan,
@@ -24,6 +25,7 @@ export function DeletePlan({
   busy: boolean;
   onDelete: () => void;
 }) {
+  const tr = useTr();
   const [confirming, setConfirming] = useState(false);
 
   if (!confirming) {
@@ -31,7 +33,7 @@ export function DeletePlan({
       <button
         type="button"
         className="exam-remove"
-        aria-label={`Delete revision item: ${plan.title}`}
+        aria-label={tr("Delete revision item: {title}", { title: plan.title })}
         disabled={busy}
         onClick={() => setConfirming(true)}
       >
@@ -41,14 +43,14 @@ export function DeletePlan({
   }
   return (
     <span className="exam-confirm">
-      <span>Xoá việc này?</span>
+      <span>{tr("Xoá việc này?")}</span>
       <button
         type="button"
         className="exam-confirm-yes"
         disabled={busy}
         onClick={onDelete}
       >
-        Xoá
+        {tr("Xoá")}
       </button>
       <button
         type="button"
@@ -56,13 +58,14 @@ export function DeletePlan({
         disabled={busy}
         onClick={() => setConfirming(false)}
       >
-        Giữ lại
+        {tr("Giữ lại")}
       </button>
     </span>
   );
 }
 
 export function StudyPlanPanel({ compact = false }: { compact?: boolean }) {
+  const tr = useTr();
   const principal = useContext(PilotPrincipalContext);
   const canWrite =
     principal?.role === "manager" || principal?.role === "member";
@@ -88,11 +91,11 @@ export function StudyPlanPanel({ compact = false }: { compact?: boolean }) {
     const courseId = String(data.get("courseId") || "");
     const title = String(data.get("title") || "").trim();
     if (!courseId) {
-      setNotice("Chọn giúp mình môn học của việc này nhé.");
+      setNotice(tr("Chọn giúp mình môn học của việc này nhé."));
       return;
     }
     if (title.length < 3) {
-      setNotice("Tên việc cần ít nhất ba ký tự.");
+      setNotice(tr("Tên việc cần ít nhất ba ký tự."));
       return;
     }
     const ok = await store.create({
@@ -104,38 +107,43 @@ export function StudyPlanPanel({ compact = false }: { compact?: boolean }) {
     });
     if (ok) {
       form.reset();
-      setNotice("Đã thêm vào kế hoạch ôn tập.");
+      setNotice(tr("Đã thêm vào kế hoạch ôn tập."));
     }
   }
 
   if (store.loading) {
     return (
-      <Panel title="Study plan" icon={<ClipboardDocumentCheckIcon />}>
+      <Panel title={tr("Study plan")} icon={<ClipboardDocumentCheckIcon />}>
         <p role="status" className="empty-message">
-          Đang mở kế hoạch ôn tập…
+          {tr("Đang mở kế hoạch ôn tập…")}
         </p>
       </Panel>
     );
   }
 
   return (
-    <Panel title="Study plan" icon={<ClipboardDocumentCheckIcon />}>
+    <Panel title={tr("Study plan")} icon={<ClipboardDocumentCheckIcon />}>
       {!canWrite && (
         <p className="page-note">
-          Bạn đang có quyền xem kế hoạch ôn tập. Nhờ thành viên hoặc người quản
-          lý thêm và cập nhật việc cần ôn nhé.
+          {tr(
+            "Bạn đang có quyền xem kế hoạch ôn tập. Nhờ thành viên hoặc người quản lý thêm và cập nhật việc cần ôn nhé.",
+          )}
         </p>
       )}
       <p className="view-label">
-        <ClipboardDocumentCheckIcon /> Ôn tập theo môn
-        <span>{remaining ? `${remaining} việc còn lại` : "Đã xong hết"}</span>
+        <ClipboardDocumentCheckIcon /> {tr("Ôn tập theo môn")}
+        <span>
+          {remaining
+            ? tr("{remaining} việc còn lại", { remaining })
+            : tr("Đã xong hết")}
+        </span>
       </p>
 
       {store.error && (
         <p role="alert" className="error-message">
           {store.error}
           <button className="text-button" type="button" onClick={store.reload}>
-            <ArrowPathIcon /> Retry study plan
+            <ArrowPathIcon /> {tr("Retry study plan")}
           </button>
         </p>
       )}
@@ -153,7 +161,7 @@ export function StudyPlanPanel({ compact = false }: { compact?: boolean }) {
                     {group.name} <ArrowUpRightIcon aria-hidden="true" />
                   </a>
                   <span>
-                    {group.done}/{group.plans.length} xong
+                    {group.done}/{group.plans.length} {tr("xong")}
                   </span>
                 </h3>
                 <ul className="plan-list">
@@ -168,7 +176,7 @@ export function StudyPlanPanel({ compact = false }: { compact?: boolean }) {
                         <button
                           type="button"
                           className={`task-check ${done ? "checked" : ""}`}
-                          aria-label={`${done ? "Mark as not done" : "Mark as done"}: ${plan.title}`}
+                          aria-label={`${done ? tr("Mark as not done") : tr("Mark as done")}: ${plan.title}`}
                           disabled={store.busy || !canWrite}
                           onClick={() => {
                             if (!canWrite) return;
@@ -211,8 +219,9 @@ export function StudyPlanPanel({ compact = false }: { compact?: boolean }) {
             ))
           : !store.error && (
               <p className="empty-message">
-                Chưa có việc nào ở đây. Mỗi môn học một danh sách những thứ bạn
-                cần ôn trước kỳ thi — thêm việc đầu tiên bên dưới nhé.
+                {tr(
+                  "Chưa có việc nào ở đây. Mỗi môn học một danh sách những thứ bạn cần ôn trước kỳ thi — thêm việc đầu tiên bên dưới nhé.",
+                )}
               </p>
             )}
       </div>
@@ -220,7 +229,9 @@ export function StudyPlanPanel({ compact = false }: { compact?: boolean }) {
       {compact ? (
         <a className="text-button" href="#study-plan">
           {canWrite && <PlusIcon />}
-          {canWrite ? "Add or view revision items" : "View revision items"}
+          {canWrite
+            ? tr("Add or view revision items")
+            : tr("View revision items")}
         </a>
       ) : canWrite ? (
         <form
@@ -228,10 +239,10 @@ export function StudyPlanPanel({ compact = false }: { compact?: boolean }) {
           onSubmit={(event) => void submit(event)}
         >
           <label className="sm:col-span-2">
-            Course
+            {tr("Course")}
             <select name="courseId" defaultValue="" required>
               <option value="" disabled>
-                Chọn môn học
+                {tr("Chọn môn học")}
               </option>
               {courses.courses.map((course) => (
                 <option key={course.id} value={course.id}>
@@ -241,35 +252,39 @@ export function StudyPlanPanel({ compact = false }: { compact?: boolean }) {
             </select>
           </label>
           <label className="sm:col-span-2">
-            What to revise
+            {tr("What to revise")}
             <input
               name="title"
-              placeholder="Ví dụ: Ôn lại chương ba"
+              placeholder={tr("Ví dụ: Ôn lại chương ba")}
               minLength={3}
               maxLength={160}
               required
             />
           </label>
           <label className="sm:col-span-2">
-            Notes
+            {tr("Notes")}
             <textarea
               name="detail"
               rows={2}
               maxLength={500}
-              placeholder="Cụ thể cần làm gì để coi như xong?"
+              placeholder={tr("Cụ thể cần làm gì để coi như xong?")}
             />
           </label>
           <label>
-            Due date
+            {tr("Due date")}
             <input name="dueDate" type="date" />
           </label>
           <label>
-            Owner
-            <input name="ownerName" placeholder="Tài or Thắng" maxLength={80} />
+            {tr("Owner")}
+            <input
+              name="ownerName"
+              placeholder={tr("Tài or Thắng")}
+              maxLength={80}
+            />
           </label>
           <button className="primary-button" disabled={store.busy}>
             <PlusIcon />
-            {store.busy ? "Đang lưu…" : "Add revision item"}
+            {store.busy ? tr("Đang lưu…") : tr("Add revision item")}
           </button>
           <p role="status">{notice}</p>
         </form>

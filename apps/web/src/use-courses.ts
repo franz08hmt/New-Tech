@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { api, type Course } from "./api";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
+import { tl } from "./i18n";
 
 export interface CoursesState {
   courses: Course[];
@@ -48,8 +49,9 @@ export function useCourses(enabled = true): CoursesState {
             identity,
             courses: [],
             loading: false,
-            error:
+            error: tl(
               "Courses could not be loaded. Check your connection and retry.",
+            ),
           });
       });
     return () => controller.abort();

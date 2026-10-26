@@ -18,6 +18,7 @@ import type {
   AssistantConversationSaveMetadata,
 } from "@examate/contracts";
 import { ApiError, api } from "./api";
+import { tl } from "./i18n";
 
 /*
  * The conversation behind the ExaMate AI panel.
@@ -235,7 +236,9 @@ export function useAssistant(
   );
 
   const resetConversation = useCallback(
-    (note = "Đã mở cuộc hội thoại mới. Ngữ cảnh cũ không được gửi tiếp.") => {
+    (
+      note = tl("Đã mở cuộc hội thoại mới. Ngữ cảnh cũ không được gửi tiếp."),
+    ) => {
       epoch.current++;
       setConversationVersion((value) => value + 1);
       pending.current?.abort();
@@ -272,7 +275,9 @@ export function useAssistant(
     if (committedPrincipalKey.current === principalKey) return;
     committedPrincipalKey.current = principalKey;
     resetConversation(
-      "Phiên hoặc workspace đã đổi. Dữ liệu hội thoại cũ đã được xóa khỏi màn hình.",
+      tl(
+        "Phiên hoặc workspace đã đổi. Dữ liệu hội thoại cũ đã được xóa khỏi màn hình.",
+      ),
     );
     historyPage.current = 0;
     setSavedConversations([]);
@@ -287,7 +292,9 @@ export function useAssistant(
       ]);
       if (scope.current !== undefined && scope.current !== next)
         resetConversation(
-          "Bạn vừa đổi môn hoặc tài liệu. Mình bắt đầu ngữ cảnh mới để không lẫn nguồn nhé.",
+          tl(
+            "Bạn vừa đổi môn hoặc tài liệu. Mình bắt đầu ngữ cảnh mới để không lẫn nguồn nhé.",
+          ),
         );
       scope.current = next;
     },
@@ -401,7 +408,9 @@ export function useAssistant(
       }
       if (prior.length !== history.current.length)
         setContextNotice(
-          "Ngữ cảnh dài nên chỉ gửi các lượt gần nhất; hội thoại hiển thị vẫn còn nguyên.",
+          tl(
+            "Ngữ cảnh dài nên chỉ gửi các lượt gần nhất; hội thoại hiển thị vẫn còn nguyên.",
+          ),
         );
       setStatus("sending");
       setStreamStage(null);
@@ -526,7 +535,9 @@ export function useAssistant(
           ].slice(-6);
         if (reply.response?.contextTruncated)
           setContextNotice(
-            "Ngữ cảnh dài nên server đã bỏ lượt cũ hoặc rút gọn phần dài. Nguồn trích dẫn vẫn lấy ở lượt hiện tại.",
+            tl(
+              "Ngữ cảnh dài nên server đã bỏ lượt cũ hoặc rút gọn phần dài. Nguồn trích dẫn vẫn lấy ở lượt hiện tại.",
+            ),
           );
         const assistantMessage: AssistantMessage = {
           id: streamedAssistantId ?? `m${nextId.current + 2}`,
@@ -586,7 +597,9 @@ export function useAssistant(
         setErrorMessage(
           error instanceof Error
             ? error.message
-            : "Chưa gửi được câu hỏi. Bản nháp vẫn còn nguyên, thử lại nhé.",
+            : tl(
+                "Chưa gửi được câu hỏi. Bản nháp vẫn còn nguyên, thử lại nhé.",
+              ),
         );
         setStatus("error");
         if (persistent) setConversationSaveState(null);
@@ -639,7 +652,7 @@ export function useAssistant(
         setHistoryError(
           error instanceof Error
             ? error.message
-            : "Chưa tải được lịch sử. Hãy thử đọc lại.",
+            : tl("Chưa tải được lịch sử. Hãy thử đọc lại."),
         );
       } finally {
         if (requestEpoch === historyEpoch.current) setHistoryLoading(false);
@@ -712,8 +725,8 @@ export function useAssistant(
             title: item.title,
             locator:
               item.page === null
-                ? `đoạn ${item.chunkIndex + 1}`
-                : `tr. ${item.page}`,
+                ? tl("đoạn {value}", { value: item.chunkIndex + 1 })
+                : tl("tr. {page}", { page: item.page }),
             documentId: item.documentId,
             page: item.page,
           }));
@@ -783,12 +796,20 @@ export function useAssistant(
         setConversationOpenState({
           status: "error",
           message: unavailable
-            ? "Cuộc trò chuyện này không còn khả dụng hoặc đã hết hạn. Hãy làm mới lịch sử hoặc bắt đầu cuộc trò chuyện mới."
+            ? tl(
+                "Cuộc trò chuyện này không còn khả dụng hoặc đã hết hạn. Hãy làm mới lịch sử hoặc bắt đầu cuộc trò chuyện mới.",
+              )
             : authorizationFailure
-              ? "Không thể mở cuộc trò chuyện. Hãy kiểm tra phiên đăng nhập hoặc quyền truy cập rồi làm mới lịch sử."
+              ? tl(
+                  "Không thể mở cuộc trò chuyện. Hãy kiểm tra phiên đăng nhập hoặc quyền truy cập rồi làm mới lịch sử.",
+                )
               : retryable
-                ? "Chưa tải được nội dung cuộc trò chuyện. Bạn có thể thử mở lại hoặc làm mới lịch sử."
-                : "Không thể mở nội dung cuộc trò chuyện. Hãy làm mới lịch sử hoặc bắt đầu cuộc trò chuyện mới.",
+                ? tl(
+                    "Chưa tải được nội dung cuộc trò chuyện. Bạn có thể thử mở lại hoặc làm mới lịch sử.",
+                  )
+                : tl(
+                    "Không thể mở nội dung cuộc trò chuyện. Hãy làm mới lịch sử hoặc bắt đầu cuộc trò chuyện mới.",
+                  ),
           retryable,
         });
         if (unavailable || authorizationFailure)
@@ -836,8 +857,12 @@ export function useAssistant(
         if (principalKeyRef.current !== requestPrincipal) return;
         setHistoryError(
           error instanceof Error
-            ? `${error.message} Lịch sử đang được đối chiếu lại.`
-            : "Chưa xác nhận được thao tác xóa. Lịch sử đang được đối chiếu lại.",
+            ? tl("{message} Lịch sử đang được đối chiếu lại.", {
+                message: error.message,
+              })
+            : tl(
+                "Chưa xác nhận được thao tác xóa. Lịch sử đang được đối chiếu lại.",
+              ),
         );
         void loadConversationHistory(false);
       }
@@ -872,7 +897,9 @@ export function useAssistant(
         if (response.totalPages > 2) {
           setConversationSaveState("unknown");
           setConversationSaveError(
-            "Chưa đối chiếu được lượt lưu trong giới hạn an toàn. Hãy tải lại hội thoại từ danh sách lịch sử.",
+            tl(
+              "Chưa đối chiếu được lượt lưu trong giới hạn an toàn. Hãy tải lại hội thoại từ danh sách lịch sử.",
+            ),
           );
           return;
         }
@@ -898,7 +925,9 @@ export function useAssistant(
           pendingTurn.expectedVersion = response.conversation.version;
           setConversationSaveState("not_saved");
           setConversationSaveError(
-            "Lượt này chưa có trong hội thoại. Bạn có thể chủ động thử lưu lại; ExaMate sẽ không gửi lại câu hỏi cho AI.",
+            tl(
+              "Lượt này chưa có trong hội thoại. Bạn có thể chủ động thử lưu lại; ExaMate sẽ không gửi lại câu hỏi cho AI.",
+            ),
           );
         }
         return;
@@ -925,13 +954,17 @@ export function useAssistant(
       if (result.state === "saved") pendingSave.current = null;
       else if (result.state === "unknown")
         setConversationSaveError(
-          "Chưa xác định được kết quả lưu. Hãy mở lịch sử để đối chiếu trước khi thử lại.",
+          tl(
+            "Chưa xác định được kết quả lưu. Hãy mở lịch sử để đối chiếu trước khi thử lại.",
+          ),
         );
     } catch {
       if (!isCurrent()) return;
       setConversationSaveState("unknown");
       setConversationSaveError(
-        "Chưa xác định được kết quả ghi. Hãy đối chiếu lịch sử trước khi thử lưu tiếp.",
+        tl(
+          "Chưa xác định được kết quả ghi. Hãy đối chiếu lịch sử trước khi thử lưu tiếp.",
+        ),
       );
     } finally {
       if (saveResolutionAbort.current === controller)
@@ -964,7 +997,9 @@ export function useAssistant(
   const setMode = useCallback(
     (nextMode: AssistantMode) => {
       if (nextMode === mode) return;
-      resetConversation("Bạn vừa đổi chế độ. Mình bắt đầu ngữ cảnh mới nhé.");
+      resetConversation(
+        tl("Bạn vừa đổi chế độ. Mình bắt đầu ngữ cảnh mới nhé."),
+      );
       scope.current = undefined;
       setModeState(nextMode);
     },

@@ -20,6 +20,7 @@ import { useCourses } from "./use-courses";
 import { useExams } from "./use-exams";
 import { usePagedSearch } from "./use-paged-search";
 import { useScopedRecord } from "./use-scoped-record";
+import { useTr } from "./i18n";
 
 const INITIAL_QUERY: ExamSearchQuery & { page: number; pageSize: number } = {
   q: "",
@@ -73,6 +74,7 @@ function ExamsSearchPanelState({
   focusId?: string;
   role?: "manager" | "member" | "viewer";
 }) {
+  const tr = useTr();
   const canWrite = role === "manager" || role === "member";
   const canDelete = role === "manager";
   const courses = useCourses();
@@ -130,7 +132,7 @@ function ExamsSearchPanelState({
           String(data.get("revisionNote") || "").trim() || undefined,
       })
     ) {
-      setNotice("Exam added. The list was refreshed from the server.");
+      setNotice(tr("Exam added. The list was refreshed from the server."));
       search.refresh();
       form.reset();
     }
@@ -149,7 +151,7 @@ function ExamsSearchPanelState({
     if (!canWrite) return;
     if (await exams.update(exam.id, input)) {
       setEditingId(null);
-      setNotice("Exam updated. The list was refreshed from the server.");
+      setNotice(tr("Exam updated. The list was refreshed from the server."));
       search.refresh();
       setFocusRevision((revision) => revision + 1);
     }
@@ -159,7 +161,7 @@ function ExamsSearchPanelState({
     if (!canDelete) return;
     if (await exams.remove(exam.id)) {
       setEditingId(null);
-      setNotice("Exam deleted. The list was refreshed from the server.");
+      setNotice(tr("Exam deleted. The list was refreshed from the server."));
       search.refresh();
       setFocusRevision((revision) => revision + 1);
     }
@@ -182,31 +184,31 @@ function ExamsSearchPanelState({
       )}
       {focusId && focused.error && (
         <p role="status" className="page-note">
-          This exam is not available in the current workspace.
+          {tr("This exam is not available in the current workspace.")}
         </p>
       )}
-      <Panel title="Exam schedule" icon={<CalendarDaysIcon />}>
+      <Panel title={tr("Exam schedule")} icon={<CalendarDaysIcon />}>
         {!canWrite && (
           <p className="page-note">
-            You have read-only access to the exam schedule.
+            {tr("You have read-only access to the exam schedule.")}
           </p>
         )}
         <div className="paged-search-toolbar exam-search-toolbar">
           <label className="paged-search-field">
-            Search exams
+            {tr("Search exams")}
             <input
-              aria-label="Search exams"
+              aria-label={tr("Search exams")}
               type="search"
               maxLength={120}
               value={search.query.q ?? ""}
               onChange={(event) => search.setQuery({ q: event.target.value })}
-              placeholder="Topic, course or room"
+              placeholder={tr("Topic, course or room")}
             />
           </label>
           <label>
-            Filter exams by course
+            {tr("Filter exams by course")}
             <select
-              aria-label="Filter exams by course"
+              aria-label={tr("Filter exams by course")}
               value={search.query.courseId ?? "all"}
               onChange={(event) =>
                 search.setQuery({
@@ -217,7 +219,7 @@ function ExamsSearchPanelState({
                 })
               }
             >
-              <option value="all">All courses</option>
+              <option value="all">{tr("All courses")}</option>
               {courses.courses.map((course) => (
                 <option key={course.id} value={course.id}>
                   {course.name} ({course.code})
@@ -226,9 +228,9 @@ function ExamsSearchPanelState({
             </select>
           </label>
           <label>
-            From date
+            {tr("From date")}
             <input
-              aria-label="Exams from date"
+              aria-label={tr("Exams from date")}
               type="date"
               value={search.query.fromDate ?? ""}
               onChange={(event) =>
@@ -237,9 +239,9 @@ function ExamsSearchPanelState({
             />
           </label>
           <label>
-            To date
+            {tr("To date")}
             <input
-              aria-label="Exams to date"
+              aria-label={tr("Exams to date")}
               type="date"
               value={search.query.toDate ?? ""}
               onChange={(event) =>
@@ -248,9 +250,9 @@ function ExamsSearchPanelState({
             />
           </label>
           <label>
-            Sort exams by
+            {tr("Sort exams by")}
             <select
-              aria-label="Sort exams by"
+              aria-label={tr("Sort exams by")}
               value={search.query.sort ?? "exam_date"}
               onChange={(event) =>
                 search.setQuery({
@@ -258,15 +260,15 @@ function ExamsSearchPanelState({
                 })
               }
             >
-              <option value="exam_date">Exam date/time</option>
-              <option value="topic">Topic</option>
-              <option value="course">Course</option>
+              <option value="exam_date">{tr("Exam date/time")}</option>
+              <option value="topic">{tr("Topic")}</option>
+              <option value="course">{tr("Course")}</option>
             </select>
           </label>
           <label>
-            Direction
+            {tr("Direction")}
             <select
-              aria-label="Exam sort direction"
+              aria-label={tr("Exam sort direction")}
               value={search.query.direction ?? "asc"}
               onChange={(event) =>
                 search.setQuery({
@@ -274,14 +276,14 @@ function ExamsSearchPanelState({
                 })
               }
             >
-              <option value="asc">Ascending</option>
-              <option value="desc">Descending</option>
+              <option value="asc">{tr("Ascending")}</option>
+              <option value="desc">{tr("Descending")}</option>
             </select>
           </label>
           <label>
-            Page size
+            {tr("Page size")}
             <select
-              aria-label="Exams per page"
+              aria-label={tr("Exams per page")}
               value={search.query.pageSize}
               onChange={(event) =>
                 search.setQuery({ pageSize: Number(event.target.value) })
@@ -297,38 +299,42 @@ function ExamsSearchPanelState({
             className="secondary-button"
             onClick={() => search.setQuery({ ...INITIAL_QUERY })}
           >
-            Reset filters
+            {tr("Reset filters")}
           </button>
         </div>
         {courses.error && (
           <p role="alert" className="error-message">
-            Course choices could not be loaded. {courses.error}{" "}
+            {tr("Course choices could not be loaded.")} {courses.error}{" "}
             <button
               type="button"
               className="text-button"
               onClick={courses.retry}
             >
-              Retry course choices
+              {tr("Retry course choices")}
             </button>
           </p>
         )}
         {rangeInvalid ? (
           <p role="alert" className="error-message">
-            Enter valid calendar dates and make sure the start date is not after
-            the end date.
+            {tr(
+              "Enter valid calendar dates and make sure the start date is not after the end date.",
+            )}
           </p>
         ) : search.tooShort ? (
           <p role="status" className="page-note">
-            Enter at least two characters, or clear the field to browse all
-            exams.
+            {tr(
+              "Enter at least two characters, or clear the field to browse all exams.",
+            )}
           </p>
         ) : search.unsupported ? (
           <p role="status" className="page-note">
-            This search text has no supported characters. Try another term.
+            {tr(
+              "This search text has no supported characters. Try another term.",
+            )}
           </p>
         ) : search.loading && !search.page ? (
           <p role="status" aria-busy="true" className="empty-message">
-            Loading exams…
+            {tr("Loading exams…")}
           </p>
         ) : search.error ? (
           <p role="alert" className="error-message">
@@ -338,18 +344,26 @@ function ExamsSearchPanelState({
               className="text-button"
               onClick={search.retry}
             >
-              Retry exams
+              {tr("Retry exams")}
             </button>
           </p>
         ) : search.page ? (
           <p role="status" className="page-note">
-            {search.page.total} exam{search.page.total === 1 ? "" : "s"} · page{" "}
-            {search.page.page} of {Math.max(search.page.totalPages, 1)}
+            {tr(
+              search.page.total === 1
+                ? "{total} exam · page {page} of {pages}"
+                : "{total} exams · page {page} of {pages}",
+              {
+                total: search.page.total,
+                page: search.page.page,
+                pages: Math.max(search.page.totalPages, 1),
+              },
+            )}
           </p>
         ) : null}
         {search.page?.total === 0 && !search.error && (
           <p role="status" className="empty-message">
-            No exams match this search.
+            {tr("No exams match this search.")}
           </p>
         )}
         {search.page &&
@@ -358,7 +372,7 @@ function ExamsSearchPanelState({
           !rangeInvalid && (
             <>
               {search.items.length ? (
-                <ul className="exam-list" aria-label="Exam results">
+                <ul className="exam-list" aria-label={tr("Exam results")}>
                   {search.items.map((exam) => (
                     <li key={exam.id} data-focus-id={exam.id}>
                       <span className="exam-when">{exam.exam_date}</span>
@@ -403,21 +417,25 @@ function ExamsSearchPanelState({
                 </ul>
               ) : (
                 <p className="empty-message">
-                  This page has no exams. The filtered total is{" "}
+                  {tr("This page has no exams. The filtered total is")}{" "}
                   {search.page.total}.
                 </p>
               )}
-              <nav className="paged-search-pagination" aria-label="Exam pages">
+              <nav
+                className="paged-search-pagination"
+                aria-label={tr("Exam pages")}
+              >
                 <button
                   type="button"
                   className="secondary-button"
                   disabled={search.query.page <= 1 || search.loading}
                   onClick={() => search.setPage(search.query.page - 1)}
                 >
-                  Previous
+                  {tr("Previous")}
                 </button>
                 <span>
-                  Page {search.page.page} of {search.page.totalPages}
+                  {tr("Page")} {search.page.page} {tr("of")}{" "}
+                  {search.page.totalPages}
                 </span>
                 <button
                   type="button"
@@ -428,7 +446,7 @@ function ExamsSearchPanelState({
                   }
                   onClick={() => search.setPage(search.query.page + 1)}
                 >
-                  Next
+                  {tr("Next")}
                 </button>
               </nav>
             </>
@@ -441,10 +459,10 @@ function ExamsSearchPanelState({
             onSubmit={(event) => void submit(event)}
           >
             <label className="sm:col-span-2">
-              Course
+              {tr("Course")}
               <select name="courseId" defaultValue="" required>
                 <option value="" disabled>
-                  Choose a course
+                  {tr("Choose a course")}
                 </option>
                 {courses.courses.map((course) => (
                   <option key={course.id} value={course.id}>
@@ -454,23 +472,23 @@ function ExamsSearchPanelState({
               </select>
             </label>
             <label className="sm:col-span-2">
-              Exam name
+              {tr("Exam name")}
               <input name="topic" minLength={3} maxLength={160} required />
             </label>
             <label>
-              Date
+              {tr("Date")}
               <input name="examDate" type="date" required />
             </label>
             <label>
-              Time
+              {tr("Time")}
               <input name="examTime" type="time" required />
             </label>
             <label className="sm:col-span-2">
-              Room
+              {tr("Room")}
               <input name="room" maxLength={80} required />
             </label>
             <label className="sm:col-span-2">
-              Revision note
+              {tr("Revision note")}
               <textarea name="revisionNote" rows={2} maxLength={500} />
             </label>
             <button
@@ -478,7 +496,7 @@ function ExamsSearchPanelState({
               disabled={exams.busy || courses.loading}
             >
               <PlusIcon />
-              {exams.busy ? "Saving…" : "Add exam"}
+              {exams.busy ? tr("Saving…") : tr("Add exam")}
             </button>
           </form>
         )}
@@ -508,13 +526,14 @@ function FocusedExam({
   onSave: Parameters<typeof EditExam>[0]["onSave"];
   onCancel: () => void;
 }) {
+  const tr = useTr();
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
     ref.current?.focus({ preventScroll: true });
     ref.current?.scrollIntoView?.({ block: "center", behavior: "smooth" });
   }, [exam.id]);
   return (
-    <Panel title="Linked exam" icon={<CalendarDaysIcon />}>
+    <Panel title={tr("Linked exam")} icon={<CalendarDaysIcon />}>
       <article ref={ref} tabIndex={-1} data-focus-id={exam.id}>
         <h2>{exam.topic}</h2>
         <a href={`#courses/${exam.course_slug}`}>
@@ -542,9 +561,9 @@ function FocusedExam({
         )}
       </article>
       <p className="page-note">
-        This linked exam is separate from the current filtered page. Adjust or
-        reset the filters to include it in the result list; totals remain
-        unchanged.
+        {tr(
+          "This linked exam is separate from the current filtered page. Adjust or reset the filters to include it in the result list; totals remain unchanged.",
+        )}
       </p>
     </Panel>
   );

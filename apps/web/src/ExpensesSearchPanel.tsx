@@ -26,6 +26,7 @@ import { useCourses } from "./use-courses";
 import { CATEGORY_LABELS, PERIOD_LABELS, useExpenses } from "./use-expenses";
 import { usePagedSearch } from "./use-paged-search";
 import { useScopedRecord } from "./use-scoped-record";
+import { useTr } from "./i18n";
 
 type Period = "day" | "week" | "month" | "all" | "custom";
 type DateRange = Pick<ExpenseSearchQuery, "fromDate" | "toDate">;
@@ -131,6 +132,7 @@ function ExpensesSearchPanelState({
   role?: "manager" | "member" | "viewer";
   focusId?: string;
 }) {
+  const tr = useTr();
   const canWrite = role === "manager" || role === "member";
   const canDelete = role === "manager";
   const expenses = useExpenses({ loadList: false });
@@ -192,11 +194,11 @@ function ExpensesSearchPanelState({
     const amount = Number(data.get("amount"));
     const description = String(data.get("description") || "").trim();
     if (!Number.isInteger(amount) || amount <= 0) {
-      setNotice("Số tiền cần là một số nguyên dương, tính bằng đồng.");
+      setNotice(tr("Số tiền cần là một số nguyên dương, tính bằng đồng."));
       return;
     }
     if (description.length < 2) {
-      setNotice("Ghi vắn tắt khoản này là gì giúp mình nhé.");
+      setNotice(tr("Ghi vắn tắt khoản này là gì giúp mình nhé."));
       return;
     }
     const created = await expenses.create({
@@ -208,7 +210,7 @@ function ExpensesSearchPanelState({
     });
     if (created) {
       form.reset();
-      setNotice("Đã ghi khoản chi. Danh sách và tổng đã được đọc lại.");
+      setNotice(tr("Đã ghi khoản chi. Danh sách và tổng đã được đọc lại."));
       search.refresh();
       setFocusRevision((revision) => revision + 1);
     }
@@ -217,7 +219,7 @@ function ExpensesSearchPanelState({
   async function remove(expense: Expense) {
     if (!canDelete) return;
     if (await expenses.remove(expense.id)) {
-      setNotice("Đã xoá khoản chi. Danh sách và tổng đã được đọc lại.");
+      setNotice(tr("Đã xoá khoản chi. Danh sách và tổng đã được đọc lại."));
       search.refresh();
       setFocusRevision((revision) => revision + 1);
     }
@@ -243,30 +245,31 @@ function ExpensesSearchPanelState({
 
   return (
     <>
-      <Panel title="Student budget" icon={<WalletIcon />}>
+      <Panel title={tr("Student budget")} icon={<WalletIcon />}>
         {!canWrite && (
           <p className="page-note">
-            Bạn đang có quyền xem các khoản chi. Nhờ thành viên hoặc người quản
-            lý ghi khoản chi mới nhé.
+            {tr(
+              "Bạn đang có quyền xem các khoản chi. Nhờ thành viên hoặc người quản lý ghi khoản chi mới nhé.",
+            )}
           </p>
         )}
 
         <div className="paged-search-toolbar expense-search-toolbar">
           <label className="paged-search-field">
-            Tìm khoản chi
+            {tr("Tìm khoản chi")}
             <input
-              aria-label="Tìm khoản chi"
+              aria-label={tr("Tìm khoản chi")}
               type="search"
               maxLength={120}
               value={search.query.q ?? ""}
               onChange={(event) => search.setQuery({ q: event.target.value })}
-              placeholder="Mô tả hoặc môn học"
+              placeholder={tr("Mô tả hoặc môn học")}
             />
           </label>
           <label>
-            Khoảng thời gian
+            {tr("Khoảng thời gian")}
             <select
-              aria-label="Khoảng thời gian chi tiêu"
+              aria-label={tr("Khoảng thời gian chi tiêu")}
               value={period}
               onChange={(event) => setPeriodRange(event.target.value as Period)}
             >
@@ -274,13 +277,13 @@ function ExpensesSearchPanelState({
               <option value="week">{PERIOD_LABELS.week}</option>
               <option value="month">{PERIOD_LABELS.month}</option>
               <option value="all">{PERIOD_LABELS.all}</option>
-              <option value="custom">Khoảng tùy chỉnh</option>
+              <option value="custom">{tr("Khoảng tùy chỉnh")}</option>
             </select>
           </label>
           <label>
-            Từ ngày
+            {tr("Từ ngày")}
             <input
-              aria-label="Khoản chi từ ngày"
+              aria-label={tr("Khoản chi từ ngày")}
               type="date"
               value={search.query.fromDate ?? ""}
               onChange={(event) => {
@@ -290,9 +293,9 @@ function ExpensesSearchPanelState({
             />
           </label>
           <label>
-            Đến ngày
+            {tr("Đến ngày")}
             <input
-              aria-label="Khoản chi đến ngày"
+              aria-label={tr("Khoản chi đến ngày")}
               type="date"
               value={search.query.toDate ?? ""}
               onChange={(event) => {
@@ -302,9 +305,9 @@ function ExpensesSearchPanelState({
             />
           </label>
           <label>
-            Danh mục
+            {tr("Danh mục")}
             <select
-              aria-label="Lọc danh mục chi tiêu"
+              aria-label={tr("Lọc danh mục chi tiêu")}
               value={search.query.category ?? "all"}
               onChange={(event) =>
                 search.setQuery({
@@ -313,7 +316,7 @@ function ExpensesSearchPanelState({
                 })
               }
             >
-              <option value="all">Tất cả danh mục</option>
+              <option value="all">{tr("Tất cả danh mục")}</option>
               {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map(
                 (category) => (
                   <option key={category} value={category}>
@@ -324,9 +327,9 @@ function ExpensesSearchPanelState({
             </select>
           </label>
           <label>
-            Môn học
+            {tr("Môn học")}
             <select
-              aria-label="Lọc môn học chi tiêu"
+              aria-label={tr("Lọc môn học chi tiêu")}
               value={search.query.courseId ?? "all"}
               onChange={(event) =>
                 search.setQuery({
@@ -337,8 +340,8 @@ function ExpensesSearchPanelState({
                 })
               }
             >
-              <option value="all">Tất cả môn</option>
-              <option value="unassigned">Chưa gắn môn</option>
+              <option value="all">{tr("Tất cả môn")}</option>
+              <option value="unassigned">{tr("Chưa gắn môn")}</option>
               {courses.courses.map((course) => (
                 <option key={course.id} value={course.id}>
                   {course.name} ({course.code})
@@ -347,9 +350,9 @@ function ExpensesSearchPanelState({
             </select>
           </label>
           <label>
-            Sắp xếp
+            {tr("Sắp xếp")}
             <select
-              aria-label="Sắp xếp khoản chi"
+              aria-label={tr("Sắp xếp khoản chi")}
               value={search.query.sort ?? "spent_on"}
               onChange={(event) =>
                 search.setQuery({
@@ -357,15 +360,15 @@ function ExpensesSearchPanelState({
                 })
               }
             >
-              <option value="spent_on">Ngày chi</option>
-              <option value="amount">Số tiền</option>
-              <option value="description">Mô tả</option>
+              <option value="spent_on">{tr("Ngày chi")}</option>
+              <option value="amount">{tr("Số tiền")}</option>
+              <option value="description">{tr("Mô tả")}</option>
             </select>
           </label>
           <label>
-            Chiều sắp xếp
+            {tr("Chiều sắp xếp")}
             <select
-              aria-label="Chiều sắp xếp khoản chi"
+              aria-label={tr("Chiều sắp xếp khoản chi")}
               value={search.query.direction ?? "desc"}
               onChange={(event) =>
                 search.setQuery({
@@ -373,14 +376,14 @@ function ExpensesSearchPanelState({
                 })
               }
             >
-              <option value="desc">Giảm dần</option>
-              <option value="asc">Tăng dần</option>
+              <option value="desc">{tr("Giảm dần")}</option>
+              <option value="asc">{tr("Tăng dần")}</option>
             </select>
           </label>
           <label>
-            Số mục mỗi trang
+            {tr("Số mục mỗi trang")}
             <select
-              aria-label="Số khoản chi mỗi trang"
+              aria-label={tr("Số khoản chi mỗi trang")}
               value={search.query.pageSize}
               onChange={(event) =>
                 search.setQuery({ pageSize: Number(event.target.value) })
@@ -396,37 +399,39 @@ function ExpensesSearchPanelState({
             className="secondary-button"
             onClick={resetFilters}
           >
-            Đặt lại bộ lọc
+            {tr("Đặt lại bộ lọc")}
           </button>
         </div>
 
         {courses.error && (
           <p role="alert" className="error-message">
-            Không tải được lựa chọn môn học. {courses.error}{" "}
+            {tr("Không tải được lựa chọn môn học.")} {courses.error}{" "}
             <button
               type="button"
               className="text-button"
               onClick={courses.retry}
             >
-              Tải lại môn học
+              {tr("Tải lại môn học")}
             </button>
           </p>
         )}
         {rangeInvalid ? (
           <p role="alert" className="error-message">
-            Chọn ngày hợp lệ và bảo đảm ngày bắt đầu không sau ngày kết thúc.
+            {tr(
+              "Chọn ngày hợp lệ và bảo đảm ngày bắt đầu không sau ngày kết thúc.",
+            )}
           </p>
         ) : search.tooShort ? (
           <p role="status" className="page-note">
-            Nhập ít nhất hai ký tự hoặc xoá từ khoá để duyệt.
+            {tr("Nhập ít nhất hai ký tự hoặc xoá từ khoá để duyệt.")}
           </p>
         ) : search.unsupported ? (
           <p role="status" className="page-note">
-            Từ khoá không có ký tự tìm kiếm phù hợp. Hãy thử từ khác.
+            {tr("Từ khoá không có ký tự tìm kiếm phù hợp. Hãy thử từ khác.")}
           </p>
         ) : search.loading && !search.page ? (
           <p role="status" aria-busy="true" className="empty-message">
-            Đang tải sổ chi tiêu…
+            {tr("Đang tải sổ chi tiêu…")}
           </p>
         ) : search.error ? (
           <p role="alert" className="error-message">
@@ -436,15 +441,16 @@ function ExpensesSearchPanelState({
               className="text-button"
               onClick={search.retry}
             >
-              <ArrowPathIcon /> Thử tải lại
+              <ArrowPathIcon /> {tr("Thử tải lại")}
             </button>
           </p>
         ) : search.page ? (
           <p role="status" className="page-note">
-            {search.page.total} khoản · trang {search.page.page} /{" "}
-            {Math.max(1, search.page.totalPages)} · Tổng theo bộ lọc hiện tại
+            {search.page.total} {tr("khoản · trang")} {search.page.page} /{" "}
+            {Math.max(1, search.page.totalPages)}{" "}
+            {tr("· Tổng theo bộ lọc hiện tại")}
             {period === "custom"
-              ? " (khoảng tùy chỉnh)"
+              ? tr(" (khoảng tùy chỉnh)")
               : ` (${PERIOD_LABELS[period]})`}
           </p>
         ) : null}
@@ -453,26 +459,27 @@ function ExpensesSearchPanelState({
           <>
             <dl className="budget-grid grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <dt>Tổng đã chi</dt>
+                <dt>{tr("Tổng đã chi")}</dt>
                 <dd>{formatWholeDong(summary.totalAmount)} ₫</dd>
               </div>
               <div>
-                <dt>Số khoản khớp bộ lọc</dt>
+                <dt>{tr("Số khoản khớp bộ lọc")}</dt>
                 <dd>{search.page?.total ?? 0}</dd>
               </div>
               <div>
-                <dt>Khoản lớn nhất trong kết quả</dt>
+                <dt>{tr("Khoản lớn nhất trong kết quả")}</dt>
                 <dd>{formatWholeDong(summary.largestAmount)} ₫</dd>
               </div>
             </dl>
             {summary.byCourse.length > 0 && (
               <section aria-labelledby="spend-by-course">
                 <h3 id="spend-by-course" className="exam-group">
-                  Chi theo môn học trong bộ lọc
+                  {tr("Chi theo môn học trong bộ lọc")}
                 </h3>
                 <p className="page-note">
-                  Độ dài thanh được so với môn có tổng chi cao nhất trong bộ
-                  lọc, không phải tỷ trọng của ngân sách.
+                  {tr(
+                    "Độ dài thanh được so với môn có tổng chi cao nhất trong bộ lọc, không phải tỷ trọng của ngân sách.",
+                  )}
                 </p>
                 <ul className="budget-bars">
                   {summary.byCourse.map((group) => (
@@ -516,13 +523,15 @@ function ExpensesSearchPanelState({
 
         <section aria-labelledby="expense-list">
           <h3 id="expense-list" className="exam-group">
-            Các khoản đã ghi
+            {tr("Các khoản đã ghi")}
           </h3>
           {search.page?.total === 0 && !search.error && !initialLoading && (
             <p className="empty-message">
               {hasFilters
-                ? "Không có khoản chi khớp bộ lọc này."
-                : "Chưa ghi khoản chi nào. Ghi khoản đầu tiên bên dưới nhé."}
+                ? tr("Không có khoản chi khớp bộ lọc này.")
+                : tr(
+                    "Chưa ghi khoản chi nào. Ghi khoản đầu tiên bên dưới nhé.",
+                  )}
             </p>
           )}
           {search.page &&
@@ -538,21 +547,24 @@ function ExpensesSearchPanelState({
               />
             ) : (
               <p className="empty-message">
-                Trang này hiện chưa có mục; tổng theo bộ lọc vẫn là{" "}
+                {tr("Trang này hiện chưa có mục; tổng theo bộ lọc vẫn là")}{" "}
                 {search.page.total}.
               </p>
             ))}
-          <nav className="paged-search-pagination" aria-label="Trang khoản chi">
+          <nav
+            className="paged-search-pagination"
+            aria-label={tr("Trang khoản chi")}
+          >
             <button
               type="button"
               className="secondary-button"
               disabled={search.query.page <= 1 || search.loading}
               onClick={() => search.setPage(search.query.page - 1)}
             >
-              Trước
+              {tr("Trước")}
             </button>
             <span>
-              Trang {search.page?.page ?? search.query.page} /{" "}
+              {tr("Trang")} {search.page?.page ?? search.query.page} /{" "}
               {Math.max(1, search.page?.totalPages ?? 0)}
             </span>
             <button
@@ -565,7 +577,7 @@ function ExpensesSearchPanelState({
               }
               onClick={() => search.setPage(search.query.page + 1)}
             >
-              Sau
+              {tr("Sau")}
             </button>
           </nav>
         </section>
@@ -583,15 +595,15 @@ function ExpensesSearchPanelState({
             onSubmit={(event) => void submit(event)}
           >
             <label>
-              Amount (₫)
+              {tr("Amount (₫)")}
               <input name="amount" type="number" min={1} step={1} required />
             </label>
             <label>
-              Date
+              {tr("Date")}
               <input name="spentOn" type="date" required />
             </label>
             <label className="sm:col-span-2">
-              Description
+              {tr("Description")}
               <input
                 name="description"
                 minLength={2}
@@ -600,7 +612,7 @@ function ExpensesSearchPanelState({
               />
             </label>
             <label>
-              Category
+              {tr("Category")}
               <select name="category" defaultValue="books">
                 {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map(
                   (category) => (
@@ -612,9 +624,9 @@ function ExpensesSearchPanelState({
               </select>
             </label>
             <label>
-              Course
+              {tr("Course")}
               <select name="courseId" defaultValue="">
-                <option value="">Không thuộc môn nào</option>
+                <option value="">{tr("Không thuộc môn nào")}</option>
                 {courses.courses.map((course) => (
                   <option key={course.id} value={course.id}>
                     {course.name} ({course.code})
@@ -624,30 +636,31 @@ function ExpensesSearchPanelState({
             </label>
             <button className="primary-button" disabled={expenses.busy}>
               <PlusIcon />
-              {expenses.busy ? "Đang lưu…" : "Add expense"}
+              {expenses.busy ? tr("Đang lưu…") : tr("Add expense")}
             </button>
           </form>
         )}
         <p className="page-note">
-          Đây là sổ chi tiêu minh hoạ của workspace, không kết nối với tài khoản
-          ngân hàng nào và không phải số liệu tài chính thật.
+          {tr(
+            "Đây là sổ chi tiêu minh hoạ của workspace, không kết nối với tài khoản ngân hàng nào và không phải số liệu tài chính thật.",
+          )}
         </p>
       </Panel>
 
       {focused.loading && (
-        <Panel title="Khoản chi từ liên kết" icon={<WalletIcon />}>
+        <Panel title={tr("Khoản chi từ liên kết")} icon={<WalletIcon />}>
           <p role="status" aria-busy="true">
-            Đang mở khoản chi…
+            {tr("Đang mở khoản chi…")}
           </p>
         </Panel>
       )}
       {focused.error && (
-        <Panel title="Khoản chi từ liên kết" icon={<WalletIcon />}>
+        <Panel title={tr("Khoản chi từ liên kết")} icon={<WalletIcon />}>
           <p role="status">{focused.error}</p>
         </Panel>
       )}
       {focused.record && !focused.error && (
-        <Panel title="Khoản chi từ liên kết" icon={<WalletIcon />}>
+        <Panel title={tr("Khoản chi từ liên kết")} icon={<WalletIcon />}>
           <article
             data-focus-id={focused.record.id}
             data-focus-keyboard="true"
@@ -660,11 +673,12 @@ function ExpensesSearchPanelState({
             </p>
             <p>
               {CATEGORY_LABELS[focused.record.category]} ·{" "}
-              {focused.record.course_name ?? "Không thuộc môn nào"}
+              {focused.record.course_name ?? tr("Không thuộc môn nào")}
             </p>
             <p className="page-note">
-              Mục tiêu được mở riêng; có thể không khớp bộ lọc đang chọn và
-              không được cộng vào tổng hoặc trang kết quả.
+              {tr(
+                "Mục tiêu được mở riêng; có thể không khớp bộ lọc đang chọn và không được cộng vào tổng hoặc trang kết quả.",
+              )}
             </p>
             {canDelete && (
               <ExpenseDelete
@@ -733,13 +747,16 @@ function ExpenseDelete({
   busy: boolean;
   onDelete: () => void;
 }) {
+  const tr = useTr();
   const [confirming, setConfirming] = useState(false);
   if (!confirming)
     return (
       <button
         type="button"
         className="exam-remove"
-        aria-label={`Delete expense: ${expense.description}`}
+        aria-label={tr("Delete expense: {description}", {
+          description: expense.description,
+        })}
         disabled={busy}
         onClick={() => setConfirming(true)}
       >
@@ -748,14 +765,14 @@ function ExpenseDelete({
     );
   return (
     <span className="exam-confirm">
-      <span>Xoá khoản này?</span>
+      <span>{tr("Xoá khoản này?")}</span>
       <button
         type="button"
         className="exam-confirm-yes"
         disabled={busy}
         onClick={onDelete}
       >
-        Xoá
+        {tr("Xoá")}
       </button>
       <button
         type="button"
@@ -763,7 +780,7 @@ function ExpenseDelete({
         disabled={busy}
         onClick={() => setConfirming(false)}
       >
-        Giữ lại
+        {tr("Giữ lại")}
       </button>
     </span>
   );

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "./api";
+import { tl } from "./i18n";
 
 export interface PagedSearchPage<Item> {
   items: Item[];
@@ -125,7 +126,9 @@ export function usePagedSearch<
           setState({
             key,
             loading: false,
-            error: "Could not load this list. Check your connection and retry.",
+            error: tl(
+              "Could not load this list. Check your connection and retry.",
+            ),
             unsupported: false,
             page: null,
           });

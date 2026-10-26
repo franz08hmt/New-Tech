@@ -10,6 +10,7 @@ import {
   type StudyQuizSummary,
 } from "./api";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
+import { useTr, tl } from "./i18n";
 
 const PAGE_SIZE = 20;
 type QuizAttemptState =
@@ -35,11 +36,12 @@ type QuizLifecycleAction = {
 const errorText = (error: unknown) =>
   error instanceof Error
     ? error.message
-    : "Không thể hoàn tất thao tác. Hãy thử lại.";
+    : tl("Không thể hoàn tất thao tác. Hãy thử lại.");
 const isUnknownWrite = (error: unknown) =>
   !(error instanceof ApiError) || error.status === 408 || error.status >= 500;
 
 export function StudyCoachPanel({ focusId }: { focusId?: string }) {
+  const tr = useTr();
   const principal = useContext(PilotPrincipalContext);
   const identity = `${principal?.userId ?? ""}:${principal?.workspaceId ?? ""}:${principal?.role ?? ""}`;
   const identityRef = useRef(identity);
@@ -192,7 +194,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
             document.storage_status !== "stored" ||
             document.processing_status !== "ready"
           ) {
-            setDocumentError("Tài liệu chưa sẵn sàng để tạo quiz.");
+            setDocumentError(tr("Tài liệu chưa sẵn sàng để tạo quiz."));
             return;
           }
           setSelectedDocument(document);
@@ -413,7 +415,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
         value.documentId !== sourceId ||
         selectedDocumentRef.current?.id !== sourceId
       )
-        throw new Error("Bản nháp không khớp tài liệu đang chọn.");
+        throw new Error(tr("Bản nháp không khớp tài liệu đang chọn."));
       setDraft(value);
       setGenerationState("preview");
       setSaveState("preview");
@@ -455,7 +457,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
         return;
       setDraft(undefined);
       setSaveState("confirmed");
-      setSavedNotice(`Đã lưu quiz “${saved.title}”.`);
+      setSavedNotice(tr("Đã lưu quiz “{title}”.", { title: saved.title }));
       setQuizPage(1);
       setQuizRefresh((value) => value + 1);
     } catch (error) {
@@ -501,7 +503,9 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
         setDraft(undefined);
         setSaveState("confirmed");
         setSaveError("");
-        setSavedNotice(`Đã lưu quiz “${result.quiz.title}”.`);
+        setSavedNotice(
+          tr("Đã lưu quiz “{title}”.", { title: result.quiz.title }),
+        );
         setQuizPage(1);
         setQuizRefresh((value) => value + 1);
       } else if (result.status === "draft") {
@@ -512,7 +516,9 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
         );
         setSaveState("reconciled-draft");
         setSaveError(
-          "Máy chủ xác nhận quiz vẫn là bản nháp. Bạn có thể xác nhận lưu lại bằng thao tác riêng.",
+          tr(
+            "Máy chủ xác nhận quiz vẫn là bản nháp. Bạn có thể xác nhận lưu lại bằng thao tác riêng.",
+          ),
         );
       } else {
         setDraft(undefined);
@@ -520,8 +526,8 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
         setSaveState(result.status);
         setSaveError(
           result.status === "expired"
-            ? "Bản nháp đã hết hạn. Hãy chủ động tạo bản xem trước mới."
-            : "Bản nháp không còn khả dụng.",
+            ? tr("Bản nháp đã hết hạn. Hãy chủ động tạo bản xem trước mới.")
+            : tr("Bản nháp không còn khả dụng."),
         );
       }
     } catch (error) {
@@ -764,19 +770,20 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
   return (
     <section className="study-coach-layout" aria-labelledby="study-coach-title">
       <header className="study-coach-header">
-        <h2 id="study-coach-title">Study Coach · Quiz</h2>
+        <h2 id="study-coach-title">{tr("Study Coach · Quiz")}</h2>
         <p>
-          Tạo câu hỏi từ bằng chứng đã lập chỉ mục trong tài liệu bạn có thể
-          đọc. Quiz không cam kết bao phủ toàn bộ PDF.
+          {tr(
+            "Tạo câu hỏi từ bằng chứng đã lập chỉ mục trong tài liệu bạn có thể đọc. Quiz không cam kết bao phủ toàn bộ PDF.",
+          )}
         </p>
       </header>
 
       <section className="panel" aria-labelledby="quiz-create-title">
-        <h3 id="quiz-create-title">Tạo quiz từ tài liệu</h3>
+        <h3 id="quiz-create-title">{tr("Tạo quiz từ tài liệu")}</h3>
         {!focusId && (
           <>
             <label htmlFor="study-quiz-document-search">
-              Tìm tài liệu đã sẵn sàng
+              {tr("Tìm tài liệu đã sẵn sàng")}
             </label>
             <input
               id="study-quiz-document-search"
@@ -787,26 +794,27 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                 setDocumentInput(event.target.value);
                 setDocumentPage(1);
               }}
-              placeholder="Tên tài liệu hoặc môn học"
+              placeholder={tr("Tên tài liệu hoặc môn học")}
             />
             <div
               className="study-quiz-document-picker"
               aria-busy={documentLoading}
             >
               {documentSearchPending ? (
-                <p role="status">Đang cập nhật tìm kiếm tài liệu…</p>
+                <p role="status">{tr("Đang cập nhật tìm kiếm tài liệu…")}</p>
               ) : documentLoading ? (
-                <p role="status">Đang tải tài liệu…</p>
+                <p role="status">{tr("Đang tải tài liệu…")}</p>
               ) : documentError ? (
                 <p role="alert">{documentError}</p>
               ) : documentInput.trim().length === 1 ? (
                 <p role="status">
-                  Nhập ít nhất hai ký tự để tìm tài liệu, hoặc xóa ô tìm kiếm để
-                  duyệt.
+                  {tr(
+                    "Nhập ít nhất hai ký tự để tìm tài liệu, hoặc xóa ô tìm kiếm để duyệt.",
+                  )}
                 </p>
               ) : (
                 <>
-                  <label htmlFor="study-quiz-document">Tài liệu</label>
+                  <label htmlFor="study-quiz-document">{tr("Tài liệu")}</label>
                   <select
                     id="study-quiz-document"
                     value={visibleSelectedDocument?.id ?? ""}
@@ -823,7 +831,9 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                       if (item) selectDocument(item);
                     }}
                   >
-                    <option value="">Chọn tài liệu đã lập chỉ mục</option>
+                    <option value="">
+                      {tr("Chọn tài liệu đã lập chỉ mục")}
+                    </option>
                     {visibleDocumentResults?.items
                       .filter(
                         (item) =>
@@ -839,7 +849,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                   {visibleDocumentResults && (
                     <div className="study-coach-pagination">
                       <span>
-                        {visibleDocumentResults.total} tài liệu sẵn sàng
+                        {visibleDocumentResults.total} {tr("tài liệu sẵn sàng")}
                       </span>
                       <button
                         type="button"
@@ -848,10 +858,10 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                           setDocumentPage((page) => Math.max(1, page - 1))
                         }
                       >
-                        Trước
+                        {tr("Trước")}
                       </button>
                       <span>
-                        Trang {documentPage} /{" "}
+                        {tr("Trang")} {documentPage} /{" "}
                         {visibleDocumentResults.totalPages || 1}
                       </span>
                       <button
@@ -862,7 +872,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                         }
                         onClick={() => setDocumentPage((page) => page + 1)}
                       >
-                        Sau
+                        {tr("Sau")}
                       </button>
                     </div>
                   )}
@@ -874,20 +884,20 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
         {focusId && (
           <p aria-live="polite">
             {documentLoading ? (
-              "Đang kiểm tra tài liệu…"
+              tr("Đang kiểm tra tài liệu…")
             ) : documentError ? (
               <span role="alert">{documentError}</span>
             ) : visibleSelectedDocument ? (
-              `Tài liệu: ${visibleSelectedDocument.name}`
+              tr("Tài liệu: {name}", { name: visibleSelectedDocument.name })
             ) : (
-              "Chọn một tài liệu đã lập chỉ mục từ Documents."
+              tr("Chọn một tài liệu đã lập chỉ mục từ Documents.")
             )}
           </p>
         )}
         {visibleSelectedDocument && (
           <p className="study-coach-selected-source">
-            Nguồn: {visibleSelectedDocument.name} · Chỉ tài liệu stored/ready
-            được dùng.
+            {tr("Nguồn:")} {visibleSelectedDocument.name}{" "}
+            {tr("· Chỉ tài liệu stored/ready được dùng.")}
           </p>
         )}
         {documentError && !focusId && (
@@ -898,12 +908,12 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
               setDocumentRefresh((value) => value + 1);
             }}
           >
-            Thử tải danh sách lại
+            {tr("Thử tải danh sách lại")}
           </button>
         )}
         <div className="study-coach-controls">
           <label>
-            Ngôn ngữ
+            {tr("Ngôn ngữ")}
             <select
               value={language}
               onChange={(event) =>
@@ -911,12 +921,12 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
               }
               disabled={generationState === "generating"}
             >
-              <option value="vi">Tiếng Việt</option>
-              <option value="en">English</option>
+              <option value="vi">{tr("Tiếng Việt")}</option>
+              <option value="en">{tr("English")}</option>
             </select>
           </label>
           <label>
-            Số câu
+            {tr("Số câu")}
             <select
               value={questionCount}
               onChange={(event) => setQuestionCount(Number(event.target.value))}
@@ -945,17 +955,19 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
             onClick={() => void generate()}
           >
             {generationState === "generating"
-              ? "Đang tạo bản xem trước…"
+              ? tr("Đang tạo bản xem trước…")
               : draft
-                ? "Tạo bản xem trước mới"
-                : "Tạo bản xem trước"}
+                ? tr("Tạo bản xem trước mới")
+                : tr("Tạo bản xem trước")}
           </button>
         </div>
         {generationError && (
           <p role="alert">
             {generationError}
             {generationState === "unknown" &&
-              " Yêu cầu có thể đã hoàn tất ở máy chủ; không có lần gọi AI nào được tự gửi lại."}
+              tr(
+                " Yêu cầu có thể đã hoàn tất ở máy chủ; không có lần gọi AI nào được tự gửi lại.",
+              )}
           </p>
         )}
         {generationState === "unknown" && (
@@ -967,21 +979,23 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
               setGenerationError("");
             }}
           >
-            Đã hiểu — chủ động tạo yêu cầu mới
+            {tr("Đã hiểu — chủ động tạo yêu cầu mới")}
           </button>
         )}
         {attemptContextPending && (
           <p role="status">
-            Lượt luyện tập hiện tại cần được hoàn tất hoặc gửi lại cùng lượt
-            trước khi tạo hay lưu quiz khác.
+            {tr(
+              "Lượt luyện tập hiện tại cần được hoàn tất hoặc gửi lại cùng lượt trước khi tạo hay lưu quiz khác.",
+            )}
           </p>
         )}
         {detail &&
           quizWritePending &&
           quizLifecycleAction?.kind !== "attempt" && (
             <p role="status">
-              Đang xử lý thao tác quiz. Kiểm tra và nộp bài sẽ khả dụng sau khi
-              thao tác này kết thúc.
+              {tr(
+                "Đang xử lý thao tác quiz. Kiểm tra và nộp bài sẽ khả dụng sau khi thao tác này kết thúc.",
+              )}
             </p>
           )}
         {draft && generationState === "preview" && (
@@ -989,9 +1003,11 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
             className="study-quiz-preview"
             aria-labelledby="quiz-preview-title"
           >
-            <h4 id="quiz-preview-title">Bản xem trước · chưa được lưu</h4>
+            <h4 id="quiz-preview-title">
+              {tr("Bản xem trước · chưa được lưu")}
+            </h4>
             <p>
-              {draft.quiz.title} · Hết hạn{" "}
+              {draft.quiz.title} {tr("· Hết hạn")}{" "}
               {new Date(draft.expiresAt).toLocaleString()}
             </p>
             <ol>
@@ -1003,13 +1019,13 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                       <li key={`${question.id}-${optionIndex}`}>
                         {option}
                         {optionIndex === question.correctIndex &&
-                          " · Đáp án đúng"}
+                          tr(" · Đáp án đúng")}
                       </li>
                     ))}
                   </ol>
                   <p>{question.explanation}</p>
                   <p>
-                    Nguồn:{" "}
+                    {tr("Nguồn:")}{" "}
                     {question.sourceIds.map((sourceId) => {
                       const source = draft.quiz.sources.find(
                         (item) => item.sourceId === sourceId,
@@ -1020,14 +1036,18 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                           href={`#documents/${encodeURIComponent(source.documentId)}`}
                         >
                           {source.title}
-                          {source.page ? ` · trang ${source.page}` : ""}
+                          {source.page
+                            ? tr(" · trang {page}", { page: source.page })
+                            : ""}
                         </a>
                       ) : (
-                        <span key={sourceId}>Nguồn không khả dụng</span>
+                        <span key={sourceId}>{tr("Nguồn không khả dụng")}</span>
                       );
                     })}
                   </p>
-                  <span className="sr-only">Câu {index + 1}</span>
+                  <span className="sr-only">
+                    {tr("Câu")} {index + 1}
+                  </span>
                 </li>
               ))}
             </ol>
@@ -1043,8 +1063,8 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                 onClick={() => void confirmDraft()}
               >
                 {saveState === "saving" || saveState === "reconciling"
-                  ? "Đang kiểm tra/lưu…"
-                  : "Xác nhận lưu quiz"}
+                  ? tr("Đang kiểm tra/lưu…")
+                  : tr("Xác nhận lưu quiz")}
               </button>
               <button
                 type="button"
@@ -1057,7 +1077,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                 }
                 onClick={() => void cancelDraft()}
               >
-                Hủy bản xem trước
+                {tr("Hủy bản xem trước")}
               </button>
             </div>
             {saveError && <p role="alert">{saveError}</p>}
@@ -1067,11 +1087,11 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                 disabled={attemptContextPending || quizWritePending}
                 onClick={() => void reconcileDraft()}
               >
-                Kiểm tra trạng thái lưu
+                {tr("Kiểm tra trạng thái lưu")}
               </button>
             )}
             {saveState === "reconciling" && (
-              <p role="status">Đang đối chiếu trạng thái bản nháp…</p>
+              <p role="status">{tr("Đang đối chiếu trạng thái bản nháp…")}</p>
             )}
           </div>
         )}
@@ -1081,9 +1101,11 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
 
       <section className="panel" aria-labelledby="saved-quizzes-title">
         <header>
-          <h3 id="saved-quizzes-title">Quiz đã lưu của tôi</h3>
+          <h3 id="saved-quizzes-title">{tr("Quiz đã lưu của tôi")}</h3>
           <span>
-            {quizListLoading ? "…" : `${quizList?.total ?? 0} bộ quiz`}
+            {quizListLoading
+              ? "…"
+              : tr("{value} bộ quiz", { value: quizList?.total ?? 0 })}
           </span>
           <button
             type="button"
@@ -1093,11 +1115,11 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
               setQuizRefresh((value) => value + 1);
             }}
           >
-            Tải lại danh sách
+            {tr("Tải lại danh sách")}
           </button>
         </header>
         {quizListLoading ? (
-          <p role="status">Đang tải quiz…</p>
+          <p role="status">{tr("Đang tải quiz…")}</p>
         ) : quizListError ? (
           <div role="alert">
             <p>{quizListError}</p>
@@ -1105,7 +1127,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
               type="button"
               onClick={() => setQuizRefresh((value) => value + 1)}
             >
-              Thử lại danh sách
+              {tr("Thử lại danh sách")}
             </button>
           </div>
         ) : quizList?.items.length ? (
@@ -1116,15 +1138,17 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                   <div>
                     <strong>{quiz.title}</strong>
                     <p>
-                      {quiz.documentTitle} · {quiz.questionCount} câu ·{" "}
-                      {quiz.progress.attempts} lượt · gần nhất{" "}
-                      {quiz.progress.latestScore ?? "—"}% · cao nhất{" "}
-                      {quiz.progress.bestScore ?? "—"}%
+                      {quiz.documentTitle} · {quiz.questionCount} {tr("câu ·")}{" "}
+                      {quiz.progress.attempts} {tr("lượt · gần nhất")}{" "}
+                      {quiz.progress.latestScore ?? "—"}
+                      {tr("% · cao nhất")} {quiz.progress.bestScore ?? "—"}%
                     </p>
                     <p>
                       {quiz.sourceAvailable
-                        ? "Nguồn hiện còn khả dụng"
-                        : "Nguồn không còn khả dụng; nội dung quiz đã lưu vẫn giữ nguyên."}
+                        ? tr("Nguồn hiện còn khả dụng")
+                        : tr(
+                            "Nguồn không còn khả dụng; nội dung quiz đã lưu vẫn giữ nguyên.",
+                          )}
                     </p>
                   </div>
                   <div className="study-coach-controls">
@@ -1137,7 +1161,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                       }
                       onClick={() => void openQuiz(quiz.id)}
                     >
-                      Mở và luyện tập
+                      {tr("Mở và luyện tập")}
                     </button>
                     <button
                       type="button"
@@ -1146,7 +1170,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                       }
                       onClick={() => void deleteQuiz(quiz)}
                     >
-                      Xóa quiz
+                      {tr("Xóa quiz")}
                     </button>
                   </div>
                 </li>
@@ -1158,24 +1182,25 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                 disabled={quizPage <= 1 || quizListLoading}
                 onClick={() => setQuizPage((page) => Math.max(1, page - 1))}
               >
-                Trước
+                {tr("Trước")}
               </button>
               <span>
-                Trang {quizPage} / {quizList.totalPages}
+                {tr("Trang")} {quizPage} / {quizList.totalPages}
               </span>
               <button
                 type="button"
                 disabled={quizPage >= quizList.totalPages || quizListLoading}
                 onClick={() => setQuizPage((page) => page + 1)}
               >
-                Sau
+                {tr("Sau")}
               </button>
             </div>
           </>
         ) : (
           <p>
-            Chưa có quiz đã lưu. Hãy tạo bản xem trước từ một tài liệu đã lập
-            chỉ mục.
+            {tr(
+              "Chưa có quiz đã lưu. Hãy tạo bản xem trước từ một tài liệu đã lập chỉ mục.",
+            )}
           </p>
         )}
       </section>
@@ -1185,9 +1210,9 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
           className="panel study-quiz-practice"
           aria-labelledby="quiz-practice-title"
         >
-          <h3 id="quiz-practice-title">Luyện tập</h3>
+          <h3 id="quiz-practice-title">{tr("Luyện tập")}</h3>
           {detailLoading ? (
-            <p role="status">Đang mở quiz…</p>
+            <p role="status">{tr("Đang mở quiz…")}</p>
           ) : detailError ? (
             <div role="alert">
               <p>{detailError}</p>
@@ -1195,7 +1220,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                 type="button"
                 onClick={() => detailTarget && void openQuiz(detailTarget)}
               >
-                Thử mở lại
+                {tr("Thử mở lại")}
               </button>
             </div>
           ) : (
@@ -1203,15 +1228,16 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
               <>
                 <h4>{detail.quiz.title}</h4>
                 <p>
-                  {detail.quiz.questionCount} câu ·{" "}
-                  {detail.quiz.progress.attempts} lượt · gần nhất{" "}
-                  {detail.quiz.progress.latestScore ?? "—"}% · cao nhất{" "}
-                  {detail.quiz.progress.bestScore ?? "—"}%
+                  {detail.quiz.questionCount} {tr("câu ·")}{" "}
+                  {detail.quiz.progress.attempts} {tr("lượt · gần nhất")}{" "}
+                  {detail.quiz.progress.latestScore ?? "—"}
+                  {tr("% · cao nhất")} {detail.quiz.progress.bestScore ?? "—"}%
                 </p>
                 {!detail.quiz.sourceAvailable && (
                   <p role="status">
-                    Tài liệu nguồn hiện không khả dụng. Quiz snapshot vẫn có thể
-                    luyện tập; liên kết nguồn cần quyền hiện tại.
+                    {tr(
+                      "Tài liệu nguồn hiện không khả dụng. Quiz snapshot vẫn có thể luyện tập; liên kết nguồn cần quyền hiện tại.",
+                    )}
                   </p>
                 )}
                 <form
@@ -1254,16 +1280,22 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                           );
                           return source ? (
                             <p key={sourceId}>
-                              Nguồn:{" "}
+                              {tr("Nguồn:")}{" "}
                               {source.available ? (
                                 <a
                                   href={`#documents/${encodeURIComponent(source.documentId)}`}
                                 >
                                   {source.title}
-                                  {source.page ? ` · trang ${source.page}` : ""}
+                                  {source.page
+                                    ? tr(" · trang {page}", {
+                                        page: source.page,
+                                      })
+                                    : ""}
                                 </a>
                               ) : (
-                                `${source.title} · nguồn không còn khả dụng`
+                                tr("{title} · nguồn không còn khả dụng", {
+                                  title: source.title,
+                                })
                               )}
                             </p>
                           ) : null;
@@ -1284,19 +1316,20 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                         )
                       }
                     >
-                      Kiểm tra đáp án
+                      {tr("Kiểm tra đáp án")}
                     </button>
                   )}
                 </form>
                 {attemptPending && !attempt && (
-                  <div role="group" aria-label="Xác nhận nộp bài">
+                  <div role="group" aria-label={tr("Xác nhận nộp bài")}>
                     {attemptState === "prepared" && (
-                      <p>Kiểm tra câu trả lời trước khi nộp.</p>
+                      <p>{tr("Kiểm tra câu trả lời trước khi nộp.")}</p>
                     )}
                     {attemptState === "unknown" && (
                       <p role="status">
-                        Kết quả lượt này chưa rõ. Quiz, mã lượt và câu trả lời
-                        được giữ nguyên; gửi lại chỉ đối chiếu cùng lượt.
+                        {tr(
+                          "Kết quả lượt này chưa rõ. Quiz, mã lượt và câu trả lời được giữ nguyên; gửi lại chỉ đối chiếu cùng lượt.",
+                        )}
                       </p>
                     )}
                     {attemptError && <p role="alert">{attemptError}</p>}
@@ -1309,10 +1342,10 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                         onClick={() => void submitAttempt()}
                       >
                         {quizBusy
-                          ? "Đang chấm…"
+                          ? tr("Đang chấm…")
                           : attemptState === "unknown"
-                            ? "Gửi lại cùng lượt"
-                            : "Nộp bài"}
+                            ? tr("Gửi lại cùng lượt")
+                            : tr("Nộp bài")}
                       </button>
                     )}
                     {(attemptState === "prepared" ||
@@ -1322,16 +1355,16 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                         onClick={returnToQuestions}
                         disabled={quizBusy}
                       >
-                        Quay lại câu hỏi
+                        {tr("Quay lại câu hỏi")}
                       </button>
                     )}
                   </div>
                 )}
                 {attempt && (
-                  <section role="status" aria-label="Kết quả lượt làm">
+                  <section role="status" aria-label={tr("Kết quả lượt làm")}>
                     <h4>
-                      Kết quả: {attempt.correctCount}/{attempt.questionCount} ·{" "}
-                      {attempt.scorePercent}%
+                      {tr("Kết quả:")} {attempt.correctCount}/
+                      {attempt.questionCount} · {attempt.scorePercent}%
                     </h4>
                     <ol>
                       {detail.questions.map((question) => {
@@ -1342,13 +1375,13 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                           <li key={question.id}>
                             <strong>{question.question}</strong>
                             <p>
-                              Đáp án:{" "}
+                              {tr("Đáp án:")}{" "}
                               {question.options[result?.correctIndex ?? 0]}
                             </p>
                             <p>
                               {result?.correct
-                                ? "Chính xác."
-                                : "Chưa chính xác."}{" "}
+                                ? tr("Chính xác.")
+                                : tr("Chưa chính xác.")}{" "}
                               {result?.explanation}
                             </p>
                           </li>
@@ -1365,7 +1398,7 @@ export function StudyCoachPanel({ focusId }: { focusId?: string }) {
                         setAnswers({});
                       }}
                     >
-                      Làm lại
+                      {tr("Làm lại")}
                     </button>
                   </section>
                 )}

@@ -24,6 +24,7 @@ import {
 import { courseIconFor } from "./academic-data";
 import type { Course, CourseSearchItem } from "./api";
 import { revealClass, useReveal } from "./use-reveal";
+import { useTr } from "./i18n";
 
 export function Panel({
   title,
@@ -47,6 +48,7 @@ export function Panel({
   );
 }
 export function CalendarPanel() {
+  const tr = useTr();
   const [month, setMonth] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   );
@@ -60,17 +62,17 @@ export function CalendarPanel() {
   const shift = (offset: number) =>
     setMonth(new Date(month.getFullYear(), month.getMonth() + offset, 1));
   return (
-    <Panel title="This week's schedule" icon={<CalendarDaysIcon />}>
+    <Panel title={tr("This week's schedule")} icon={<CalendarDaysIcon />}>
       <p className="view-label">
-        <CalendarDaysIcon /> Calendar view{" "}
-        <span className="example-label">Example schedule</span>
+        <CalendarDaysIcon /> {tr("Calendar view")}{" "}
+        <span className="example-label">{tr("Example schedule")}</span>
       </p>
       <header className="calendar-toolbar">
         <strong>
           {month.toLocaleDateString("en", { month: "long", year: "numeric" })}
         </strong>
         <span className="flex items-center gap-1">
-          <button aria-label="Previous month" onClick={() => shift(-1)}>
+          <button aria-label={tr("Previous month")} onClick={() => shift(-1)}>
             <ChevronLeftIcon />
           </button>
           <button
@@ -78,21 +80,29 @@ export function CalendarPanel() {
               setMonth(new Date(today.getFullYear(), today.getMonth(), 1))
             }
           >
-            Today
+            {tr("Today")}
           </button>
-          <button aria-label="Next month" onClick={() => shift(1)}>
+          <button aria-label={tr("Next month")} onClick={() => shift(1)}>
             <ChevronRightIcon />
           </button>
         </span>
       </header>
       <table className="calendar">
         <caption className="sr-only">
-          Example academic schedule for{" "}
+          {tr("Example academic schedule for")}{" "}
           {month.toLocaleDateString("en", { month: "long", year: "numeric" })}
         </caption>
         <thead>
           <tr>
-            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+            {[
+              tr("Mon"),
+              tr("Tue"),
+              tr("Wed"),
+              tr("Thu"),
+              tr("Fri"),
+              tr("Sat"),
+              tr("Sun"),
+            ].map((day) => (
               <th scope="col" key={day}>
                 {day}
               </th>
@@ -122,12 +132,12 @@ export function CalendarPanel() {
                         </span>
                         {day === 1 && date < 25 && (
                           <span className="calendar-event sage">
-                            Computer S.
+                            {tr("Computer S.")}
                           </span>
                         )}
                         {day === 3 && date < 22 && (
                           <span className="calendar-event sand">
-                            Study group
+                            {tr("Study group")}
                           </span>
                         )}
                       </>
@@ -149,15 +159,18 @@ export function CoursesPanel({
   courses: (Course | CourseSearchItem)[];
   expanded?: boolean;
 }) {
+  const tr = useTr();
   const { ref, revealed } = useReveal<HTMLUListElement>();
   return (
     <Panel
-      title={expanded ? "Courses" : "Course overview"}
+      title={expanded ? tr("Courses") : tr("Course overview")}
       icon={<AcademicCapIcon />}
     >
       <p className="view-label">
-        <TableCellsIcon /> {expanded ? "Search results" : "Gallery"}{" "}
-        {!expanded && <span className="example-label">Example courses</span>}
+        <TableCellsIcon /> {expanded ? tr("Search results") : tr("Gallery")}{" "}
+        {!expanded && (
+          <span className="example-label">{tr("Example courses")}</span>
+        )}
       </p>
       <ul
         ref={ref}
@@ -192,23 +205,26 @@ export function CoursesPanel({
                     </a>
                   </h3>
                   <p>
-                    <BookOpenIcon /> {course.code} · Class
+                    <BookOpenIcon /> {course.code} {tr("· Class")}
                   </p>
                 </header>
                 {expanded && <p className="course-detail">{course.detail}</p>}
                 <footer>
                   <p className="course-progress-label">
-                    Progress <span>{course.progress}%</span>
+                    {tr("Progress")} <span>{course.progress}%</span>
                   </p>
                   <progress
-                    aria-label={`${course.name} example progress: ${course.progress}%`}
+                    aria-label={tr("{name} example progress: {progress}%", {
+                      name: course.name,
+                      progress: course.progress,
+                    })}
                     value={course.progress}
                     max={100}
                   >
                     {course.progress}%
                   </progress>
                   <span className="course-card-action">
-                    View course <ArrowUpRightIcon aria-hidden="true" />
+                    {tr("View course")} <ArrowUpRightIcon aria-hidden="true" />
                   </span>
                 </footer>
               </article>
@@ -311,6 +327,7 @@ interface RemovedNote {
 }
 
 export function NotesPanel() {
+  const tr = useTr();
   const storageKey = useContext(NotesStorageContext);
   const [notes, setNotes] = useState<Note[]>(() => loadNotes(storageKey));
   const [warning, setWarning] = useState("");
@@ -325,10 +342,10 @@ export function NotesPanel() {
       if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next));
       else
         setWarning(
-          "Ghi chú hiện chỉ giữ trong tab; chưa được lưu cho tài khoản.",
+          tr("Ghi chú hiện chỉ giữ trong tab; chưa được lưu cho tài khoản."),
         );
     } catch {
-      setWarning("Ghi chú sẽ chỉ còn đến khi bạn đóng trang này thôi.");
+      setWarning(tr("Ghi chú sẽ chỉ còn đến khi bạn đóng trang này thôi."));
     }
   }
 
@@ -353,7 +370,11 @@ export function NotesPanel() {
     setNotes(next);
     const preview = note.text.trim().split("\n")[0].slice(0, 30);
     setAnnouncement(
-      `\u0110\u00e3 chuy\u1ec3n ${preview || "ghi ch\u00fa tr\u1ed1ng"} sang v\u1ecb tr\u00ed ${to + 1} tr\u00ean ${next.length}.`,
+      tr("Đã chuyển {note} sang vị trí {position} trên {total}.", {
+        note: preview || tr("ghi chú trống"),
+        position: to + 1,
+        total: next.length,
+      }),
     );
     return next;
   }
@@ -438,10 +459,10 @@ export function NotesPanel() {
   }
 
   return (
-    <Panel title="Quick notes" warm icon={<DocumentTextIcon />}>
+    <Panel title={tr("Quick notes")} warm icon={<DocumentTextIcon />}>
       <p className="view-label">
-        <TableCellsIcon /> Stickies{" "}
-        <span className="example-label">Saved on this browser</span>
+        <TableCellsIcon /> {tr("Stickies")}{" "}
+        <span className="example-label">{tr("Saved on this browser")}</span>
       </p>
       <ul className="notes-grid grid grid-cols-3 gap-2">
         {notes.map((note, index) => {
@@ -462,9 +483,9 @@ export function NotesPanel() {
               <button
                 type="button"
                 className="sticky-handle"
-                aria-label={`Move note ${index + 1}${
+                aria-label={`${tr("Move note {position}", { position: index + 1 })}${
                   preview ? `: ${preview}` : ""
-                }. Dùng phím mũi tên để đổi vị trí.`}
+                }. ${tr("Use the arrow keys to change its position.")}`}
                 onPointerDown={(event) => onHandleDown(event, note)}
                 onPointerMove={(event) => onHandleMove(event, note)}
                 onPointerUp={(event) => onHandleUp(event, note)}
@@ -474,7 +495,7 @@ export function NotesPanel() {
                 <Bars3Icon aria-hidden="true" />
               </button>
               <textarea
-                aria-label={`Quick note ${index + 1}`}
+                aria-label={tr("Quick note {value}", { value: index + 1 })}
                 maxLength={180}
                 value={note.text}
                 onChange={(event) =>
@@ -492,8 +513,11 @@ export function NotesPanel() {
                 className="sticky-remove"
                 aria-label={
                   preview
-                    ? `Delete note ${index + 1}: ${preview}`
-                    : `Delete empty note ${index + 1}`
+                    ? tr("Delete note {value}: {preview}", {
+                        value: index + 1,
+                        preview,
+                      })
+                    : tr("Delete empty note {value}", { value: index + 1 })
                 }
                 onClick={() => remove(index)}
               >
@@ -515,7 +539,7 @@ export function NotesPanel() {
             ])
           }
         >
-          <PlusIcon /> Add note
+          <PlusIcon /> {tr("Add note")}
         </button>
       </p>
       <p className="sr-only" role="status" aria-live="polite">
@@ -524,9 +548,9 @@ export function NotesPanel() {
       <p role="status" className="notes-status">
         {removed ? (
           <>
-            <span>Đã bỏ một tờ ghi chú.</span>
+            <span>{tr("Đã bỏ một tờ ghi chú.")}</span>
             <button className="text-button" type="button" onClick={undo}>
-              <ArrowUturnLeftIcon /> Hoàn tác
+              <ArrowUturnLeftIcon /> {tr("Hoàn tác")}
             </button>
           </>
         ) : (

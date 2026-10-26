@@ -24,6 +24,7 @@ import { StudyCoachWorkspace } from "./StudyCoachWorkspace";
 import type { CoursesState } from "./use-courses";
 import type { CourseLookupState } from "./use-course-lookup";
 import type { Workspace } from "./use-workspace";
+import { useTr } from "./i18n";
 
 /**
  * The body of each route.
@@ -53,6 +54,7 @@ export function PageSections({
   onOpenAssistant: (opener: HTMLElement) => void;
   onDocumentsChanged: () => void;
 }) {
+  const tr = useTr();
   if (pageId === "dashboard")
     return (
       <DashboardSections workspace={workspace} coursesState={coursesState} />
@@ -61,37 +63,38 @@ export function PageSections({
     if (courseLookup.loading)
       return (
         <section className="panel" role="status" aria-busy="true">
-          <h2>Loading course</h2>
-          <p>Opening this course in the current workspace…</p>
+          <h2>{tr("Loading course")}</h2>
+          <p>{tr("Opening this course in the current workspace…")}</p>
         </section>
       );
     if (courseLookup.error)
       return (
         <section className="panel" role="alert">
-          <h2>Course unavailable</h2>
+          <h2>{tr("Course unavailable")}</h2>
           <p>
-            This course could not be loaded in the current workspace. Check your
-            connection and retry.
+            {tr(
+              "This course could not be loaded in the current workspace. Check your connection and retry.",
+            )}
           </p>
           <a className="text-button" href="#courses">
-            Back to course gallery
+            {tr("Back to course gallery")}
           </a>
           <button
             className="primary-button"
             type="button"
             onClick={courseLookup.retry}
           >
-            Retry course
+            {tr("Retry course")}
           </button>
         </section>
       );
     if (!courseLookup.course)
       return (
         <section className="panel" role="status">
-          <h2>Course unavailable</h2>
-          <p>This course is not available in the current workspace.</p>
+          <h2>{tr("Course unavailable")}</h2>
+          <p>{tr("This course is not available in the current workspace.")}</p>
           <a className="text-button" href="#courses">
-            Back to course gallery
+            {tr("Back to course gallery")}
           </a>
         </section>
       );
@@ -110,9 +113,9 @@ export function PageSections({
       <>
         <ExamsSearchPanel focusId={focusId} />
         <p className="page-note">
-          Lịch thi được lưu trong cơ sở dữ liệu của workspace. Các kỳ thi có sẵn
-          là dữ liệu minh hoạ để bạn thử. Thành viên và người quản lý có thể
-          thêm, sửa kỳ thi; chỉ người quản lý mới có thể xoá.
+          {tr(
+            "Lịch thi được lưu trong cơ sở dữ liệu của workspace. Các kỳ thi có sẵn là dữ liệu minh hoạ để bạn thử. Thành viên và người quản lý có thể thêm, sửa kỳ thi; chỉ người quản lý mới có thể xoá.",
+          )}
         </p>
       </>
     );
@@ -121,7 +124,7 @@ export function PageSections({
     return (
       <>
         <StudyPlansSearchPanel focusId={focusId} />
-        <section className="secondary-panel" aria-label="Quick notes">
+        <section className="secondary-panel" aria-label={tr("Quick notes")}>
           <NotesPanel />
         </section>
       </>
@@ -150,6 +153,7 @@ function DashboardSections({
   workspace: Workspace;
   coursesState: CoursesState;
 }) {
+  const tr = useTr();
   return (
     <div className="dashboard-grid">
       <TasksPanel workspace={workspace} />
@@ -160,14 +164,16 @@ function DashboardSections({
       >
         <DocumentArrowUpIcon aria-hidden="true" />
         <header>
-          <h2 id="study-library-title">Your study library</h2>
-          <p>Keep course materials together for your next review session.</p>
+          <h2 id="study-library-title">{tr("Your study library")}</h2>
+          <p>
+            {tr("Keep course materials together for your next review session.")}
+          </p>
         </header>
         <a href="#documents">
-          Browse documents <ArrowUpRightIcon aria-hidden="true" />
+          {tr("Browse documents")} <ArrowUpRightIcon aria-hidden="true" />
         </a>
       </section>
-      <section className="full-width" aria-label="Courses">
+      <section className="full-width" aria-label={tr("Courses")}>
         {coursesState.loading ? (
           <CourseDataState state="loading" onRetry={coursesState.retry} />
         ) : coursesState.error ? (
@@ -182,7 +188,7 @@ function DashboardSections({
           <CourseDataState state="empty" onRetry={coursesState.retry} />
         )}
       </section>
-      <section className="full-width" aria-label="Exams">
+      <section className="full-width" aria-label={tr("Exams")}>
         <ExamsPanel compact />
       </section>
       <StudyPlanPanel compact />
@@ -200,6 +206,7 @@ function CourseDataState({
   message?: string;
   onRetry: () => void;
 }) {
+  const tr = useTr();
   if (state === "loading") {
     return (
       <section
@@ -207,8 +214,8 @@ function CourseDataState({
         aria-busy="true"
         aria-live="polite"
       >
-        <h2>Loading courses</h2>
-        <p>Đang mở danh sách môn học từ workspace…</p>
+        <h2>{tr("Loading courses")}</h2>
+        <p>{tr("Đang mở danh sách môn học từ workspace…")}</p>
       </section>
     );
   }
@@ -218,13 +225,17 @@ function CourseDataState({
       className="panel course-data-state"
       {...(state === "error" ? { role: "alert" } : {})}
     >
-      <h2>{state === "error" ? "Courses need a moment" : "No courses yet"}</h2>
+      <h2>
+        {state === "error" ? tr("Courses need a moment") : tr("No courses yet")}
+      </h2>
       <p>
         {message ??
-          "Chưa có môn học nào ở đây. Khi môn học được thêm vào, chúng sẽ hiện ngay tại đây."}
+          tr(
+            "Chưa có môn học nào ở đây. Khi môn học được thêm vào, chúng sẽ hiện ngay tại đây.",
+          )}
       </p>
       <button className="primary-button" type="button" onClick={onRetry}>
-        Retry courses
+        {tr("Retry courses")}
       </button>
     </section>
   );
@@ -240,12 +251,13 @@ function AssistantSection({
 }: {
   onOpen: (opener: HTMLElement) => void;
 }) {
+  const tr = useTr();
   return (
-    <Panel title="Ask ExaMate" icon={<SparklesIcon />}>
+    <Panel title={tr("Ask ExaMate")} icon={<SparklesIcon />}>
       <p className="page-note">
-        ExaMate AI sẽ trả lời dựa trên chính tài liệu môn học bạn đã tải lên,
-        kèm nguồn dẫn để bạn tự kiểm tra lại. Hãy lập chỉ mục tài liệu trước,
-        rồi chọn chế độ phù hợp trong khung Assistant.
+        {tr(
+          "ExaMate AI sẽ trả lời dựa trên chính tài liệu môn học bạn đã tải lên, kèm nguồn dẫn để bạn tự kiểm tra lại. Hãy lập chỉ mục tài liệu trước, rồi chọn chế độ phù hợp trong khung Assistant.",
+        )}
       </p>
       <button
         type="button"
@@ -253,11 +265,12 @@ function AssistantSection({
         onClick={(event) => onOpen(event.currentTarget)}
       >
         <SparklesIcon aria-hidden="true" />
-        Show ExaMate AI panel
+        {tr("Show ExaMate AI panel")}
       </button>
       <p className="page-note">
-        Trong AI Chat, chọn kiến thức chung hoặc tài liệu đã lập chỉ mục. Hỏi
-        workspace tra cứu riêng dữ liệu đã lưu và không thay đổi dữ liệu đó.
+        {tr(
+          "Trong AI Chat, chọn kiến thức chung hoặc tài liệu đã lập chỉ mục. Hỏi workspace tra cứu riêng dữ liệu đã lưu và không thay đổi dữ liệu đó.",
+        )}
       </p>
     </Panel>
   );

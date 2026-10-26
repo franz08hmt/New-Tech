@@ -13,6 +13,7 @@ import {
 } from "./api";
 import type { PilotPrincipal } from "@examate/contracts";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
+import { useTr, tl } from "./i18n";
 
 const PAGE_SIZE = 20;
 type ActionKind =
@@ -29,22 +30,31 @@ const identityOf = (principal: PilotPrincipal | undefined) =>
 const errorText = (error: unknown) =>
   error instanceof Error
     ? error.message
-    : "Không thể hoàn tất thao tác. Hãy thử lại.";
+    : tl("Không thể hoàn tất thao tác. Hãy thử lại.");
 const isUnknownWrite = (error: unknown) =>
   !(error instanceof ApiError) || error.status === 408 || error.status >= 500;
 
 function draftWriteError(error: unknown, operation: "confirm" | "cancel") {
   const action =
     operation === "confirm"
-      ? "Không thể xác nhận lưu bộ thẻ."
-      : "Không thể hủy bản xem trước.";
+      ? tl("Không thể xác nhận lưu bộ thẻ.")
+      : tl("Không thể hủy bản xem trước.");
   if (isUnknownWrite(error))
-    return `${action} Kết quả thao tác chưa rõ. Hãy đối chiếu trạng thái trước khi thực hiện thao tác ghi tiếp theo.`;
+    return tl(
+      "{action} Kết quả thao tác chưa rõ. Hãy đối chiếu trạng thái trước khi thực hiện thao tác ghi tiếp theo.",
+      { action },
+    );
   const failure = error as ApiError;
   if (failure.code === "STUDY_FLASHCARDS_ALREADY_CONFIRMED")
-    return `${action} Bản xem trước đã được lưu, có thể từ tab khác. Hãy đối chiếu để nhận bộ thẻ đã lưu.`;
+    return tl(
+      "{action} Bản xem trước đã được lưu, có thể từ tab khác. Hãy đối chiếu để nhận bộ thẻ đã lưu.",
+      { action },
+    );
   if (failure.status === 401 || failure.status === 403)
-    return `${action} Phiên hoặc quyền truy cập hiện tại không cho phép thao tác. Hãy kiểm tra đăng nhập và quyền truy cập.`;
+    return tl(
+      "{action} Phiên hoặc quyền truy cập hiện tại không cho phép thao tác. Hãy kiểm tra đăng nhập và quyền truy cập.",
+      { action },
+    );
   if (
     [
       "STUDY_FLASHCARDS_SOURCE_CHANGED",
@@ -52,18 +62,28 @@ function draftWriteError(error: unknown, operation: "confirm" | "cancel") {
       "DOCUMENT_NOT_AVAILABLE",
     ].includes(failure.code)
   )
-    return `${action} Tài liệu nguồn đã thay đổi hoặc không còn sẵn sàng. Hãy kiểm tra tài liệu; nếu cần, chủ động tạo bản xem trước mới.`;
+    return tl(
+      "{action} Tài liệu nguồn đã thay đổi hoặc không còn sẵn sàng. Hãy kiểm tra tài liệu; nếu cần, chủ động tạo bản xem trước mới.",
+      { action },
+    );
   if (
     failure.status === 404 ||
     ["STUDY_FLASHCARDS_DRAFT_UNAVAILABLE", "STUDY_FLASHCARDS_DELETED"].includes(
       failure.code,
     )
   )
-    return `${action} Bản xem trước đã hết hạn hoặc không còn khả dụng. Hãy đối chiếu trạng thái; không gửi lại thao tác ghi khi chưa xác nhận.`;
-  return `${action} Yêu cầu bị từ chối. Hãy đối chiếu trạng thái bản xem trước trước khi quyết định thao tác tiếp theo.`;
+    return tl(
+      "{action} Bản xem trước đã hết hạn hoặc không còn khả dụng. Hãy đối chiếu trạng thái; không gửi lại thao tác ghi khi chưa xác nhận.",
+      { action },
+    );
+  return tl(
+    "{action} Yêu cầu bị từ chối. Hãy đối chiếu trạng thái bản xem trước trước khi quyết định thao tác tiếp theo.",
+    { action },
+  );
 }
 
 export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
+  const tr = useTr();
   const principal = useContext(PilotPrincipalContext);
   const identity = identityOf(principal);
   const identityRef = useRef(identity);
@@ -478,7 +498,7 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
         return;
       setDraft(undefined);
       setSaveState("confirmed");
-      setNotice(`Đã lưu bộ thẻ “${saved.title}”.`);
+      setNotice(tr("Đã lưu bộ thẻ “{title}”.", { title: saved.title }));
       setListPage(1);
       setListRefresh((value) => value + 1);
     } catch (error) {
@@ -522,7 +542,11 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
       if (result.status === "confirmed") {
         setDraft(undefined);
         setSaveState("confirmed");
-        setNotice(`Đã xác nhận bộ thẻ “${result.deck.title}” đã được lưu.`);
+        setNotice(
+          tr("Đã xác nhận bộ thẻ “{title}” đã được lưu.", {
+            title: result.deck.title,
+          }),
+        );
         setListPage(1);
         setListRefresh((value) => value + 1);
       } else if (result.status === "draft") {
@@ -533,17 +557,19 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
         );
         setSaveState("preview");
         setNotice(
-          "Máy chủ xác nhận bản xem trước chưa được lưu. Bạn có thể xác nhận riêng.",
+          tr(
+            "Máy chủ xác nhận bản xem trước chưa được lưu. Bạn có thể xác nhận riêng.",
+          ),
         );
       } else {
         setDraft(undefined);
         setSaveState("terminal");
         setSaveError(
           result.status === "expired"
-            ? "Bản xem trước đã hết hạn. Không thể tiếp tục lưu bản này."
+            ? tr("Bản xem trước đã hết hạn. Không thể tiếp tục lưu bản này.")
             : result.status === "deleted"
-              ? "Bộ thẻ đã bị xóa. Không thể khôi phục bằng xác nhận cũ."
-              : "Bản xem trước đã bị hủy. Không thể tiếp tục lưu bản này.",
+              ? tr("Bộ thẻ đã bị xóa. Không thể khôi phục bằng xác nhận cũ.")
+              : tr("Bản xem trước đã bị hủy. Không thể tiếp tục lưu bản này."),
         );
       }
     } catch (error) {
@@ -553,7 +579,9 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
       ) {
         setSaveState("unknown");
         setSaveError(
-          "Chưa đối chiếu được trạng thái lưu. Chỉ thử đọc đối chiếu lại; thao tác ghi vẫn bị khóa.",
+          tr(
+            "Chưa đối chiếu được trạng thái lưu. Chỉ thử đọc đối chiếu lại; thao tác ghi vẫn bị khóa.",
+          ),
         );
       }
     } finally {
@@ -590,8 +618,8 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
       setSaveState("terminal");
       setNotice(
         result.status === "expired"
-          ? "Bản xem trước đã hết hạn."
-          : "Đã hủy bản xem trước; chưa có bộ thẻ nào được lưu.",
+          ? tr("Bản xem trước đã hết hạn.")
+          : tr("Đã hủy bản xem trước; chưa có bộ thẻ nào được lưu."),
       );
     } catch (error) {
       if (
@@ -681,7 +709,9 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
     );
     setListRefresh((value) => value + 1);
     setNotice(
-      "Đã lưu lượt tự đánh giá. Đây là ghi nhận của bạn, không phải điểm AI.",
+      tr(
+        "Đã lưu lượt tự đánh giá. Đây là ghi nhận của bạn, không phải điểm AI.",
+      ),
     );
   }
 
@@ -749,14 +779,17 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
         setDetailId("");
       }
       setListRefresh((value) => value + 1);
-      setNotice("Đã xóa bộ flashcards và các lượt tự đánh giá của bạn.");
+      setNotice(tr("Đã xóa bộ flashcards và các lượt tự đánh giá của bạn."));
     } catch (error) {
       if (
         currentFor(capturedIdentity, capturedEpoch) &&
         actionRef.current === token
       )
         setListError(
-          `Chưa xác nhận được kết quả xóa. Hãy tải lại danh sách để đối chiếu. ${errorText(error)}`,
+          tr(
+            "Chưa xác nhận được kết quả xóa. Hãy tải lại danh sách để đối chiếu. {value}",
+            { value: errorText(error) },
+          ),
         );
     } finally {
       release(token);
@@ -782,19 +815,20 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
       aria-labelledby="study-flashcards-title"
     >
       <header className="study-coach-header">
-        <h2 id="study-flashcards-title">Study Coach · Flashcards</h2>
+        <h2 id="study-flashcards-title">{tr("Study Coach · Flashcards")}</h2>
         <p>
-          Tạo bộ thẻ từ bằng chứng đã lập chỉ mục trong một tài liệu; tự lật
-          thẻ, đánh giá và theo dõi tiến độ cá nhân.
+          {tr(
+            "Tạo bộ thẻ từ bằng chứng đã lập chỉ mục trong một tài liệu; tự lật thẻ, đánh giá và theo dõi tiến độ cá nhân.",
+          )}
         </p>
       </header>
 
       <section className="panel" aria-labelledby="flashcards-create-title">
-        <h3 id="flashcards-create-title">Tạo bản xem trước</h3>
+        <h3 id="flashcards-create-title">{tr("Tạo bản xem trước")}</h3>
         {!focusId && (
           <>
             <label htmlFor="flashcards-document-search">
-              Tìm tài liệu đã sẵn sàng
+              {tr("Tìm tài liệu đã sẵn sàng")}
             </label>
             <input
               id="flashcards-document-search"
@@ -805,28 +839,28 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
                 setQuery(event.target.value);
                 setDocumentPage(1);
               }}
-              placeholder="Tên tài liệu hoặc môn học"
+              placeholder={tr("Tên tài liệu hoặc môn học")}
             />
             <div
               className="study-quiz-document-picker"
               aria-busy={documentLoading}
             >
               {currentQuery.length === 1 ? (
-                <p role="status">Nhập thêm ít nhất một ký tự để tìm.</p>
+                <p role="status">{tr("Nhập thêm ít nhất một ký tự để tìm.")}</p>
               ) : documentQueryPending ? (
-                <p role="status">Đang chờ tìm kiếm…</p>
+                <p role="status">{tr("Đang chờ tìm kiếm…")}</p>
               ) : documentLoading ? (
-                <p role="status">Đang tìm tài liệu…</p>
+                <p role="status">{tr("Đang tìm tài liệu…")}</p>
               ) : visibleDocumentError ? (
                 <div role="alert">
                   <p>{visibleDocumentError}</p>
                   <button type="button" onClick={requestDocumentRetry}>
-                    Thử đọc danh sách lại
+                    {tr("Thử đọc danh sách lại")}
                   </button>
                 </div>
               ) : visibleDocs?.items.length ? (
                 <>
-                  <label htmlFor="flashcards-document">Tài liệu</label>
+                  <label htmlFor="flashcards-document">{tr("Tài liệu")}</label>
                   <select
                     id="flashcards-document"
                     value={visibleSelectedDocument?.id ?? ""}
@@ -840,7 +874,7 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
                     }}
                     disabled={busy || unresolvedReview || unresolvedSave}
                   >
-                    <option value="">Chọn tài liệu stored/ready</option>
+                    <option value="">{tr("Chọn tài liệu stored/ready")}</option>
                     {visibleDocs.items.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.name}
@@ -848,7 +882,9 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
                     ))}
                   </select>
                   <div className="study-coach-pagination">
-                    <span>{visibleDocs.total} tài liệu</span>
+                    <span>
+                      {visibleDocs.total} {tr("tài liệu")}
+                    </span>
                     <button
                       type="button"
                       disabled={documentPage <= 1 || documentLoading}
@@ -856,10 +892,11 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
                         setDocumentPage((page) => Math.max(1, page - 1))
                       }
                     >
-                      Trước
+                      {tr("Trước")}
                     </button>
                     <span>
-                      Trang {documentPage} / {visibleDocs.totalPages || 1}
+                      {tr("Trang")} {documentPage} /{" "}
+                      {visibleDocs.totalPages || 1}
                     </span>
                     <button
                       type="button"
@@ -869,15 +906,17 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
                       }
                       onClick={() => setDocumentPage((page) => page + 1)}
                     >
-                      Sau
+                      {tr("Sau")}
                     </button>
                   </div>
                 </>
               ) : (
                 <p>
                   {query.trim().length < 2
-                    ? "Nhập ít nhất hai ký tự để tìm, hoặc duyệt tài liệu đã sẵn sàng."
-                    : "Không tìm thấy tài liệu đã lập chỉ mục phù hợp."}
+                    ? tr(
+                        "Nhập ít nhất hai ký tự để tìm, hoặc duyệt tài liệu đã sẵn sàng.",
+                      )
+                    : tr("Không tìm thấy tài liệu đã lập chỉ mục phù hợp.")}
                 </p>
               )}
             </div>
@@ -886,29 +925,29 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
         {focusId && (
           <p>
             {visibleSelectedDocument
-              ? `Tài liệu: ${visibleSelectedDocument.name}`
-              : "Chọn một tài liệu từ Documents để tạo flashcards."}
+              ? tr("Tài liệu: {name}", { name: visibleSelectedDocument.name })
+              : tr("Chọn một tài liệu từ Documents để tạo flashcards.")}
           </p>
         )}
         <div className="study-coach-controls">
           <label>
-            Ngôn ngữ
+            {tr("Ngôn ngữ")}
             <select
-              aria-label="Ngôn ngữ flashcards"
+              aria-label={tr("Ngôn ngữ flashcards")}
               value={language}
               disabled={busy || unresolvedReview || unresolvedSave}
               onChange={(event) =>
                 setLanguage(event.target.value as "vi" | "en")
               }
             >
-              <option value="vi">Tiếng Việt</option>
-              <option value="en">English</option>
+              <option value="vi">{tr("Tiếng Việt")}</option>
+              <option value="en">{tr("English")}</option>
             </select>
           </label>
           <label>
-            Số thẻ
+            {tr("Số thẻ")}
             <select
-              aria-label="Số thẻ flashcards"
+              aria-label={tr("Số thẻ flashcards")}
               value={cardCount}
               disabled={busy || unresolvedReview || unresolvedSave}
               onChange={(event) => setCardCount(Number(event.target.value))}
@@ -934,22 +973,25 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
             onClick={() => void generate()}
           >
             {generationState === "generating"
-              ? "Đang tạo…"
-              : "Tạo bản xem trước"}
+              ? tr("Đang tạo…")
+              : tr("Tạo bản xem trước")}
           </button>
         </div>
         {generationError && (
           <p role="alert">
             {generationError}
             {generationState === "unknown"
-              ? " Máy chủ có thể đã tạo bản nháp; không có yêu cầu nào được tự gửi lại."
+              ? tr(
+                  " Máy chủ có thể đã tạo bản nháp; không có yêu cầu nào được tự gửi lại.",
+                )
               : ""}
           </p>
         )}
         {generationState === "unknown" && (
           <p role="status">
-            Để tránh tạo lặp, hãy chỉ bắt đầu lần tạo mới khi bạn chủ động chấp
-            nhận có thể phát sinh một lượt AI mới.
+            {tr(
+              "Để tránh tạo lặp, hãy chỉ bắt đầu lần tạo mới khi bạn chủ động chấp nhận có thể phát sinh một lượt AI mới.",
+            )}
           </p>
         )}
         {liveDraft &&
@@ -962,22 +1004,22 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
               aria-labelledby="flashcards-preview-title"
             >
               <h4 id="flashcards-preview-title">
-                Bản xem trước · chưa được lưu
+                {tr("Bản xem trước · chưa được lưu")}
               </h4>
               <p>
                 {liveDraft.flashcards.title} ·{" "}
-                {liveDraft.flashcards.cards.length} thẻ · hết hạn{" "}
+                {liveDraft.flashcards.cards.length} {tr("thẻ · hết hạn")}{" "}
                 {new Date(liveDraft.expiresAt).toLocaleString()}
               </p>
               <ol className="study-flashcard-preview-list">
                 {liveDraft.flashcards.cards.map((card) => (
                   <li key={card.id}>
-                    <strong>Mặt trước:</strong> {card.front}
+                    <strong>{tr("Mặt trước:")}</strong> {card.front}
                     <p>
-                      <strong>Mặt sau:</strong> {card.back}
+                      <strong>{tr("Mặt sau:")}</strong> {card.back}
                     </p>
                     <p>
-                      Nguồn:{" "}
+                      {tr("Nguồn:")}{" "}
                       {card.sourceIds
                         .map((sourceId) =>
                           liveDraft.flashcards.sources.find(
@@ -991,7 +1033,9 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
                             href={`#documents/${encodeURIComponent(source!.documentId)}`}
                           >
                             {source!.title}
-                            {source!.page ? ` · trang ${source!.page}` : ""}
+                            {source!.page
+                              ? tr(" · trang {page}", { page: source!.page })
+                              : ""}
                           </a>
                         ))}
                     </p>
@@ -1005,14 +1049,16 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
                   disabled={busy || unresolvedReview || saveState !== "preview"}
                   onClick={() => void confirmDraft()}
                 >
-                  {saveState === "saving" ? "Đang lưu…" : "Xác nhận lưu bộ thẻ"}
+                  {saveState === "saving"
+                    ? tr("Đang lưu…")
+                    : tr("Xác nhận lưu bộ thẻ")}
                 </button>
                 <button
                   type="button"
                   disabled={busy || unresolvedReview || saveState !== "preview"}
                   onClick={() => void cancelDraft()}
                 >
-                  Hủy bản xem trước
+                  {tr("Hủy bản xem trước")}
                 </button>
               </div>
             </div>
@@ -1022,8 +1068,9 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
           <>
             {saveState === "unknown" && (
               <p role="status">
-                Kết quả lưu chưa rõ. Chỉ đọc đối chiếu mới được dùng để mở khóa
-                thao tác.
+                {tr(
+                  "Kết quả lưu chưa rõ. Chỉ đọc đối chiếu mới được dùng để mở khóa thao tác.",
+                )}
               </p>
             )}
             <button
@@ -1031,18 +1078,19 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
               disabled={busy || unresolvedReview}
               onClick={() => void reconcileDraft()}
             >
-              Đối chiếu trạng thái lưu
+              {tr("Đối chiếu trạng thái lưu")}
             </button>
           </>
         )}
         {liveDraft && saveState === "reconciling" && (
-          <p role="status">Đang đối chiếu bản xem trước…</p>
+          <p role="status">{tr("Đang đối chiếu bản xem trước…")}</p>
         )}
         {(saveState === "error" || saveState === "terminal") &&
           draftIdentity === identity && (
             <p>
-              Chỉ tạo bản xem trước mới khi bạn chủ động chấp nhận có thể phát
-              sinh một lượt AI mới.
+              {tr(
+                "Chỉ tạo bản xem trước mới khi bạn chủ động chấp nhận có thể phát sinh một lượt AI mới.",
+              )}
             </p>
           )}
         {notice && <p role="status">{notice}</p>}
@@ -1050,23 +1098,27 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
 
       <section className="panel" aria-labelledby="saved-flashcards-title">
         <header>
-          <h3 id="saved-flashcards-title">Flashcards của tôi</h3>
-          <span>{listLoading ? "…" : `${visibleListData?.total ?? 0} bộ`}</span>
+          <h3 id="saved-flashcards-title">{tr("Flashcards của tôi")}</h3>
+          <span>
+            {listLoading
+              ? "…"
+              : tr("{value} bộ", { value: visibleListData?.total ?? 0 })}
+          </span>
           <button
             type="button"
             disabled={busy || listLoading}
             onClick={requestListRetry}
           >
-            Tải lại danh sách
+            {tr("Tải lại danh sách")}
           </button>
         </header>
         {listLoading ? (
-          <p role="status">Đang tải bộ thẻ…</p>
+          <p role="status">{tr("Đang tải bộ thẻ…")}</p>
         ) : visibleListError ? (
           <div role="alert">
             <p>{visibleListError}</p>
             <button type="button" onClick={requestListRetry}>
-              Thử tải danh sách lại
+              {tr("Thử tải danh sách lại")}
             </button>
           </div>
         ) : visibleListData?.items.length ? (
@@ -1077,39 +1129,55 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
                   <div>
                     <strong>{deck.title}</strong>
                     <p>
-                      {deck.documentTitle} · {deck.cardCount} thẻ ·{" "}
-                      {deck.progress.reviews} lượt ôn
+                      {deck.documentTitle} · {deck.cardCount} {tr("thẻ ·")}{" "}
+                      {deck.progress.reviews} {tr("lượt ôn")}
                     </p>
                     <p>
                       {deck.progress.latestAt
-                        ? `Gần nhất ${new Date(deck.progress.latestAt).toLocaleString()}: ${deck.progress.latestRemembered} đã nhớ, ${deck.progress.latestNeedsReview} cần ôn lại`
-                        : "Chưa có lượt tự đánh giá"}
+                        ? tr(
+                            "Gần nhất {value}: {latestRemembered} đã nhớ, {latestNeedsReview} cần ôn lại",
+                            {
+                              value: new Date(
+                                deck.progress.latestAt,
+                              ).toLocaleString(),
+                              latestRemembered: deck.progress.latestRemembered,
+                              latestNeedsReview:
+                                deck.progress.latestNeedsReview,
+                            },
+                          )
+                        : tr("Chưa có lượt tự đánh giá")}
                     </p>
                     <p>
                       {deck.sourceAvailable
-                        ? "Nguồn hiện còn khả dụng"
-                        : "Nguồn không còn sẵn sàng; snapshot flashcards được giữ nguyên."}
+                        ? tr("Nguồn hiện còn khả dụng")
+                        : tr(
+                            "Nguồn không còn sẵn sàng; snapshot flashcards được giữ nguyên.",
+                          )}
                     </p>
                   </div>
                   <div className="study-coach-controls">
                     <button
                       type="button"
                       disabled={busy || unresolvedReview || unresolvedSave}
-                      aria-label={`Mở bộ thẻ ${deck.title}`}
+                      aria-label={tr("Mở bộ thẻ {title}", {
+                        title: deck.title,
+                      })}
                       onClick={() => void openDeck(deck.id)}
                     >
-                      Mở để luyện tập
+                      {tr("Mở để luyện tập")}
                     </button>
                     <button
                       type="button"
                       disabled={busy || unresolvedReview || unresolvedSave}
                       onClick={() => void removeDeck(deck)}
                     >
-                      {deleteTarget === deck.id ? "Xác nhận xóa" : "Xóa bộ thẻ"}
+                      {deleteTarget === deck.id
+                        ? tr("Xác nhận xóa")
+                        : tr("Xóa bộ thẻ")}
                     </button>
                     {deleteTarget === deck.id && (
                       <button type="button" onClick={() => setDeleteTarget("")}>
-                        Giữ lại
+                        {tr("Giữ lại")}
                       </button>
                     )}
                   </div>
@@ -1122,24 +1190,25 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
                 disabled={listPage <= 1 || listLoading}
                 onClick={() => setListPage((page) => Math.max(1, page - 1))}
               >
-                Trước
+                {tr("Trước")}
               </button>
               <span>
-                Trang {listPage} / {visibleListData.totalPages}
+                {tr("Trang")} {listPage} / {visibleListData.totalPages}
               </span>
               <button
                 type="button"
                 disabled={listPage >= visibleListData.totalPages || listLoading}
                 onClick={() => setListPage((page) => page + 1)}
               >
-                Sau
+                {tr("Sau")}
               </button>
             </div>
           </>
         ) : (
           <p>
-            Chưa có bộ flashcards đã lưu. Tạo bản xem trước rồi xác nhận lưu để
-            bắt đầu.
+            {tr(
+              "Chưa có bộ flashcards đã lưu. Tạo bản xem trước rồi xác nhận lưu để bắt đầu.",
+            )}
           </p>
         )}
       </section>
@@ -1149,9 +1218,9 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
           className="panel study-quiz-practice"
           aria-labelledby="flashcards-practice-title"
         >
-          <h3 id="flashcards-practice-title">Luyện tập flashcards</h3>
+          <h3 id="flashcards-practice-title">{tr("Luyện tập flashcards")}</h3>
           {detailLoading ? (
-            <p role="status">Đang mở bộ thẻ…</p>
+            <p role="status">{tr("Đang mở bộ thẻ…")}</p>
           ) : visibleDetailError ? (
             <div role="alert">
               <p>{visibleDetailError}</p>
@@ -1159,7 +1228,7 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
                 type="button"
                 onClick={() => detailId && void openDeck(detailId)}
               >
-                Thử mở lại
+                {tr("Thử mở lại")}
               </button>
             </div>
           ) : (
@@ -1167,21 +1236,33 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
               <>
                 <h4>{visibleDetail.deck.title}</h4>
                 <p>
-                  {visibleDetail.deck.progress.reviews} lượt ôn hoàn tất ·{" "}
+                  {visibleDetail.deck.progress.reviews}{" "}
+                  {tr("lượt ôn hoàn tất ·")}{" "}
                   {visibleDetail.deck.progress.latestAt
-                    ? `gần nhất ${new Date(visibleDetail.deck.progress.latestAt).toLocaleString()}: ${visibleDetail.deck.progress.latestRemembered} đã nhớ, ${visibleDetail.deck.progress.latestNeedsReview} cần ôn lại`
-                    : "chưa có lượt ôn"}
+                    ? tr(
+                        "gần nhất {value}: {latestRemembered} đã nhớ, {latestNeedsReview} cần ôn lại",
+                        {
+                          value: new Date(
+                            visibleDetail.deck.progress.latestAt,
+                          ).toLocaleString(),
+                          latestRemembered:
+                            visibleDetail.deck.progress.latestRemembered,
+                          latestNeedsReview:
+                            visibleDetail.deck.progress.latestNeedsReview,
+                        },
+                      )
+                    : tr("chưa có lượt ôn")}
                 </p>
                 <article className="study-flashcard" aria-live="polite">
                   <p>
-                    Thẻ {cardIndex + 1} / {visibleDetail.cards.length}
+                    {tr("Thẻ")} {cardIndex + 1} / {visibleDetail.cards.length}
                   </p>
                   <strong>{currentCard?.front}</strong>
                   {revealed && (
                     <div>
                       <p>{currentCard?.back}</p>
                       <p>
-                        Nguồn:{" "}
+                        {tr("Nguồn:")}{" "}
                         {currentCard?.sourceIds
                           .map((sourceId) =>
                             visibleDetail.sources.find(
@@ -1196,11 +1277,16 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
                                 href={`#documents/${encodeURIComponent(source!.documentId)}`}
                               >
                                 {source!.title}
-                                {source!.page ? ` · trang ${source!.page}` : ""}
+                                {source!.page
+                                  ? tr(" · trang {page}", {
+                                      page: source!.page,
+                                    })
+                                  : ""}
                               </a>
                             ) : (
                               <span key={source!.sourceId}>
-                                Nguồn hiện không khả dụng: {source!.title}
+                                {tr("Nguồn hiện không khả dụng:")}{" "}
+                                {source!.title}
                               </span>
                             ),
                           )}
@@ -1216,7 +1302,7 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
                     }
                     onClick={() => setRevealed(true)}
                   >
-                    Lật thẻ
+                    {tr("Lật thẻ")}
                   </button>
                   <button
                     type="button"
@@ -1230,7 +1316,7 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
                     }
                     onClick={() => rateCurrent("remembered")}
                   >
-                    Đã nhớ
+                    {tr("Đã nhớ")}
                   </button>
                   <button
                     type="button"
@@ -1244,7 +1330,7 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
                     }
                     onClick={() => rateCurrent("needs_review")}
                   >
-                    Cần ôn lại
+                    {tr("Cần ôn lại")}
                   </button>
                   <button
                     type="button"
@@ -1261,7 +1347,7 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
                       setRevealed(false);
                     }}
                   >
-                    Thẻ tiếp theo
+                    {tr("Thẻ tiếp theo")}
                   </button>
                 </div>
                 {allRated && reviewState !== "confirmed" && (
@@ -1271,38 +1357,44 @@ export function StudyFlashcardsPanel({ focusId }: { focusId?: string }) {
                     disabled={busy || unresolvedReview || unresolvedSave}
                     onClick={() => void submitReview()}
                   >
-                    Lưu lượt tự đánh giá
+                    {tr("Lưu lượt tự đánh giá")}
                   </button>
                 )}
                 {reviewState === "sending" && (
-                  <p role="status">Đang lưu lượt tự đánh giá…</p>
+                  <p role="status">{tr("Đang lưu lượt tự đánh giá…")}</p>
                 )}
                 {reviewState === "unknown" && (
                   <div role="alert">
                     <p>
-                      {reviewError} Kết quả chưa rõ; lượt và khóa vẫn được giữ.
+                      {reviewError}{" "}
+                      {tr("Kết quả chưa rõ; lượt và khóa vẫn được giữ.")}
                     </p>
                     <button
                       type="button"
                       disabled={busy}
                       onClick={() => void retryReview()}
                     >
-                      Thử lại cùng lượt
+                      {tr("Thử lại cùng lượt")}
                     </button>
                   </div>
                 )}
                 {reviewState === "failed" && <p role="alert">{reviewError}</p>}
                 {reviewState === "confirmed" && (
                   <p role="status">
-                    Đã lưu: {visibleDetail.deck.progress.latestRemembered} đã
-                    nhớ, {visibleDetail.deck.progress.latestNeedsReview} cần ôn
-                    lại. Đây là tự đánh giá của bạn, không phải điểm AI.
+                    {tr("Đã lưu:")}{" "}
+                    {visibleDetail.deck.progress.latestRemembered}{" "}
+                    {tr("đã nhớ,")}{" "}
+                    {visibleDetail.deck.progress.latestNeedsReview}{" "}
+                    {tr(
+                      "cần ôn lại. Đây là tự đánh giá của bạn, không phải điểm AI.",
+                    )}
                   </p>
                 )}
                 {unresolvedReview && (
                   <p role="status">
-                    Đang giữ nguyên bộ thẻ và payload lượt ôn cho đến khi máy
-                    chủ xác nhận.
+                    {tr(
+                      "Đang giữ nguyên bộ thẻ và payload lượt ôn cho đến khi máy chủ xác nhận.",
+                    )}
                   </p>
                 )}
               </>

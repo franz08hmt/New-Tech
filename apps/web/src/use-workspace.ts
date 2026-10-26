@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type Task, type TaskStatus } from "./api";
+import { tl } from "./i18n";
 
 export function useWorkspace(loadDashboardTasks = true) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -24,7 +25,7 @@ export function useWorkspace(loadDashboardTasks = true) {
       if (currentVersion !== version.current || controller.signal.aborted)
         return;
       setError(
-        `Tasks are unavailable. ${caught instanceof Error ? caught.message : "Please retry."}`,
+        `${tl("Tasks are unavailable.")} ${caught instanceof Error ? caught.message : tl("Please retry.")}`,
       );
     } finally {
       if (currentVersion === version.current) setLoading(false);
@@ -60,7 +61,7 @@ export function useWorkspace(loadDashboardTasks = true) {
       return true;
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Could not save task.",
+        caught instanceof Error ? caught.message : tl("Could not save task."),
       );
       return false;
     } finally {
@@ -83,7 +84,7 @@ export function useWorkspace(loadDashboardTasks = true) {
       return true;
     } catch (caught) {
       setError(
-        `Could not update task. Your previous status has been kept. ${caught instanceof Error ? caught.message : ""}`,
+        `${tl("Could not update task. Your previous status has been kept.")} ${caught instanceof Error ? caught.message : ""}`,
       );
       return false;
     } finally {

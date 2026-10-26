@@ -23,6 +23,7 @@ import {
   type StoredDocument,
 } from "./api";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
+import { useTr, tl } from "./i18n";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 interface LocalDocument {
@@ -37,7 +38,9 @@ type FocusLookup = {
   document?: StoredDocument;
 };
 const message = (error: unknown) =>
-  error instanceof Error ? error.message : "Operation failed. Please retry.";
+  error instanceof Error
+    ? error.message
+    : tl("Operation failed. Please retry.");
 
 export function DocumentsPanel({
   onDocumentsChanged,
@@ -46,6 +49,7 @@ export function DocumentsPanel({
   onDocumentsChanged?: () => void;
   focusId?: string;
 }) {
+  const tr = useTr();
   const principal = useContext(PilotPrincipalContext);
   const canWrite =
     principal?.role === "member" || principal?.role === "manager";
@@ -345,7 +349,9 @@ export function DocumentsPanel({
     );
     if (invalid) {
       setError(
-        `${invalid.name}: Only PDF files are accepted, up to 10 MiB each.`,
+        tr("{name}: Only PDF files are accepted, up to 10 MiB each.", {
+          name: invalid.name,
+        }),
       );
       return;
     }
@@ -364,8 +370,13 @@ export function DocumentsPanel({
     setSelected((current) => [...current, ...added]);
     setNotice(
       !added.length && duplicates
-        ? "That PDF is already in the list."
-        : `${added.length} PDF selected.${duplicates ? ` ${duplicates} already in the list was skipped.` : ""}`,
+        ? tr("That PDF is already in the list.")
+        : tr("{count} PDF selected.", { count: added.length }) +
+            (duplicates
+              ? tr(" {duplicates} already in the list was skipped.", {
+                  duplicates,
+                })
+              : ""),
     );
   }
   function begin(id: string) {
@@ -402,7 +413,7 @@ export function DocumentsPanel({
       );
       if (!isCurrent()) return;
       setSelected((current) => current.filter((row) => row.id !== item.id));
-      setNotice(`${stored.name} stored successfully.`);
+      setNotice(tr("{name} stored successfully.", { name: stored.name }));
     } catch (caught) {
       if (!isCurrent()) return;
       setSelected((current) =>
@@ -433,15 +444,18 @@ export function DocumentsPanel({
       );
       setNotice(
         updated.course_name
-          ? `Đã chuyển "${updated.name}" sang ${updated.course_name}.`
-          : `Đã gỡ "${updated.name}" khỏi môn học.`,
+          ? tr('Đã chuyển "{name}" sang {course_name}.', {
+              name: updated.name,
+              course_name: updated.course_name,
+            })
+          : tr('Đã gỡ "{name}" khỏi môn học.', { name: updated.name }),
       );
     } catch (cause) {
       if (!isCurrent()) return;
       setError(
         cause instanceof Error
           ? cause.message
-          : "Chưa đổi được môn cho tài liệu này.",
+          : tr("Chưa đổi được môn cho tài liệu này."),
       );
     } finally {
       if (isCurrent()) {
@@ -522,7 +536,8 @@ export function DocumentsPanel({
       await reconcileIndex(
         id,
         isCurrent,
-        indexErrors[id] ?? "Yêu cầu lập chỉ mục trước đó chưa được xác nhận.",
+        indexErrors[id] ??
+          tr("Yêu cầu lập chỉ mục trước đó chưa được xác nhận."),
       );
     } finally {
       if (isCurrent()) {
@@ -567,7 +582,10 @@ export function DocumentsPanel({
         index_quality: result.index_quality,
       });
       setNotice(
-        `Đã lập chỉ mục "${item.name}" thành ${result.chunk_count} đoạn để Assistant truy xuất.`,
+        tr(
+          'Đã lập chỉ mục "{name}" thành {chunk_count} đoạn để Assistant truy xuất.',
+          { name: item.name, chunk_count: result.chunk_count },
+        ),
       );
     } catch (cause) {
       if (!isCurrent()) return;
@@ -575,7 +593,10 @@ export function DocumentsPanel({
       const denied =
         cause instanceof ApiError && [401, 403].includes(cause.status);
       setIndexReads((current) => ({ ...current, [item.id]: { denied } }));
-      const requestError = `Yêu cầu lập chỉ mục trả lỗi: ${message(cause)} Trạng thái được đối chiếu riêng.`;
+      const requestError = tr(
+        "Yêu cầu lập chỉ mục trả lỗi: {value} Trạng thái được đối chiếu riêng.",
+        { value: message(cause) },
+      );
       setIndexErrors((current) => ({
         ...current,
         [item.id]: requestError,
@@ -622,11 +643,14 @@ export function DocumentsPanel({
           ? { key: current.key, status: "unavailable" }
           : current,
       );
-      setNotice(`${item.name} deleted.`);
+      setNotice(tr("{name} deleted.", { name: item.name }));
     } catch (caught) {
       if (!isCurrent()) return;
       setError(
-        `${message(caught)} Refresh the list and retry delete to finish any pending deletion.`,
+        tr(
+          "{value} Refresh the list and retry delete to finish any pending deletion.",
+          { value: message(caught) },
+        ),
       );
     } finally {
       if (isCurrent()) {
@@ -699,13 +723,15 @@ export function DocumentsPanel({
           onRemove={canDelete ? () => void remove(item) : undefined}
         />
         <label className="document-course">
-          <span className="sr-only">Course for {item.name}</span>
+          <span className="sr-only">
+            {tr("Course for")} {item.name}
+          </span>
           <select
             value={item.course_id ?? ""}
             disabled={!canWrite || busyIds.includes(item.id)}
             onChange={(event) => void refile(item, event.target.value || null)}
           >
-            <option value="">Chưa gắn môn nào</option>
+            <option value="">{tr("Chưa gắn môn nào")}</option>
             {courses.courses.map((course) => (
               <option key={course.id} value={course.id}>
                 {course.name} ({course.code})
@@ -728,18 +754,20 @@ export function DocumentsPanel({
             <DocumentTextIcon />
           </span>
           <span>
-            <h2 id="document-library-title">Document library</h2>
-            <p>Store and manage course and project PDFs.</p>
+            <h2 id="document-library-title">{tr("Document library")}</h2>
+            <p>{tr("Store and manage course and project PDFs.")}</p>
           </span>
         </header>
         <section className="upload-panel" aria-labelledby="upload-title">
           <DocumentArrowUpIcon aria-hidden="true" />
-          <h3 id="upload-title">Add study documents</h3>
+          <h3 id="upload-title">{tr("Add study documents")}</h3>
           <p id="upload-help">
-            Choose PDF files up to 10 MiB each, then upload each selected file.
+            {tr(
+              "Choose PDF files up to 10 MiB each, then upload each selected file.",
+            )}
           </p>
           <label className="file-picker">
-            Choose PDF files
+            {tr("Choose PDF files")}
             <input
               type="file"
               disabled={!canWrite}
@@ -750,13 +778,13 @@ export function DocumentsPanel({
             />
           </label>
           <label className="upload-course">
-            Save under course
+            {tr("Save under course")}
             <select
               value={uploadCourseId}
               disabled={!canWrite}
               onChange={(event) => setUploadCourseId(event.target.value)}
             >
-              <option value="">Không thuộc môn nào</option>
+              <option value="">{tr("Không thuộc môn nào")}</option>
               {courses.courses.map((course) => (
                 <option key={course.id} value={course.id}>
                   {course.name} ({course.code})
@@ -766,14 +794,15 @@ export function DocumentsPanel({
           </label>
           {!canWrite && (
             <p className="page-note">
-              Bạn đang có quyền xem và tải tài liệu. Nhờ thành viên hoặc người
-              quản lý tải lên, đổi môn hoặc lập chỉ mục giúp nhé. Chỉ người quản
-              lý mới được xoá tài liệu đã lưu.
+              {tr(
+                "Bạn đang có quyền xem và tải tài liệu. Nhờ thành viên hoặc người quản lý tải lên, đổi môn hoặc lập chỉ mục giúp nhé. Chỉ người quản lý mới được xoá tài liệu đã lưu.",
+              )}
             </p>
           )}
           <p id="upload-boundary" className="upload-boundary">
-            Uploaded PDFs are saved in private Storage with database metadata.
-            Shared demo workspace · index documents for grounded answers.
+            {tr(
+              "Uploaded PDFs are saved in private Storage with database metadata. Shared demo workspace · index documents for grounded answers.",
+            )}
           </p>
           {error && (
             <p className="error-message" role="alert">
@@ -785,11 +814,13 @@ export function DocumentsPanel({
         {canWrite && selected.length > 0 && (
           <section
             className="selected-documents"
-            aria-label="Selected documents"
+            aria-label={tr("Selected documents")}
           >
             <header>
-              <h3>Selected documents</h3>
-              <span>{selected.length} local</span>
+              <h3>{tr("Selected documents")}</h3>
+              <span>
+                {selected.length} {tr("local")}
+              </span>
             </header>
             <ul>
               {selected.map((item) => (
@@ -812,11 +843,16 @@ export function DocumentsPanel({
             </ul>
           </section>
         )}
-        <section className="selected-documents" aria-label="Stored documents">
+        <section
+          className="selected-documents"
+          aria-label={tr("Stored documents")}
+        >
           <header>
-            <h3>Stored documents</h3>
+            <h3>{tr("Stored documents")}</h3>
             <span>
-              {listEmptied || listError ? "…" : `${visibleTotal} results`}
+              {listEmptied || listError
+                ? "…"
+                : tr("{visibleTotal} results", { visibleTotal })}
             </span>
             <button
               type="button"
@@ -828,17 +864,17 @@ export function DocumentsPanel({
               }
               onClick={() => void reload(true)}
             >
-              {listError ? "Retry list" : "Refresh list"}
+              {listError ? tr("Retry list") : tr("Refresh list")}
             </button>
           </header>
           <div className="document-search-toolbar">
             <label className="document-search-field">
-              Search documents
+              {tr("Search documents")}
               <input
                 type="search"
                 value={searchInput}
                 maxLength={120}
-                placeholder="Name or course metadata"
+                placeholder={tr("Name or course metadata")}
                 onChange={(event) => {
                   setSearchInput(event.target.value);
                   setPage(1);
@@ -846,7 +882,7 @@ export function DocumentsPanel({
               />
             </label>
             <label className="document-query-field">
-              Filter by course
+              {tr("Filter by course")}
               <select
                 value={filterCourseId}
                 onChange={(event) => {
@@ -854,8 +890,8 @@ export function DocumentsPanel({
                   setPage(1);
                 }}
               >
-                <option value="all">Tất cả môn</option>
-                <option value="none">Chưa gắn môn nào</option>
+                <option value="all">{tr("Tất cả môn")}</option>
+                <option value="none">{tr("Chưa gắn môn nào")}</option>
                 {courses.courses.map((course) => (
                   <option key={course.id} value={course.id}>
                     {course.name} ({course.code})
@@ -864,7 +900,7 @@ export function DocumentsPanel({
               </select>
             </label>
             <label className="document-query-field">
-              Filter by storage status
+              {tr("Filter by storage status")}
               <select
                 value={storageFilter}
                 onChange={(event) => {
@@ -872,14 +908,14 @@ export function DocumentsPanel({
                   setPage(1);
                 }}
               >
-                <option value="">All storage states</option>
-                <option value="stored">Stored</option>
-                <option value="deleting">Deletion pending</option>
-                <option value="legacy">Legacy metadata</option>
+                <option value="">{tr("All storage states")}</option>
+                <option value="stored">{tr("Stored")}</option>
+                <option value="deleting">{tr("Deletion pending")}</option>
+                <option value="legacy">{tr("Legacy metadata")}</option>
               </select>
             </label>
             <label className="document-query-field">
-              Filter by processing status
+              {tr("Filter by processing status")}
               <select
                 value={processingFilter}
                 onChange={(event) => {
@@ -889,15 +925,15 @@ export function DocumentsPanel({
                   setPage(1);
                 }}
               >
-                <option value="">All processing states</option>
-                <option value="pending">Pending</option>
-                <option value="processing">Processing</option>
-                <option value="ready">Ready</option>
-                <option value="failed">Failed</option>
+                <option value="">{tr("All processing states")}</option>
+                <option value="pending">{tr("Pending")}</option>
+                <option value="processing">{tr("Processing")}</option>
+                <option value="ready">{tr("Ready")}</option>
+                <option value="failed">{tr("Failed")}</option>
               </select>
             </label>
             <label className="document-query-field">
-              Sort documents by
+              {tr("Sort documents by")}
               <select
                 value={sort}
                 onChange={(event) => {
@@ -905,15 +941,17 @@ export function DocumentsPanel({
                   setPage(1);
                 }}
               >
-                <option value="created_at">Date added</option>
-                <option value="name">Name</option>
-                <option value="course_name">Course</option>
-                <option value="storage_status">Storage status</option>
-                <option value="processing_status">Processing status</option>
+                <option value="created_at">{tr("Date added")}</option>
+                <option value="name">{tr("Name")}</option>
+                <option value="course_name">{tr("Course")}</option>
+                <option value="storage_status">{tr("Storage status")}</option>
+                <option value="processing_status">
+                  {tr("Processing status")}
+                </option>
               </select>
             </label>
             <label className="document-query-field">
-              Sort direction
+              {tr("Sort direction")}
               <select
                 value={direction}
                 onChange={(event) => {
@@ -921,12 +959,12 @@ export function DocumentsPanel({
                   setPage(1);
                 }}
               >
-                <option value="desc">Descending</option>
-                <option value="asc">Ascending</option>
+                <option value="desc">{tr("Descending")}</option>
+                <option value="asc">{tr("Ascending")}</option>
               </select>
             </label>
             <label className="document-query-field">
-              Results per page
+              {tr("Results per page")}
               <select
                 value={pageSize}
                 onChange={(event) => {
@@ -952,12 +990,12 @@ export function DocumentsPanel({
                 setPageSize(20);
               }}
             >
-              Reset filters
+              {tr("Reset filters")}
             </button>
           </div>
           {listError && (
             <p className="error-message" role="alert">
-              Chưa tải được danh sách: {listError}
+              {tr("Chưa tải được danh sách:")} {listError}
             </p>
           )}
           {focusId && focusKey && !pageContainsFocus && currentFocusLookup && (
@@ -965,27 +1003,29 @@ export function DocumentsPanel({
               className="document-focused"
               aria-labelledby="linked-document-title"
             >
-              <h3 id="linked-document-title">Linked document</h3>
+              <h3 id="linked-document-title">{tr("Linked document")}</h3>
               {currentFocusLookup.status === "loading" && (
-                <p aria-live="polite">Loading linked document…</p>
+                <p aria-live="polite">{tr("Loading linked document…")}</p>
               )}
               {currentFocusLookup.status === "unavailable" && (
                 <p role="status">
-                  This linked document is no longer available in the current
-                  workspace.
+                  {tr(
+                    "This linked document is no longer available in the current workspace.",
+                  )}
                 </p>
               )}
               {currentFocusLookup.status === "error" && (
                 <div>
                   <p className="error-message" role="alert">
-                    Could not check this linked document. The list and its
-                    filters remain unchanged.
+                    {tr(
+                      "Could not check this linked document. The list and its filters remain unchanged.",
+                    )}
                   </p>
                   <button
                     type="button"
                     onClick={() => setFocusRetryVersion((value) => value + 1)}
                   >
-                    Retry document lookup
+                    {tr("Retry document lookup")}
                   </button>
                 </div>
               )}
@@ -993,9 +1033,9 @@ export function DocumentsPanel({
                 currentFocusLookup.document && (
                   <>
                     <p>
-                      This linked document is outside the current page or
-                      filters. It is shown separately; the result count and list
-                      below are unchanged.
+                      {tr(
+                        "This linked document is outside the current page or filters. It is shown separately; the result count and list below are unchanged.",
+                      )}
                     </p>
                     <div
                       className="document-focused-card"
@@ -1010,7 +1050,7 @@ export function DocumentsPanel({
             </section>
           )}
           {listEmptied && !listError ? (
-            <p aria-live="polite">Loading documents…</p>
+            <p aria-live="polite">{tr("Loading documents…")}</p>
           ) : !listError ? (
             <ul>
               {visibleDocuments.map((item) => (
@@ -1047,7 +1087,9 @@ export function DocumentsPanel({
                     onRemove={canDelete ? () => void remove(item) : undefined}
                   />
                   <label className="document-course">
-                    <span className="sr-only">Course for {item.name}</span>
+                    <span className="sr-only">
+                      {tr("Course for")} {item.name}
+                    </span>
                     <select
                       value={item.course_id ?? ""}
                       disabled={!canWrite || busyIds.includes(item.id)}
@@ -1055,7 +1097,7 @@ export function DocumentsPanel({
                         void refile(item, event.target.value || null)
                       }
                     >
-                      <option value="">Chưa gắn môn nào</option>
+                      <option value="">{tr("Chưa gắn môn nào")}</option>
                       {courses.courses.map((course) => (
                         <option key={course.id} value={course.id}>
                           {course.name} ({course.code})
@@ -1070,66 +1112,77 @@ export function DocumentsPanel({
           {!readPending && !listError && !visibleDocuments.length && (
             <p className="empty-message">
               {visibleTotal > 0
-                ? "Không có tài liệu nào trên trang này. Quay lại trang trước để tiếp tục."
+                ? tr(
+                    "Không có tài liệu nào trên trang này. Quay lại trang trước để tiếp tục.",
+                  )
                 : searchQuery ||
                     filterCourseId !== "all" ||
                     storageFilter ||
                     processingFilter
-                  ? "Không tìm thấy tài liệu phù hợp. Hãy đổi hoặc đặt lại bộ lọc."
-                  : "Chưa có tài liệu nào. Tải một tệp PDF lên để bắt đầu."}
+                  ? tr(
+                      "Không tìm thấy tài liệu phù hợp. Hãy đổi hoặc đặt lại bộ lọc.",
+                    )
+                  : tr("Chưa có tài liệu nào. Tải một tệp PDF lên để bắt đầu.")}
             </p>
           )}
           {!listEmptied && !listError && visibleTotalPages > 0 && (
-            <nav className="document-pagination" aria-label="Document pages">
+            <nav
+              className="document-pagination"
+              aria-label={tr("Document pages")}
+            >
               <button
                 type="button"
                 disabled={page <= 1 || busyIds.length > 0}
                 onClick={() => setPage((current) => Math.max(1, current - 1))}
               >
-                Previous
+                {tr("Previous")}
               </button>
               <span aria-live="polite">
-                Page {page} of {visibleTotalPages} · {visibleTotal} results
+                {tr("Page")} {page} {tr("of")} {visibleTotalPages} ·{" "}
+                {visibleTotal} {tr("results")}
               </span>
               <button
                 type="button"
                 disabled={page >= visibleTotalPages || busyIds.length > 0}
                 onClick={() => setPage((current) => current + 1)}
               >
-                Next
+                {tr("Next")}
               </button>
             </nav>
           )}
         </section>
       </section>
       <aside className="document-roadmap" aria-labelledby="roadmap-title">
-        <h2 id="roadmap-title">Document workflow</h2>
+        <h2 id="roadmap-title">{tr("Document workflow")}</h2>
         <ol>
           <li>
             <ShieldCheckIcon aria-hidden="true" />
             <span>
-              <strong>Validate and store</strong>
-              <small>PDF file and metadata through the backend</small>
+              <strong>{tr("Validate and store")}</strong>
+              <small>{tr("PDF file and metadata through the backend")}</small>
             </span>
           </li>
           <li>
             <CircleStackIcon aria-hidden="true" />
             <span>
-              <strong>Extract and index</strong>
-              <small>Backend PDF processing and Gemini embeddings</small>
+              <strong>{tr("Extract and index")}</strong>
+              <small>
+                {tr("Backend PDF processing and Gemini embeddings")}
+              </small>
             </span>
           </li>
           <li>
             <MagnifyingGlassIcon aria-hidden="true" />
             <span>
-              <strong>Retrieve with citations</strong>
-              <small>Grounded Assistant with validated sources</small>
+              <strong>{tr("Retrieve with citations")}</strong>
+              <small>{tr("Grounded Assistant with validated sources")}</small>
             </span>
           </li>
         </ol>
         <p>
-          The backend checks size, extension, MIME and PDF signature. This is
-          not a full PDF parser or malware scan.
+          {tr(
+            "The backend checks size, extension, MIME and PDF signature. This is not a full PDF parser or malware scan.",
+          )}
         </p>
       </aside>
     </section>

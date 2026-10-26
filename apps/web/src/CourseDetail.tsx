@@ -9,6 +9,7 @@ import { Panel } from "./AcademicPanels";
 import { courseIconFor } from "./academic-data";
 import { CourseWorkspace } from "./CourseWorkspace";
 import type { Course } from "./api";
+import { useTr } from "./i18n";
 
 export function CourseDetail({
   course,
@@ -17,17 +18,19 @@ export function CourseDetail({
   course?: Course;
   onDocumentsChanged?: () => void;
 }) {
+  const tr = useTr();
   if (!course) {
     return (
       <article className="course-detail-page course-not-found">
         <CourseBreadcrumb />
-        <Panel title="Course not found" icon={<AcademicCapIcon />}>
+        <Panel title={tr("Course not found")} icon={<AcademicCapIcon />}>
           <p>
-            Không tìm thấy môn học minh họa này. Đường dẫn có thể chưa đầy đủ
-            hoặc môn học không còn trong gallery.
+            {tr(
+              "Không tìm thấy môn học minh họa này. Đường dẫn có thể chưa đầy đủ hoặc môn học không còn trong gallery.",
+            )}
           </p>
           <a className="primary-button" href="#courses">
-            Browse available courses
+            {tr("Browse available courses")}
           </a>
         </Panel>
       </article>
@@ -48,21 +51,24 @@ export function CourseDetail({
           <CourseIcon />
         </span>
         <header className="course-summary-copy">
-          <p className="example-label">Illustrative course guide</p>
-          <h2 id="course-summary-title">At a glance</h2>
+          <p className="example-label">{tr("Illustrative course guide")}</p>
+          <h2 id="course-summary-title">{tr("At a glance")}</h2>
           <p>{course.detail}</p>
           <dl className="course-summary-meta">
             <div>
-              <dt>Course code</dt>
+              <dt>{tr("Course code")}</dt>
               <dd>{course.code}</dd>
             </div>
             <div>
-              <dt>Example progress</dt>
+              <dt>{tr("Example progress")}</dt>
               <dd>{course.progress}%</dd>
             </div>
           </dl>
           <progress
-            aria-label={`${course.name} example progress: ${course.progress}%`}
+            aria-label={tr("{name} example progress: {progress}%", {
+              name: course.name,
+              progress: course.progress,
+            })}
             value={course.progress}
             max={100}
           >
@@ -72,13 +78,14 @@ export function CourseDetail({
       </section>
 
       <p className="page-note course-disclaimer">
-        <strong>Illustrative, not an official syllabus.</strong> These topics,
-        outcomes, and assessment details are sample content for demonstrating
-        ExaMate&apos;s course workspace.
+        <strong>{tr("Illustrative, not an official syllabus.")}</strong>{" "}
+        {tr(
+          "These topics, outcomes, and assessment details are sample content for demonstrating ExaMate's course workspace.",
+        )}
       </p>
 
-      <section className="course-detail-grid" aria-label="Course guide">
-        <Panel title="Course outline" icon={<BookOpenIcon />}>
+      <section className="course-detail-grid" aria-label={tr("Course guide")}>
+        <Panel title={tr("Course outline")} icon={<BookOpenIcon />}>
           <ol className="course-outline">
             {course.outline.map((topic, index) => (
               <li key={topic.title}>
@@ -94,7 +101,7 @@ export function CourseDetail({
           </ol>
         </Panel>
 
-        <Panel title="Learning outcomes" icon={<CheckCircleIcon />}>
+        <Panel title={tr("Learning outcomes")} icon={<CheckCircleIcon />}>
           <ul className="course-outcomes">
             {course.outcomes.map((outcome) => (
               <li key={outcome}>
@@ -105,7 +112,10 @@ export function CourseDetail({
           </ul>
         </Panel>
 
-        <Panel title="Assessment approach" icon={<ClipboardDocumentListIcon />}>
+        <Panel
+          title={tr("Assessment approach")}
+          icon={<ClipboardDocumentListIcon />}
+        >
           <ul className="course-assessment">
             {course.assessment.map((item) => (
               <li key={item.method}>
@@ -129,11 +139,12 @@ export function CourseDetail({
 }
 
 function CourseBreadcrumb({ current }: { current?: string }) {
+  const tr = useTr();
   return (
-    <nav className="course-breadcrumbs" aria-label="Course breadcrumbs">
+    <nav className="course-breadcrumbs" aria-label={tr("Course breadcrumbs")}>
       <a href="#courses">
         <ChevronLeftIcon aria-hidden="true" />
-        Back to course gallery
+        {tr("Back to course gallery")}
       </a>
       {current && <span aria-current="page">{current}</span>}
     </nav>

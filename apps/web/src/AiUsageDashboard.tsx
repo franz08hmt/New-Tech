@@ -11,6 +11,7 @@ import type {
   AiUsageProviderCallsResponse,
 } from "./api";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
+import { useTr, tl } from "./i18n";
 
 type Filters = AiUsageDashboardQuery;
 type ReadError = {
@@ -46,7 +47,7 @@ function daysBefore(day: string, count: number) {
 }
 
 function formatInteger(value: string | null | undefined) {
-  if (value === null || value === undefined) return "Chưa có dữ liệu";
+  if (value === null || value === undefined) return tl("Chưa có dữ liệu");
   try {
     return new Intl.NumberFormat("vi-VN").format(BigInt(value));
   } catch {
@@ -74,38 +75,42 @@ function friendlyError(error: unknown) {
       return {
         forbidden: true,
         invalid: false,
-        message: "Chỉ manager có membership hiện tại mới xem được trang này.",
+        message: tl(
+          "Chỉ manager có membership hiện tại mới xem được trang này.",
+        ),
       };
     if (error.status === 401 || error.code === "AUTH_REQUIRED")
       return {
         forbidden: true,
         invalid: false,
-        message: "Phiên đăng nhập không còn quyền xem trang này.",
+        message: tl("Phiên đăng nhập không còn quyền xem trang này."),
       };
     if (error.status === 400 && error.code === "AI_USAGE_QUERY_INVALID")
       return {
         forbidden: false,
         invalid: true,
-        message:
+        message: tl(
           "Ngày hoặc bộ lọc không hợp lệ. Chọn ngày từ 0001-01-01 đến 9999-12-30 và khoảng tối đa 90 ngày.",
+        ),
       };
   }
   return {
     forbidden: false,
     invalid: false,
-    message:
+    message: tl(
       "Chưa tải được telemetry. Hãy thử tải lại; thao tác này chỉ đọc dữ liệu.",
+    ),
   };
 }
 
 function outcomeLabel(value: string) {
   const labels: Record<string, string> = {
-    success: "Thành công",
-    error: "Lỗi",
-    timeout: "Hết giờ",
-    cancelled: "Đã hủy",
-    rejected: "Bị từ chối",
-    unknown: "Chưa rõ",
+    success: tl("Thành công"),
+    error: tl("Lỗi"),
+    timeout: tl("Hết giờ"),
+    cancelled: tl("Đã hủy"),
+    rejected: tl("Bị từ chối"),
+    unknown: tl("Chưa rõ"),
   };
   return labels[value] ?? value;
 }
@@ -131,6 +136,7 @@ const outcomeOptions: Array<[AiUsageOperationOutcome, string]> = [
 ];
 
 export function AiUsageDashboard() {
+  const tr = useTr();
   const principal = useContext(PilotPrincipalContext);
   const identity = principal
     ? `${principal.userId}:${principal.workspaceId}:${principal.role}`
@@ -381,23 +387,25 @@ export function AiUsageDashboard() {
   if (!principal)
     return (
       <section className="panel" role="status">
-        <h2>Dashboard không khả dụng</h2>
-        <p>Hãy đăng nhập và kiểm tra quyền workspace.</p>
+        <h2>{tr("Dashboard không khả dụng")}</h2>
+        <p>{tr("Hãy đăng nhập và kiểm tra quyền workspace.")}</p>
       </section>
     );
 
   return (
-    <section className="ai-usage-dashboard" aria-label="AI usage dashboard">
+    <section
+      className="ai-usage-dashboard"
+      aria-label={tr("AI usage dashboard")}
+    >
       <p className="ai-usage-caveat" role="note">
-        Chỉ hiển thị telemetry đã được ghi nhận. Ghi telemetry là best-effort,
-        có thể thiếu; đây không phải hóa đơn, nguồn quota hay bảng theo dõi trực
-        tiếp. Các request bị chặn trước khi ghi operation không được đảm bảo
-        xuất hiện.
+        {tr(
+          "Chỉ hiển thị telemetry đã được ghi nhận. Ghi telemetry là best-effort, có thể thiếu; đây không phải hóa đơn, nguồn quota hay bảng theo dõi trực tiếp. Các request bị chặn trước khi ghi operation không được đảm bảo xuất hiện.",
+        )}
       </p>
 
-      <div className="ai-usage-filters" aria-label="Bộ lọc telemetry">
+      <div className="ai-usage-filters" aria-label={tr("Bộ lọc telemetry")}>
         <label>
-          Từ ngày
+          {tr("Từ ngày")}
           <input
             type="date"
             value={filters.from}
@@ -407,7 +415,7 @@ export function AiUsageDashboard() {
           />
         </label>
         <label>
-          Đến ngày
+          {tr("Đến ngày")}
           <input
             type="date"
             value={filters.to}
@@ -417,7 +425,7 @@ export function AiUsageDashboard() {
           />
         </label>
         <label>
-          Thao tác
+          {tr("Thao tác")}
           <select
             value={filters.operation ?? ""}
             onChange={(event) =>
@@ -428,16 +436,16 @@ export function AiUsageDashboard() {
               )
             }
           >
-            <option value="">Tất cả thao tác</option>
+            <option value="">{tr("Tất cả thao tác")}</option>
             {operationOptions.map(([value, label]) => (
               <option key={value} value={value}>
-                {label}
+                {tr(label)}
               </option>
             ))}
           </select>
         </label>
         <label>
-          Chế độ
+          {tr("Chế độ")}
           <select
             value={filters.mode ?? ""}
             onChange={(event) =>
@@ -448,16 +456,16 @@ export function AiUsageDashboard() {
               )
             }
           >
-            <option value="">Tất cả chế độ</option>
+            <option value="">{tr("Tất cả chế độ")}</option>
             {modeOptions.map(([value, label]) => (
               <option key={value} value={value}>
-                {label}
+                {tr(label)}
               </option>
             ))}
           </select>
         </label>
         <label>
-          Kết quả
+          {tr("Kết quả")}
           <select
             value={filters.outcome ?? ""}
             onChange={(event) =>
@@ -468,16 +476,16 @@ export function AiUsageDashboard() {
               )
             }
           >
-            <option value="">Tất cả kết quả</option>
+            <option value="">{tr("Tất cả kết quả")}</option>
             {outcomeOptions.map(([value, label]) => (
               <option key={value} value={value}>
-                {label}
+                {tr(label)}
               </option>
             ))}
           </select>
         </label>
         <label>
-          Model ID
+          {tr("Model ID")}
           <input
             type="text"
             maxLength={84}
@@ -489,33 +497,33 @@ export function AiUsageDashboard() {
           />
         </label>
         <label>
-          Sắp xếp
+          {tr("Sắp xếp")}
           <select
             value={filters.sort}
             onChange={(event) =>
               updateFilter("sort", event.target.value as AiUsageDashboardSort)
             }
           >
-            <option value="started_at">Thời điểm</option>
-            <option value="duration_ms">Thời lượng</option>
-            <option value="operation">Thao tác</option>
-            <option value="outcome">Kết quả</option>
+            <option value="started_at">{tr("Thời điểm")}</option>
+            <option value="duration_ms">{tr("Thời lượng")}</option>
+            <option value="operation">{tr("Thao tác")}</option>
+            <option value="outcome">{tr("Kết quả")}</option>
           </select>
         </label>
         <label>
-          Chiều
+          {tr("Chiều")}
           <select
             value={filters.direction}
             onChange={(event) =>
               updateFilter("direction", event.target.value as "asc" | "desc")
             }
           >
-            <option value="desc">Giảm dần</option>
-            <option value="asc">Tăng dần</option>
+            <option value="desc">{tr("Giảm dần")}</option>
+            <option value="asc">{tr("Tăng dần")}</option>
           </select>
         </label>
         <label>
-          Kết quả mỗi trang
+          {tr("Kết quả mỗi trang")}
           <select
             value={filters.pageSize}
             onChange={(event) =>
@@ -528,30 +536,30 @@ export function AiUsageDashboard() {
         </label>
         <div className="ai-usage-filter-actions">
           <button type="button" onClick={clearFilters}>
-            Đặt lại bộ lọc
+            {tr("Đặt lại bộ lọc")}
           </button>
           <button
             type="button"
             onClick={() => setRefreshGeneration((generation) => generation + 1)}
           >
-            Tải lại
+            {tr("Tải lại")}
           </button>
         </div>
       </div>
 
       {loading && (
         <p role="status" aria-busy="true" className="ai-usage-state">
-          Đang tải telemetry…
+          {tr("Đang tải telemetry…")}
         </p>
       )}
       {activeError && (
         <section className="panel ai-usage-state" role="alert">
           <h2>
             {activeError.forbidden
-              ? "Không có quyền xem"
+              ? tr("Không có quyền xem")
               : activeError.invalid
-                ? "Bộ lọc không hợp lệ"
-                : "Chưa tải được telemetry"}
+                ? tr("Bộ lọc không hợp lệ")
+                : tr("Chưa tải được telemetry")}
           </h2>
           <p>{activeError.message}</p>
           {!activeError.forbidden && (
@@ -561,7 +569,7 @@ export function AiUsageDashboard() {
                 setRefreshGeneration((generation) => generation + 1)
               }
             >
-              Thử lại
+              {tr("Thử lại")}
             </button>
           )}
         </section>
@@ -570,18 +578,23 @@ export function AiUsageDashboard() {
       {active && summary && (
         <>
           <p className="ai-usage-report-range" role="status">
-            Ngày báo cáo {active.from} → {active.to} theo múi giờ{" "}
-            {active.timezone}.
+            {tr("Ngày báo cáo")} {active.from} → {active.to}{" "}
+            {tr("theo múi giờ")} {active.timezone}.
             {filters.model
-              ? ` Cohort gồm operations có provider call model ${filters.model}; provider calls hiển thị chỉ gồm model đó.`
-              : " Cohort operation được chọn theo bộ lọc; provider calls tính toàn bộ calls chưa hết hàn của các operation đó."}
+              ? tr(
+                  " Cohort gồm operations có provider call model {model}; provider calls hiển thị chỉ gồm model đó.",
+                  { model: filters.model },
+                )
+              : tr(
+                  " Cohort operation được chọn theo bộ lọc; provider calls tính toàn bộ calls chưa hết hàn của các operation đó.",
+                )}
           </p>
           <p className="ai-usage-caption">
-            Time to first token (TTFT): chưa thu thập.
+            {tr("Time to first token (TTFT): chưa thu thập.")}
           </p>
           <div className="ai-usage-kpis">
             <article className="panel">
-              <h2>Logical operations</h2>
+              <h2>{tr("Logical operations")}</h2>
               <strong>{formatInteger(summary.operations.total)}</strong>
               <small>
                 {Object.entries(summary.operations.outcomes)
@@ -593,11 +606,12 @@ export function AiUsageDashboard() {
               </small>
             </article>
             <article className="panel">
-              <h2>Provider calls</h2>
+              <h2>{tr("Provider calls")}</h2>
               <strong>{formatInteger(summary.providerCalls.total)}</strong>
               <small>
-                Count các provider call được ghi nhận, không phải số HTTP
-                request.{" "}
+                {tr(
+                  "Count các provider call được ghi nhận, không phải số HTTP request.",
+                )}{" "}
                 {Object.entries(summary.providerCalls.outcomes)
                   .map(
                     ([name, count]) =>
@@ -606,60 +620,69 @@ export function AiUsageDashboard() {
                   .join(" · ")}
               </small>
               <small>
-                Usage metadata: complete{" "}
-                {formatInteger(summary.providerCalls.usage.complete)} · partial{" "}
-                {formatInteger(summary.providerCalls.usage.partial)} · missing{" "}
-                {formatInteger(summary.providerCalls.usage.missing)} · invalid{" "}
+                {tr("Usage metadata: complete")}{" "}
+                {formatInteger(summary.providerCalls.usage.complete)}{" "}
+                {tr("· partial")}{" "}
+                {formatInteger(summary.providerCalls.usage.partial)}{" "}
+                {tr("· missing")}{" "}
+                {formatInteger(summary.providerCalls.usage.missing)}{" "}
+                {tr("· invalid")}{" "}
                 {formatInteger(summary.providerCalls.usage.invalid)}.
               </small>
             </article>
             <article className="panel">
-              <h2>Total tokens đã biết</h2>
+              <h2>{tr("Total tokens đã biết")}</h2>
               <strong>
                 {formatInteger(summary.providerCalls.tokens.total)}
               </strong>
               <small>
-                Input: {formatInteger(summary.providerCalls.tokens.input)} (
-                {formatInteger(summary.providerCalls.tokens.inputSamples)} mẫu);
-                output: {formatInteger(summary.providerCalls.tokens.output)} (
+                {tr("Input:")}{" "}
+                {formatInteger(summary.providerCalls.tokens.input)} (
+                {formatInteger(summary.providerCalls.tokens.inputSamples)}{" "}
+                {tr("mẫu); output:")}{" "}
+                {formatInteger(summary.providerCalls.tokens.output)} (
                 {formatInteger(summary.providerCalls.tokens.outputSamples)}{" "}
-                mẫu); total:{" "}
+                {tr("mẫu); total:")}{" "}
                 {formatInteger(summary.providerCalls.tokens.totalSamples)} /{" "}
-                {formatInteger(summary.providerCalls.total)} calls. Giá trị
-                thiếu không được coi là 0.
+                {formatInteger(summary.providerCalls.total)}{" "}
+                {tr("calls. Giá trị thiếu không được coi là 0.")}
               </small>
             </article>
             <article className="panel">
-              <h2>Chi phí ước tính đã biết</h2>
+              <h2>{tr("Chi phí ước tính đã biết")}</h2>
               <strong>
-                {formatInteger(summary.providerCalls.cost.estimatedCalls)} calls
-                có giá đã lưu
+                {formatInteger(summary.providerCalls.cost.estimatedCalls)}{" "}
+                {tr("calls có giá đã lưu")}
               </strong>
               <small>
-                {formatInteger(summary.providerCalls.cost.unknownCalls)} chưa
-                ước tính. Chi tiết theo currency và pricing version bên dưới,
-                không phải billing.
+                {formatInteger(summary.providerCalls.cost.unknownCalls)}{" "}
+                {tr(
+                  "chưa ước tính. Chi tiết theo currency và pricing version bên dưới, không phải billing.",
+                )}
               </small>
             </article>
             <article className="panel">
-              <h2>Operation latency</h2>
+              <h2>{tr("Operation latency")}</h2>
               <strong>
-                {summary.operations.latency.averageMs ?? "Chưa có dữ liệu"} ms
-                avg
+                {summary.operations.latency.averageMs ?? tr("Chưa có dữ liệu")}{" "}
+                {tr("ms avg")}
               </strong>
               <small>
-                p95 {summary.operations.latency.p95Ms ?? "—"} ms · n=
+                {tr("p95")} {summary.operations.latency.p95Ms ?? "—"}{" "}
+                {tr("ms · n=")}
                 {formatInteger(summary.operations.latency.sampleCount)}
               </small>
             </article>
             <article className="panel">
-              <h2>Provider-call latency</h2>
+              <h2>{tr("Provider-call latency")}</h2>
               <strong>
-                {summary.providerCalls.latency.averageMs ?? "Chưa có dữ liệu"}{" "}
-                ms avg
+                {summary.providerCalls.latency.averageMs ??
+                  tr("Chưa có dữ liệu")}{" "}
+                {tr("ms avg")}
               </strong>
               <small>
-                p95 {summary.providerCalls.latency.p95Ms ?? "—"} ms · n=
+                {tr("p95")} {summary.providerCalls.latency.p95Ms ?? "—"}{" "}
+                {tr("ms · n=")}
                 {formatInteger(summary.providerCalls.latency.sampleCount)}
               </small>
             </article>
@@ -668,11 +691,12 @@ export function AiUsageDashboard() {
           <div className="ai-usage-analysis-grid">
             <section className="panel" aria-labelledby="ai-usage-daily-title">
               <h2 id="ai-usage-daily-title">
-                Operations và provider calls theo ngày
+                {tr("Operations và provider calls theo ngày")}
               </h2>
               <p className="ai-usage-caption">
-                Calls được gắn với ngày bắt đầu của operation; chỉ có tối đa 90
-                ngày.
+                {tr(
+                  "Calls được gắn với ngày bắt đầu của operation; chỉ có tối đa 90 ngày.",
+                )}
               </p>
               <ul className="ai-usage-daily-list">
                 {summary.daily.map((item) => (
@@ -680,7 +704,13 @@ export function AiUsageDashboard() {
                     <time>{item.day}</time>
                     <span
                       className="ai-usage-bars"
-                      aria-label={`${item.operations} operations, ${item.providerCalls} provider calls`}
+                      aria-label={tr(
+                        "{operations} operations, {providerCalls} provider calls",
+                        {
+                          operations: item.operations,
+                          providerCalls: item.providerCalls,
+                        },
+                      )}
                     >
                       <span
                         className="ai-usage-bar-operation"
@@ -696,28 +726,30 @@ export function AiUsageDashboard() {
                       />
                     </span>
                     <span>
-                      {formatInteger(item.operations)} ops ·{" "}
-                      {formatInteger(item.providerCalls)} calls
+                      {formatInteger(item.operations)} {tr("ops ·")}{" "}
+                      {formatInteger(item.providerCalls)} {tr("calls")}
                     </span>
                   </li>
                 ))}
               </ul>
               <p className="ai-usage-legend">
-                <i className="ai-usage-legend-operation" /> Operations{" "}
-                <i className="ai-usage-legend-calls" /> Provider calls
+                <i className="ai-usage-legend-operation" /> {tr("Operations")}{" "}
+                <i className="ai-usage-legend-calls" /> {tr("Provider calls")}
               </p>
             </section>
             <section className="panel" aria-labelledby="ai-usage-model-title">
-              <h2 id="ai-usage-model-title">Provider calls theo model</h2>
+              <h2 id="ai-usage-model-title">
+                {tr("Provider calls theo model")}
+              </h2>
               {summary.models.length ? (
                 <div className="ai-usage-table-scroll">
                   <table>
                     <thead>
                       <tr>
-                        <th>Model</th>
-                        <th>Calls</th>
-                        <th>Operations</th>
-                        <th>Total token đã biết</th>
+                        <th>{tr("Model")}</th>
+                        <th>{tr("Calls")}</th>
+                        <th>{tr("Operations")}</th>
+                        <th>{tr("Total token đã biết")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -728,7 +760,7 @@ export function AiUsageDashboard() {
                           <td>{formatInteger(model.operations)}</td>
                           <td>
                             {formatInteger(model.knownTotalTokens)} (
-                            {formatInteger(model.tokenSamples)} mẫu)
+                            {formatInteger(model.tokenSamples)} {tr("mẫu)")}
                           </td>
                         </tr>
                       ))}
@@ -736,17 +768,22 @@ export function AiUsageDashboard() {
                   </table>
                 </div>
               ) : (
-                <p role="status">Không có provider call trong cohort này.</p>
+                <p role="status">
+                  {tr("Không có provider call trong cohort này.")}
+                </p>
               )}
               <p className="ai-usage-caption">
-                Top 20 / {formatInteger(summary.modelCoverage.totalModels)}{" "}
-                model. Bỏ qua{" "}
-                {formatInteger(summary.modelCoverage.omittedModels)} model (
+                {tr("Top 20 /")}{" "}
+                {formatInteger(summary.modelCoverage.totalModels)}{" "}
+                {tr("model. Bỏ qua")}{" "}
+                {formatInteger(summary.modelCoverage.omittedModels)}{" "}
+                {tr("model (")}
                 {formatInteger(summary.modelCoverage.omittedProviderCalls)}{" "}
-                calls); token đã biết bị bỏ qua:{" "}
+                {tr("calls); token đã biết bị bỏ qua:")}{" "}
                 {formatInteger(summary.modelCoverage.omittedKnownTotalTokens)}{" "}
-                trong {formatInteger(summary.modelCoverage.omittedTokenSamples)}{" "}
-                mẫu.
+                {tr("trong")}{" "}
+                {formatInteger(summary.modelCoverage.omittedTokenSamples)}{" "}
+                {tr("mẫu.")}
               </p>
             </section>
           </div>
@@ -757,10 +794,11 @@ export function AiUsageDashboard() {
           >
             <header className="ai-usage-section-heading">
               <div>
-                <h2 id="ai-usage-cost-title">Chi phí theo currency</h2>
+                <h2 id="ai-usage-cost-title">{tr("Chi phí theo currency")}</h2>
                 <p>
-                  Tổng tiền được giữ riêng theo currency. Pricing version được
-                  phân trang; không quy đổi hoặc cộng chéo currency.
+                  {tr(
+                    "Tổng tiền được giữ riêng theo currency. Pricing version được phân trang; không quy đổi hoặc cộng chéo currency.",
+                  )}
                 </p>
               </div>
               {activeCostView.group === "pricing_version" && (
@@ -774,24 +812,26 @@ export function AiUsageDashboard() {
                     })
                   }
                 >
-                  Tất cả currency
+                  {tr("Tất cả currency")}
                 </button>
               )}
             </header>
             <p>
               {activeCostView.group === "pricing_version"
-                ? "Currency " +
+                ? tr("Currency ") +
                   activeCostView.currency +
-                  "; tổng đủ pricing version: " +
-                  (activeCost?.totalEstimatedCost ?? "đang tải") +
+                  tr("; tổng đủ pricing version: ") +
+                  (activeCost?.totalEstimatedCost ?? tr("đang tải")) +
                   " " +
                   activeCostView.currency +
                   "."
-                : "Mỗi dòng là tổng của toàn bộ pricing version trong cohort."}
+                : tr(
+                    "Mỗi dòng là tổng của toàn bộ pricing version trong cohort.",
+                  )}
             </p>
             {costLoading && (
               <p role="status" aria-busy="true">
-                Đang tải breakdown chi phí…
+                {tr("Đang tải breakdown chi phí…")}
               </p>
             )}
             {activeCostError && (
@@ -802,7 +842,7 @@ export function AiUsageDashboard() {
                     type="button"
                     onClick={() => setCostRevision((value) => value + 1)}
                   >
-                    Thử tải breakdown
+                    {tr("Thử tải breakdown")}
                   </button>
                 )}
               </div>
@@ -814,11 +854,11 @@ export function AiUsageDashboard() {
                     <table>
                       <thead>
                         <tr>
-                          <th>Currency</th>
-                          <th>Pricing version</th>
-                          <th>Calls có estimate</th>
-                          <th>Chi phí ước tính đã biết</th>
-                          <th>Chi tiết</th>
+                          <th>{tr("Currency")}</th>
+                          <th>{tr("Pricing version")}</th>
+                          <th>{tr("Calls có estimate")}</th>
+                          <th>{tr("Chi phí ước tính đã biết")}</th>
+                          <th>{tr("Chi tiết")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -834,7 +874,7 @@ export function AiUsageDashboard() {
                             <td>
                               {item.pricingVersion ??
                                 formatInteger(item.pricingVersionCount) +
-                                  " versions"}
+                                  tr(" versions")}
                             </td>
                             <td>{formatInteger(item.estimatedCalls)}</td>
                             <td>
@@ -853,7 +893,7 @@ export function AiUsageDashboard() {
                                     })
                                   }
                                 >
-                                  Pricing versions
+                                  {tr("Pricing versions")}
                                 </button>
                               )}
                             </td>
@@ -864,12 +904,12 @@ export function AiUsageDashboard() {
                   </div>
                 ) : (
                   <p role="status">
-                    Không có chi phí estimate đã ghi trong cohort này.
+                    {tr("Không có chi phí estimate đã ghi trong cohort này.")}
                   </p>
                 )}
                 <nav
                   className="ai-usage-pagination"
-                  aria-label="Trang nhóm chi phí"
+                  aria-label={tr("Trang nhóm chi phí")}
                 >
                   <button
                     type="button"
@@ -881,14 +921,14 @@ export function AiUsageDashboard() {
                       })
                     }
                   >
-                    Trước
+                    {tr("Trước")}
                   </button>
                   <span>
-                    Trang {activeCost.page} /{" "}
+                    {tr("Trang")} {activeCost.page} /{" "}
                     {Math.max(1, activeCost.totalPages)} ·{" "}
-                    {formatInteger(activeCost.totalGroups)} nhóm ·{" "}
-                    {formatInteger(activeCost.totalEstimatedCalls)} calls có
-                    estimate
+                    {formatInteger(activeCost.totalGroups)} {tr("nhóm ·")}{" "}
+                    {formatInteger(activeCost.totalEstimatedCalls)}{" "}
+                    {tr("calls có estimate")}
                   </span>
                   <button
                     type="button"
@@ -902,7 +942,7 @@ export function AiUsageDashboard() {
                       })
                     }
                   >
-                    Sau
+                    {tr("Sau")}
                   </button>
                 </nav>
               </>
@@ -915,10 +955,14 @@ export function AiUsageDashboard() {
           >
             <header className="ai-usage-section-heading">
               <div>
-                <h2 id="ai-usage-operations-title">Logical operations</h2>
+                <h2 id="ai-usage-operations-title">
+                  {tr("Logical operations")}
+                </h2>
                 <p>
-                  {formatInteger(active.operations.total)} operations trong
-                  cohort; bảng không là nguồn quyết định quota.
+                  {formatInteger(active.operations.total)}{" "}
+                  {tr(
+                    "operations trong cohort; bảng không là nguồn quyết định quota.",
+                  )}
                 </p>
               </div>
             </header>
@@ -927,14 +971,14 @@ export function AiUsageDashboard() {
                 <table>
                   <thead>
                     <tr>
-                      <th>Bắt đầu</th>
-                      <th>Operation</th>
-                      <th>Mode</th>
-                      <th>Outcome</th>
-                      <th>Provider calls</th>
-                      <th>Token đã biết</th>
-                      <th>Latency</th>
-                      <th>Chi tiết</th>
+                      <th>{tr("Bắt đầu")}</th>
+                      <th>{tr("Operation")}</th>
+                      <th>{tr("Mode")}</th>
+                      <th>{tr("Outcome")}</th>
+                      <th>{tr("Provider calls")}</th>
+                      <th>{tr("Token đã biết")}</th>
+                      <th>{tr("Latency")}</th>
+                      <th>{tr("Chi tiết")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -950,7 +994,7 @@ export function AiUsageDashboard() {
                           <small>
                             {item.promptId
                               ? `${item.promptId} · ${item.promptVersion}`
-                              : "Không dùng prompt"}
+                              : tr("Không dùng prompt")}
                           </small>
                         </td>
                         <td>{item.mode ?? "—"}</td>
@@ -958,9 +1002,11 @@ export function AiUsageDashboard() {
                         <td>{formatInteger(item.providerCalls)}</td>
                         <td>
                           {formatInteger(item.knownTotalTokens)} (
-                          {formatInteger(item.totalTokenSamples)} mẫu)
+                          {formatInteger(item.totalTokenSamples)} {tr("mẫu)")}
                         </td>
-                        <td>{item.durationMs} ms</td>
+                        <td>
+                          {item.durationMs} {tr("ms")}
+                        </td>
                         <td>
                           <button
                             type="button"
@@ -973,7 +1019,7 @@ export function AiUsageDashboard() {
                               });
                             }}
                           >
-                            Provider calls
+                            {tr("Provider calls")}
                           </button>
                         </td>
                       </tr>
@@ -983,10 +1029,13 @@ export function AiUsageDashboard() {
               </div>
             ) : (
               <p role="status">
-                Không có operation được ghi nhận trong khoảng lọc này.
+                {tr("Không có operation được ghi nhận trong khoảng lọc này.")}
               </p>
             )}
-            <nav className="ai-usage-pagination" aria-label="Trang operations">
+            <nav
+              className="ai-usage-pagination"
+              aria-label={tr("Trang operations")}
+            >
               <button
                 type="button"
                 disabled={filters.page <= 1 || loading}
@@ -997,11 +1046,11 @@ export function AiUsageDashboard() {
                   }))
                 }
               >
-                Trước
+                {tr("Trước")}
               </button>
               <span>
-                Trang {filters.page} / {Math.max(1, totalPages)} ·{" "}
-                {formatInteger(active.operations.total)} operations
+                {tr("Trang")} {filters.page} / {Math.max(1, totalPages)} ·{" "}
+                {formatInteger(active.operations.total)} {tr("operations")}
               </span>
               <button
                 type="button"
@@ -1013,7 +1062,7 @@ export function AiUsageDashboard() {
                   }))
                 }
               >
-                Sau
+                {tr("Sau")}
               </button>
             </nav>
           </section>
@@ -1026,17 +1075,19 @@ export function AiUsageDashboard() {
               <header className="ai-usage-section-heading">
                 <div>
                   <h2 id="ai-usage-calls-title">
-                    Provider calls cho operation
+                    {tr("Provider calls cho operation")}
                   </h2>
-                  <p>ID operation: {selection.operationId}</p>
+                  <p>
+                    {tr("ID operation:")} {selection.operationId}
+                  </p>
                 </div>
                 <button type="button" onClick={() => setSelection(undefined)}>
-                  Đóng chi tiết
+                  {tr("Đóng chi tiết")}
                 </button>
               </header>
               {callsLoading && (
                 <p role="status" aria-busy="true">
-                  Đang tải provider calls…
+                  {tr("Đang tải provider calls…")}
                 </p>
               )}
               {visibleCallsError && (
@@ -1047,7 +1098,7 @@ export function AiUsageDashboard() {
                       type="button"
                       onClick={() => setCallsRevision((value) => value + 1)}
                     >
-                      Thử lại
+                      {tr("Thử lại")}
                     </button>
                   )}
                 </div>
@@ -1059,15 +1110,15 @@ export function AiUsageDashboard() {
                       <table>
                         <thead>
                           <tr>
-                            <th>Model</th>
-                            <th>Loại</th>
-                            <th>Outcome</th>
-                            <th>Usage</th>
-                            <th>Input</th>
-                            <th>Output</th>
-                            <th>Total</th>
-                            <th>Cost</th>
-                            <th>Latency</th>
+                            <th>{tr("Model")}</th>
+                            <th>{tr("Loại")}</th>
+                            <th>{tr("Outcome")}</th>
+                            <th>{tr("Usage")}</th>
+                            <th>{tr("Input")}</th>
+                            <th>{tr("Output")}</th>
+                            <th>{tr("Total")}</th>
+                            <th>{tr("Cost")}</th>
+                            <th>{tr("Latency")}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1082,10 +1133,12 @@ export function AiUsageDashboard() {
                               <td>{formatInteger(call.totalTokens)}</td>
                               <td>
                                 {call.estimatedCost === null
-                                  ? "Chưa ước tính"
+                                  ? tr("Chưa ước tính")
                                   : `${call.estimatedCost} ${call.currency} · ${call.pricingVersion}`}
                               </td>
-                              <td>{call.durationMs} ms</td>
+                              <td>
+                                {call.durationMs} {tr("ms")}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -1093,31 +1146,34 @@ export function AiUsageDashboard() {
                     </div>
                     <nav
                       className="ai-usage-pagination"
-                      aria-label="Trang provider calls"
+                      aria-label={tr("Trang provider calls")}
                     >
                       <button
                         type="button"
                         disabled={callsPage <= 1 || callsLoading}
                         onClick={() => setCallsPage((page) => page - 1)}
                       >
-                        Trước
+                        {tr("Trước")}
                       </button>
                       <span>
-                        Trang {callsPage} / {Math.max(1, calls.totalPages)} ·{" "}
-                        {formatInteger(calls.total)} calls
+                        {tr("Trang")} {callsPage} /{" "}
+                        {Math.max(1, calls.totalPages)} ·{" "}
+                        {formatInteger(calls.total)} {tr("calls")}
                       </span>
                       <button
                         type="button"
                         disabled={callsPage >= calls.totalPages || callsLoading}
                         onClick={() => setCallsPage((page) => page + 1)}
                       >
-                        Sau
+                        {tr("Sau")}
                       </button>
                     </nav>
                   </>
                 ) : (
                   <p role="status">
-                    Operation này không có provider call còn trong telemetry.
+                    {tr(
+                      "Operation này không có provider call còn trong telemetry.",
+                    )}
                   </p>
                 ))}
             </section>

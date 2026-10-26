@@ -9,7 +9,10 @@ import { usePilotSession } from "./use-pilot-session";
 import { NotesStorageContext } from "./NotesStorageContext";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
 import { WorkspaceRoleBadge } from "./WorkspaceBadges";
+import { useTr } from "./i18n";
+import { LanguageSwitch } from "./LanguageSwitch";
 export function PilotAccess({ children }: { children: ReactNode }) {
+  const tr = useTr();
   const session = usePilotSession();
   const [googleStatus, setGoogleStatus] = useState<
     "loading" | "enabled" | "not_configured"
@@ -57,11 +60,11 @@ export function PilotAccess({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (granted || revalidating) return;
     const previous = document.title;
-    document.title = "Sign in · ExaMate AI";
+    document.title = tr("Sign in · ExaMate AI");
     return () => {
       document.title = previous;
     };
-  }, [granted, revalidating]);
+  }, [granted, revalidating, tr]);
   useEffect(() => {
     if (revalidating) {
       restoreWorkspaceFocus.current = lastWorkspaceFocus.current;
@@ -100,9 +103,11 @@ export function PilotAccess({ children }: { children: ReactNode }) {
           <div className="pilot-revalidation-card">
             <LockClosedIcon aria-hidden="true" />
             <h2 ref={heading} id="pilot-revalidation-heading" tabIndex={-1}>
-              Checking workspace access
+              {tr("Checking workspace access")}
             </h2>
-            <p>Đang xác minh phiên… Trang và bản nháp được giữ nguyên.</p>
+            <p>
+              {tr("Đang xác minh phiên… Trang và bản nháp được giữ nguyên.")}
+            </p>
           </div>
         </section>
       )}
@@ -112,16 +117,23 @@ export function PilotAccess({ children }: { children: ReactNode }) {
           className="pilot-access"
           aria-labelledby="pilot-access-heading"
         >
+          <div className="pilot-access-language">
+            <LanguageSwitch />
+          </div>
           <header className="pilot-access-header">
             <span className="pilot-access-icon">
               <LockClosedIcon aria-hidden="true" />
             </span>
-            <p className="pilot-access-eyebrow">YOUR ACADEMIC WORKSPACE</p>
+            <p className="pilot-access-eyebrow">
+              {tr("YOUR ACADEMIC WORKSPACE")}
+            </p>
             <h1 ref={heading} id="pilot-access-heading" tabIndex={-1}>
-              Sign in to ExaMate
+              {tr("Sign in to ExaMate")}
             </h1>
             <p>
-              Chỉ tài khoản được nhóm mời và cấp quyền mới vào được workspace.
+              {tr(
+                "Chỉ tài khoản được nhóm mời và cấp quyền mới vào được workspace.",
+              )}
             </p>
           </header>
           <p
@@ -132,9 +144,9 @@ export function PilotAccess({ children }: { children: ReactNode }) {
             }
           >
             {checking
-              ? "Đang xác minh phiên…"
-              : session.message ||
-                "Đăng nhập để tiếp tục học và làm việc cùng nhóm nhé."}
+              ? tr("Đang xác minh phiên…")
+              : (session.message && tr(session.message)) ||
+                tr("Đăng nhập để tiếp tục học và làm việc cùng nhóm nhé.")}
           </p>
           {showLogin && (
             <form
@@ -148,7 +160,7 @@ export function PilotAccess({ children }: { children: ReactNode }) {
                   .finally(() => setPassword(""));
               }}
             >
-              <label htmlFor="pilot-email">Email</label>
+              <label htmlFor="pilot-email">{tr("Email")}</label>
               <input
                 id="pilot-email"
                 type="email"
@@ -158,7 +170,7 @@ export function PilotAccess({ children }: { children: ReactNode }) {
                 required
                 disabled={session.busy}
               />
-              <label htmlFor="pilot-password">Password</label>
+              <label htmlFor="pilot-password">{tr("Password")}</label>
               <input
                 id="pilot-password"
                 type="password"
@@ -175,7 +187,7 @@ export function PilotAccess({ children }: { children: ReactNode }) {
                 aria-disabled={blocked}
               >
                 <ArrowRightOnRectangleIcon aria-hidden="true" />
-                {session.busy ? "Signing in…" : "Sign in"}
+                {session.busy ? tr("Signing in…") : tr("Sign in")}
               </button>
             </form>
           )}
@@ -189,15 +201,19 @@ export function PilotAccess({ children }: { children: ReactNode }) {
                   if (!blocked) void session.googleLogin();
                 }}
               >
-                <ArrowRightOnRectangleIcon aria-hidden="true" /> Đăng nhập bằng
-                Google
+                <ArrowRightOnRectangleIcon aria-hidden="true" />{" "}
+                {tr("Đăng nhập bằng Google")}
               </button>
               <p id="pilot-google-status" role="status">
                 {googleStatus === "loading"
-                  ? "Đang kiểm tra đăng nhập Google…"
+                  ? tr("Đang kiểm tra đăng nhập Google…")
                   : googleStatus === "not_configured"
-                    ? "Google chưa được bật. Bạn vẫn có thể đăng nhập bằng email và mật khẩu."
-                    : "Chỉ tài khoản đã được cấp quyền workspace mới truy cập được dữ liệu."}
+                    ? tr(
+                        "Google chưa được bật. Bạn vẫn có thể đăng nhập bằng email và mật khẩu.",
+                      )
+                    : tr(
+                        "Chỉ tài khoản đã được cấp quyền workspace mới truy cập được dữ liệu.",
+                      )}
               </p>
             </div>
           )}
@@ -211,7 +227,7 @@ export function PilotAccess({ children }: { children: ReactNode }) {
               }}
             >
               <ArrowPathIcon aria-hidden="true" />
-              Check session
+              {tr("Check session")}
             </button>
             {(session.principal || session.state === "no_access") && (
               <button
@@ -222,7 +238,7 @@ export function PilotAccess({ children }: { children: ReactNode }) {
                 }}
               >
                 <ArrowRightOnRectangleIcon aria-hidden="true" />
-                Sign out
+                {tr("Sign out")}
               </button>
             )}
           </footer>
@@ -244,24 +260,30 @@ export function PilotAccess({ children }: { children: ReactNode }) {
         >
           <div className="pilot-session-bar pilot-session-with-role">
             <span className="pilot-session-identity">
-              <span className="pilot-session-caption">Workspace access</span>
+              <span className="pilot-session-caption">
+                {tr("Workspace access")}
+              </span>
               {session.principal && (
                 <WorkspaceRoleBadge role={session.principal.role} />
               )}
             </span>
-            <button
-              className="pilot-sign-out"
-              onClick={() => void session.logout()}
-              disabled={session.busy}
-            >
-              <ArrowRightOnRectangleIcon aria-hidden="true" />
-              Sign out
-            </button>
+            <span className="pilot-session-actions">
+              <LanguageSwitch />
+              <button
+                className="pilot-sign-out"
+                onClick={() => void session.logout()}
+                disabled={session.busy}
+              >
+                <ArrowRightOnRectangleIcon aria-hidden="true" />
+                {tr("Sign out")}
+              </button>
+            </span>
           </div>
           {legacy && (
             <p className="pilot-legacy-notice" role="status">
-              Ghi chú cũ trên trình duyệt đang được ẩn vì chưa xác định người sở
-              hữu. Nhóm chưa gán chúng cho tài khoản nào.
+              {tr(
+                "Ghi chú cũ trên trình duyệt đang được ẩn vì chưa xác định người sở hữu. Nhóm chưa gán chúng cho tài khoản nào.",
+              )}
             </p>
           )}
           <NotesStorageContext.Provider

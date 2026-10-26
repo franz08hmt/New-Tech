@@ -3,6 +3,7 @@ import { useContext, useState } from "react";
 import type { SpeechLanguage } from "@examate/contracts";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
 import { useSpeechInput } from "./use-speech-input";
+import { useTr } from "./i18n";
 
 export function SpeechInput({
   active,
@@ -15,6 +16,7 @@ export function SpeechInput({
   draft: string;
   onDraft: (value: string) => void;
 }) {
+  const tr = useTr();
   const principal = useContext(PilotPrincipalContext);
   const [language, setLanguage] = useState<SpeechLanguage>("auto");
   const speech = useSpeechInput(
@@ -31,20 +33,27 @@ export function SpeechInput({
   ].includes(speech.status);
   const notice =
     speech.status === "requesting_permission"
-      ? "Đang chờ quyền microphone…"
+      ? tr("Đang chờ quyền microphone…")
       : speech.status === "recording"
-        ? `Đang ghi âm: ${Math.floor(speech.elapsedMs / 1000)} giây`
+        ? tr("Đang ghi âm: {value} giây", {
+            value: Math.floor(speech.elapsedMs / 1000),
+          })
         : speech.status === "stopping"
-          ? "Đang hoàn tất bản ghi…"
+          ? tr("Đang hoàn tất bản ghi…")
           : speech.status === "transcribing"
-            ? "Đang chuyển giọng nói thành chữ…"
+            ? tr("Đang chuyển giọng nói thành chữ…")
             : speech.status === "ready"
-              ? "Bản chép sẵn sàng. Kiểm tra và sửa trước khi chèn vào câu hỏi."
-              : speech.availabilityMessage;
+              ? tr(
+                  "Bản chép sẵn sàng. Kiểm tra và sửa trước khi chèn vào câu hỏi.",
+                )
+              : tr(speech.availabilityMessage);
   return (
-    <section className="speech-input" aria-label="Nhập câu hỏi bằng giọng nói">
+    <section
+      className="speech-input"
+      aria-label={tr("Nhập câu hỏi bằng giọng nói")}
+    >
       <div className="speech-controls">
-        <label htmlFor="speech-language">Ngôn ngữ nhận dạng</label>
+        <label htmlFor="speech-language">{tr("Ngôn ngữ nhận dạng")}</label>
         <select
           id="speech-language"
           value={language}
@@ -53,9 +62,9 @@ export function SpeechInput({
             setLanguage(event.target.value as SpeechLanguage)
           }
         >
-          <option value="auto">Tự động</option>
-          <option value="vietnamese">Tiếng Việt</option>
-          <option value="english">English</option>
+          <option value="auto">{tr("Tự động")}</option>
+          <option value="vietnamese">{tr("Tiếng Việt")}</option>
+          <option value="english">{tr("English")}</option>
         </select>
         <button
           type="button"
@@ -65,18 +74,18 @@ export function SpeechInput({
             void speech.start();
           }}
         >
-          <MicrophoneIcon aria-hidden="true" /> Ghi âm câu hỏi
+          <MicrophoneIcon aria-hidden="true" /> {tr("Ghi âm câu hỏi")}
         </button>
         <span className="speech-language-note">
           {language === "auto"
-            ? "Whisper tự nhận diện ngôn ngữ trong bản ghi."
+            ? tr("Whisper tự nhận diện ngôn ngữ trong bản ghi.")
             : language === "vietnamese"
-              ? "Whisper ưu tiên nhận dạng tiếng Việt."
-              : "Whisper ưu tiên nhận dạng tiếng Anh."}
+              ? tr("Whisper ưu tiên nhận dạng tiếng Việt.")
+              : tr("Whisper ưu tiên nhận dạng tiếng Anh.")}
         </span>
         {speech.status === "recording" && (
           <button type="button" onClick={speech.stop}>
-            Dừng ghi âm
+            {tr("Dừng ghi âm")}
           </button>
         )}
         {(busy || speech.status === "ready" || speech.status === "error") && (
@@ -87,12 +96,12 @@ export function SpeechInput({
               setInsertionError("");
             }}
           >
-            Hủy ghi âm
+            {tr("Hủy ghi âm")}
           </button>
         )}
         {!busy && speech.availability?.status !== "ready" && (
           <button type="button" onClick={speech.retryAvailability}>
-            Kiểm tra lại ghi âm
+            {tr("Kiểm tra lại ghi âm")}
           </button>
         )}
       </div>
@@ -101,12 +110,12 @@ export function SpeechInput({
       </p>
       {speech.error && (
         <p role="alert" className="speech-error">
-          {speech.error}
+          {tr(speech.error)}
         </p>
       )}
       {speech.status === "ready" && (
         <div className="speech-preview">
-          <label htmlFor="speech-transcript">Bản chép giọng nói</label>
+          <label htmlFor="speech-transcript">{tr("Bản chép giọng nói")}</label>
           <textarea
             id="speech-transcript"
             value={speech.transcript}
@@ -130,7 +139,9 @@ export function SpeechInput({
                 .join(draft.endsWith("\n") ? "" : "\n");
               if (next.length > 4000) {
                 setInsertionError(
-                  "Câu hỏi tối đa 4000 ký tự. Hãy rút gọn bản chép hoặc câu hỏi trước khi chèn.",
+                  tr(
+                    "Câu hỏi tối đa 4000 ký tự. Hãy rút gọn bản chép hoặc câu hỏi trước khi chèn.",
+                  ),
                 );
                 return;
               }
@@ -145,7 +156,7 @@ export function SpeechInput({
               }
             }}
           >
-            Chèn vào câu hỏi
+            {tr("Chèn vào câu hỏi")}
           </button>
         </div>
       )}

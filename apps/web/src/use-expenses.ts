@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type Expense, type ExpenseCategory } from "./api";
+import { lazyLabels, tl } from "./i18n";
 
 export type Period = "day" | "week" | "month" | "all";
 
@@ -20,21 +21,21 @@ export interface ExpensesState {
 }
 
 /** Vietnamese labels for the fixed category keys stored in the database. */
-export const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
+export const CATEGORY_LABELS: Record<ExpenseCategory, string> = lazyLabels({
   books: "Sách & tài liệu",
   transport: "Đi lại",
   food: "Ăn uống",
   supplies: "Dụng cụ",
   fees: "Học phí & lệ phí",
   other: "Khác",
-};
+});
 
-export const PERIOD_LABELS: Record<Period, string> = {
+export const PERIOD_LABELS: Record<Period, string> = lazyLabels({
   day: "Hôm nay",
   week: "Tuần này",
   month: "Tháng này",
   all: "Tất cả",
-};
+});
 
 /**
  * First calendar day of the period containing `today`.
@@ -94,7 +95,7 @@ export function spendByCourse(expenses: Expense[]): CourseSpend[] {
     if (!row) {
       row = {
         key,
-        name: item.course_name ?? "Không thuộc môn nào",
+        name: item.course_name ?? tl("Không thuộc môn nào"),
         slug: item.course_slug,
         total: 0,
       };
@@ -135,7 +136,9 @@ export function useExpenses({
         if (active) {
           setExpenses([]);
           setError(
-            "Chưa xem được các khoản chi. Có thể kết nối đang trục trặc một chút, thử lại giúp mình nhé.",
+            tl(
+              "Chưa xem được các khoản chi. Có thể kết nối đang trục trặc một chút, thử lại giúp mình nhé.",
+            ),
           );
         }
       })
@@ -159,7 +162,9 @@ export function useExpenses({
       );
       return true;
     } catch {
-      setError("Chưa lưu được khoản chi. Xem lại thông tin rồi thử lại nhé.");
+      setError(
+        tl("Chưa lưu được khoản chi. Xem lại thông tin rồi thử lại nhé."),
+      );
       return false;
     } finally {
       setBusy(false);
@@ -174,7 +179,7 @@ export function useExpenses({
       setExpenses((current) => current.filter((item) => item.id !== id));
       return true;
     } catch {
-      setError("Chưa xoá được khoản chi. Thử lại một lần nữa nhé.");
+      setError(tl("Chưa xoá được khoản chi. Thử lại một lần nữa nhé."));
       return false;
     } finally {
       setBusy(false);

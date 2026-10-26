@@ -8,6 +8,7 @@ import {
   googleResultMessage,
 } from "./pilot-google";
 import { invalidatePilotSession } from "./pilot-session-transport";
+import { tl } from "./i18n";
 export type AccessState =
   | "verifying"
   | "anonymous"
@@ -88,10 +89,16 @@ export function usePilotSession() {
     );
     setMessage(
       code === "WORKSPACE_ACCESS_DENIED"
-        ? "Bạn chưa được cấp quyền workspace. Liên hệ nhóm để được cấp quyền."
+        ? tl(
+            "Bạn chưa được cấp quyền workspace. Liên hệ nhóm để được cấp quyền.",
+          )
         : code === "AUTH_UNAVAILABLE"
-          ? "Dịch vụ xác thực đang gián đoạn. Workspace đã khóa; thử kiểm tra lại nhé."
-          : "Phiên không còn hợp lệ. Bản nháp trong tab vẫn được giữ; kiểm tra lại phiên để tiếp tục.",
+          ? tl(
+              "Dịch vụ xác thực đang gián đoạn. Workspace đã khóa; thử kiểm tra lại nhé.",
+            )
+          : tl(
+              "Phiên không còn hợp lệ. Bản nháp trong tab vẫn được giữ; kiểm tra lại phiên để tiếp tục.",
+            ),
     );
     if (code === "SESSION_REFRESH_REQUIRED") void refresh.current();
   }, []);
@@ -127,9 +134,11 @@ export function usePilotSession() {
       setState(value.status === "refresh_required" ? "expired" : value.status);
       setMessage(
         value.status === "no_access"
-          ? "Bạn đã đăng nhập nhưng chưa được cấp quyền workspace. Liên hệ nhóm để được cấp quyền."
+          ? tl(
+              "Bạn đã đăng nhập nhưng chưa được cấp quyền workspace. Liên hệ nhóm để được cấp quyền.",
+            )
           : value.status === "refresh_required"
-            ? "Phiên cần được làm mới. Bản nháp trong tab vẫn được giữ."
+            ? tl("Phiên cần được làm mới. Bản nháp trong tab vẫn được giữ.")
             : googleResultMessage(googleResult.current ?? undefined),
       );
     }
@@ -159,7 +168,9 @@ export function usePilotSession() {
               : "unavailable",
           );
           setMessage(
-            "Chưa xác nhận được làm mới phiên. Workspace đã khóa; kiểm tra lại để đăng nhập. Yêu cầu đang gửi không được tự động gửi lại.",
+            tl(
+              "Chưa xác nhận được làm mới phiên. Workspace đã khóa; kiểm tra lại để đăng nhập. Yêu cầu đang gửi không được tự động gửi lại.",
+            ),
           );
         }
       } finally {
@@ -199,8 +210,10 @@ export function usePilotSession() {
           );
           setMessage(
             error instanceof ApiError && error.status === 401
-              ? "Phiên đã hết hạn. Kiểm tra lại để mở màn hình đăng nhập."
-              : "Chưa xác minh được phiên. Workspace đang khóa; thử kiểm tra lại nhé.",
+              ? tl("Phiên đã hết hạn. Kiểm tra lại để mở màn hình đăng nhập.")
+              : tl(
+                  "Chưa xác minh được phiên. Workspace đang khóa; thử kiểm tra lại nhé.",
+                ),
           );
         }
       }
@@ -227,8 +240,8 @@ export function usePilotSession() {
       setState("expired");
       setMessage(
         type === "logout"
-          ? "Phiên đã đăng xuất ở tab khác. Kiểm tra lại để đăng nhập."
-          : "Phiên đã đổi ở tab khác. Kiểm tra lại trước khi tiếp tục.",
+          ? tl("Phiên đã đăng xuất ở tab khác. Kiểm tra lại để đăng nhập.")
+          : tl("Phiên đã đổi ở tab khác. Kiểm tra lại trước khi tiếp tục."),
       );
     };
     try {
@@ -298,8 +311,12 @@ export function usePilotSession() {
           setState("expired");
           setMessage(
             error.code === "CSRF_INVALID"
-              ? "Phiên gửi yêu cầu đã đổi. Bấm Check session để xác minh lại, rồi đăng nhập nhé."
-              : "Phiên đăng nhập đã hết hạn. Bấm Check session để xác minh lại, rồi thử đăng nhập nhé.",
+              ? tl(
+                  "Phiên gửi yêu cầu đã đổi. Bấm Check session để xác minh lại, rồi đăng nhập nhé.",
+                )
+              : tl(
+                  "Phiên đăng nhập đã hết hạn. Bấm Check session để xác minh lại, rồi thử đăng nhập nhé.",
+                ),
           );
           return;
         }
@@ -307,10 +324,14 @@ export function usePilotSession() {
           setState("unavailable");
         setMessage(
           error instanceof ApiError && error.code === "AUTH_INVALID"
-            ? "Email hoặc mật khẩu chưa đúng, hoặc tài khoản chưa được xác nhận."
+            ? tl(
+                "Email hoặc mật khẩu chưa đúng, hoặc tài khoản chưa được xác nhận.",
+              )
             : error instanceof ApiError && error.code === "LOGIN_RATE_LIMITED"
-              ? `Đã có nhiều lần thử đăng nhập. ${error.retryAt ? "Có thể thử lại sau " + new Date(error.retryAt).toLocaleString("vi-VN") + "." : "Chờ một lúc rồi thử lại."}`
-              : "Chưa đăng nhập được. Dịch vụ xác thực hoặc cơ sở dữ liệu có thể đang gián đoạn.",
+              ? `${tl("Đã có nhiều lần thử đăng nhập.")} ${error.retryAt ? tl("Có thể thử lại sau {time}.", { time: new Date(error.retryAt).toLocaleString("vi-VN") }) : tl("Chờ một lúc rồi thử lại.")}`
+              : tl(
+                  "Chưa đăng nhập được. Dịch vụ xác thực hoặc cơ sở dữ liệu có thể đang gián đoạn.",
+                ),
         );
       }
     } finally {
@@ -339,8 +360,12 @@ export function usePilotSession() {
           setState("expired");
         setMessage(
           error instanceof ApiError && error.code === "OAUTH_NOT_CONFIGURED"
-            ? "Đăng nhập Google chưa được bật. Bạn vẫn có thể dùng email và mật khẩu."
-            : "Chưa bắt đầu được đăng nhập Google. Hãy kiểm tra phiên rồi bắt đầu lại đăng nhập Google; yêu cầu không được tự gửi lại.",
+            ? tl(
+                "Đăng nhập Google chưa được bật. Bạn vẫn có thể dùng email và mật khẩu.",
+              )
+            : tl(
+                "Chưa bắt đầu được đăng nhập Google. Hãy kiểm tra phiên rồi bắt đầu lại đăng nhập Google; yêu cầu không được tự gửi lại.",
+              ),
         );
       }
     } finally {
@@ -368,14 +393,18 @@ export function usePilotSession() {
       if (alive.current)
         setMessage(
           result.upstreamRevoked
-            ? "Đã đăng xuất."
-            : "Đã khóa phiên tại ExaMate; chưa xác nhận thu hồi phiên ở dịch vụ Auth.",
+            ? tl("Đã đăng xuất.")
+            : tl(
+                "Đã khóa phiên tại ExaMate; chưa xác nhận thu hồi phiên ở dịch vụ Auth.",
+              ),
         );
     } catch {
       if (alive.current) {
         notifyPilotDenied("AUTH_UNAVAILABLE");
         setMessage(
-          "Chưa xác nhận được đăng xuất. Workspace đã khóa; thử lại để thu hồi phiên.",
+          tl(
+            "Chưa xác nhận được đăng xuất. Workspace đã khóa; thử lại để thu hồi phiên.",
+          ),
         );
       }
     } finally {
