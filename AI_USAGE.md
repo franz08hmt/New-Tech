@@ -1,5 +1,13 @@
 # AI Assistance Log
 
+## 2026-10-26 - slide script inside the oral-study document
+
+At the user's request, Codex copied the complete ten-slide speaking/action script
+from `docs/SLIDES.md` into its own section immediately before the product-demo
+script in `docs/EXAMATE-ON-TAP-VAN-DAP.html`. Navigation now separates slide
+presentation (15) from web demo (16); existing questions and the demo are retained.
+This is a document-only addition, with no application, provider or DB changes.
+
 ## 2026-10-26 - separate presentation, demo and code-defense scripts
 
 At the user's request, Codex prepared three separate deliverables using source
