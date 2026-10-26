@@ -1,5 +1,29 @@
 # AI Assistance Log
 
+## 2026-10-26 - separate presentation, demo and code-defense scripts
+
+At the user's request, Codex prepared three separate deliverables using source
+`75f1ebf`: a ten-slide Vietnamese technology speaking script with slide actions
+and handovers in `docs/SLIDES.md`; a product-demo script appended as the last
+section of `docs/EXAMATE-ON-TAP-VAN-DAP.html`; and a prioritized code-tab/question
+map for Tài in `docs/DEMO-AND-DEFENSE.md`. The scripts distinguish presentation
+illustrations from live app behavior, preview from saving, server grading from
+self-rating, and individual versus shared contributions. Thắng's RAG contribution
+is retained along with his primary SSE/STT role. Suggested timings are rehearsal
+budgets, not measured durations or evidence that the described requests ran.
+
+Document validation preserved all 68 existing Q&A entries, verified unique IDs,
+internal anchors, new local file links and the ten-slide mapping. The sample
+round-robin fact was checked directly against page 3 of the existing demo PDF.
+Isolated Chrome checked the new document section at 1440/375px: navigation and
+heading focus, all scene headings, no horizontal page overflow, zero console
+errors and no external requests. A quoting error in the temporary browser
+harness was corrected before its successful run; no application workaround was
+needed. Evidence: ignored `artifacts/present-scripts-20261026/` and
+`artifacts/technology-deck-20261026/255273c9/`. Existing study content was not
+removed. No app, API, DB, prompt, model, credential or slide export changed; no
+provider call or new application/live/semantic acceptance is claimed.
+
 ## 2026-10-26 - prominent explanations for guided technology slides
 
 At the user's request, Codex moved the active-step explanation out of the small

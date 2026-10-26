@@ -594,6 +594,7 @@
             >12. Cả hai — quyền, số liệu, test và giới hạn</a
           ><a href="#code-map">13. Bản đồ lần code, luyện present và debug</a>
           <a href="#contracts">14. API, giới hạn &amp; từ vựng</a>
+          <a href="#demo-script">15. Kịch bản demo sản phẩm</a>
         </nav>
         <p class="small" style="margin-top: 16px">
           Đọc độc lập, không cần mạng.<br />Code nằm trong các ô bấm mở.
@@ -5150,7 +5151,206 @@ npm exec --workspace @examate/api -- vitest run src/speech/local-inference-optio
             biết thật, không dùng sổ tay để nhận phần chưa làm.
           </p>
         </section>
+        <section id="demo-script" aria-labelledby="demo-script-title">
+          <h2 id="demo-script-title">
+            Kịch bản demo sản phẩm — đọc lời, làm theo cảnh
+          </h2>
+          <p class="lead">
+            Phần thao tác web riêng, không đọc lại bài công nghệ trên slide.
+            Nhịp tập khoảng 8 phút; thời gian chờ provider có thể thay đổi. Tài
+            thao tác chính; Thắng dẫn phần RAG cùng Tài và SSE/STT.
+          </p>
+
+          <h3>0:00–0:25 · Tài · Đăng nhập và giới thiệu workspace</h3>
+          <p>
+            <strong>Thao tác:</strong> mở phiên đã đăng nhập của bản Docker tại
+            <code>http://127.0.0.1:8080</code>. Chỉ badge vai trò và Dashboard;
+            không chiếu mật khẩu, cookie hoặc bước xác thực cá nhân.
+          </p>
+          <p class="pitch">
+            <strong>Nói:</strong> “Đây là ExaMate đang chạy bằng Docker, sử dụng
+            database, Auth và Storage của Supabase. Tài khoản này là manager
+            trong workspace. Em sẽ đi từ quản lý việc học đến hỏi tài liệu và
+            luyện tập từ nội dung AI đã được kiểm tra.”
+          </p>
+
+          <h3>0:25–1:00 · Tài · Tasks, trạng thái và dữ liệu lưu bền</h3>
+          <p>
+            <strong>Thao tác:</strong> mở Công việc/Tasks; tạo “Ôn tập lập lịch
+            CPU”. Cho thấy badge Chưa làm, đổi sang Đang làm rồi Hoàn thành. Tìm
+            “CPU”; tải lại trang để đối chiếu bản ghi và trạng thái.
+          </p>
+          <p class="pitch">
+            <strong>Nói:</strong> “Em tạo và cập nhật trạng thái công việc. Từ
+            khóa, bộ lọc và phân trang được gửi tới API. Sau khi tải lại, bản
+            ghi vẫn còn vì đã được lưu ở server. Đây là trạng thái công việc do
+            người dùng cập nhật, không phải phần trăm học tự động của môn học.”
+          </p>
+
+          <h3>1:00–2:40 · Tài + Thắng · Tài liệu Ready, RAG và citation</h3>
+          <p>
+            <strong>Thao tác:</strong> mở Documents, chọn bản
+            <code>os-processes-demo.pdf</code> đã lập chỉ mục Ready. Mở
+            Assistant ở chế độ Tài liệu, chọn đúng tài liệu. Gửi câu hỏi: “Theo
+            tài liệu, điều gì xảy ra nếu time quantum của round robin quá nhỏ?”
+            Chờ kết quả, bấm citation và đối chiếu trang 3 của PDF.
+          </p>
+          <p class="pitch">
+            <strong>Tài nói:</strong> “Tài liệu này đã được lập chỉ mục trước
+            buổi demo. Em giới hạn câu hỏi trong đúng PDF. Sau khi trả lời,
+            citation cho phép mở lại tài liệu để kiểm chứng trực tiếp.”
+          </p>
+          <p class="pitch">
+            <strong>Thắng nói khi kết quả phù hợp:</strong> “Trang 3 nêu quantum
+            quá nhỏ làm chuyển ngữ cảnh thường xuyên và lãng phí thời gian CPU.
+            Hệ thống lấy đoạn liên quan trước khi tạo câu trả lời; citation được
+            ánh xạ về nguồn trên server.”
+          </p>
+          <p>
+            <strong>Thao tác tiếp:</strong> vẫn giữ PDF này, hỏi “Ai đã vẽ bức
+            Mona Lisa?” Chỉ nhận xét từ chối khi UI thực sự trả về như vậy.
+          </p>
+          <p class="pitch">
+            <strong>Nói:</strong> “Trong phạm vi tài liệu này không có bằng
+            chứng cho câu hỏi đó. Hệ thống phải báo giới hạn thay vì dùng kiến
+            thức ngoài để giả một câu trả lời có nguồn.”
+          </p>
+          <p class="small">
+            <strong>Nếu chậm/lỗi:</strong> “Request đang chờ hoặc gặp lỗi dịch
+            vụ ngoài. Em không bấm gửi lặp; em chuyển sang bộ luyện tập đã lưu.”
+            Không đọc đáp án mong đợi như thể model vừa trả lời đúng.
+          </p>
+
+          <h3>
+            2:40–4:35 · Tài · Quiz: preview → xác nhận → làm bài → kết quả
+          </h3>
+          <p>
+            <strong>Thao tác:</strong> mở Study Coach → Quiz, chọn cùng tài liệu
+            Ready, tiếng Việt, 3 câu. Bấm tạo bản xem trước một lần. Xem câu
+            hỏi, lựa chọn, giải thích và nguồn; xác nhận lưu riêng. Mở quiz, trả
+            lời đủ câu rồi nộp. Chỉ vào kết quả và tiến độ; tải lại/mở bộ đã lưu
+            nếu còn thời gian.
+          </p>
+          <p class="pitch">
+            <strong>Nói lúc preview:</strong> “AI trả về dữ liệu có cấu trúc;
+            backend kiểm lại số câu, lựa chọn và nguồn. Đây mới là preview, chưa
+            tự tạo bộ đã lưu. Em chủ động xác nhận sau khi kiểm nội dung.”
+          </p>
+          <p class="pitch">
+            <strong>Nói lúc nộp:</strong> “Server chấm bằng đáp án trong
+            snapshot đã lưu và trả kết quả cùng tiến độ. Luyện tập không gọi AI
+            thêm. Điểm và số lượt em đang chỉ là dữ liệu server vừa trả về.”
+          </p>
+          <p class="small">
+            <strong>Nếu kết quả ghi chưa rõ:</strong> dùng hành động đối chiếu
+            hoặc retry hiện có của đúng lượt. Không tạo quiz hay lượt nộp mới để
+            thoát thông báo, không tuyên bố lưu thành công khi UI chưa xác nhận.
+          </p>
+
+          <h3>4:35–5:25 · Tài · Flashcards và tự đánh giá</h3>
+          <p>
+            <strong>Thao tác:</strong> chuyển sang Flashcards, mở bộ đã lưu từ
+            đúng tài liệu. Lật một thẻ; chọn Nhớ hoặc Cần ôn lại. Đánh giá đủ
+            các thẻ rồi chủ động lưu lượt ôn; chỉ số lượt và kết quả gần nhất.
+          </p>
+          <p class="pitch">
+            <strong>Nói:</strong> “Đây là bộ thẻ đã được tạo và xác nhận lưu
+            trước đó. Người học chủ động lật thẻ rồi tự đánh giá. Server ghi
+            lượt ôn và tính tiến độ; đây không phải điểm AI chấm hay chứng nhận
+            đã thành thạo. Lật thẻ và lưu lượt ôn không gọi model.”
+          </p>
+
+          <h3>5:25–6:05 · Tài · Mở lại hội thoại, giữ đúng ngữ cảnh</h3>
+          <p>
+            <strong>Thao tác:</strong> mở Assistant → lịch sử, chọn hội thoại đã
+            hoàn tất trong tài liệu trên. Chỉ transcript và document selection.
+            Không gửi thêm câu hỏi chỉ để chứng minh mở lại.
+          </p>
+          <p class="pitch">
+            <strong>Nói:</strong> “Hội thoại được lưu riêng cho user trong
+            workspace. Mở lịch sử là thao tác đọc, không chạy AI lại. Khi mở hội
+            thoại tài liệu, selector khôi phục theo scope được server trả về.
+            Nếu khác course thật sự, hệ thống giữ giới hạn ngữ cảnh thay vì ghép
+            lịch sử tùy ý.”
+          </p>
+
+          <h3>6:05–6:50 · Thắng · General SSE và dừng phản hồi</h3>
+          <p>
+            <strong>Thao tác:</strong> chuyển sang Kiến thức chung; hỏi “Giải
+            thích ngắn gọn lợi ích của việc chia nhỏ công việc khi học.” Cho
+            thấy chữ hiện dần, bấm Dừng nếu đang chạy.
+          </p>
+          <p class="pitch">
+            <strong>Nói:</strong> “Đây là phản hồi dần qua SSE. Người dùng có
+            thể dừng chờ và giữ quyền điều khiển. Chế độ tài liệu có khác biệt:
+            nội dung trả lời được giữ lại tới khi kiểm citation hoàn tất. Dừng ở
+            client không chứng minh provider chưa xử lý hoặc chưa tính phí.”
+          </p>
+
+          <h3>6:50–7:30 · Tài · Vai trò và dashboard Sử dụng AI</h3>
+          <p>
+            <strong>Thao tác:</strong> chuyển sang profile trình duyệt viewer đã
+            chuẩn bị, chỉ badge Chỉ xem và controls ghi của Tasks bị khóa. Trở
+            lại profile manager, mở Sử dụng AI; chỉ operations, provider calls,
+            token và chi phí ước tính. Không sửa vai trò hoặc mời tài khoản thật
+            chỉ để quay cảnh này.
+          </p>
+          <p class="pitch">
+            <strong>Nói:</strong> “Viewer vẫn xem được dữ liệu dùng chung nhưng
+            không được sửa Tasks; quyền được kiểm cả ở backend. Manager có
+            dashboard riêng. Một operation có thể phát sinh nhiều provider
+            calls. Token thiếu khác số không; chi phí là phần ước tính đã biết,
+            không phải hóa đơn của Google.”
+          </p>
+
+          <h3>7:30–8:00 · Cả hai · Mobile và chốt demo</h3>
+          <p>
+            <strong>Thao tác:</strong> mở viewport 375px, thao tác menu rồi trở
+            về màn chính. Không đổi tài khoản hoặc mở thông tin riêng trong vùng
+            đang chiếu.
+          </p>
+          <p class="pitch">
+            <strong>Nói:</strong> “Giao diện dùng được trên màn hình nhỏ. Hai
+            luồng AI chính nhóm đã trình bày là RAG có nguồn và structured
+            output được dùng để luyện tập. Tài phụ trách frontend và tích hợp,
+            Study Coach, kiểm soát AI; Thắng đóng góp backend nền và SSE/STT, cả
+            hai đóng góp RAG. Nhóm sẵn sàng mở code để giải thích phần mình thực
+            hiện.”
+          </p>
+
+          <h3>Cảnh thay thế khi giảng viên yêu cầu</h3>
+          <p>
+            <strong>STT — Thắng, thay cảnh history nếu micro đã thử ổn:</strong>
+            chọn tiếng Việt, ghi câu “Giải thích sự khác nhau giữa tiến trình và
+            luồng”, dừng, xem/sửa rồi chèn vào draft; không tự gửi. Nói:
+            “Whisper ONNX chạy trên máy API. Người dùng kiểm và sửa transcript
+            trước khi gửi; đây là STT, không phải TTS.” Nếu nhận dạng chưa đúng,
+            chỉ rõ và sửa, không giả kết quả.
+          </p>
+          <p>
+            <strong>Injection — Tài + Thắng, thay một cảnh phụ:</strong> chọn
+            riêng <code>injection-demo.pdf</code> Ready, hỏi “Theo tài liệu, mã
+            HTTP 404 có nghĩa là gì?” Mở nguồn và đối chiếu. Nói nếu đáp án phù
+            hợp: “Tài liệu thử có chỉ dẫn độc hại nhưng câu trả lời quan sát
+            được vẫn theo nội dung HTTP 404. Một ví dụ này không chứng minh chặn
+            được mọi injection; nếu chưa chứng minh đoạn độc hại vào model
+            context thì chưa kết luận phép thử injection đạt.”
+          </p>
+          <p>
+            <strong>Provider lỗi — chỉ khi thật sự quan sát:</strong> chỉ thông
+            báo lỗi, chuyển Tasks và cập nhật một bản ghi hợp lệ. Nói: “Phần AI
+            có thông báo lỗi rõ ràng; nghiệp vụ không phụ thuộc provider vẫn
+            dùng được.” Không sửa key, làm cạn quota hoặc giả cảnh outage. Nếu
+            dùng bằng chứng cũ, nói rõ là bản ghi cũ.
+          </p>
+        </section>
         <footer>
+          <p>
+            Bổ sung kịch bản demo riêng ở cuối nội dung ngày 26/10/2026, đối
+            chiếu source 75f1ebf. Đây là lời và thao tác để luyện; không phải
+            xác nhận những request mô tả trong kịch bản đã được chạy lại trong
+            lượt soạn này.
+          </p>
           Phạm vi: tài liệu học, không thay report hoặc xác nhận nghiệm thu. Chỉ
           trích source và bằng chứng đã có; không gọi lại model hay kiểm lại
           deployment khi tạo file này. Không chứa credential.

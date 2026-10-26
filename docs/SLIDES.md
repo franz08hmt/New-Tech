@@ -76,6 +76,161 @@ in `artifacts/technology-explanation-20261026/` and
 `artifacts/technology-deck-20261026/93e8d7a6/`. This verifies only the offline
 presentation, not application or live-model acceptance.
 
+<a id="technology-present-script"></a>
+
+## Kịch bản thuyết trình công nghệ — 10 slide hiện hành
+
+Đây là **phần 1: nói theo slide**, độc lập với kịch bản thao tác web ở cuối
+[sổ tay ôn vấn đáp](EXAMATE-ON-TAP-VAN-DAP.html#demo-script).
+Danh sách code chuẩn bị nằm riêng trong [tài liệu bảo vệ](DEMO-AND-DEFENSE.md#code-prep-tai).
+Mốc dưới đây là nhịp tập khoảng **5 phút 45 giây**, không phải kết quả đo.
+Không cộng nguyên kịch bản này với demo 8 phút nếu buổi bảo vệ chỉ dành 8 phút
+cho toàn phần trình bày. Khi đó, dùng slide 1 → 2 → 5 → 6 trong khoảng 90 giây,
+rồi dành phần còn lại cho các luồng web chính; slide khác để trả lời câu hỏi.
+
+Số trang dưới đây là **1–10 trên thanh điều hướng**, không phải nhãn chủ đề
+00–09 in trong slide. Bấm **Bước tiếp** để lời nói khớp vùng giải thích lớn;
+không cần vừa đọc vừa chờ chế độ tự chạy. Tương tác trên slide là minh họa
+offline, không phải request thật của ứng dụng. Tài có thể dẫn toàn bài; ở chỗ
+ghi Thắng, chuyển lời để người phụ trách giải thích phần mình làm.
+
+### Slide 1 · ExaMate — 0:00–0:15 · Tài
+
+**Màn hình / thao tác:** mở trang bìa, chưa chuyển sang web.
+
+**Lời nói:** “Nhóm em xây dựng ExaMate để quản lý việc học và sử dụng tài liệu
+cho hai luồng AI chính: hỏi đáp có nguồn và tạo bài luyện tập có cấu trúc.
+Phần này giới thiệu công nghệ đứng sau các thao tác đó.”
+
+**Chuyển:** “Đầu tiên là đường đi của một yêu cầu.”
+
+### Slide 2 · Kiến trúc + backend — 0:15–0:45 · Thắng, Tài bổ sung
+
+**Màn hình / thao tác:** lần lượt bấm bốn ô **Giao diện → API → Dữ liệu → AI**.
+Chỉ vào phần giải thích đen lớn đang đổi theo từng ô.
+
+**Lời nói:** “React phụ trách giao diện; NestJS nhận request, kiểm dữ liệu đầu
+vào và quyền truy cập. PostgreSQL lưu dữ liệu quan hệ và vector; Storage giữ PDF.
+Supabase Auth xác minh đăng nhập, còn Gemini phục vụ embedding và generation.
+Nhóm tách controller, service và lớp truy cập dữ liệu để dễ kiểm thử và bảo trì.
+Không giữ transaction database trong lúc chờ provider.”
+
+**Tài bổ sung nếu cần:** “Frontend không cầm khóa server hoặc tự quyết định quyền.”
+
+### Slide 3 · Frontend — 0:45–1:20 · Tài
+
+**Màn hình / thao tác:** chỉ vào ảnh giao diện và các logo React, TypeScript,
+Vite, Tailwind; không mở IDE ở giữa bài nói.
+
+**Lời nói:** “Phần frontend em dùng React để tách các màn hình thành component,
+hook quản lý state và request; TypeScript giúp thống nhất kiểu với backend.
+Vite phục vụ phát triển và build. Tailwind kết hợp CSS riêng để giữ hệ thống
+giao diện responsive. Tìm kiếm và phân trang đọc từ server, không tải toàn bộ
+rồi cắt ở trình duyệt. Khi đổi từ khóa hoặc tài khoản, request cũ được hủy và
+kết quả đến muộn bị bỏ qua. Các trạng thái loading, lỗi và thử lại được hiển thị rõ.”
+
+**Chuyển:** “Giao diện hỗ trợ thao tác, nhưng quyền phải được kiểm ở server.”
+
+### Slide 4 · Danh tính + database — 1:20–2:00 · Tài
+
+**Màn hình / thao tác:** chọn Viewer rồi Manager trong minh họa vai trò;
+nói rõ đây là sơ đồ, demo quyền thật thực hiện riêng trên web.
+
+**Lời nói:** “Authentication xác định người dùng; authorization xác định người đó
+được làm gì trong workspace. Browser dùng cookie phiên opaque HttpOnly, không
+lưu JWT trong localStorage. Server lấy principal đã xác minh, kiểm membership
+và dùng transaction có scope. PostgreSQL có RLS, còn business và Auth dùng
+LOGIN riêng không bypass RLS. Viewer chỉ đọc dữ liệu nghiệp vụ dùng chung;
+manager cũng không mặc nhiên đọc hội thoại hay bộ luyện tập riêng của người khác.
+pgvector giúp tìm các đoạn gần câu hỏi trong đúng phạm vi tài liệu.”
+
+### Slide 5 · PDF → RAG — 2:00–2:55 · Tài + Thắng
+
+**Màn hình / thao tác:** chỉ dải ingestion; chọn **Có bằng chứng**, bấm lần lượt
+bốn bước; sau đó chọn **Không đủ bằng chứng**. Chỉ vào ảnh citation, không gọi
+ảnh lưu sẵn là kết quả vừa chạy.
+
+**Lời nói:** “PDF được trích theo trang, chia đoạn và tạo embedding. Khi hỏi,
+hệ thống tạo embedding câu hỏi, truy xuất evidence trong đúng workspace và
+scope rồi mới yêu cầu Gemini trả lời. Không có đoạn đạt điều kiện thì từ chối,
+không gọi answer generation để lấy kiến thức ngoài bù vào. Nguồn được server
+ánh xạ về tài liệu và trang; người dùng mở PDF để kiểm chứng. Nội dung PDF là
+dữ liệu không tin cậy, không được coi là chỉ dẫn hệ thống. RAG không phải fine-tuning,
+và citation hợp lệ chưa tự chứng minh mọi nhận định đều đúng.”
+
+**Phân công:** Thắng trình bày phần RAG mình thực sự đóng góp; Tài nối phần scope,
+hiển thị nguồn và tích hợp. Không gán toàn bộ RAG riêng cho một người.
+
+### Slide 6 · Structured output + luyện tập — 2:55–3:45 · Tài
+
+**Màn hình / thao tác:** chỉ luồng preview → xác nhận → luyện tập; lật thẻ minh họa
+một lần. Không gọi thao tác này là đang lưu hoặc chấm trên server thật.
+
+**Lời nói:** “Study Coach dùng structured output của Gemini cho quiz và flashcards.
+Backend vẫn kiểm schema, số câu hoặc thẻ, nội dung trùng và nguồn có thuộc evidence
+hay không. Preview chưa tự lưu; người dùng phải xác nhận riêng. Quiz được server
+chấm từ snapshot đã lưu, không tin điểm client; flashcards là tự đánh giá nhớ
+hoặc cần ôn lại. Luyện tập không gọi AI thêm. Nếu mất phản hồi sau khi ghi,
+UI giữ identity và payload để khôi phục, tránh tạo hai lượt cho cùng một lần nộp.
+Đúng cấu trúc vẫn chưa đồng nghĩa đúng hoàn toàn về kiến thức.”
+
+### Slide 7 · SSE + STT + history — 3:45–4:25 · Thắng, Tài bổ sung history
+
+**Màn hình / thao tác:** bấm chạy chữ rồi **Dừng**; chỉ waveform minh họa.
+
+**Thắng nói:** “Chế độ kiến thức chung dùng SSE để hiện phản hồi dần và có thể dừng.
+Client dùng fetch với POST body và đọc stream; parser xử lý cả event bị chia qua
+nhiều network chunk. RAG giữ nội dung trả lời tới khi kiểm citation xong.
+STT dùng Whisper ONNX trên máy chạy API: ghi âm, nhận bản chép, sửa rồi tự gửi.
+Đây không phải TTS và cũng không làm toàn bộ ứng dụng chạy offline.”
+
+**Tài nối:** “Hội thoại hoàn tất đủ điều kiện được lưu riêng theo user/workspace;
+mở lại chỉ đọc, không tự gọi AI. Receipt xác minh snapshot, không chấm độ đúng của đáp án.”
+
+### Slide 8 · Admission + telemetry — 4:25–4:55 · Tài
+
+**Màn hình / thao tác:** chỉ thứ tự admission trước provider và ảnh dashboard usage.
+
+**Lời nói:** “Admission giữ chỗ quota và concurrency trước khi gọi provider;
+telemetry ghi lại operation và từng provider call. Một câu hỏi có thể gồm cả
+embedding lẫn generation nên không thể chỉ đếm số HTTP request. Dashboard cho
+manager xem số liệu đã ghi nhận, token, độ trễ và chi phí ước tính đã biết.
+Thiếu usage khác số không. Telemetry là best-effort, không phải hóa đơn và cũng
+không phải nguồn quyết định quota.”
+
+### Slide 9 · Docker + nginx + TLS — 4:55–5:15 · Tài
+
+**Màn hình / thao tác:** chỉ ranh giới container và dịch vụ ngoài.
+
+**Lời nói:** “Docker đóng gói frontend và API; nginx chuyển request API và giữ
+stream không bị buffer. DB và Storage mới là nơi dữ liệu lưu bền. Supabase và
+Gemini vẫn cần mạng; Whisper chạy local trên API host. Kết nối database giữ
+xác minh TLS và CA, không tắt bảo mật để demo.”
+
+### Slide 10 · Bằng chứng + phân công — 5:15–5:45 · Cả hai
+
+**Màn hình / thao tác:** chỉ mẫu số 20 case và hàng kết quả lượt sau; không suy ra
+kết quả lượt cải tiến từ một mẫu thành công. Chốt phân công đang hiển thị.
+
+**Lời nói:** “Nhóm tách test logic, integration với Nest/PostgreSQL và thao tác
+browser khỏi đánh giá ngữ nghĩa của model. Bằng chứng baseline lịch sử trên slide
+là 15 PASS, 3 FAIL và 2 chưa kết luận trên 20 case; lượt sau mới có 1 PASS,
+2 lỗi provider và 17 case chưa chạy. Vì vậy nhóm chưa nhận hoàn tất so sánh
+trước/sau. Em phụ trách frontend và tích hợp, Study Coach và kiểm soát AI;
+Thắng đóng góp backend nền, SSE/STT; cả hai có đóng góp RAG. Sau đây nhóm chuyển
+sang thao tác sản phẩm.”
+
+### Câu nối khi bị hỏi giữa bài
+
+- **“Vì sao chọn công nghệ này?”** Trả lời bằng nhu cầu của tính năng, một lợi ích
+  và một đánh đổi; chi tiết nằm trong sổ tay công nghệ, không đọc cả bảng trên slide.
+- **“Em làm phần nào?”** Nêu phần trực tiếp thực hiện/tích hợp và mở symbol tương ứng;
+  phân biệt phần Thắng làm và phần cùng làm, không dựa chỉ vào người đứng tên commit.
+- **Provider chậm khi chuyển demo:** “Request đang chờ dịch vụ ngoài. Nhóm không
+  tự gửi lặp; em chuyển sang dữ liệu đã lưu và chức năng không-AI trước.”
+- **Chưa có bằng chứng:** “Phần đó chưa đủ bằng chứng để khẳng định; kết quả hiện có
+  chỉ chứng minh phạm vi đang trình bày.”
+
 ## Recommended visual edition - 25 October 2026
 
 [Offline HTML](submission/ExaMate-Presentation-Visual-20261025.html) and

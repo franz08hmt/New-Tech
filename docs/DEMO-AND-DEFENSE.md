@@ -274,6 +274,88 @@ tập nếu giảng viên yêu cầu. Không cần thuộc toàn bộ RLS/ledger
   hay production config chỉ để tạo tình huống. Đây là đề luyện, chưa phải lần
   test đã thực thi trong bản cập nhật tài liệu này.
 
+<a id="code-prep-tai"></a>
+
+## Riêng phần 3 — Code Tài nên mở sẵn cho vấn đáp
+
+Đối chiếu source `75f1ebf` ngày 26/10/2026. Đây là danh mục ôn và chỉ code,
+không phải kịch bản đọc slide hoặc kịch bản thao tác demo. Hai phần kia nằm ở
+[SLIDES.md](SLIDES.md#technology-present-script) và
+[cuối sổ tay HTML](EXAMATE-ON-TAP-VAN-DAP.html#demo-script).
+Chỉ nhận phần trực tiếp làm/tích hợp và thực sự giải thích được. RAG có đóng góp
+cả Tài lẫn Thắng; STT/SSE để Thắng giải thích chính. File được liệt kê không đồng
+nghĩa một người tự viết toàn bộ file hoặc không dùng AI hỗ trợ.
+
+### Cửa sổ chính — ghim sáu tab, ưu tiên phần frontend của Tài
+
+| Tab nên mở | Tìm symbol/đoạn nào | Thầy có thể hỏi | Ý chính cần trả lời |
+| --- | --- | --- | --- |
+| [App.tsx](../apps/web/src/App.tsx) | `WorkspaceApp`, `currentRoute`, `openAssistant`, `citedSourceUrl` | “Bấm menu thì đi đâu? Các màn nối với nhau thế nào?” | App ghép session, route và panel; state nằm ở component/hook phù hợp. URL focus/lookup không biến item ngoài trang thành một phần của total. Không tự phát token Storage trên FE. |
+| [TasksPanel.tsx](../apps/web/src/TasksPanel.tsx) | `TasksPanel`, `submit`, `update`; chỗ render badge và controls | “Em làm CRUD, trạng thái và phân quyền giao diện như thế nào?” | Form → API mutation → đọc lại server; badge thể hiện `todo/in_progress/done`. Chặn nút hỗ trợ UX, API mới quyết định quyền. `owner_name` không mặc nhiên là Auth user ID. |
+| [use-paged-search.ts](../apps/web/src/use-paged-search.ts) | `usePagedSearch`, `key`, `revision`, `lastGood`, `setQuery` | “Vì sao đổi query ở trang 2 không bị rỗng sai? Vì sao response cũ không đè mới?” | Query/filter đổi reset page ngay trong state; debounce giới hạn đọc. Key có identity/query, abort và revision kiểm response. Chỉ giữ trang cũ khi cùng identity và cùng query để reload không làm nhảy bố cục; đổi principal không kế thừa dữ liệu đó. |
+| [use-assistant.ts](../apps/web/src/use-assistant.ts) | `send`, `openConversation`, `retryOpenConversation`, `resetConversation`, `cancel`; `epoch`, `draftRevision` | “Mở history lỗi thì sao? Chuyển hội thoại khi stream đang chạy? Draft có mất không?” | GET mở/retry tách khỏi chat; lỗi có recovery đúng thao tác. Epoch loại kết quả cũ; revision giữ draft mới sửa. Guard ở send chặn actions khi đang mở/lỗi mở, không chỉ dựa disabled. Receipt/history và context không được ghép tùy ý. |
+| [StudyCoachPanel.tsx](../apps/web/src/StudyCoachPanel.tsx) | `generate`, `confirmDraft`, `reconcileDraft`, `openQuiz`, `submitAttempt`; `quizLifecycleActionRef`, `attemptPending` | “Preview khác save? Mất phản hồi sau khi nộp làm sao tránh trùng?” | State và lock đồng bộ tách generation/save/practice. Confirm unknown cần GET trước write tiếp; attempt giữ quiz/key/payload và retry đúng lượt. Không tạo key mới hoặc mất khu vực recovery. Progress dùng dữ liệu server. |
+| [packages/contracts/index.d.ts](../packages/contracts/index.d.ts) | `TaskStatus`, `AssistantChatRequest`, `StudyQuizSummary`, `StudyQuizAttemptRequest`, `StudyQuizAttemptResult` | “FE và BE thống nhất dữ liệu bằng cách nào? TypeScript có validate request không?” | Contract typed dùng chung, không copy shape độc lập. Type bị xóa khi compile nên DTO/validator vẫn phải kiểm dữ liệu từ mạng; không coi type là authorization hay validation runtime. |
+
+Đặt tab Study Coach bên cạnh contracts để theo một luồng đủ cả input, state và
+response. Không mở hàng chục tab rồi tìm bằng mắt: dùng **Ctrl+P** theo tên file,
+**Ctrl+F** theo symbol ở bảng. Số dòng thay đổi theo commit nên ưu tiên tên hàm.
+
+### Cửa sổ phụ — chỉ mở khi câu hỏi đi sâu xuống API/DB
+
+| Câu hỏi | File nên mở | Đường giải thích ngắn |
+| --- | --- | --- |
+| “Request thật đi thế nào, lỗi được xử lý ở đâu?” | [api.ts](../apps/web/src/api.ts), symbol `request`; [AssistantPanel.tsx](../apps/web/src/AssistantPanel.tsx), `applyOpenedConversation` | UI gọi client chung; phân biệt read/write và lỗi. Initial open và retry cùng áp dụng summary đã được chấp nhận để đồng bộ document selection. Không gửi lại câu hỏi từ nút retry mở. |
+| “Ai chấm? Vì sao không sửa điểm từ client?” | [study-coach.service.ts](../apps/api/src/study-coach/study-coach.service.ts): `confirmDraft`, `submitAttempt`, `readQuiz`, `readProgressAggregate` | Server kiểm owner/scope, đọc snapshot đáp án rồi chấm; transaction/idempotency theo key và digest. List/detail/progress dựa cùng dữ liệu server; detail trước nộp không trả answer key. |
+| “JSON đúng có đủ tin chưa?” | [study-quiz-validation.ts](../apps/api/src/study-coach/study-quiz-validation.ts): `parseStudyQuizOutput`; [study-flashcards-validation.ts](../apps/api/src/study-coach/study-flashcards-validation.ts): `parseStudyFlashcardsOutput` | Structured-output mode hỗ trợ định dạng; server vẫn kiểm kiểu, giới hạn, số lượng, trùng và source IDs. Contract/provenance PASS không tự thành semantic PASS. |
+| “Query tìm đúng tài liệu và tenant bằng cách nào?” | [rag-retrieval.service.ts](../apps/api/src/assistant/rag-retrieval.service.ts): `retrieve`, `documentInScope`; [document-chunker.ts](../apps/api/src/documents/document-chunker.ts) | Question embedding → SQL scope trước LIMIT → evidence → generation. Chunk giữ mapping trang. Score cosine không là xác suất đúng. Đây là phần RAG chung; phân biệt rõ đóng góp của Thắng. |
+| “Ẩn nút có đủ không? Role từ đâu?” | [auth.guard.ts](../apps/api/src/auth/auth.guard.ts): `canActivate`; [auth.service.ts](../apps/api/src/auth/auth.service.ts): `authenticate`; [principal.ts](../apps/api/src/auth/principal.ts); [database.service.ts](../apps/api/src/database/database.service.ts): `workspaceTransaction` | Cookie → session/principal đã xác minh → quyền hiện hành → transaction workspace → SQL/RLS. Không tin workspace/role do client tự khai. Runtime không dùng owner/BYPASSRLS. |
+| “Em chứng minh quyền Tasks ở backend đâu?” | [tasks.service.ts](../apps/api/src/tasks/tasks.service.ts): `search`, `create`, `updateStatus` | Search có giới hạn và scope server; create/update gọi kiểm quyền, viewer không vượt qua bằng sửa DOM. Query parameterized, sort allowlist. |
+| “Flashcards khác quiz thế nào?” | [StudyFlashcardsPanel.tsx](../apps/web/src/StudyFlashcardsPanel.tsx): `rateCurrent`, `submitReview`, `retryReview`; [study-flashcards.service.ts](../apps/api/src/study-coach/study-flashcards.service.ts) | Flip hiển thị hai mặt; remembered/needs_review là tự đánh giá. Review identity/payload được giữ khi unknown; server tính aggregate, không gọi AI để ôn. |
+| “Token và chi phí lấy ở đâu?” | [AiUsageDashboard.tsx](../apps/web/src/AiUsageDashboard.tsx); [ai-usage-dashboard.service.ts](../apps/api/src/admin/ai-usage-dashboard.service.ts); [ai-admission.service.ts](../apps/api/src/assistant/ai-admission.service.ts) | Admission chặn trước, telemetry tổng hợp sau. Operation khác call, null khác 0, decimal không cộng tùy tiện bằng float. Manager đọc dữ liệu đã ghi nhận, không phải billing ledger. |
+| “Đóng gói và lưu bền?” | [compose.yaml](../compose.yaml), [nginx config](../infra/nginx/default.conf) | Container đóng gói app/proxy; DB/Storage giữ dữ liệu. nginx không buffer SSE; dịch vụ cloud vẫn cần mạng. Không cần mở `.env` để giải thích. |
+
+### Bốn câu Tài nên luyện bằng cách chỉ code
+
+1. **“Mô tả một thao tác frontend hoàn chỉnh.”**
+   “Em lấy ví dụ đổi trạng thái task: dropdown gọi handler, handler gửi API,
+   server kiểm quyền rồi lưu, frontend đọc lại trang và render badge từ kết quả.
+   Nếu đọc lại lỗi, UI báo lỗi đọc; không gửi lại mutation chỉ vì chưa thấy kết quả.”
+   Mở `TasksPanel.tsx` → `api.ts` → `tasks.service.ts` rồi trở về UI.
+2. **“Vì sao chỉ abort là chưa đủ?”**
+   “Abort giảm công việc thừa nhưng response có thể đã xong hoặc callback vẫn đến.
+   Em kiểm thêm identity/key/revision trước khi apply; dữ liệu tài khoản cũ không
+   được tái sử dụng cho tài khoản mới.” Chỉ `use-paged-search.ts` và phân biệt
+   reload cùng query với đổi query/principal.
+3. **“Một lỗi thực tế em đã xử lý?”**
+   “Sau khi server đã ghi attempt mà client mất phản hồi, UI từng có đường làm
+   mất recovery. Em giữ attemptKey/payload, khóa lifecycle xung đột và retry cùng
+   logical submission; không tạo lượt mới để thoát lỗi.” Chỉ guard và pending state
+   trong `StudyCoachPanel.tsx`, sau đó đối chiếu server `submitAttempt`.
+4. **“Phần nào em làm, phần nào Thắng làm?”**
+   “Em phụ trách frontend và tích hợp các luồng, Study Coach và kiểm soát AI;
+   Thắng đóng góp backend/Supabase ban đầu, Gemini, SSE/STT và RAG. RAG là phần
+   chung; em xin chỉ phần em thực hiện hoặc tích hợp và để Thắng giải thích phần
+   của bạn.” Điều chỉnh đúng đóng góp thực tế, không học thuộc để nhận phần chưa làm.
+
+### Test mở dự phòng để chứng minh một câu trả lời
+
+- [TasksSearch.test.tsx](../apps/web/src/TasksSearch.test.tsx) và
+  [TaskPermissions.test.tsx](../apps/web/src/TaskPermissions.test.tsx): request
+  server-side, trạng thái và controls theo quyền.
+- [use-paged-search.test.tsx](../apps/web/src/use-paged-search.test.tsx): query/page,
+  identity và reload. Chọn đúng case mà mình có thể giải thích expected trước/sau.
+- [conversation-source-reset.test.tsx](../apps/web/src/conversation-source-reset.test.tsx):
+  selection và context; [assistant.test.tsx](../apps/web/src/assistant.test.tsx):
+  lifecycle và open/retry theo ca cụ thể.
+- [StudyCoachPanel.test.tsx](../apps/web/src/StudyCoachPanel.test.tsx): unknown,
+  reconciliation và các lifecycle lock; kiểm frontend không thay bằng chứng DB.
+
+Khi thầy hỏi, trả lời trước bằng **input → xử lý → output → lỗi → test** rồi mới
+chỉ đoạn code. Không mở `.env`, credential, private account mapping hoặc log
+có token trên màn hình đang chiếu. Không chạy migration, cloud write hoặc model
+thật chỉ để trả lời câu hỏi; không tự đọc một con số test lịch sử thành kết quả mới.
+
 ## Checkpoint lịch sử trước managed026 — không phải trạng thái runtime hiện tại
 
 Kịch bản 8 phút và shot list 3–5 phút ở trên sẵn dùng. **Chưa ghi video từ dịch vụ thật**: cloud mới ở016, chưa có LOGIN runtime hợp lệ; không quay synthetic rồi gọi đó là bản dùng Auth/Storage/Gemini thật. Công cụ mở Chrome tương tác đã bị policy từ chối; không dùng profile cá nhân hay đường vòng. Browser headless local riêng vẫn có thể dùng cho kiểm thử synthetic khi stack sẵn, không mở khóa console Google của người dùng.
