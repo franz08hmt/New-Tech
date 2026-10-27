@@ -2620,14 +2620,13 @@
             <p class="spoken">
               <strong>Bạn nói:</strong> “xác thực xác định người dùng; phân
               quyền xác định người đó được làm gì trong không gian làm việc.
-              trình duyệt dùng cookie phiên opaque HttpOnly, không lưu JWT trong
-              localStorage. máy chủ lấy danh tính đã xác minh đã xác minh, kiểm
-              tư cách thành viên và dùng transaction có phạm vi. PostgreSQL có
-              RLS, còn business và Auth dùng LOGIN riêng không bypass RLS.
-              Viewer chỉ đọc dữ liệu nghiệp vụ dùng chung; người quản lý cũng
-              không mặc nhiên đọc hội thoại hay bộ luyện tập riêng của người
-              khác. pgvector giúp tìm các đoạn gần câu hỏi trong đúng phạm vi
-              tài liệu.”
+              Trình duyệt dùng cookie phiên opaque HttpOnly, không lưu JWT trong
+              localStorage. Máy chủ lấy danh tính đã xác minh, kiểm tư cách
+              thành viên và dùng transaction có phạm vi. PostgreSQL có RLS, còn
+              business và Auth dùng LOGIN riêng không bypass RLS. Viewer chỉ đọc
+              dữ liệu nghiệp vụ dùng chung; người quản lý cũng không mặc nhiên
+              đọc hội thoại hay bộ luyện tập riêng của người khác. pgvector giúp
+              tìm các đoạn gần câu hỏi trong đúng phạm vi tài liệu.”
             </p>
           </article>
           <article class="scene">
@@ -2666,9 +2665,9 @@
             </p>
             <p class="spoken">
               <strong>Bạn nói:</strong> “Study Coach dùng structured kết quả đầu
-              ra của Gemini cho quiz và flashcards. máy chủ vẫn kiểm cấu trúc dữ
+              ra của Gemini cho quiz và flashcards. Máy chủ vẫn kiểm cấu trúc dữ
               liệu, số câu hoặc thẻ, nội dung trùng và nguồn có thuộc bằng chứng
-              hay không. bản xem trước chưa tự lưu; người dùng phải xác nhận
+              hay không. Bản xem trước chưa tự lưu; người dùng phải xác nhận
               riêng. Quiz được máy chủ chấm từ ảnh chụp dữ liệu đã lưu, không
               tin điểm client; flashcards là tự đánh giá nhớ hoặc cần ôn lại.
               Luyện tập không gọi AI thêm. Nếu mất phản hồi sau khi ghi, UI giữ
@@ -2798,9 +2797,9 @@
             </h3>
             <p>
               <strong>Bạn thao tác:</strong> mở phiên đã đăng nhập của bản
-              Docker tại <code>http://127.0.0.1:8080</code>. chỉ vai trò người
-              quản lý và Dashboard; không chiếu mật khẩu, cookie hoặc bước xác
-              thực cá nhân.
+              Docker tại <code>http://127.0.0.1:8080</code>. Chỉ vào vai trò
+              người quản lý và Dashboard; không chiếu mật khẩu, cookie hoặc bước
+              xác thực cá nhân.
             </p>
             <p class="spoken pitch">
               <strong>Bạn nói:</strong> “Đây là ExaMate đang chạy bằng Docker,
@@ -2905,7 +2904,7 @@
             </p>
             <p class="spoken pitch">
               <strong>Bạn nói:</strong> “Đây là bộ thẻ đã được tạo và xác nhận
-              lưu trước đó. Người học chủ động lật thẻ rồi tự đánh giá. máy chủ
+              lưu trước đó. Người học chủ động lật thẻ rồi tự đánh giá. Máy chủ
               ghi lượt ôn và tính tiến độ; đây không phải điểm AI chấm hay chứng
               nhận đã thành thạo. Lật thẻ và lưu lượt ôn không gọi model.”
             </p>
@@ -3488,7 +3487,7 @@
                 <p class="follow">
                   <strong>Thầy hỏi tiếp:</strong> setPage dùng resetPage=false
                   để nút Sau vẫn có tác dụng. Một ký tự hiện hướng dẫn; blank
-                  quay về browse. máy chủ vẫn chặn query fold rỗng, không tạo
+                  quay về browse. Máy chủ vẫn chặn query fold rỗng, không tạo
                   LIKE %% từ từ khóa unsupported.
                 </p>
                 <p class="small">
@@ -3976,7 +3975,7 @@
                 <p class="owner-label">Tài · trả lời chính</p>
                 <p>
                   Không. Người học chủ động flip, chọn remembered/needs_review
-                  cho đủ card rồi xác nhận lưu review. máy chủ kiểm đúng tập
+                  cho đủ card rồi xác nhận lưu review. Máy chủ kiểm đúng tập
                   card IDs, rating allowlist, key/digest và tính số lượt, thời
                   điểm gần nhất, remembered/needs_review. Không AI chấm và không
                   spaced repetition.
@@ -4268,8 +4267,8 @@
               <section aria-label="Đáp án câu 59" class="answer">
                 <p class="owner-label">Thắng · trả lời chính</p>
                 <p>
-                  Trên API host. trình duyệt MediaRecorder gửi audio tới Nest.
-                  máy chủ validate rồi ffprobe/FFmpeg kiểm/chuyển về waveform
+                  Trên API host. Trình duyệt MediaRecorder gửi audio tới Nest.
+                  Máy chủ validate rồi ffprobe/FFmpeg kiểm/chuyển về waveform
                   mono 16 kHz, worker chạy Whisper-small ONNX CPU/q8, trả
                   transcript. Người dùng sửa và chèn rồi tự gửi, không tự gọi
                   Gemini.
