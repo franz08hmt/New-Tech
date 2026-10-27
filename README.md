@@ -15,7 +15,9 @@ Main Compose có service `document-converter` dùng LibreOffice Writer và font 
 không credential, không publish cổng host, network riêng `internal`, rootfs read-only,
 user non-root, tmpfs giới hạn và một conversion tại một thời điểm. Tệp mã hóa,
 DOCM/RTF, tệp giả định dạng, DOCX có macro/embedded objects hoặc external relationships
-không được hỗ trợ. Giới hạn 35 giây cho converter, 45 giây phía API; PDF đầu ra
+không được hỗ trợ; ngoại lệ duy nhất là siêu liên kết thường (http, https, mailto), chỉ là
+liên kết bấm được trong PDF và không bao giờ được tải khi chuyển đổi. Ảnh, template hoặc
+object liên kết ngoài vẫn bị từ chối. Giới hạn 35 giây cho converter, 45 giây phía API; PDF đầu ra
 không quá 10 MiB. DOC/DOCX có thể khác bố cục/font so với Microsoft Word; cần mở
 PDF để kiểm tra. Đây không phải công cụ loại bỏ mọi mã độc.
 

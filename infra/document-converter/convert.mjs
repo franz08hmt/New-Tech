@@ -23,6 +23,23 @@ const invalid = () => {
   throw new ConversionError(422, "DOCUMENT_CONVERSION_INVALID");
 };
 
+/**
+ * External relationships are refused (remote images, templates, linked objects
+ * would make the converter fetch something). The one exception is an ordinary
+ * hyperlink to http(s)/mailto: it is only a clickable link in the PDF and is
+ * never fetched during conversion.
+ */
+export function externalRelationshipsAllowed(text) {
+  for (const [tag] of text.matchAll(/<Relationship\b[^>]*>/gi)) {
+    if (!/\bTargetMode\s*=\s*["']External["']/i.test(tag)) continue;
+    const type = /\bType\s*=\s*["']([^"']*)["']/i.exec(tag)?.[1] ?? "";
+    const target = /\bTarget\s*=\s*["']([^"']*)["']/i.exec(tag)?.[1] ?? "";
+    if (!/\/hyperlink$/i.test(type) || !/^(https?:|mailto:)/i.test(target))
+      return false;
+  }
+  return true;
+}
+
 /** Read bounded ZIP metadata/relationship text, never extract arbitrary paths. */
 function checkDocx(bytes) {
   if (bytes.readUInt32LE(0) !== 0x04034b50) invalid();
@@ -85,11 +102,11 @@ function checkDocx(bytes) {
           ? inflateRawSync(chunk, { maxOutputLength: 1024 * 1024 })
           : chunk
       ).toString("utf8");
-      // Fail closed on external relationships, DTD/entity obfuscation and macros.
+      // Fail closed on external relationships (except plain hyperlinks),
+      // DTD/entity obfuscation and macros.
       if (
-        /<!DOCTYPE|<!ENTITY|TargetMode\s*=\s*["']External|macroEnabled|vbaProject/i.test(
-          text,
-        )
+        /<!DOCTYPE|<!ENTITY|macroEnabled|vbaProject/i.test(text) ||
+        !externalRelationshipsAllowed(text)
       )
         invalid();
     }

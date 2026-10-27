@@ -88,6 +88,13 @@ New formats become a PDF before storage, so page citations, indexing, retrieval 
 Study Coach keep their existing contracts. Conversion calls no AI and nothing was
 applied to the cloud project. ADR-018 records the isolation limits and trade-offs.
 
+A real-use defect followed: a student report DOCX was refused (422) because the
+converter's pre-check treated every external relationship, including one ordinary
+hyperlink, as unsafe. AI diagnosed it from the ZIP metadata only, narrowed the rule
+to allow http(s)/mailto hyperlinks while still refusing external images, templates,
+linked objects and other schemes, added unit and real-LibreOffice regression tests,
+and confirmed the original file now converts. Live demo converter rebuilt locally.
+
 ## 2026-10-26 - page-jump fix, display language and member management
 
 At the user's request, AI (Claude Code) diagnosed two Firefox recordings and fixed

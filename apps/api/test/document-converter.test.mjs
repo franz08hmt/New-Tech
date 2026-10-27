@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   validateSource,
+  externalRelationshipsAllowed,
   ConversionError,
 } from "../../../infra/document-converter/convert.mjs";
 import { documentUploadFormat } from "@examate/contracts/document-formats";
@@ -54,4 +55,34 @@ test("real DOCX fixture is accepted; damaged ZIP sizes and external relationship
     new URL("./fixtures/document-formats/external.docx", import.meta.url),
   );
   assert.throws(() => validateSource("docx", external), ConversionError);
+});
+test("an ordinary http(s)/mailto hyperlink is accepted, anything else external still fails closed", () => {
+  const hyperlink = readFileSync(
+    new URL("./fixtures/document-formats/hyperlink.docx", import.meta.url),
+  );
+  assert.equal(validateSource("docx", hyperlink), undefined);
+  const rel = (type, target) =>
+    `<Relationships><Relationship Id="r1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}" TargetMode="External"/></Relationships>`;
+  for (const [type, target, allowed] of [
+    ["hyperlink", "https://example.com/page", true],
+    ["hyperlink", "http://example.com/page", true],
+    ["hyperlink", "mailto:someone@example.com", true],
+    ["hyperlink", "file:///C:/secret.txt", false],
+    ["hyperlink", "javascript:alert(1)", false],
+    ["image", "https://example.com/pixel.png", false],
+    ["attachedTemplate", "https://example.com/t.dotm", false],
+    ["oleObject", "https://example.com/object", false],
+    ["subDocument", "https://example.com/part.docx", false],
+  ])
+    assert.equal(
+      externalRelationshipsAllowed(rel(type, target)),
+      allowed,
+      `${type} ${target}`,
+    );
+  assert.equal(
+    externalRelationshipsAllowed(
+      '<Relationships><Relationship Id="r1" Type="x/styles" Target="styles.xml"/></Relationships>',
+    ),
+    true,
+  );
 });

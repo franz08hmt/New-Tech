@@ -43,6 +43,19 @@ for (const format of ["doc", "docx", "md", "txt"])
     }
     assert.ok(extracted.length > 0);
   });
+test("real LibreOffice converts a DOCX that contains an ordinary hyperlink", async () => {
+  const response = await request(
+    "docx",
+    await readFile(
+      new URL("./fixtures/document-formats/hyperlink.docx", import.meta.url),
+    ),
+  );
+  assert.equal(response.status, 200);
+  const pdf = Buffer.from(await response.arrayBuffer());
+  assert.equal(pdf.subarray(0, 5).toString(), "%PDF-");
+  const extracted = await new PdfTextExtractorService().extract(pdf);
+  assert.match(extracted.map((p) => p.text).join(" "), /Example link/);
+});
 for (const [format, file] of [
   ["docx", "external.docx"],
   ["docx", "notes.md"],
