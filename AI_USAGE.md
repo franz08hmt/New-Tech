@@ -1,5 +1,38 @@
 # AI Assistance Log
 
+## 2026-10-27 — Dark IDE-style oral-defense study guide
+
+AI refreshed `docs/EXAMATE-ON-TAP-VAN-DAP.html` at the user's request. The guide
+now uses a dark editor/explorer layout, static syntax highlighting, line numbers
+and copy controls. Repetitive overview/rationale text was condensed into nine
+sections. All 68 question IDs and owner assignments remain: 30 rewritten spoken
+answers lead the study path; 38 deeper questions stay in a collapsed reference
+bank. The ten-slide speaking script and web-demo script remain separate, with
+actions distinguished from full-sentence Vietnamese speech. Thang's shared RAG
+contribution remains explicit. Current Word conversion, atomic citations and
+bounded generation knowledge were updated against source b2a44d7.
+
+Seventeen embedded code excerpts were compared exactly to that committed source,
+including whitespace/line ranges.
+Static Pygments highlighting used an already installed authoring tool, with no
+new application dependency or runtime CDN. Early checks caught lost indentation
+and leading blank lines in the authoring/highlighting path; both were corrected
+before delivery. The full local-link/ID/source checks pass.
+
+Isolated Chrome passed dark layout, owner filters, deep search, keyboard navigation,
+self-test, code opening, print-state restoration and no overflow at 1440/375/320px.
+Direct file opening also passed; no external/app/provider request occurred.
+Clipboard UI was tested with a page-scoped API stub, not the user's system clipboard.
+An initial browser oracle tried a hidden mobile nav link; opening the native menu
+fixed the harness. Later screenshot timing was made deterministic after print-media
+emulation. These are document checks, not new app/browser-matrix, DB, live-model or
+semantic acceptance. Evidence stays ignored under artifacts/oral-guide-ide-20261027/.
+Unrelated source/slide work and the user's report renames remain untouched.
+Cleanup of the three owned Chrome profile folders was rejected by tool policy
+(`blocked by policy`); no alternate deletion was attempted. Browser instances
+were closed by the harness finally blocks; profiles/evidence remain ignored
+with ownership markers. This is RESOURCE_CLEANUP_BLOCKED, not a completed cleanup.
+
 ## 2026-10-27 — Report body refresh with user-authored cover preserved
 
 At the user's request, AI compared the English report with committed progress

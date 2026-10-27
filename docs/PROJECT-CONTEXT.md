@@ -1,5 +1,30 @@
 # ExaMate — context hiện tại cho Tài, Thắng và agent
 
+## Oral-defense guide readability revision — 27/10/2026
+
+`docs/EXAMATE-ON-TAP-VAN-DAP.html` now has an offline dark IDE-style layout:
+explorer navigation, readable syntax-colored code and line numbers. Seventeen
+source excerpts match committed b2a44d7. The study path is condensed from 17 to
+nine sections while retaining all 68 question IDs/owners: 30 prioritized spoken
+answers and 38 collapsed references. Technology rationale is shortened with a
+link to the existing full companion. Slide and web-demo scripts stay distinct;
+the ten-slide order and Tài/Thắng RAG ownership are preserved. Current converter,
+atomic-citation and grounded-output policy replaces obsolete guide assumptions.
+
+Verification is document-only: source/link/ID checks and targeted Prettier pass;
+real isolated Chrome passes 1440/375/320px, owner/search/self-test/navigation,
+code/copy UI and print-state behavior, plus direct file:// use. Clipboard was
+stubbed only in the isolated page. No application/DB/provider run or runtime
+change. Raw evidence is ignored in `artifacts/oral-guide-ide-20261027/`; owned
+Chrome profiles are disposable. Uncommitted report renames and source/slide WIP
+are preserved, not included in this guide commit. Existing acceptance pending
+states are unchanged.
+
+Profile cleanup is RESOURCE_CLEANUP_BLOCKED: automatic tool review rejected the
+recursive removal command with `blocked by policy`. No alternate deletion was
+attempted. The harness closed its Chrome processes, while three marked profile
+folders and evidence remain in the ignored task directory.
+
 ## Report content and repository hygiene — 27/10/2026
 
 The English Word/PDF report now reflects committed technical progress through
