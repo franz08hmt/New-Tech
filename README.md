@@ -56,12 +56,20 @@ Folder `Final-Project` cũ còn WIP riêng; không reset, copy đè hoặc gom v
 3. **[Checklist demo cuối kỳ](docs/FINAL-DEMO-CHECKLIST.md):** kịch bản,
    bằng chứng, phân công và những điều không được tuyên bố quá mức.
 
-Bộ nộp và bảo vệ (23/10/2026, bản DRAFT): [ma trận rubric + user stories](docs/FINAL-REQUIREMENTS.md),
+Bộ nộp và bảo vệ (nội dung cập nhật 27/10/2026, bản DRAFT): [ma trận rubric + user stories](docs/FINAL-REQUIREMENTS.md),
 [báo cáo](docs/REPORT.md), [slide](docs/SLIDES.md), [demo/video/bảo vệ](docs/DEMO-AND-DEFENSE.md),
 [gói duyệt gold](docs/GOLD-REVIEW-PACK.md) và [checklist bàn giao](docs/RUBRIC-READINESS-HANDOFF.md).
-PDF/PPTX dựng nhanh bằng `python scripts/build-submission-docs.py <thư-mục-xuất>`.
+PDF/PPTX phác thảo dựng bằng `python scripts/build-submission-docs.py <thư-mục-xuất>`;
+bản Word/PDF chính bên dưới dùng Word để giữ bìa và mục lục, không thay bằng bản phác.
 Bản report tiếng Anh có bìa và mục lục Word hiện hành: [PDF 20 trang](docs/submission/ExaMate-Report-20261023.pdf), [Word chỉnh sửa](docs/submission/ExaMate-Report-20261023.docx).
-Bản Word/PDF chính giữ layout theo mẫu; sửa Word, cập nhật mục lục và xuất PDF lại khi đổi nội dung.
+Bản Word/PDF chính giữ nguyên bìa người dùng đã điền, cập nhật nội dung tới source
+`ef248e1` ngày 27/10 và có link
+[nhánh phát triển](https://github.com/franz08hmt/New-Tech/tree/feature/tai-assistant-integration-20261018).
+Sửa Word, cập nhật mục lục và xuất PDF lại khi đổi nội dung.
+
+Git giữ source, tài liệu vận hành/kiểm chứng cần thiết và bộ nộp hiện hành. Bản
+export cũ/trùng chỉ giữ local/Git history; `artifacts/`, `output/`, `.env` và secrets
+không thuộc bộ nộp. Không xóa bản local khi dọn danh sách file được theo dõi.
 
 **New reference-style visual deck (25 October):**
 [Offline HTML](docs/submission/ExaMate-Presentation-Visual-20261025.html) and
@@ -70,7 +78,7 @@ Poppins + Heroicons, black/white/yellow, eleven retained application screenshots
 Open HTML in Chrome/Edge: arrow keys navigate, Overview reads all, Notes reveals
 Vietnamese speaker notes. No Docker/network needed to present; the demo link
 requires the app at port 8080. Sources and rebuild commands: [SLIDES.md](docs/SLIDES.md).
-The older editable PPTX below is retained as a separate design.
+The older 24 October export is local-only; use the current bundles listed here.
 
 **Bản công nghệ tiếng Việt (26/10):**
 [HTML offline](docs/submission/ExaMate-Technologies-VI-20261026.html),
@@ -82,11 +90,9 @@ và lời nói tiếng Việt cho Tài–Thắng. Lý do chọn/trade-off đầy
 HTML có hoạt ảnh và tương tác offline; PDF/PPTX là bố cục tĩnh, PPTX có fade và
 ghi chú chỉnh được. Chi tiết: [SLIDES.md](docs/SLIDES.md).
 
-Slide present 16:9 (24/10/2026): [PowerPoint chỉnh sửa](docs/submission/ExaMate-Presentation-20261024.pptx)
-và [PDF 14 trang](docs/submission/ExaMate-Presentation-20261024.pdf).
-12 slide chính + 2 backup vấn đáp (ẩn khi trình chiếu PPT, có trong PDF);
-nội dung tiếng Anh, Presenter Notes tiếng Việt cho Tài–Thắng.
-Nguồn: [SLIDES.md](docs/SLIDES.md); dựng đúng layout bằng
+Bản slide 24/10 (12 trang chính + 2 backup) chỉ giữ local/Git history, không còn
+đưa bản export/preview cũ vào cây Git hiện hành. Có thể dựng lại từ
+[SLIDES.md](docs/SLIDES.md) bằng
 `python scripts/build-defense-slides.py output/presentation` trên Windows có
 PowerPoint và các thư viện authoring Python đang dùng. Mở file có sẵn để trình
 chiếu/chỉnh sửa thì không cần Python hay Canva. Report/slide vẫn DRAFT vì lượt

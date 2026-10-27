@@ -18,8 +18,9 @@ from `docs/presentation/technology-knowledge.json` at source `69eab36`.
 A separate **10-slide Vietnamese** explanation of technology choices, following
 the existing black/white/yellow design, embedded Poppins and Heroicons. Eight selected
 retained demo screenshots keep their original provenance and synthetic/live
-boundaries. No new application or model result is claimed. The original English
-visual edition and 24 October editable PPTX are unchanged.
+boundaries. No new application or model result is claimed. The English visual
+edition remains versioned. Superseded 24 October exports remain local/Git history;
+rebuild them into ignored `output/presentation/` when needed.
 
 Slides: 1 cover; 2 architecture + NestJS/backend/contracts;
 3 React/TypeScript/Vite/Tailwind; 4 Auth/session + PostgreSQL/pgvector/RLS;
@@ -286,7 +287,8 @@ DRAFT: improved evaluation and personal confirmations remain incomplete.
 14 slides including 2 Q&A backups; rubric limit 15. Slides 13–14 are hidden by
 default in the PowerPoint slide show and remain visible in the PDF.
 
-Editable PPTX and PDF: `docs/submission/ExaMate-Presentation-20261024.{pptx,pdf}`.
+Historical editable PPTX/PDF: `docs/submission/ExaMate-Presentation-20261024.{pptx,pdf}`
+(local-only from 27 October; the source is retained, current editions are above).
 Build: `python scripts/build-defense-slides.py output/presentation`.
 The dedicated command creates the designed deck; the older generic exporter only
 provides a basic outline. Notes are embedded in PowerPoint. Evidence bindings:

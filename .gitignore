@@ -14,5 +14,12 @@ artifacts/
 .vscode/
 *.tsbuildinfo
 __pycache__/
-output/pdf/
-output/presentation/
+output/
+
+# Superseded/local authoring exports; current report and presentation bundles stay tracked.
+/docs/submission/ExaMate-Presentation-20261024.pptx
+/docs/submission/ExaMate-Presentation-20261024.pdf
+/docs/submission/ExaMate-Presentation-20261024-preview.png
+/docs/submission/slides-manifest.json
+/docs/submission/presentation-verification.json
+/docs/report-assets/architecture.png
