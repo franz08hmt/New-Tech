@@ -351,7 +351,7 @@ it("notes survive reload for the same principal and stay separate from another p
       <NotesPanel />
     </PilotAccess>,
   );
-  await screen.findByText("Workspace access");
+  await screen.findByRole("button", { name: "Sign out" });
   expect(
     screen.queryByDisplayValue("Account A edited"),
   ).not.toBeInTheDocument();

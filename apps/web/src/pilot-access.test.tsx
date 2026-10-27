@@ -16,7 +16,7 @@ it.each([
   ["member", "Member · Thành viên"],
   ["viewer", "Viewer · Chỉ xem"],
 ] as const)(
-  "shows the verified %s role in the workspace bar",
+  "shows the role in the workspace bar only for a manager (%s)",
   async (role, label) => {
     vi.stubGlobal(
       "fetch",
@@ -32,14 +32,20 @@ it.each([
         <p>Protected fixture</p>
       </PilotAccess>,
     );
-    const badge = await screen.findByText(label);
-    expect(badge).toBeVisible();
-    expect(badge.closest(".pilot-session-bar")).not.toBeNull();
+    await screen.findByRole("button", { name: "Sign out" });
     expect(screen.getByRole("button", { name: "Sign out" })).toBeEnabled();
+    if (role === "manager") {
+      const badge = screen.getByText(label);
+      expect(badge).toBeVisible();
+      expect(badge.closest(".pilot-session-bar")).not.toBeNull();
+    } else {
+      expect(screen.queryByText(label)).toBeNull();
+      expect(screen.queryByText("Workspace access")).toBeNull();
+    }
   },
 );
 
-it("keeps the role visible during a background check, replaces it with the verified one and removes it on logout", async () => {
+it("keeps the manager role visible during a background check, drops it once the verified role is not manager and clears on logout", async () => {
   let reads = 0;
   vi.stubGlobal(
     "fetch",
@@ -71,11 +77,13 @@ it("keeps the role visible during a background check, replaces it with the verif
   await act(async () => window.dispatchEvent(new Event("focus")));
   expect(screen.getByText("Manager · Người quản lý")).toBeVisible();
   await act(async () => drain?.());
-  expect(await screen.findByText("Viewer · Chỉ xem")).toBeVisible();
-  expect(screen.queryByText("Manager · Người quản lý")).toBeNull();
+  await waitFor(() =>
+    expect(screen.queryByText("Manager · Người quản lý")).toBeNull(),
+  );
+  expect(screen.queryByText("Viewer · Chỉ xem")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
   await screen.findByRole("button", { name: "Sign in" });
-  expect(screen.queryByText("Viewer · Chỉ xem")).toBeNull();
+  expect(screen.queryByText("Manager · Người quản lý")).toBeNull();
 });
 
 it("revalidation preserves the page shell, title and focus without exposing the login screen", async () => {

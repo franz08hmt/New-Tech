@@ -137,8 +137,10 @@ it("a silent revalidation that finds another role updates it without a hidden st
   await act(async () => window.dispatchEvent(new Event("focus")));
   expect(screen.getByText("Manager · Người quản lý")).toBeVisible();
   await act(async () => release?.());
-  expect(await screen.findByText("Viewer · Chỉ xem")).toBeVisible();
-  expect(screen.queryByText("Manager · Người quản lý")).toBeNull();
+  await waitFor(() =>
+    expect(screen.queryByText("Manager · Người quản lý")).toBeNull(),
+  );
+  expect(screen.queryByText("Viewer · Chỉ xem")).toBeNull();
   expect(screen.getByTestId("shell")).toBeVisible();
 });
 

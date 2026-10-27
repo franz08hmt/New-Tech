@@ -259,14 +259,14 @@ export function PilotAccess({ children }: { children: ReactNode }) {
           }}
         >
           <div className="pilot-session-bar pilot-session-with-role">
-            <span className="pilot-session-identity">
-              <span className="pilot-session-caption">
-                {tr("Workspace access")}
-              </span>
-              {session.principal && (
+            {session.principal?.role === "manager" && (
+              <span className="pilot-session-identity">
+                <span className="pilot-session-caption">
+                  {tr("Workspace access")}
+                </span>
                 <WorkspaceRoleBadge role={session.principal.role} />
-              )}
-            </span>
+              </span>
+            )}
             <span className="pilot-session-actions">
               <LanguageSwitch />
               <button
