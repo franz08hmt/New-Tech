@@ -204,7 +204,7 @@ describe("AssistantController", () => {
       expected: {
         operation: "assistant_question",
         mode: "documents",
-        prompt: { id: "assistant.documents.question", version: "rag-v1" },
+        prompt: { id: "assistant.documents.question", version: "rag-json-v2" },
       },
     },
     {
@@ -219,7 +219,7 @@ describe("AssistantController", () => {
         mode: "documents",
         prompt: {
           id: "assistant.documents.summary",
-          version: "rag-summary-v1",
+          version: "rag-summary-v2",
         },
       },
     },
@@ -433,7 +433,7 @@ describe("AssistantController", () => {
       model: "gemini-2.5-flash",
       mode: "documents",
       ragEnabled: true,
-      promptVersion: "rag-v1",
+      promptVersion: "rag-json-v2",
     });
     expect(input).toBeInstanceOf(AssistantChatDto);
     expect(chat).toHaveBeenCalledWith(

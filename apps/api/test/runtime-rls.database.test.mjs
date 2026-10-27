@@ -2294,7 +2294,7 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
       ragTelemetry.operation.prompt_version,
       ragTelemetry.operation.outcome,
     ],
-    ["assistant.documents.question", "rag-v1", "success"],
+    ["assistant.documents.question", "rag-json-v2", "success"],
   );
   assert.equal(ragTelemetry.operation.provider_call_count, 2);
   assert.deepEqual(ragTelemetry.calls.map((call) => call.call_type).sort(), [
@@ -2316,7 +2316,7 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
       "google",
       "gemini-2.5-flash-001",
       "assistant.documents.question",
-      "rag-v1",
+      "rag-json-v2",
     ],
   );
   assert.equal(
@@ -2406,7 +2406,7 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
       summaryTelemetry.operation.prompt_id,
       summaryTelemetry.operation.prompt_version,
     ],
-    ["assistant.documents.summary", "rag-summary-v1"],
+    ["assistant.documents.summary", "rag-summary-v2"],
   );
   assert.equal(summaryTelemetry.operation.provider_call_count, 3);
   assert.equal(summaryTelemetry.calls.length, 3);
@@ -2425,7 +2425,7 @@ test("HTTP instruments real provider wrappers through split non-owner pools", as
   );
   assert.ok(
     summaryTelemetry.calls.every(
-      (call) => call.prompt_version === "rag-summary-v1",
+      (call) => call.prompt_version === "rag-summary-v2",
     ),
   );
 

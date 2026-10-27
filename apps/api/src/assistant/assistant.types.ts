@@ -27,6 +27,8 @@ export interface AssistantGeneration {
   responseJsonSchema?: unknown;
   /** Per-operation bounded override; absent callers retain the configured default. */
   maxOutputTokens?: number;
+  /** Bounded hint, applied only to the compatible Gemini 2.5 Flash family. */
+  thinkingBudget?: number;
 }
 
 export interface AssistantProvider {
@@ -60,6 +62,8 @@ export type AssistantFailure =
  * down and says exactly which rule a 502 came from.
  */
 export type AnswerRejection =
+  | "answer_truncated"
+  | "provider_finish_blocked"
   | "answer_not_json"
   | "answer_not_object"
   | "answer_shape_invalid"

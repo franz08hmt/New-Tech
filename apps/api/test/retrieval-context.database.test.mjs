@@ -17,6 +17,26 @@ const golden = JSON.parse(
     "utf8",
   ),
 );
+// Preserve the historical corpus/retrieval oracle. Only the generation wire
+// contract intentionally changed; its independent schema/budget checks live
+// in assistant.service.spec.ts and document-summary-http.database.test.mjs.
+function evidencePayload({
+  prompt: _prompt,
+  systemInstruction: _instruction,
+  responseJsonSchema: _schema,
+  maxOutputTokens: _output,
+  thinkingBudget: _thinking,
+  userParts,
+  ...rest
+}) {
+  return {
+    ...rest,
+    userParts: userParts.filter(
+      (part) =>
+        !part.startsWith("User request and target language (untrusted):"),
+    ),
+  };
+}
 let f;
 beforeEach(async () => {
   // Each behavior gets a fresh physical corpus/index and role. Cross-test
@@ -116,16 +136,16 @@ for (const role of ["manager", "member", "viewer"])
     );
     assertGroundedAnswer(answer, A.document);
     assert.deepEqual(
-      f.state.generations.map(({ prompt: _prompt, ...payload }) => payload),
-      golden.questionPrompts,
-      "the provider payload remains byte-for-byte equivalent to the pre-registry golden",
+      f.state.generations.map(evidencePayload),
+      golden.questionPrompts.map(evidencePayload),
+      "scoped evidence and user input retain the historical retrieval oracle",
     );
     assert.deepEqual(
       f.state.generations.map(({ prompt }) => prompt),
-      [{ id: "assistant.documents.question", version: "rag-v1" }],
+      [{ id: "assistant.documents.question", version: "rag-json-v2" }],
     );
   });
-test("summary grouping/source offsets and every provider prompt match the pre-change golden", async () => {
+test("summary grouping/source offsets retain the historical golden with a versioned generation contract", async () => {
   await f.reset({ large: true });
   const answer = await f.assistant.chat(
     {
@@ -139,24 +159,24 @@ test("summary grouping/source offsets and every provider prompt match the pre-ch
   assertGroundedAnswer(answer, A.document, 1);
   assert.equal(f.state.generations.length, 3);
   assert.deepEqual(
-    f.state.generations.map(({ prompt: _prompt, ...payload }) => payload),
-    golden.summaryPrompts,
-    "section grouping and synthesis provider payloads remain unchanged",
+    f.state.generations.map(evidencePayload),
+    golden.summaryPrompts.map(evidencePayload),
+    "section grouping, source catalog and synthesis evidence remain unchanged",
   );
   assert.deepEqual(
     f.state.generations.map(({ prompt }) => prompt),
     [
       {
         id: "assistant.documents.summary.section",
-        version: "rag-summary-v1",
+        version: "rag-summary-v2",
       },
       {
         id: "assistant.documents.summary.section",
-        version: "rag-summary-v1",
+        version: "rag-summary-v2",
       },
       {
         id: "assistant.documents.summary.synthesis",
-        version: "rag-summary-v1",
+        version: "rag-summary-v2",
       },
     ],
   );

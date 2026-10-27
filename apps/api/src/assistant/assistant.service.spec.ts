@@ -115,6 +115,121 @@ function fixture(
 }
 
 describe("AssistantService grounded orchestration", () => {
+  it("sends a bounded, evidence-specific JSON contract for document questions", async () => {
+    const { service, generate } = fixture();
+    await service.chat(
+      {
+        mode: "documents",
+        documentId: citation.documentId,
+        message: "Ghi nội dung tài liệu",
+      },
+      principal,
+    );
+    const request = generate.mock.calls[0][0];
+    expect(request).toMatchObject({
+      maxOutputTokens: 4096,
+      thinkingBudget: 256,
+    });
+    expect(request.responseJsonSchema).toMatchObject({
+      properties: {
+        blocks: {
+          maxItems: 12,
+          items: {
+            properties: {
+              text: { maxLength: 600 },
+              sourceIds: { items: { enum: ["S1"] } },
+            },
+          },
+        },
+      },
+    });
+    expect(request.systemInstruction).toMatch(/server.*citationIds.*markers/is);
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
+  it("uses the same bounded JSON/citation contract for summary without a repair call", async () => {
+    const { service, generate } = fixture();
+    await service.chat(
+      {
+        mode: "documents",
+        operation: "summarize",
+        documentId: citation.documentId,
+        message: "Tóm tắt",
+      },
+      principal,
+    );
+    expect(generate.mock.calls[0][0]).toMatchObject({
+      maxOutputTokens: 4096,
+      thinkingBudget: 256,
+      responseJsonSchema: {
+        properties: {
+          blocks: {
+            items: { properties: { sourceIds: { items: { enum: ["S1"] } } } },
+          },
+        },
+      },
+    });
+    expect(generate.mock.calls[0][0].systemInstruction).toMatch(
+      /server.*citationIds.*markers/is,
+    );
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
+  it("renders authoritative markers from atomic content/source blocks without trusting duplicate model citation metadata", async () => {
+    const { service } = fixture({
+      answerable: true,
+      blocks: [
+        { text: "The report is due Friday.", sourceIds: ["S1"] },
+        { text: "Use the selected source.", sourceIds: ["S1"] },
+      ],
+    });
+    const answer = await service.chat(
+      {
+        message: "Tóm tắt",
+        operation: "summarize",
+        documentId: citation.documentId,
+      },
+      principal,
+    );
+    expect(answer.answer).toBe(
+      "The report is due Friday. [S1]\n\nUse the selected source. [S1]",
+    );
+    expect(answer.citations).toEqual([citation]);
+  });
+  it.each([
+    { answerable: true, blocks: [{ text: "A fact.", sourceIds: ["S99"] }] },
+    { answerable: true, blocks: [{ text: "A fact [S1]", sourceIds: ["S1"] }] },
+    { answerable: true, blocks: [{ text: "A fact.", sourceIds: [] }] },
+    {
+      answerable: true,
+      blocks: [{ text: "A fact.", sourceIds: ["S1", "S1"] }],
+    },
+    {
+      answerable: true,
+      blocks: [{ text: "A fact.", sourceIds: ["S1"], extra: "not trusted" }],
+    },
+  ])(
+    "rejects malformed/foreign atomic content blocks without a repair call: %j",
+    async (output) => {
+      const { service, generate } = fixture(output);
+      await expect(
+        service.chat({ message: "Question" }, principal),
+      ).rejects.toBeInstanceOf(AssistantError);
+      expect(generate).toHaveBeenCalledTimes(1);
+    },
+  );
+  it("accepts a well-formed atomic refusal without inventing citations", async () => {
+    const { service, generate } = fixture({
+      answerable: false,
+      blocks: [{ text: "The evidence does not answer this.", sourceIds: [] }],
+    });
+    await expect(
+      service.chat({ message: "Question" }, principal),
+    ).resolves.toMatchObject({
+      answerable: false,
+      citations: [],
+      reasonCode: "NO_RELEVANT_EVIDENCE",
+    });
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
   it("streams general chat while retaining its final answer contract", async () => {
     const f = fixture();
     const events = [];
@@ -377,7 +492,7 @@ describe("AssistantService grounded orchestration", () => {
         reasonCode: "NO_RELEVANT_EVIDENCE",
         contextTurnsUsed: 1,
         contextTruncated: false,
-        promptVersion: "rag-conversation-v2",
+        promptVersion: "rag-conversation-v3",
       },
     });
     expect(events.some((e) => e.type === "delta")).toBe(false);
@@ -386,7 +501,7 @@ describe("AssistantService grounded orchestration", () => {
   });
 
   it.each(["general", "documents"] as const)(
-    "no-history %s prompt and retrieval match the d15afea golden",
+    "no-history %s keeps retrieval stable and versions the bounded document output contract",
     async (mode) => {
       const f = fixture();
       const input = {
@@ -402,7 +517,7 @@ describe("AssistantService grounded orchestration", () => {
       ).toBe(
         mode === "general"
           ? "551c516e14ccdde93295e23014d2b38fc0b841b17407dd7e176aba6ae477bdd2"
-          : "c813cef8dc45516c190efd2ffd3a0caa321e38002a0da9ce6af17057e9004b1e",
+          : "85491588c9c40ce878467aabdcb2e39b4d3f1a9184b035191eb5cd3109d26353",
       );
       expect(generation.userParts).toEqual([
         'Untrusted UI page metadata: {"pageId":"documents","pageName":"Documents"}',
@@ -413,7 +528,7 @@ describe("AssistantService grounded orchestration", () => {
       expect(result).not.toHaveProperty("contextTurnsUsed");
       expect(result).not.toHaveProperty("contextTruncated");
       expect(result.promptVersion).toBe(
-        mode === "general" ? "general-v1" : "rag-v1",
+        mode === "general" ? "general-v1" : "rag-json-v2",
       );
       if (mode === "documents")
         expect(f.retrieval.retrieve).toHaveBeenCalledExactlyOnceWith(
@@ -441,7 +556,7 @@ describe("AssistantService grounded orchestration", () => {
       principal,
     );
     expect(documents.generate.mock.calls[0][0]).toMatchObject({
-      prompt: { id: "assistant.documents.question", version: "rag-v1" },
+      prompt: { id: "assistant.documents.question", version: "rag-json-v2" },
     });
   });
   it("answers a selected document's course from workspace metadata without generating text", async () => {
@@ -538,7 +653,7 @@ describe("AssistantService grounded orchestration", () => {
       model: "gemini-custom-model",
       mode: "documents",
       ragEnabled: true,
-      promptVersion: "rag-v1",
+      promptVersion: "rag-json-v2",
     });
     expect(retrieval.retrieve).toHaveBeenCalledWith(
       "When is it due?",
@@ -661,7 +776,7 @@ describe("AssistantService grounded orchestration", () => {
       reasonCode: "PARTIAL_COVERAGE",
       mode: "documents",
       ragEnabled: true,
-      promptVersion: "rag-summary-v1",
+      promptVersion: "rag-summary-v2",
       citations: [citation],
     });
     expect(response.answer).toBe(
@@ -724,15 +839,15 @@ describe("AssistantService grounded orchestration", () => {
     expect(generate).toHaveBeenCalledTimes(3);
     expect(generate.mock.calls[0][0].prompt).toEqual({
       id: "assistant.documents.summary.section",
-      version: "rag-summary-v1",
+      version: "rag-summary-v2",
     });
     expect(generate.mock.calls[1][0].prompt).toEqual({
       id: "assistant.documents.summary.section",
-      version: "rag-summary-v1",
+      version: "rag-summary-v2",
     });
     expect(generate.mock.calls[2][0].prompt).toEqual({
       id: "assistant.documents.summary.synthesis",
-      version: "rag-summary-v1",
+      version: "rag-summary-v2",
     });
     expect(response.citations.map((item) => item.sourceId)).toEqual([
       "S1",

@@ -42,6 +42,47 @@ export class GeminiService implements AssistantProvider {
       : { ...common, status: "not_configured" };
   }
 
+  private generationLimits(input: AssistantGeneration) {
+    const maxOutputTokens =
+      input.maxOutputTokens ?? this.config.maxOutputTokens;
+    const budget = input.thinkingBudget;
+    if (
+      !Number.isInteger(maxOutputTokens) ||
+      maxOutputTokens < 1 ||
+      maxOutputTokens > 8192 ||
+      (budget !== undefined &&
+        (!Number.isInteger(budget) || budget < 0 || budget > 1024))
+    )
+      throw new AssistantError("upstream");
+    const compatible =
+      this.model === "gemini-2.5-flash" ||
+      this.model.startsWith("gemini-2.5-flash-preview");
+    return {
+      maxOutputTokens,
+      ...(budget !== undefined && compatible
+        ? { thinkingConfig: { thinkingBudget: budget } }
+        : {}),
+    };
+  }
+
+  private assertStructuredFinish(
+    input: AssistantGeneration,
+    finishReason?: string,
+  ) {
+    if (
+      input.responseMimeType !== "application/json" ||
+      !finishReason ||
+      finishReason === "STOP"
+    )
+      return;
+    throw new AssistantError(
+      "upstream",
+      finishReason === "MAX_TOKENS"
+        ? "answer_truncated"
+        : "provider_finish_blocked",
+    );
+  }
+
   async generate(input: AssistantGeneration): Promise<string> {
     const startedAt = Date.now();
     const controller = new AbortController();
@@ -51,14 +92,7 @@ export class GeminiService implements AssistantProvider {
     let permitAuthorized = false;
     let providerDispatched = false;
     try {
-      const maxOutputTokens =
-        input.maxOutputTokens ?? this.config.maxOutputTokens;
-      if (
-        !Number.isInteger(maxOutputTokens) ||
-        maxOutputTokens < 1 ||
-        maxOutputTokens > 8192
-      )
-        throw new AssistantError("upstream");
+      const generationLimits = this.generationLimits(input);
       if (!this.config.apiKey) throw new AssistantError("not_configured");
       // Lazy initialization keeps status/startup independent of the SDK/network.
       this.client ??= new GoogleGenAI({
@@ -99,7 +133,7 @@ export class GeminiService implements AssistantProvider {
             ],
             config: {
               systemInstruction: input.systemInstruction,
-              maxOutputTokens,
+              ...generationLimits,
               candidateCount: 1,
               responseModalities: ["TEXT"],
               ...(input.responseMimeType
@@ -126,6 +160,10 @@ export class GeminiService implements AssistantProvider {
         response.usageMetadata,
       );
       providerCallFinished = true;
+      this.assertStructuredFinish(
+        input,
+        response.candidates?.[0]?.finishReason,
+      );
       const answer = response.text?.trim();
       if (!answer || answer.includes(this.config.apiKey))
         throw new AssistantError("upstream");
@@ -175,6 +213,7 @@ export class GeminiService implements AssistantProvider {
     let permitAuthorized = false;
     let providerDispatched = false;
     let streamUsage: unknown;
+    let streamFinishReason: string | undefined;
     const forwardAbort = () => controller.abort();
     let resolveInterrupted!: (event: { kind: "interrupted" }) => void;
     const interrupted = new Promise<{ kind: "interrupted" }>((resolve) => {
@@ -187,6 +226,7 @@ export class GeminiService implements AssistantProvider {
     });
 
     try {
+      const generationLimits = this.generationLimits(input);
       if (!this.config.apiKey) throw new AssistantError("not_configured");
       if (signal?.aborted)
         throw new DOMException("Request cancelled", "AbortError");
@@ -235,7 +275,7 @@ export class GeminiService implements AssistantProvider {
             ],
             config: {
               systemInstruction: input.systemInstruction,
-              maxOutputTokens: this.config.maxOutputTokens,
+              ...generationLimits,
               candidateCount: 1,
               responseModalities: ["TEXT"],
               ...(input.responseMimeType
@@ -301,6 +341,8 @@ export class GeminiService implements AssistantProvider {
             streamUsage = next.value.usageMetadata;
             this.usage?.updateProviderUsage(providerCall, streamUsage);
           }
+          streamFinishReason =
+            next.value.candidates?.[0]?.finishReason ?? streamFinishReason;
           if (next.value.modelVersion)
             this.usage?.updateProviderModel(
               providerCall,
@@ -363,6 +405,7 @@ export class GeminiService implements AssistantProvider {
       }
       if (signal?.aborted)
         throw new DOMException("Request cancelled", "AbortError");
+      this.assertStructuredFinish(input, streamFinishReason);
       if (!answer.trim() || answer.includes(this.config.apiKey))
         throw new AssistantError("upstream");
       if (pending) yield pending;

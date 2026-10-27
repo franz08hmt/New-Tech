@@ -6,18 +6,20 @@ import { AiAdmissionError } from "./ai-admission.service.js";
 import { GeminiService } from "./gemini.service.js";
 
 const { generateContent, generateContentStream } = vi.hoisted(() => ({
-  generateContent:
-    vi.fn<
-      (
-        input: GenerateContentParameters,
-      ) => Promise<{ text?: string; modelVersion?: string }>
-    >(),
+  generateContent: vi.fn<
+    (input: GenerateContentParameters) => Promise<{
+      text?: string;
+      modelVersion?: string;
+      candidates?: { finishReason?: string }[];
+    }>
+  >(),
   generateContentStream: vi.fn<
     (input: GenerateContentParameters) => Promise<
       AsyncIterable<{
         text?: string;
         modelVersion?: string;
         usageMetadata?: unknown;
+        candidates?: { finishReason?: string }[];
       }>
     >
   >(),
@@ -62,6 +64,76 @@ afterEach(() => {
 });
 
 describe("GeminiService", () => {
+  it("honors the bounded per-operation output and thinking budget on structured SSE", async () => {
+    const request = {
+      ...input,
+      responseMimeType: "application/json" as const,
+      maxOutputTokens: 4096,
+      thinkingBudget: 256,
+    };
+    for await (const _chunk of new GeminiService().generateStream(request)) {
+      /* consume SDK fixture */
+    }
+    expect(generateContentStream.mock.calls[0][0].config).toMatchObject({
+      maxOutputTokens: 4096,
+      thinkingConfig: { thinkingBudget: 256 },
+    });
+    expect(generateContentStream).toHaveBeenCalledTimes(1);
+  });
+  it("does not accept a structured response marked MAX_TOKENS even if its text looks valid", async () => {
+    generateContent.mockResolvedValueOnce({
+      text: '{"answerable":true,"answer":"Fact [S1]","citationIds":["S1"]}',
+      candidates: [{ finishReason: "MAX_TOKENS" }],
+    });
+    await expect(
+      new GeminiService().generate({
+        ...input,
+        responseMimeType: "application/json",
+      }),
+    ).rejects.toMatchObject({
+      kind: "upstream",
+      rejection: "answer_truncated",
+    });
+    expect(generateContent).toHaveBeenCalledTimes(1);
+  });
+  it("does not send 2.5 Flash thinking settings to a different model", async () => {
+    vi.stubEnv("GEMINI_MODEL", "gemini-custom-model");
+    await new GeminiService().generate({
+      ...input,
+      responseMimeType: "application/json",
+      maxOutputTokens: 4096,
+      thinkingBudget: 256,
+    });
+    expect(generateContent.mock.calls[0][0].config).toMatchObject({
+      maxOutputTokens: 4096,
+    });
+    expect(generateContent.mock.calls[0][0].config).not.toHaveProperty(
+      "thinkingConfig",
+    );
+  });
+  it("rejects a structured stream with MAX_TOKENS and never retries the SDK", async () => {
+    generateContentStream.mockResolvedValueOnce({
+      async *[Symbol.asyncIterator]() {
+        yield {
+          text: '{"answerable":true,"answer":"Fact [S1]","citationIds":["S1"]}',
+          candidates: [{ finishReason: "MAX_TOKENS" }],
+        };
+      },
+    });
+    const read = async () => {
+      for await (const _chunk of new GeminiService().generateStream({
+        ...input,
+        responseMimeType: "application/json",
+      })) {
+        /* consumed only by this oracle */
+      }
+    };
+    await expect(read()).rejects.toMatchObject({
+      kind: "upstream",
+      rejection: "answer_truncated",
+    });
+    expect(generateContentStream).toHaveBeenCalledTimes(1);
+  });
   it("maps verified conversation to alternating SDK roles before the current user", async () => {
     await new GeminiService().generate({
       ...input,

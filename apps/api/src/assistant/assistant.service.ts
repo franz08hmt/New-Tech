@@ -33,6 +33,12 @@ import {
 } from "./assistant.types.js";
 import { StructuredAnswerStream } from "./structured-answer-stream.js";
 import {
+  groundedAnswerSchema,
+  GROUNDED_OUTPUT_TOKENS,
+  GROUNDED_THINKING_TOKENS,
+  renderGroundedBlocks,
+} from "./grounded-answer-format.js";
+import {
   isSourceId,
   sameSourceIdSet,
   scanSourceMarkers,
@@ -47,22 +53,6 @@ import {
 
 const SUMMARY_BATCH_CHARACTERS = 60_000;
 const MAX_SUMMARY_BATCHES = 16;
-
-const RESPONSE_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["answerable", "answer", "citationIds"],
-  propertyOrdering: ["answerable", "answer", "citationIds"],
-  properties: {
-    answerable: { type: "boolean" },
-    answer: { type: "string" },
-    citationIds: {
-      type: "array",
-      maxItems: 20,
-      items: { type: "string" },
-    },
-  },
-} as const;
 
 const UNANSWERABLE =
   "Không đủ bằng chứng trong các tài liệu đã lập chỉ mục để trả lời câu hỏi này.";
@@ -345,7 +335,11 @@ export class AssistantService {
           userParts,
           ...this.conversation(context.turns),
           responseMimeType: "application/json",
-          responseJsonSchema: RESPONSE_SCHEMA,
+          responseJsonSchema: groundedAnswerSchema(
+            rag.citations.map((item) => item.sourceId),
+          ),
+          maxOutputTokens: GROUNDED_OUTPUT_TOKENS,
+          thinkingBudget: GROUNDED_THINKING_TOKENS,
         },
         signal,
       )) {
@@ -372,7 +366,7 @@ export class AssistantService {
           UNANSWERABLE,
           false,
           [],
-          rag.promptVersion,
+          prompt.reference.version,
           "NO_RELEVANT_EVIDENCE",
         );
       } else {
@@ -382,7 +376,7 @@ export class AssistantService {
           parsed.answer,
           true,
           citations,
-          rag.promptVersion,
+          prompt.reference.version,
           partial ? "PARTIAL_COVERAGE" : "ANSWER_GENERATED",
         );
       }
@@ -507,7 +501,11 @@ export class AssistantService {
       userParts,
       ...this.conversation(turns),
       responseMimeType: "application/json",
-      responseJsonSchema: RESPONSE_SCHEMA,
+      responseJsonSchema: groundedAnswerSchema(
+        rag.citations.map((item) => item.sourceId),
+      ),
+      maxOutputTokens: GROUNDED_OUTPUT_TOKENS,
+      thinkingBudget: GROUNDED_THINKING_TOKENS,
     });
     const parsed = this.parseStructuredAnswer(raw);
     if (!parsed.answerable) {
@@ -517,7 +515,7 @@ export class AssistantService {
         UNANSWERABLE,
         false,
         [],
-        rag.promptVersion,
+        prompt.reference.version,
         "NO_RELEVANT_EVIDENCE",
       );
       this.logCompleted("documents", "question", result.reasonCode, startedAt, {
@@ -534,7 +532,7 @@ export class AssistantService {
       parsed.answer,
       true,
       citations,
-      rag.promptVersion,
+      prompt.reference.version,
       partial ? "PARTIAL_COVERAGE" : "ANSWER_GENERATED",
     );
     this.logCompleted("documents", "question", result.reasonCode, startedAt, {
@@ -671,10 +669,15 @@ export class AssistantService {
         prompt: prompt.reference,
         userParts: [
           `Summarize section ${index + 1} of ${groups.length} from the selected document ${JSON.stringify(material.documentName)}.`,
+          `User request and target language (untrusted): ${JSON.stringify(input.message)}`,
           rag.context,
         ],
         responseMimeType: "application/json",
-        responseJsonSchema: RESPONSE_SCHEMA,
+        responseJsonSchema: groundedAnswerSchema(
+          rag.citations.map((item) => item.sourceId),
+        ),
+        maxOutputTokens: GROUNDED_OUTPUT_TOKENS,
+        thinkingBudget: GROUNDED_THINKING_TOKENS,
       });
       const parsed = this.parseStructuredAnswer(raw);
       if (!parsed.answerable)
@@ -714,7 +717,11 @@ export class AssistantService {
           )}`,
         ],
         responseMimeType: "application/json",
-        responseJsonSchema: RESPONSE_SCHEMA,
+        responseJsonSchema: groundedAnswerSchema(
+          uniqueCitations.map((item) => item.sourceId),
+        ),
+        maxOutputTokens: GROUNDED_OUTPUT_TOKENS,
+        thinkingBudget: GROUNDED_THINKING_TOKENS,
       });
       const parsed = this.parseStructuredAnswer(raw);
       if (!parsed.answerable)
@@ -779,7 +786,9 @@ export class AssistantService {
     }
     if (!value || typeof value !== "object" || Array.isArray(value))
       throw new AssistantError("upstream", "answer_not_object");
-    const record = value as Record<string, unknown>;
+    const record = Object.hasOwn(value, "blocks")
+      ? renderGroundedBlocks(value as Record<string, unknown>)
+      : (value as Record<string, unknown>);
     if (
       Object.keys(record).sort().join(",") !==
         "answer,answerable,citationIds" ||

@@ -156,7 +156,7 @@ test("HTTP chat validates DTO and returns backend-validated citations", async ()
     model: "gemini-2.5-flash",
     mode: "documents",
     ragEnabled: true,
-    promptVersion: "rag-v1",
+    promptVersion: "rag-json-v2",
   });
   const input = chat.mock.calls[0].arguments[0];
   assert.ok(input instanceof AssistantChatDto);
@@ -630,9 +630,17 @@ test("real SDK receives grounded JSON settings without secrets in response or lo
     assert.equal(body.contents[0].parts[0].text, "Question: Private question");
     assert.match(body.contents[0].parts[1].text, /BEGIN_RETRIEVED_EVIDENCE/);
     assert.equal(body.tools, undefined);
-    assert.equal(body.generationConfig.maxOutputTokens, 1024);
+    assert.equal(body.generationConfig.maxOutputTokens, 4096);
+    assert.deepEqual(body.generationConfig.thinkingConfig, {
+      thinkingBudget: 256,
+    });
     assert.equal(body.generationConfig.responseMimeType, "application/json");
     assert.equal(body.generationConfig.responseJsonSchema.type, "object");
+    assert.deepEqual(
+      body.generationConfig.responseJsonSchema.properties.blocks.items
+        .properties.sourceIds.items.enum,
+      ["S1"],
+    );
     assert.ok(!JSON.stringify(body).includes(secret));
     return Response.json({
       candidates: [
@@ -643,8 +651,7 @@ test("real SDK receives grounded JSON settings without secrets in response or lo
               {
                 text: JSON.stringify({
                   answerable: true,
-                  answer: "SDK answer [S1]",
-                  citationIds: ["S1"],
+                  blocks: [{ text: "SDK answer", sourceIds: ["S1"] }],
                 }),
               },
             ],
@@ -669,7 +676,7 @@ test("real SDK receives grounded JSON settings without secrets in response or lo
     model: "gemini-2.5-flash",
     mode: "documents",
     ragEnabled: true,
-    promptVersion: "rag-v1",
+    promptVersion: "rag-json-v2",
   });
   assert.equal(calls, 1);
   assert.ok(!logs.join().includes(secret));

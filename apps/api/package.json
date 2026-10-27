@@ -40,7 +40,8 @@
     "eval:rag:corpus": "node scripts/create-rag-evaluation-corpus.mjs",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/*.mjs\" \"scripts/*.mjs\"",
     "eval:local": "node scripts/evaluate-rag.mjs --local-integration",
-    "test:documents:formats": "npm run build && node --test --test-concurrency=1 test/document-converter.integration.test.mjs test/document-formats-http.database.test.mjs"
+    "test:documents:formats": "npm run build && node --test --test-concurrency=1 test/document-converter.integration.test.mjs test/document-formats-http.database.test.mjs",
+    "test:documents:summary": "npm run build && node --test test/document-summary-http.database.test.mjs"
   },
   "dependencies": {
     "@examate/contracts": "*",
