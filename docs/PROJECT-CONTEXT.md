@@ -1,5 +1,24 @@
 # ExaMate — context hiện tại cho Tài, Thắng và agent
 
+## Report content and repository hygiene — 27/10/2026
+
+The English Word/PDF report now reflects committed technical progress through
+`ef248e1`: managed 027/member management, bilingual/stable UI, document-format
+conversion and grounded-output repair. The user-completed cover is preserved
+pixel-exact in native Word PDF rendering; the native TOC and all nine figures
+remain. A clickable GitHub link names `feature/tai-assistant-integration-20261018`.
+Thang's RAG collaboration is explicitly credited. Final delivery is 20 A4 pages;
+historical live before/after evaluation and semantic/personal pending states are
+unchanged. The report remains DRAFT for those evidence gaps.
+
+This is document-only verification: 35/35 artifact checks, 3/3 existing exporter
+tests; no new app/DB/browser/provider run. Prior 27 October 2399/538+2 results are
+retained with their source/boundary, not rerun by report editing. Evidence/backups:
+ignored `artifacts/report-refresh-20261027/`. Six superseded export/metadata files
+were removed from the index and ignored, while exact local copies and Git history
+remain. Current bundles, necessary documentation and source stay tracked.
+Unrelated source/presentation WIP is untouched; no runtime/cloud operation.
+
 ## Word summary / document-answer format repair — 27/10/2026
 
 The reported DOCX did convert and index: runtime logs record 19/19 useful PDF

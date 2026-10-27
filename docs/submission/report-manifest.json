@@ -3,42 +3,41 @@
   "pages": 20,
   "language": "en",
   "authoredStatus": "DRAFT",
-  "coverFieldsIntentionallyBlank": [
-    "class",
-    "instructor",
-    "second student name",
-    "second student ID"
-  ],
-  "sourceBaseHead": "cebaad4f5b3cfd260087d19a60a9fede4f9166c1",
+  "coverFieldsIntentionallyBlank": [],
+  "sourceBaseHead": "ef248e1e5a37bf788e2ac23e0436d940067a3bf1",
   "sourceBaseHadUncommittedChanges": true,
-  "buildMethod": "Retained authoring script; installed Word native TOC update and fixed-format PDF export. DOCX is editable.",
+  "buildMethod": "Body-only OpenXML edits preserve user cover and images; installed Word updates native TOC and exports PDF. No full report regeneration.",
   "refreshInstructions": "Edit the DOCX in Word. Update all fields/table of contents, then export to PDF. Keep docs/REPORT.md and this manifest consistent when revising substantive content.",
   "files": {
     "ExaMate-Report-20261023.docx": {
-      "sha256": "886b309b0bfc75804c3e85b415b9b48403cf42eacfc0f054b93c48142e55a18f",
-      "bytes": 3704056
+      "sha256": "9c101ab8d33a6981c7d5ca0dff2567c550d63d29c35052a8770a6890ceafaa33",
+      "bytes": 3647495
     },
     "ExaMate-Report-20261023.pdf": {
-      "sha256": "8e9bb421a645dbc905f4420759e5226a32fa41f93ab24242ee9fd22ae641a330",
-      "bytes": 1244755
+      "sha256": "47e6a6de80ee8dd72827a6b652e3780b7dd920a76c72cdd2d52db3f24f8c54d2",
+      "bytes": 1262141
     },
     "report-evidence.json": {
-      "sha256": "290e8f49a6fc2a09ce256f72154f468e173140758cab61b1662bd41a352d6e53",
-      "bytes": 9520
+      "sha256": "0cd90ab97035cede4f0df741621e6f5c368b3b196527f2c09d5a2f427daac08b",
+      "bytes": 11173
     }
   },
   "newApplicationGatesRun": false,
   "newProviderCalls": 0,
   "privateArtifactsPublished": false,
-  "reportChecks": "20 A4 pages; native TOC matches 18 section entries; nine numbered figures; all 13 stories and 20 evaluation rows retained; References removed; 23/23 export checks.",
+  "reportChecks": "20 A4 pages, cover pixel match, 18 TOC entries, 13 user stories, 20 evaluation rows, nine figures and a clickable current-branch link; see artifact QA.",
   "documentationVerification": {
-    "pythonCommand": "python -m unittest discover -s scripts -p test_submission_docs.py",
-    "testsPassed": 2,
-    "finalExportChecksPassed": 23,
-    "finalExportChecksTotal": 23,
+    "command": "python -m unittest discover -s scripts -p test_submission_docs.py",
+    "result": "PASS; document-only",
     "applicationTestsRerun": false,
+    "databaseTestsRerun": false,
     "browserRerun": false,
-    "figureProvenance": "../report-assets/figure-provenance.json"
+    "providerCalls": 0,
+    "artifactChecks": "artifacts/report-refresh-20261027/qa.json",
+    "testsPassed": 3,
+    "testsFailed": 0,
+    "artifactChecksPassed": 35,
+    "artifactChecksTotal": 35
   },
   "originalReportSourceBaseHead": "4ec44c7892e0dfa0bbe7569d08789657a766aa5b",
   "runtimeSourceNowVersioned": true,
@@ -47,6 +46,24 @@
   "previousApplicationGates": "See retained publicationVerification in report-evidence.json for source 0bddd53; not rerun by visual revision.",
   "figureProvenance": {
     "path": "../report-assets/figure-provenance.json",
-    "sha256": "e8fb2f7f35d3f528ec7730e745d4625e09b64451d99a42a98a6de745ad340266"
+    "sha256": "19151b742af696fed09f9bb223b6744be47bd506d0397ce486f4c64d9efc0093"
+  },
+  "contentRevision": "2026-10-27",
+  "coverPreservation": {
+    "mode": "user-completed original cover retained",
+    "originalUserDocxSha256": "4383ede2578551fcaaddc71a79931dff09a7cb1a7b10590d8f576b9b420c1ec9",
+    "renderedPixelsIdentical": true,
+    "pixelSha256": "e765ba3e4c2b621ff56634ba59dce21f7f691365c87098c822f709ab05038298"
+  },
+  "repository": {
+    "url": "https://github.com/franz08hmt/New-Tech",
+    "branch": "feature/tai-assistant-integration-20261018",
+    "branchUrl": "https://github.com/franz08hmt/New-Tech/tree/feature/tai-assistant-integration-20261018",
+    "technicalSourceCheckpoint": "ef248e1e5a37bf788e2ac23e0436d940067a3bf1"
+  },
+  "latestRetainedTechnicalEvidence": "technicalRevision20261027 in report-evidence.json; distinct from original publicationVerification",
+  "editableNarrative": {
+    "path": "../REPORT.md",
+    "sha256": "f038aaa572104f96319c5de1722195919750bfb3f807a9e7f63d75cccfbd1d8f"
   }
 }

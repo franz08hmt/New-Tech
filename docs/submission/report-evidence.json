@@ -246,7 +246,10 @@
       }
     ],
     "application": {
-      "vitest": [460, 547],
+      "vitest": [
+        460,
+        547
+      ],
       "node": {
         "tests": 1317,
         "pass": 1317,
@@ -300,5 +303,53 @@
     "figureProvenance": "../report-assets/figure-provenance.json",
     "status": "DRAFT; retained measurements, incomplete improved evaluation and personal confirmations unchanged",
     "artifacts": "artifacts/report-visual-refresh-20261024/"
+  },
+  "technicalRevision20261027": {
+    "kind": "retained source-repair verification, not a new run during report editing",
+    "date": "2026-10-27",
+    "sourceSnapshot": "ef248e1e5a37bf788e2ac23e0436d940067a3bf1",
+    "sourceRepairCommit": "3fba8c3",
+    "application": {
+      "pass": 2399,
+      "apiVitest": 480,
+      "apiNode": 1324,
+      "web": 595,
+      "fail": 0,
+      "skip": 0,
+      "cancelled": 0
+    },
+    "database": {
+      "pass": 538,
+      "files": 53,
+      "fail": 0,
+      "skip": 0,
+      "cancelled": 0,
+      "target": "guarded owned disposable PG17"
+    },
+    "focusedWordRuntime": {
+      "pass": 2,
+      "scope": "19-page DOCX conversion, JSON summary and document SSE; receipt/admission/telemetry; non-owner split LOGINs"
+    },
+    "focusedBrowser": {
+      "viewports": [
+        1440,
+        375
+      ],
+      "scope": "summary button and typed document question; citations, keyboard, overflow and console",
+      "boundary": "real Chrome/Nest/PG17/LibreOffice; synthetic Auth upstream, Storage and SDK"
+    },
+    "gates": {
+      "typecheck": 0,
+      "test": 0,
+      "build": 0,
+      "format": 0,
+      "database": 0,
+      "documentSummary": 0
+    },
+    "realModelEvaluationAdded": false,
+    "providerCallsDuringReportEdit": 0,
+    "evidenceDirectory": "artifacts/document-summary-fix-20261027/",
+    "retainedLiveEvaluation": "23 October baseline/improved fields above unchanged; no regrade under current grounded prompt versions",
+    "cloudProgress": "027 rollout recorded at 88f3c40; no new cloud write by report revision"
   }
 }

@@ -1,18 +1,18 @@
 # ExaMate AI Academic Workspace Project Report
 
-**Status: DRAFT — visual revision 24 October 2026; technical measurements retained from 23 October 2026.** The complete improved evaluation and personal confirmations remain pending.
+**Status: DRAFT — technical/content revision 27 October 2026, source checkpoint ef248e1.** Complete improved evaluation, wider semantic review and personal confirmations remain pending.
 
-**Submission files:** [editable Word](submission/ExaMate-Report-20261023.docx) and [PDF](submission/ExaMate-Report-20261023.pdf). Local copies are in ignored `output/pdf/`. Both contain 20 A4 pages including cover and contents. Instructor, class and second-student metadata remain intentionally blank. Times New Roman and the native Word table of contents follow the supplied cover/style reference.
+**Submission:** [editable Word](submission/ExaMate-Report-20261023.docx) and [PDF](submission/ExaMate-Report-20261023.pdf), 20 A4 pages including the user-completed cover and native Word contents. Existing instructor/class/student details are preserved exactly; this revision updates the body. Times New Roman and the supplied academic style remain unchanged.
 
-References were removed at the user's request. Figure captions and [figure provenance](report-assets/figure-provenance.json) distinguish implementation diagrams, retained synthetic-provider browser observations and real-service screenshots. No application, DB, browser or model run was performed for this document-only revision. The earlier publication gates for runtime source `0bddd53` remain historical evidence.
+References remain removed by request. Figure captions and [figure provenance](report-assets/figure-provenance.json) distinguish illustrations, historical synthetic-provider UI and real-service evidence. New 27 October numbers are retained from the source-repair verification; this report edit did not rerun application/DB/browser/model checks. The 23 October live comparison remains incomplete and bound to its original prompts.
 
 ## I INTRODUCTION AND PROJECT SCOPE
 
 ### 1.1 Abstract
 
-ExaMate is an academic workspace for students who manage coursework and study from shared PDF materials. It combines ordinary learning records with two AI capabilities: retrieval augmented generation (RAG) with source citations, and schema validated quiz and flashcard generation. The application uses React and Vite, a NestJS backend, PostgreSQL with pgvector, Supabase Auth and private Storage, and the Gemini API. Speech input uses a local Whisper model.
+ExaMate is an academic workspace for shared learning records and evidence-grounded study. React/Vite, NestJS, PostgreSQL/pgvector, Supabase Auth/private Storage and Gemini support two AI capabilities: cited RAG and validated quiz/flashcard workflows. PDF, DOC, DOCX, Markdown and TXT uploads enter one canonical PDF pipeline. Local Whisper provides optional speech input.
 
-As of 23 October 2026, the real service Docker deployment is operational and Google login has reached the application dashboard. The latest application regression run passed 2,324 tests. A real RAG baseline completed 20 cases, with 15 strict final answer passes, three failures and two inconclusive injection cases. Only three improved configuration cases were attempted, so a complete before and after evaluation is not yet available. This report describes the implemented prototype and its evidence without claiming full rubric acceptance.
+This revision reflects source ef248e1 on 27 October 2026. The latest recorded gates passed 2,399 application tests and 538 PG17 tests, plus two Word summary/SSE cases. Google login and real-service deployment evidence remain dated observations. The retained live baseline has 20 cases: 15 strict PASS, three FAIL and two INCONCLUSIVE; only three improved cases were attempted. A complete before/after comparison and broader semantic acceptance remain pending.
 
 ### 1.2 Problem and intended users
 
@@ -20,22 +20,28 @@ Students often keep tasks, exam dates, revision plans and course files in separa
 
 ### 1.3 Scope and success criteria
 
-The primary AI scope is capability A, RAG over application data, and capability C, structured output used in application logic. Success means that answers remain within authorized evidence, sources can be checked, generated learning items pass validation before use, and non AI work remains available when the provider fails. The system also supports role based access, persistent records, server side search and pagination, conversation history, streaming general chat and optional local speech input.
+Capability A is scoped RAG; capability C is structured output used in saved learning workflows. Success requires authorized evidence, inspectable sources, validation before persistence and usable non-AI records during AI failure. Server-side search/filter/sort/pagination, private history, streaming, VI/EN labels and manager-controlled membership complete the workspace.
 
-The project does not claim capability B: it has fewer than three LLM called tools. Workspace questions use controlled SQL intents. STT is a supporting feature; text to speech, PWA and WASM are outside the agreed scope. Physical devices and Study Coach semantic acceptance remain separate checks.
+Capability B is not claimed: fewer than three LLM-called tools are present. Controlled workspace SQL is not an added LLM tool. STT remains input-only; no TTS, PWA or WASM is added. Course gallery progress is illustrative, distinct from persisted personal quiz/review progress. Semantic quality and physical-device acceptance remain separate.
+
+### 1.4 Repository and development branch
+
+GitHub: [franz08hmt/New-Tech — current development branch](https://github.com/franz08hmt/New-Tech/tree/feature/tai-assistant-integration-20261018).
+
+Branch: `feature/tai-assistant-integration-20261018`. Technical source checkpoint: `ef248e1` (27 October 2026). Later documentation commits do not change the retained evaluation cohort.
 
 ## II USER STORIES AND TRACEABILITY
 
 Thirteen user stories define the functional acceptance criteria. Each row connects a user outcome to an implementation and a regression test. Paths beginning src/ below are relative to apps/api/; frontend components are in apps/web/src/. The full traceability matrix remains in docs/FINAL-REQUIREMENTS.md.
 
-| Story and measurable acceptance                                                                                                       | API and component                           | Source files                                                                    | Tests                                                                         |
-| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| US01 Secure login. An invited user signs in; invalid or expired sessions fail clearly; logout invalidates the session across tabs.    | /api/auth/*; PilotAccess                    | src/auth/auth.service.ts; auth-store.ts; supabase-auth.adapter.ts               | auth.test.mjs; oauth.database.test.mjs                                        |
-| US02 Workspace permissions. Viewer writes return 403; a nonmember cannot read; client supplied workspace or role cannot grant access. | Auth guard; all protected routes            | src/auth/auth.guard.ts; principal.ts; runtime capability contract               | runtime-rls.database.test.mjs; workspace-context.database.test.mjs            |
-| US03 Learning records. A valid task and status change persist; invalid titles fail; exams, plans and expenses obey roles.             | /api/tasks; /exams; /study-plans; /expenses | src/tasks/*; academic services; TasksPanel.tsx                                  | academic-context.test.mjs; workspace-academic.database.test.mjs               |
-| US04 Search and navigation. Keyword search, filters, sort and pagination return bounded workspace results and totals.                 | /api/*/search; /api/search                  | Module search services; use-paged-search.ts                                     | module-search-http.database.test.mjs; workspace-search-http.database.test.mjs |
-| US05 PDF ingestion. A valid PDF moves through stored and indexed states to Ready; invalid or oversized input is rejected.             | /api/documents*; DocumentsPanel             | src/documents/documents.service.ts; document-ingestion.service.ts               | documents-http-context.database.test.mjs; ingestion-http.database.test.mjs    |
-| US06 Grounded answers. An answer includes valid source markers and a file/page citation; no evidence produces a refusal.              | /api/assistant/chat[/stream]; SourcePreview | src/assistant/assistant.service.ts; rag-retrieval.service.ts; source-markers.ts | assistant.service.spec.ts; retrieval-http.database.test.mjs                   |
+| Story and measurable acceptance                                                                                                    | API and component                           | Source files                                                                                    | Tests                                                                            |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| US01 Secure login. An invited user signs in; invalid or expired sessions fail clearly; logout invalidates the session across tabs. | /api/auth/*; PilotAccess                    | src/auth/auth.service.ts; auth-store.ts; supabase-auth.adapter.ts                               | auth.test.mjs; oauth.database.test.mjs                                           |
+| US02 Workspace permissions. Viewer writes return 403; managers control memberships; client role/scope cannot grant access.         | /api/workspace/members*; Auth guard         | src/auth/auth.guard.ts; src/members/members.service.ts; capability contract                     | runtime-rls.database.test.mjs; workspace-members-http.database.test.mjs          |
+| US03 Learning records. A valid task and status change persist; invalid titles fail; exams, plans and expenses obey roles.          | /api/tasks; /exams; /study-plans; /expenses | src/tasks/*; academic services; TasksPanel.tsx                                                  | academic-context.test.mjs; workspace-academic.database.test.mjs                  |
+| US04 Search and navigation. Keyword search, filters, sort and pagination return bounded workspace results and totals.              | /api/*/search; /api/search                  | Module search services; use-paged-search.ts                                                     | module-search-http.database.test.mjs; workspace-search-http.database.test.mjs    |
+| US05 Document ingestion. PDF/DOC/DOCX/UTF-8 MD/TXT become a canonical PDF and reach Ready; invalid/oversized/active inputs fail.   | /api/documents*; DocumentsPanel             | src/documents/document-conversion.service.ts; document-ingestion.service.ts; isolated converter | document-formats-http.database.test.mjs; document-summary-http.database.test.mjs |
+| US06 Grounded answers. An answer includes valid source markers and a file/page citation; no evidence produces a refusal.           | /api/assistant/chat[/stream]; SourcePreview | src/assistant/assistant.service.ts; rag-retrieval.service.ts; source-markers.ts                 | assistant.service.spec.ts; retrieval-http.database.test.mjs                      |
 
 These criteria distinguish implementation from acceptance. Automated fixtures prove contract behavior; only explicitly identified real service observations support deployment or model claims. A green test suite does not establish the semantic correctness of every generated answer.
 
@@ -51,11 +57,11 @@ These criteria distinguish implementation from acceptance. Automated fixtures pr
 | US12 Speech input. Record, transcribe, edit and insert; never submit automatically; cancellation and silence do not send a question.                      | /api/speech/*; SpeechInput                   | src/speech/*; use-speech-input.ts                                          | speech.test.mjs; speech-media.test.mjs; speech-input.test.tsx                            |
 | US13 Workspace questions. Recognized intents return authorized record links; ambiguous input asks for clarification; no LLM call occurs.                  | Assistant workspace mode                     | src/assistant/workspace-assistant.service.ts; workspace-intent.ts          | workspace-assistant.service.spec.ts; workspace-records-context.test.mjs                  |
 
-Acceptance also covers negative cases: cross workspace IDs, revoked membership, malformed JSON, unsupported audio, repeated confirmations and uncertain network outcomes. Reopening an existing resource is preferred to repeating a write whose result is unknown. No user contribution or personal understanding is inferred from these technical checks.
+Negative acceptance includes foreign workspace IDs, revoked membership, malformed output and uncertain write outcomes. Managers can manage membership; active roles can view the role/access explanation. Changing UI language translates labels, not user data or AI answers. Task status has text/icon/color badges; courses retain their photo gallery.
 
 ## III SYSTEM ARCHITECTURE
 
-Figure 1 expands the draft architecture into the current English report. Browser, proxy, API modules and external services have separate trust boundaries. The managed deployment uses migration profile 001-026; local STT runs on the API host, not at an external speech provider.
+The architecture preserves browser/proxy/API and external-service trust boundaries. The managed deployment advanced to migration 027 for member management. An isolated LibreOffice worker converts new document formats to PDF before Storage; existing PDF ingestion is retained. Whisper runs on the API host, not at an external speech provider.
 
 ![Figure 1  Modules, runtime capabilities and external data boundaries](report-assets/architecture-detailed.png)
 
@@ -69,8 +75,8 @@ Figure 1 expands the draft architecture into the current English report. Browser
 | 2. Admit operation              | F04 durably reserves the logical operation before provider dispatch. Each attempt needs a permit; telemetry is not the admission ledger.                                                                        |
 | 3. Retrieve authorized evidence | Embed the query, then search vectors filtered by workspace/document/course and ready source state. Keep at most six qualifying chunks; network calls occur outside SQL transactions.                            |
 | 4. Refuse or construct context  | No qualifying evidence produces a fixed refusal without answer generation. Otherwise serialize retrieved excerpts as untrusted data with server assigned source IDs. Query embedding may already have occurred. |
-| 5. Generate a bounded answer    | One generation call uses responseJsonSchema for answerable, answer and citationIds. Do not hold a database transaction while waiting or automatically retry an unknown provider outcome.                        |
-| 6. Validate and reauthorize     | Check JSON, source IDs and inline markers against the evidence catalog. Recheck authorization and issue a receipt when available; incomplete or unsupported output is not published as a verified answer.       |
+| 5. Generate a bounded answer    | One bounded generation uses responseJsonSchema for answerable and content/source blocks. The server renders citation markers; no SQL transaction spans generation or automatic repair call.                     |
+| 6. Validate and reauthorize     | Validate blocks, source IDs and rendered markers against evidence, then reauthorize. Invalid/truncated output is not published as a verified answer; receipt failure does not replay generation.                |
 | 7. Record bounded metadata      | Finalize admission safely and record operation/provider telemetry best effort: prompt version, known usage, latency and outcome, without prompt or document contents.                                           |
 | 8. Return and inspect           | Publish the final checked answer and file/page citations. Source preview obtains fresh scoped signed access (60 seconds). Only eligible completed turns become verified saved history.                          |
 
@@ -78,35 +84,35 @@ Figure 1 expands the draft architecture into the current English report. Browser
 
 | Component                   | Responsibility and constraint                                                                                                                                                                 |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Browser and proxy           | React displays state and uses SSE. Nginx overwrites forwarding headers for the trusted hop and disables SSE buffering; it is not an authorization boundary.                                   |
-| NestJS and shared contracts | Auth, records, documents, RAG, Study Coach, usage and speech remain separate modules. Shared contracts prevent response drift. The server owns scope, role and ownership decisions.           |
-| PostgreSQL and Storage      | SQL scopes/counts/aggregates precede pagination. Short transactions enforce RLS. Storage keeps original private PDFs; signed access is temporary.                                             |
+| Browser and proxy           | React/Vite, TypeScript, Tailwind/CSS and VI/EN. Nginx handles trusted proxy/SSE; authorization remains server-side.                                                                           |
+| NestJS and shared contracts | Separate Auth/members, records, documents, RAG, Study Coach, usage and STT modules; typed contracts. Server-owned role, scope and private ownership.                                          |
+| PostgreSQL and Storage      | Scoped SQL counts/aggregates precede paging; RLS in short transactions. Private canonical PDFs; isolated converter without credentials or egress.                                             |
 | AI and local speech         | Gemini receives authorized excerpts, never service credentials by design. Document content itself may contain sensitive data. Whisper processes audio on the API host; no TTS is implemented. |
 
-General chat may emit incremental text. Document chat emits progress until final source validation. Workspace questions use controlled SQL without an LLM. These distinct policies preserve SSE while avoiding early publication of unverified RAG text.
+General chat streams text; document chat publishes after source validation; workspace answers use controlled SQL without an LLM. SSE remains supported without exposing unverified RAG text.
 
 ## IV DATA MODEL AND ACCESS CONTROL
 
 ### 4.1 Persistent and transient data
 
-| Data group           | Relationships and lifetime                                                                              | Access boundary                                            |
-| -------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Workspace records    | Workspace to memberships, courses, tasks, exams, plans and expenses                                     | Active verified membership; role constrained writes        |
-| Document knowledge   | Document to page identified chunks and 768 dimensional vectors; source bytes in private Storage         | Workspace and document scope enforced before retrieval     |
-| Conversation history | Conversation to completed message turns and answer receipts; configured retention                       | Private to workspace and user, including for managers      |
-| Study Coach          | Confirmed quizzes/cards, attempts, reviews and progress; short lived draft tokens                       | Private ownership; explicit save and idempotent submission |
-| AI observability     | Operations and provider calls with prompt version, model, tokens, latency and outcome                   | Manager dashboard; metadata rather than document text      |
-| Speech and notes     | Temporary audio is deleted after processing; transcript remains editable; quick notes are browser local | No audio/transcript persistence by STT; notes do not sync  |
+| Data group           | Relationships and lifetime                                                                              | Access boundary                                                                             |
+| -------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Workspace records    | Workspace, memberships/invitations, courses, tasks, exams, plans and expenses                           | Active membership; manager-only membership administration; role-constrained business writes |
+| Document knowledge   | Canonical PDF, page-identified chunks and 768-dimensional vectors; Word/text originals not archived     | Workspace and document scope enforced before retrieval                                      |
+| Conversation history | Conversation to completed message turns and answer receipts; configured retention                       | Private to workspace and user, including for managers                                       |
+| Study Coach          | Confirmed quizzes/cards, attempts, reviews and progress; short lived draft tokens                       | Private ownership; explicit save and idempotent submission                                  |
+| AI observability     | Operations and provider calls with prompt version, model, tokens, latency and outcome                   | Manager dashboard; metadata rather than document text                                       |
+| Speech and notes     | Temporary audio is deleted after processing; transcript remains editable; quick notes are browser local | No audio/transcript persistence by STT; notes do not sync                                   |
 
 ### 4.2 Identity and database roles
 
 Google OAuth uses backend PKCE through Supabase Auth. The backend verifies the Supabase JWT and associates it with workspace membership. The browser holds an opaque HttpOnly session cookie rather than a provider token in JavaScript storage. State changing requests require the expected Origin and CSRF token. OAuth login does not automatically grant workspace membership.
 
-Business and Auth use distinct nonowner, non BYPASSRLS database LOGIN roles. A separate maintenance connection is excluded from the API process. PostgreSQL RLS and explicit workspace context constrain business queries. The managed profile exposes only a boolean session verification helper to the Auth role, not raw managed Auth tables. TLS certificate validation remains enabled.
+Business and Auth use separate non-owner/NOBYPASSRLS LOGINs; maintenance is excluded from the API. RLS and short workspace transactions constrain queries. Managed Auth exposes only a boolean session verifier, not raw Auth tables. Manager-only membership functions recheck authority; login never auto-grants workspace access. TLS verification remains enabled.
 
 ### 4.3 Hosted deployment correction
 
-The original immutable migration 017 encountered a genuine hosted PostgreSQL 17 role membership restriction. The solution uses an explicit supabase-managed migration profile with separately checksummed steps 017, 025 and 026, leaving canonical historical SQL unchanged. Cloud ledger 001 to 026 and runtime capability checks were verified after backup and restore rehearsal. Managed Auth ownership, ACLs and RLS were not rewritten; no runtime superuser fallback was introduced.
+Immutable migration 017 encountered a hosted PostgreSQL 17 role restriction. The explicit supabase-managed profile provides separately checksummed 017/025/026 steps; canonical history is unchanged. After the original backup/restore rehearsal, cloud ledger reached 026 on 23 October. Additive 027 was backed up and applied on 26 October with the runtime digest unchanged. Auth ownership/ACL/RLS and non-owner runtime protections were preserved.
 
 ## V ARCHITECTURE DECISION RECORDS
 
@@ -130,7 +136,7 @@ Valid JSON may still contain duplicate choices, wrong counts or invented evidenc
 
 ### ADR012 Model and RAG settings
 
-Gemini 2.5 Flash supports the required structured responses; embedding 001 at 768 dimensions matches the index. Page bounded chunks target 1,200 characters, cap at 1,800 and overlap by 200. These practical baseline settings preserve page attribution; they are not a measured optimum. Changing them requires reindexing and a new comparison.
+Gemini 2.5 Flash remains the generation model; embedding-001 uses 768 dimensions. Page-bounded chunks target 1,200 characters, cap at 1,800 and overlap by 200. These are practical baseline settings, not a measured optimum. ADR-018 adds isolated format conversion; ADR-019 changes grounded output formatting, not retrieval/ranking, corpus or model selection.
 
 ### Streaming decision
 
@@ -138,28 +144,28 @@ General answers stream text; RAG emits progress until source checks and final au
 
 ## VI RAG DESIGN AND PROMPT MANAGEMENT
 
-| Setting      | Current baseline                                    | Purpose and limit                                              |
-| ------------ | --------------------------------------------------- | -------------------------------------------------------------- |
-| Generation   | gemini-2.5-flash; 30 s; 1,024 output tokens         | Bounded output; API failure does not justify automatic retries |
-| Embeddings   | gemini-embedding-001; 768 dimensions; batch 16      | Must match the database vector dimension                       |
-| Retrieval    | Top K 6; candidate limit 10; minimum score 0.55     | At most six qualifying evidence chunks; scope filtered first   |
-| Chunking     | Target 1,200; maximum 1,800; overlap 200 characters | Page bounded; at most 2,000 chunks per document                |
-| Conversation | Bounded context, default 12,000 characters          | Verified history is truncated deterministically                |
-| OCR          | Optional and disabled by default                    | Low text coverage is disclosed instead of assumed complete     |
+| Setting      | Current baseline                                    | Purpose and limit                                                                        |
+| ------------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Generation   | gemini-2.5-flash; 30 s default                      | Grounded output: 4,096; Flash thinking: 256. General default: 1,024; no automatic retry. |
+| Embeddings   | gemini-embedding-001; 768 dimensions; batch 16      | Must match the database vector dimension                                                 |
+| Retrieval    | Top K 6; candidate limit 10; minimum score 0.55     | At most six qualifying evidence chunks; scope filtered first                             |
+| Chunking     | Target 1,200; maximum 1,800; overlap 200 characters | Page bounded; at most 2,000 chunks per document                                          |
+| Conversation | Bounded context, default 12,000 characters          | Verified history is truncated deterministically                                          |
+| OCR          | Opt-in; off by default; separate model setting      | Low coverage is disclosed; OCR quality is not established by configuration               |
 
 ### 6.1 Retrieval and refusal
 
-Ingestion extracts page-bounded text and persists chunks and embeddings. Query retrieval filters accessible ready documents before selecting at most six qualifying chunks. No qualifying context produces a fixed refusal without answer generation; query embedding may already have occurred. Low text coverage is disclosed.
+DOC/DOCX/UTF-8 MD/TXT convert locally to a canonical stored PDF; Word/text originals are not archived. Markdown is literal text and conversion calls no AI. Indexing adds embeddings. Retrieval scopes ready sources before selecting up to six chunks. No qualifying evidence yields a fixed refusal without answer generation; query embedding may already have occurred.
 
 ### 6.2 Prompt versions and answer contracts
 
-The versioned prompt registry separates general chat, grounded questions, summary stages, OCR and Study Coach. Filenames and retrieved text are untrusted data. Generation requests a bounded answer contract:
+Grounded prompts are now rag-json-v2, rag-conversation-v3 and rag-summary-v2. Filenames and document text remain untrusted data. The internal generation contract attaches each block to evidence:
 
 ```json
-{ "answerable": true, "answer": "... [S1]", "citationIds": ["S1"] }
+{ "answerable": true, "blocks": [{ "text": "Fact.", "sourceIds": ["S1"] }] }
 ```
 
-Exact keys, a bounded answer and valid source IDs are required. Inline markers must match citation IDs, all within the retrieved catalog. Refusals carry no citations. These are structural and provenance checks, not proof that every claim is entailed.
+The server validates fields, bounded text and evidence IDs, then renders markers/citationIds from the same blocks. Foreign sources, inconsistent legacy citations and explicit truncated finishes fail closed without repair/retry. Public answers/receipts stay compatible. Structural/source validity does not prove semantic entailment; historical evaluation retains its original prompt binding.
 
 ![Figure 2  Scoped retrieval and source binding; conceptual implementation diagram](report-assets/retrieval-explained.png)
 
@@ -181,7 +187,7 @@ Saved flashcards follow the same validation and confirmation boundary. Each lear
 
 ![Figure 4  Flashcard practice mechanism; illustration, not a model output or UI capture](report-assets/flashcard-practice.png)
 
-API, database and frontend tests cover both lifecycles. An earlier real Gemini smoke produced three validated questions and three flashcards using synthetic Auth/Storage. Schema and source validity do not establish semantic quality or full cloud acceptance.
+Both lifecycles retain recovery/concurrency/idempotency regressions. Earlier Gemini samples produced three valid questions and three cards with synthetic Auth/Storage, not a semantic benchmark. The 27 October repair used a synthetic SDK and adds no new live-model evidence.
 
 ## VIII STREAMING AND LOCAL SPEECH INPUT
 
@@ -222,30 +228,30 @@ Figure 7 juxtaposes separate observations. A and B use real Supabase Auth, Stora
 
 The Documents capture exposes file, course, status and bounded search controls. Manager monitoring separates operations from provider calls and labels incomplete token/cost metadata. Screenshots demonstrate presentation, not authorization coverage by themselves.
 
-Retained desktop and mobile inspections covered ten routes without page-wide horizontal overflow. Speech layouts were checked at 375 by 812 and 375 by 520. Responsive emulation is not physical-phone or microphone acceptance. Quick notes remain browser-local.
+Retained responsive checks covered ten routes; later shared controls and focus/session fixes improved readability and stopped page jumps during background verification. VI/EN changes labels only. The 27 October Word summary and document SSE flows passed Chrome at 1440px/375px with real Nest/PG17 and synthetic upstreams. These checks do not replace every browser action, a physical phone or microphone testing. Quick notes remain browser-local.
 
 ## X VERIFICATION AND DEPLOYMENT RESULTS
 
-| Evidence set                  | Result                   | Scope and limitation                                                                     |
-| ----------------------------- | ------------------------ | ---------------------------------------------------------------------------------------- |
-| Latest application suite      | 2,324 PASS               | API Vitest 460 + API Node 1,317 + Web 547; final run exit 0                              |
-| Static and build checks       | PASS                     | Typecheck, build and format passed after STT code changes                                |
-| Canonical PG17 database suite | 521 / 521 PASS           | Earlier same day disposable run in 51 files; not rerun for STT                           |
-| Managed migration fixture     | PASS                     | Separate restricted installer/capability fixture, not a 522nd canonical test             |
-| Real HTTP acceptance          | 45 checks PASS           | Four role accounts, protected reads/writes, dashboard denial and private object download |
-| Real native media suite       | 5 / 5 PASS               | WAV, WebM, MP4/AAC, invalid/long/silent input and cancellation                           |
-| Google and deployed runtime   | VERIFIED                 | Google callback and manager Dashboard; real Supabase services; managed026; TLS           |
-| Speech model and HTTP         | VERIFIED in stated scope | Pinned local model load and synthetic English transcriptions; no physical mic claim      |
+| Evidence set                  | Result                  | Scope and limitation                                                                                             |
+| ----------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Latest application suite      | 2,399 PASS (27 October) | 480 API Vitest + 1,324 API Node + 595 Web; exit 0; no skips/failures                                             |
+| Static and build checks       | PASS                    | Typecheck, build and format exit 0 on 27 October; existing bundle warning retained                               |
+| Canonical PG17 database suite | 538 / 538 PASS          | Fresh disposable PG17, 53 serial files, 27 October; no shared/cloud DB used                                      |
+| Focused document runtime      | 2 / 2 PASS              | 19-page DOCX: real conversion/Nest/PG17/receipt/telemetry; SDK/Auth/Storage synthetic                            |
+| Historical real HTTP          | 45 checks PASS          | 45 checks on 23 October: role denial, protected reads/writes and private objects; not rerun for this report      |
+| Historical native media       | 5 / 5 PASS              | 5 cases: WAV/WebM/MP4-AAC, invalid/long/silent input and cancel; no physical mic claim                           |
+| Google and deployed runtime   | Recorded 23–27 October  | Google callback/manager Dashboard; managed 027 applied 26 October; API health checked 27 October                 |
+| Targeted browser regression   | 1440px / 375px PASS     | 27 October: summary and document SSE with cited answers, keyboard/no overflow/console error; synthetic upstreams |
 
 ### 10.1 Regressions and invalid test runs
 
-Regression cases cover missing or revoked membership, outsider login, cross user reads, stale responses, incomplete multipart uploads and cancellation. The STT change was tested RED to GREEN for the 120/150/180 second deadlines. Proxy configuration checks prevent the previous 60 second nginx cutoff from returning unnoticed. A first application run overlapped another build that removed dist files while Node tests imported them; that failed run was not counted. The final separated run passed.
+Regressions retain Auth/tenant isolation, history/save reconciliation, idempotent practice and stale-response guards. The latest Word failure occurred after successful 19-page extraction: malformed JSON and citation mismatch were rejected. Five new format/budget checks were RED before implementation; atomic-block checks were RED before rendering changed. Final suites passed. Initial stale metadata oracles and a dist/build collision are retained in logs, not counted as successful runs.
 
 ### 10.2 Real deployment evidence
 
-The running stack uses real Supabase Auth, private Storage and PostgreSQL, with Gemini configured on the backend. The 45 HTTP checks verified outsider no_access and forbidden data reads, viewer write denial, manager only AI monitoring, module reads and private signed object access. Google login succeeded for the explicitly granted identity; it does not establish access for every Google account.
+Recorded deployment uses real Supabase Auth/private Storage/PostgreSQL with verified TLS and split runtime LOGINs. Google consent/callback reached the authorized manager dashboard. Forty-five historical HTTP checks covered role denial and private object access. Migration 027 is recorded as applied on 26 October; broader manual cloud member-management testing remains pending. Google success does not authorize every Google account.
 
-Managed deployment support and the guarded evaluation budget are versioned in source commit 0bddd53. The real deployment observations were collected before that source publication, with private configuration kept outside Git. A fresh clone still requires target-specific provisioning. Dependency advisories and the bundle warning remain; publication verification is recorded separately from the deployment and model measurements.
+Recent sources include member management (4e7f2cc/88f3c40), formats (dbadb63/f84b2dc) and grounded output (3fba8c3). The API was rebuilt and health-checked on 27 October. These synthetic regressions do not upgrade earlier cloud/Google/live-model evidence; this report edit ran no runtime operation.
 
 ## XI AI EVALUATION METHOD
 
@@ -313,22 +319,22 @@ Across indexing, baseline, partial improved runs and a separate failed Flash Lit
 
 ### 13.1 Data sent to external services
 
-| Feature                   | External data and retention boundary                                                                                                                                                                                 |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| RAG and history           | Google receives the question, authorized retrieved excerpts and bounded verified context. Completed personal history may retain question/answer; telemetry does not store their text.                                |
-| Document indexing and OCR | Embedding sends document text selected for indexing. Optional OCR sends page images when explicitly enabled; it is disabled by default. Private Storage is not a promise that document content never reaches Google. |
-| Study Coach               | Google receives evidence from one authorized document and generation settings. Confirmed items and progress persist; draft validity is bounded.                                                                      |
-| Speech and workspace mode | Local Whisper processes audio without sending it to Google; temporary audio is removed. Controlled workspace SQL questions do not call an LLM.                                                                       |
+| Feature                   | External data and retention boundary                                                                                                                                                                                               |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| RAG and history           | Google receives the question, authorized retrieved excerpts and bounded verified context. Completed personal history may retain question/answer; telemetry does not store their text.                                              |
+| Document indexing and OCR | Embedding sends indexed text. Optional OCR sends selected page images when enabled; it is off by default. LibreOffice conversion is local, provider-free and isolated. Storage privacy does not mean content never reaches Google. |
+| Study Coach               | Google receives evidence from one authorized document and generation settings. Confirmed items and progress persist; draft validity is bounded.                                                                                    |
+| Speech and workspace mode | Local Whisper processes audio without sending it to Google; temporary audio is removed. Controlled workspace SQL questions do not call an LLM.                                                                                     |
 
-Pattern checks found no real credentials in the examined Git scope; this is not a dedicated scanner certification. Secrets stay outside frontend code. A model listing check on the replacement key succeeded; generation and quota were not reverified by that check.
+Secrets remain outside Git/frontend. Historical key-list checks are not generation or OCR acceptance. OCR is opt-in and off by default. The 27 October repair used no paid provider calls; figure/evaluation provenance remains unchanged.
 
 ## XIV OWNERSHIP AI ASSISTANCE AND LIMITATIONS
 
 ### 14.1 Module ownership and contribution evidence
 
-Repository history at HEAD 4ec44c7 records 269 commits under fransico08 and five under Thang. Commit counts identify a history snapshot, not a share of effort. Tai leads the frontend, Auth/RLS integration, documents/RAG, Study Coach, usage controls and evaluation work. Thang leads local STT and streaming integration, with earlier Gemini text endpoint and backend work.
+Tai leads frontend/business screens, final integration, Auth/RLS, RAG, Study Coach, usage controls and evaluation. Thang contributes RAG with Tai and leads local STT/SSE plus early backend/Supabase and Gemini integration. RAG collaboration is explicitly credited by the team; final integration is distinguished from original module work. Commit counts are not effort percentages.
 
-Thang contributions include b4ce829 (backend/Supabase), d2ca5ca (Gemini text endpoint), 917edc7 and b988e26 (local STT), and 2249abf (streaming). The rubric requires the member with few commits to explain the discrepancy personally. That explanation and each member understanding confirmation remain to be supplied; no reason, approval or signature has been invented for either student.
+History anchors include b4ce829 (backend/Supabase), d2ca5ca (Gemini), 917edc7/b988e26 (STT) and 2249abf (streaming). Current work is read from the named development branch. Personal explanations for contribution differences and understanding must be given by each student; this report does not invent signatures or attestations.
 
 ### 14.2 AI usage and corrected generated code
 
@@ -338,18 +344,18 @@ AI_USAGE.md records assistance from ChatGPT/Codex and Claude Code, the relevant 
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Executor trusted supplied request bindings     | Tests showed copied hashes and mutable provenance could change an approved plan. Recompute, seal exact bytes and compare immutable bindings; regression source 3a628e6. |
 | Snapshot taken after an await                  | Deterministic mutation tests exposed an open sealing window. Copy all caller data synchronously before yielding; source da862cd.                                        |
-| Budget kind accepted inherited object keys     | An invalid **proto** kind could poison totals. Invalid kind regression led to an own property check in rag-live-budget.mjs.                                             |
+| Budget kind accepted inherited object keys     | An invalid `__proto__` kind could poison totals. Invalid kind regression led to an own property check in rag-live-budget.mjs.                                           |
 | Received503 misclassified as transport unknown | A wrapper threw after receiving the error. Saved outcomes and terminal telemetry reconciled known503 without replay or editing the raw ledger.                          |
 
 ### 14.3 Current limitations and priorities
 
-The incomplete improved evaluation prevents a full before/after claim. Semantic quality of quizzes and flashcards needs a larger reviewed sample; injection resistance remains inconclusive. Physical microphone, Vietnamese/mixed speech, a real phone and the teammate machine need acceptance. Dependency advisories and the large frontend bundle warning remain. Course mutation and task deletion are not implemented; quick notes do not synchronize. The prototype has operation admission and campaign budget reservations, not a universal hard monetary cap. Video recording, personal explanations and defense practice remain human work.
+A complete improved evaluation is still missing; new output formatting has not been live-regraded. Quiz/flashcard semantics, injection context traces, physical microphone/phone and the teammate machine need acceptance. Dependency advisories and the large web bundle remain. Courses have illustrative progress; quick notes do not sync. Admission/campaign reservations are not a universal spending cap. Video recording status and personal defense confirmations require actual evidence.
 
 ## XV REPRODUCTION AND CONCLUSION
 
 ### 15.1 Running the current verified machine
 
-Start Docker Desktop and keep .env, CA and model files private. Use the verified Compose project below at loopback port 8080. No npm server or routine migration is required. Never replace runtime roles with owner credentials.
+Start Docker Desktop and keep .env, CA and local model files private. Use the prepared Compose project at loopback port 8080. The converter joins only its internal network. No routine migration or npm dev server is needed; never replace runtime roles with owner credentials.
 
 ```powershell
 Set-Location D:\New-Tech\Final-Project-integration-20261018
@@ -361,14 +367,14 @@ Invoke-RestMethod http://127.0.0.1:8080/api/health
 
 The README lists variable names: business/Auth URLs, Supabase settings, session encryption, Gemini and the trusted origin. Runtime migration credentials stay blank. CA and model mounts are read only; credentials are distributed privately.
 
-Verification commands are npm run typecheck, npm test, npm run build and npm run format:check. Database tests require a guarded disposable target. For a fresh clone, review the explicit migration profile and provide private configuration. Health alone does not verify Google login, Storage access or model behavior.
+Replay npm run typecheck, npm test, npm run build and npm run format:check. npm run test:database requires guarded disposable PG17. test:documents:summary separately verifies DOCX/JSON/SSE with synthetic upstreams. Fresh clones need private configuration and the explicit migration profile; health is not Google/Storage/Gemini acceptance.
 
 ### 15.2 Conclusion
 
-ExaMate connects authorized academic records with grounded answers and validated learning artifacts. Deployment, regression and local speech evidence support the prototype. The improved evaluation cohort, broader semantic review, physical device testing and personal submission tasks remain open.
+ExaMate joins authorized records, cited RAG and validated practice. Source ef248e1 adds members, VI/EN, canonical conversion and grounded-output repair. Automated/targeted browser evidence supports these changes. Complete live before/after evaluation, semantic review, physical-device testing and personal confirmations remain pending.
 
 ### 15.3 Safe outcomes at runtime boundaries
 
 ![Figure 9  Guardrail and recovery map; implementation illustration, not a security benchmark](report-assets/guardrail-decisions.png)
 
-The editable submission includes figure origins and retained measurement bindings. The source assets and figure-provenance.json distinguish conceptual diagrams, historical UI tests and measured results. No new browser or model run was performed for this visual revision.
+The user-edited cover and historical evidence are preserved. Word, REPORT.md and figure-provenance.json provide editable sources; this revision adds no runtime/model measurements.

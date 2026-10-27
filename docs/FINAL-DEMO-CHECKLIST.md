@@ -1,5 +1,34 @@
 # ExaMate — checklist demo và nộp cuối kỳ
 
+## Report revision / clean submission tree — 27 October 2026
+
+Current report: `docs/submission/ExaMate-Report-20261023.{docx,pdf}`, content
+revision 27 October, 20 A4 pages. User-completed cover preserved pixel-exact;
+native TOC updated (18 entries), 13 user stories, 20 original evaluation rows and
+nine figures retained. Architecture now shows managed 027, member administration,
+canonical conversion and atomic grounded output. Introduction section 1.4 links
+GitHub and names the development branch; technical snapshot `ef248e1` is explicit.
+Ownership credits Thang's RAG collaboration. Instructor/student details come
+from the user's cover, not an AI-authored contribution attestation.
+
+New document checks: 35/35 artifact assertions and 3/3 exporter tests (exit 0).
+Commands: `python -m unittest discover -s scripts -p test_submission_docs.py` and
+the retained `artifacts/report-refresh-20261027/verify_report.py`. Native Word
+was used for TOC/PDF export. Page/contact-sheet renders, cover backup, initial
+26/21-page overflow candidates and final `qa.json` are retained in that ignored
+directory. Later concise copy/final-page spacing restored 20 pages with no cover,
+font or image removal. File hashes/evidence bindings are in `report-manifest.json`
+and `report-evidence.json`. No app/DB/browser/model gate was newly run here.
+
+Git hygiene: the superseded 24 October PPTX/PDF/preview, its slides manifest and
+verification JSON, plus one unused duplicate architecture PNG are local-only.
+`git rm --cached` retained all six files byte-exact; scoped ignore rules prevent
+re-adding them. Current report/presentation bundles and required source/docs stay
+versioned. Legacy deck source can rebuild into ignored `output/presentation/`.
+No uncommitted source/deck work, historical corpus/gold/results, secret or runtime
+resource was removed. Live improved evaluation, semantic review and other pending
+matrices remain unchanged; the report remains DRAFT, with no rubric-pass claim.
+
 ## Grounded document answer repair — 27 October 2026
 
 Source: `3fba8c3`, on `feature/tai-assistant-integration-20261018` over

@@ -112,11 +112,34 @@
     {
       "asset": "architecture-detailed.png",
       "kind": "implementation illustration",
-      "description": "Existing component architecture; English labels, managed migration profile 001-026.",
-      "sha256": "1feb3d587fcf1eb8469c677af94568f0a611977eea89645d454c158416171171",
-      "sources": [],
+      "description": "Current implementation illustration: managed profile through 027, isolated credential-free Word/text converter, member management and atomic grounded-output blocks. Not an observed production request.",
+      "sha256": "a9f0d65daf51a3bc8b8de1ffaffc2d30c6ca6904d9d1cc66ab64e7bbac9930e0",
+      "sources": [
+        {
+          "path": "compose.yaml",
+          "sourceCommit": "ef248e1e5a37bf788e2ac23e0436d940067a3bf1",
+          "sha256": "0f42e5b5ed45543ba2b5ebb11609ddcfd147dfdbff423eb25b88faf7e60709f3"
+        },
+        {
+          "path": "apps/api/src/members/members.service.ts",
+          "sourceCommit": "ef248e1e5a37bf788e2ac23e0436d940067a3bf1",
+          "sha256": "4276b7c314a62078c52cb41b70251108d7924dafe47a180758a4f0e957bc3fbb"
+        },
+        {
+          "path": "apps/api/src/documents/document-conversion.service.ts",
+          "sourceCommit": "ef248e1e5a37bf788e2ac23e0436d940067a3bf1",
+          "sha256": "e04e4fa1cfb6fa719d6e7544fd23fd416fabf575fdc742e8dbe09ced0a467ae4"
+        },
+        {
+          "path": "apps/api/src/assistant/grounded-answer-format.ts",
+          "sourceCommit": "ef248e1e5a37bf788e2ac23e0436d940067a3bf1",
+          "sha256": "d757d22a1a98f3d56cfb1e5786c4375ed01036c29abc50af113ca356173aa25b"
+        }
+      ],
       "newBrowserAcceptance": false,
-      "newProviderCalls": 0
+      "newProviderCalls": 0,
+      "revision": "2026-10-27",
+      "sourceCheckpoint": "ef248e1e5a37bf788e2ac23e0436d940067a3bf1"
     },
     {
       "asset": "study-flow.png",

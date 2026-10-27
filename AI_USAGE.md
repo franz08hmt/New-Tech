@@ -1,5 +1,30 @@
 # AI Assistance Log
 
+## 2026-10-27 — Report body refresh with user-authored cover preserved
+
+At the user's request, AI compared the English report with committed progress
+through ef248e1. The updated body covers member management/managed 027, VI/EN,
+stable session/list UI, canonical Word/Markdown/TXT conversion and atomic RAG
+format/citation repair. The introduction includes a clickable GitHub development
+branch. Thang's team-confirmed RAG collaboration is credited without inventing
+personal explanations or signatures. The existing live evaluation stays dated
+23 October and incomplete; no output was regraded under newer prompts.
+
+The user's completed cover was backed up and retained: before/after native Word
+PDF renders match pixel-for-pixel. Body edits preserve the other illustrations,
+update architecture and refresh the native TOC. Final Word/PDF are 20 A4 pages,
+with 13 user stories, 20 evaluation rows and nine figures. Initial 26/21-page
+overflow exports were retained and corrected by concise body text and final-page
+spacing; fonts and cover were not reduced. QA passed 35/35 artifact checks and
+the existing document-export tests passed 3/3. Those are document checks, not new
+application, database, browser, provider or semantic acceptance.
+
+Six superseded/duplicate exports and metadata files are no longer Git-tracked;
+exact local copies remain. Necessary source, operational docs, AI_USAGE and
+current submission bundles remain versioned. Unrelated source/deck WIP is
+preserved. Private backups/rendering intermediates stay ignored. No cloud write,
+paid model request, runtime restart or dependency change occurred.
+
 ## 2026-10-27 — Word summary and document-answer format repair
 
 AI diagnosed the user's screenshot against sanitized local API logs: Word had
