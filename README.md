@@ -3,6 +3,37 @@
 Workspace học tập cuối kỳ New Technologies của Tài–Thắng: React/Vite,
 NestJS ESM, PostgreSQL/pgvector, Supabase Auth và private Storage.
 
+**Upload tài liệu nhiều định dạng (27/10/2026):** Documents nhận PDF, DOC, DOCX,
+Markdown (`.md`) và TXT, tối đa 10 MiB mỗi tệp. Các định dạng mới được chuyển
+thành PDF trên backend trước khi lưu; chỉ PDF được lưu/tải về, không lưu bản gốc
+Word/text riêng. Tên như `notes.docx.pdf` thể hiện nguồn chuyển đổi. Citation theo
+trang PDF được tạo, có thể khác trang Word gốc. Markdown/TXT là văn bản UTF-8
+nguyên văn (không render HTML hoặc tải ảnh/link ngoài). Upload/chuyển đổi không
+gọi AI; bước **lập chỉ mục** sau đó vẫn có embedding theo quota hiện hành.
+
+Main Compose có service `document-converter` dùng LibreOffice Writer và font local:
+không credential, không publish cổng host, network riêng `internal`, rootfs read-only,
+user non-root, tmpfs giới hạn và một conversion tại một thời điểm. Tệp mã hóa,
+DOCM/RTF, tệp giả định dạng, DOCX có macro/embedded objects hoặc external relationships
+không được hỗ trợ. Giới hạn 35 giây cho converter, 45 giây phía API; PDF đầu ra
+không quá 10 MiB. DOC/DOCX có thể khác bố cục/font so với Microsoft Word; cần mở
+PDF để kiểm tra. Đây không phải công cụ loại bỏ mọi mã độc.
+
+Để nạp code mới vào bản Docker local, sau khi kết thúc thao tác đang chạy:
+
+```powershell
+docker compose -p examate-final-live-20261023 -f compose.yaml -f compose.ca.yaml up -d --build --wait
+```
+
+Không cần migration mới. Native API không cấu hình `DOCUMENT_CONVERTER_URL` vẫn
+nhận PDF; định dạng khác trả lỗi converter chưa sẵn sàng. URL là cấu hình server,
+không nhận từ payload; không trỏ tới dịch vụ chuyển đổi công khai. Main Compose
+tự cấu hình URL nội bộ. Không tự publish converter hoặc chuyển credential cho nó.
+Kiểm converter thật và HTTP/PG17 trên target dùng-một-lần đã có guard:
+`npm run test:documents:formats --workspace @examate/api` với
+`TEST_DATABASE_URL` và `TEST_DOCUMENT_CONVERTER_URL` loopback thuộc fixture;
+provision test capability bằng `prepare-runtime-roles.mjs` trước. Không dùng cloud.
+
 Phát triển trên **`feature/tai-assistant-integration-20261018`**.
 Checkout máy Tài: `D:\New-Tech\Final-Project-integration-20261018`.
 Folder `Final-Project` cũ còn WIP riêng; không reset, copy đè hoặc gom vào commit.

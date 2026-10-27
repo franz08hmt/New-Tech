@@ -1,5 +1,36 @@
 # Quyết định kiến trúc ExaMate
 
+## ADR-018 — Normalize Word/text uploads to PDF in an isolated local converter
+
+27/10/2026. The requested formats are PDF, DOC, DOCX, UTF-8 Markdown and TXT,
+not arbitrary file types. Keep the existing PDF metadata, Storage, extraction,
+page citations, retrieval and Study Coach contracts. Convert before the Storage
+write, outside a DB transaction, then check membership/course scope again.
+Only canonical PDF bytes are persisted; `source.docx.pdf` preserves the source
+extension visibly. Original Word/text bytes are not archived. Generated PDF
+pages are the citation authority, not original Word pagination. Markdown/text
+are escaped literal text; no HTML execution or remote image fetching.
+
+Use LibreOffice Writer in a separate non-root Compose service: no credentials
+or host data mounts, read-only root filesystem, bounded tmpfs/CPU/RAM/PIDs,
+capabilities dropped, and only an internal Docker network (no host publication).
+Macros are disabled in a fresh per-job profile. DOCX central-directory expansion
+limits and relationship checks reject external references/embedded active objects.
+The worker uses fixed filenames, no shell, one active conversion and a bounded
+deadline; cancellation kills its process group and cleans its exact owned temp
+directory. Output is bounded to 10 MiB. No provider call or new AI operation.
+
+Trade-offs: a larger OS image/dependency and conversion latency; Word layout/fonts
+can differ. Reject encrypted/unsupported/active content rather than claim full
+Office fidelity. This is isolation, not a proof that LibreOffice sanitizes all
+malicious documents. A missing worker fails safely for new formats; existing PDF
+uploads remain available. Do not execute Office conversion inside the credentialed
+API process. No new npm dependency, migration, grants, RLS or production AI change.
+LibreOffice's documented [PDF CLI](https://help.libreoffice.org/latest/en-US/text/shared/guide/pdf_params.html)
+and [macro configuration](https://github.com/LibreOffice/core/blob/master/dbaccess/qa/complex/dbaccess/DatabaseDocument.java)
+inform the invocation; source constraints and real-converter tests define this
+feature's supported boundary.
+
 ## Điều chỉnh phạm vi theo Tài — 22/10/2026
 
 Tài xác nhận F10 đã có STT và không triển khai TTS, bỏ F11/PWA và F13/WASM

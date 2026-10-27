@@ -660,6 +660,19 @@
         </section>
         <section id="stack">
           <h2>2. Stack &amp; ba chế độ chat</h2>
+          <p class="note">
+            Bổ sung upload ngày 27/10/2026: Documents nhận PDF, DOC, DOCX,
+            Markdown và TXT (tối đa 10 MiB). Word/văn bản được chuyển sang PDF
+            bằng LibreOffice trong container riêng, không gọi AI. Chỉ lưu/tải về
+            bản PDF, ví dụ <code>notes.docx.pdf</code>; citation theo trang PDF
+            được tạo, không cam kết trùng trang Word. Markdown/TXT được nhập
+            nguyên văn UTF-8, không chạy HTML hoặc tải ảnh ngoài. Những phần
+            trích xuất, chunk, retrieval và Study Coach dưới đây tiếp tục dùng
+            PDF đã lưu. Converter không có credential và chỉ dùng mạng nội bộ;
+            không phải thêm một LLM-called tool. Xem
+            <a href="DECISIONS.md">ADR-018</a> để giải thích lựa chọn và giới
+            hạn.
+          </p>
           <div class="table-wrap">
             <table>
               <thead>

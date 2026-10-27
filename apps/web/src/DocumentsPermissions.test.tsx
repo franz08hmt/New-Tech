@@ -109,7 +109,7 @@ function unavailable(button: HTMLElement | null) {
   if (button) expect(button).toBeDisabled();
 }
 function picker() {
-  return screen.queryByLabelText("Choose PDF files");
+  return screen.queryByLabelText("Choose documents");
 }
 async function loaded() {
   await screen.findByRole("button", { name: `Download ${stored.name}` });
@@ -312,7 +312,7 @@ describe("Document permissions from the verified principal", () => {
     async (role) => {
       render(asRole(<DocumentsPanel />, role));
       await loaded();
-      const file = await select(screen.getByLabelText("Choose PDF files"));
+      const file = await select(screen.getByLabelText("Choose documents"));
       await act(async () => {
         fireEvent.click(
           screen.getByRole("button", { name: `Upload ${file.name}` }),
@@ -386,7 +386,7 @@ describe("Document permissions from the verified principal", () => {
     async (role) => {
       const rendered = render(asRole(<DocumentsPanel />, "member"));
       await loaded();
-      const oldPicker = screen.getByLabelText("Choose PDF files");
+      const oldPicker = screen.getByLabelText("Choose documents");
       await select(oldPicker);
       const oldUpload = screen.getByRole("button", {
         name: "Upload Bản nháp.pdf",

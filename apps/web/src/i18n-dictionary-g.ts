@@ -2,6 +2,40 @@ import type { DictionaryEntry } from "./i18n-dictionary-a";
 
 /** Members page, its roles and the messages the members API answers with. */
 export const dictionaryG: readonly DictionaryEntry[] = [
+  [
+    "No documents yet. Upload a PDF, Word, Markdown or text file to begin.",
+    "Chưa có tài liệu nào. Tải PDF, Word, Markdown hoặc văn bản lên để bắt đầu.",
+  ],
+  [
+    "Validate, convert if needed, then store the PDF and metadata",
+    "Kiểm tra, chuyển đổi nếu cần, rồi lưu PDF và metadata",
+  ],
+  [
+    "The backend validates formats and sizes. Word/text conversion is isolated; saved sources are PDFs. This is not a malware scan or a guarantee of identical Word layout.",
+    "Backend kiểm định dạng và dung lượng. Word/văn bản được chuyển đổi riêng biệt; nguồn đã lưu là PDF. Đây không phải quét mã độc hoặc cam kết giữ nguyên bố cục Word.",
+  ],
+  ["Choose documents", "Chọn tài liệu"],
+  [
+    "{name}: Choose PDF, DOC, DOCX, Markdown or TXT, up to 10 MiB each.",
+    "{name}: Chọn PDF, DOC, DOCX, Markdown hoặc TXT, tối đa 10 MiB mỗi tệp.",
+  ],
+  [
+    "That document is already in the list.",
+    "Tài liệu này đã có trong danh sách.",
+  ],
+  ["{count} documents selected.", "Đã chọn {count} tài liệu."],
+  [
+    "Store and manage study documents as source-linked PDFs.",
+    "Lưu và quản lý tài liệu học tập dưới dạng PDF có nguồn.",
+  ],
+  [
+    "Choose PDF, DOC, DOCX, Markdown or TXT up to 10 MiB each. Other formats are converted to PDF on the server; citations refer to that PDF. Markdown and TXT are imported as literal UTF-8 text.",
+    "Chọn PDF, DOC, DOCX, Markdown hoặc TXT tối đa 10 MiB mỗi tệp. Các định dạng khác được chuyển sang PDF trên máy chủ; nguồn trích dẫn theo trang PDF đó. Markdown và TXT được nhập dạng văn bản UTF-8 nguyên văn.",
+  ],
+  [
+    "Only the PDF is stored and downloaded; original Word or text files are not archived. Conversion does not call AI. Index the saved PDF for grounded answers.",
+    "Chỉ lưu và tải về bản PDF; không lưu trữ tệp Word hoặc văn bản gốc. Chuyển đổi không gọi AI. Lập chỉ mục PDF đã lưu để hỏi đáp có nguồn.",
+  ],
   ["YOUR STUDY GROUP", "NHÓM HỌC TẬP CỦA BẠN"],
   ["Members", "Thành viên"],
   ["Who is in this group", "Ai đang ở trong nhóm này"],

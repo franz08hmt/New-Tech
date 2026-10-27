@@ -75,6 +75,26 @@ test("multipart regression: valid PDF reaches mocked Storage and database", asyn
   assert.equal(state.objects, 1);
 });
 
+test("multipart: UTF-8 Markdown and text are converted to canonical PDFs without indexing", async () => {
+  for (const [name, type] of [
+    ["Ôn tập.md", "text/markdown"],
+    ["notes.txt", "text/plain"],
+  ]) {
+    const prior = await stats();
+    const response = await send(
+      pdfForm("# Ôn tập\nTiến trình và luồng.", name, type),
+    );
+    assert.equal(response.status, 201);
+    const body = await response.json();
+    assert.equal(body.name, `${name}.pdf`);
+    assert.equal(body.media_type, "application/pdf");
+    assert.equal(body.processing_status, "pending");
+    const next = await stats();
+    assert.equal(next.uploadCalls, prior.uploadCalls + 1);
+    assert.equal(next.conversionCalls, prior.conversionCalls + 1);
+  }
+});
+
 const invalid = [
   [
     "over 10 MiB",

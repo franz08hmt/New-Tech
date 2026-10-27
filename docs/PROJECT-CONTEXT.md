@@ -1,5 +1,28 @@
 # ExaMate — context hiện tại cho Tài, Thắng và agent
 
+## Multi-format document upload — local implementation verified, 27/10/2026
+
+Scope: PDF plus DOC/DOCX/UTF-8 MD/TXT. Normalize new formats to a canonical PDF
+before private Storage/metadata, retaining PDF citations and the existing RAG and
+Study Coach pipeline. Converted names retain the source extension (`notes.md.pdf`);
+the download is the generated PDF, not an original-file archive. No schema,
+RLS, quota or model change is planned. Markdown is imported as literal text,
+not executed HTML. Existing PDFs keep their upload path.
+
+Checklist: boundary/HTTP and UI RED→GREEN; isolated converter with bounded
+input/output/time and no credentials/Internet egress; canonical PDF ingestion;
+role/tenant and stale-response regressions; disposable PG17 and browser checks;
+final app gates. No rollout to the running live demo or cloud in this task.
+
+Status 27/10 (resumed after an interrupted run): converter, API boundary, shared
+allowlist and Documents UI are complete. Re-verified on the current tree: typecheck
+and format clean; unit suites 1323 API + 467 API-vitest + 595 web pass; real
+LibreOffice converter and Nest/PG17 format tests 12/12 (Vietnamese text, scoped
+citations, viewer/foreign course/revoked membership refused, no AI call during
+conversion); 53 database test files (538 tests) pass. Browser 1440px/375px was
+checked by the earlier run. Limits: only the converted PDF is kept (no original
+Word/text archive); Word layout can differ. Not rolled out to the cloud project.
+
 ## Sửa nhảy trang, ngôn ngữ hiển thị và quản lý thành viên - 26 tháng 10 2026
 
 **Nhảy trang (hai video Firefox).** Hai nguyên nhân: (1) mỗi lần tab lấy lại focus, phiên

@@ -16,6 +16,10 @@ services:
       ALLOWED_ORIGINS: ${DOCKER_PUBLIC_ORIGIN:-http://127.0.0.1:8080}
       # Never forward maintenance credentials into the application container.
       MIGRATION_DATABASE_URL: ""
+      DOCUMENT_CONVERTER_URL: http://document-converter:3010
+    depends_on:
+      document-converter:
+        condition: service_healthy
     volumes:
       - ./secrets:/run/secrets:ro
       - ./artifacts/stt-models:/app/artifacts/stt-models:ro
@@ -23,6 +27,7 @@ services:
     networks:
       pilot:
         ipv4_address: 172.30.250.20
+      conversion: {}
     stop_grace_period: 20s
     healthcheck:
       test:
@@ -34,6 +39,32 @@ services:
         ]
       interval: 10s
       timeout: 8s
+      retries: 5
+  document-converter:
+    build:
+      context: .
+      dockerfile: infra/document-converter/Dockerfile
+    networks:
+      - conversion
+    read_only: true
+    tmpfs:
+      - /tmp:size=192m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    cpus: 1
+    pids_limit: 96
+    init: true
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:3010/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 3s
       retries: 5
   web:
     build:
@@ -48,6 +79,8 @@ services:
       pilot:
         ipv4_address: 172.30.250.10
 networks:
+  conversion:
+    internal: true
   pilot:
     driver: bridge
     ipam:

@@ -1433,7 +1433,7 @@ describe("Academic workspace", () => {
     const pdf = new File(["week three notes"], "week-3-notes.pdf", {
       type: "application/pdf",
     });
-    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+    fireEvent.change(screen.getByLabelText("Choose documents"), {
       target: { files: [pdf] },
     });
 
@@ -1821,7 +1821,7 @@ describe("Academic workspace", () => {
     const file = new File(["%PDF-1.7 synthetic"], stored.name, {
       type: "application/pdf",
     });
-    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+    fireEvent.change(screen.getByLabelText("Choose documents"), {
       target: { files: [file] },
     });
     fireEvent.click(
@@ -1977,7 +1977,7 @@ describe("Academic workspace", () => {
         type: "application/pdf",
         lastModified: 1757000000000,
       });
-    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+    fireEvent.change(screen.getByLabelText("Choose documents"), {
       target: { files: [pick(), pick()] },
     });
 
@@ -1990,7 +1990,7 @@ describe("Academic workspace", () => {
     window.history.replaceState(null, "", "/#documents");
     render(<App />);
 
-    const picker = screen.getByLabelText("Choose PDF files");
+    const picker = screen.getByLabelText("Choose documents");
     const pick = () =>
       new File(["shared syllabus"], "syllabus.pdf", {
         type: "application/pdf",
@@ -2004,7 +2004,7 @@ describe("Academic workspace", () => {
 
     expect(screen.getAllByText("syllabus.pdf")).toHaveLength(1);
     expect(screen.getByRole("status")).toHaveTextContent(
-      "That PDF is already in the list.",
+      "That document is already in the list.",
     );
   });
   it("uploads a PDF through the API and keeps File for retry after failure", async () => {
@@ -2047,7 +2047,7 @@ describe("Academic workspace", () => {
     const pdf = new File(["%PDF-1.4"], "lifecycle.pdf", {
       type: "application/pdf",
     });
-    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+    fireEvent.change(screen.getByLabelText("Choose documents"), {
       target: { files: [pdf] },
     });
     await waitFor(() =>
@@ -2080,21 +2080,21 @@ describe("Academic workspace", () => {
       screen.queryByLabelText("Preview state for lifecycle.pdf"),
     ).not.toBeInTheDocument();
   });
-  it("rejects non-PDF files before any upload", () => {
+  it("rejects unsupported RTF files before any upload", () => {
     window.history.replaceState(null, "", "/#documents");
     render(<App />);
 
-    const textFile = new File(["not a pdf"], "notes.txt", {
-      type: "text/plain",
+    const textFile = new File(["{\\rtf1 fixture}"], "notes.rtf", {
+      type: "application/rtf",
     });
-    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+    fireEvent.change(screen.getByLabelText("Choose documents"), {
       target: { files: [textFile] },
     });
 
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Only PDF files are accepted",
+      "Choose PDF, DOC, DOCX, Markdown or TXT",
     );
-    expect(screen.queryByText("notes.txt")).not.toBeInTheDocument();
+    expect(screen.queryByText("notes.rtf")).not.toBeInTheDocument();
   });
   it("keeps tasks intact on a failed status update", async () => {
     window.history.replaceState(null, "", "/#tasks");
@@ -2673,7 +2673,7 @@ describe("Academic workspace", () => {
     const pdf = new File(["%PDF-1.4"], "de-cuong.pdf", {
       type: "application/pdf",
     });
-    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+    fireEvent.change(screen.getByLabelText("Choose documents"), {
       target: { files: [pdf] },
     });
     await waitFor(() =>
@@ -2706,7 +2706,7 @@ describe("Academic workspace", () => {
     const pdf = new File(["%PDF-1.4"], "roi-rac.pdf", {
       type: "application/pdf",
     });
-    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+    fireEvent.change(screen.getByLabelText("Choose documents"), {
       target: { files: [pdf] },
     });
     await waitFor(() =>

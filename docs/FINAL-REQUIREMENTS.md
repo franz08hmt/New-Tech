@@ -1,5 +1,19 @@
 # ExaMate — yêu cầu cuối kỳ và traceability
 
+## Document formats extension — 27/10/2026
+
+Documents upload now accepts PDF/DOC/DOCX/UTF-8 MD/TXT within 10 MiB, normalizing
+non-PDF input to a stored PDF using an isolated local converter (ADR-018).
+This extends the existing document upload user story, not a new AI capability.
+Downloads/citations refer to the generated PDF; original Word/text is not archived.
+Indexing/RAG/Study Coach keep their existing contracts, authorization and quotas.
+Traceability: `DocumentConversionService`, shared `document-formats` allowlist,
+`DocumentsPanel`, `infra/document-converter/`, `document-converter.test.mjs`,
+`document-converter.integration.test.mjs`, `document-formats-http.database.test.mjs`
+and `DocumentsSearch.test.tsx`. Conversion is local and provider-free; real-model
+quality, Word layout fidelity and prior pending acceptances are not inferred
+from fixture results. New evidence is recorded separately in FINAL-DEMO-CHECKLIST.
+
 ## Presentation delivery - 25 October 2026
 
 The recommended visual presentation is the offline HTML + 15-page PDF linked in

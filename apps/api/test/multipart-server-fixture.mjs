@@ -1,5 +1,18 @@
 // Child-process fixture only: never loads .env or starts dist/main.js.
 import { fakeDependencies, httpApp } from "./helpers.mjs";
+import { createServer } from "node:http";
+
+let conversionCalls = 0;
+const converter = createServer(async (req, res) => {
+  for await (const _chunk of req) {
+    /* consume only this synthetic fixture body */
+  }
+  conversionCalls++;
+  res.writeHead(200, { "Content-Type": "application/pdf" });
+  res.end("%PDF-1.4\nconversion-fixture\n%%EOF");
+});
+await new Promise((resolve) => converter.listen(0, "127.0.0.1", resolve));
+process.env.DOCUMENT_CONVERTER_URL = `http://127.0.0.1:${converter.address().port}`;
 
 const originalFetch = globalThis.fetch;
 globalThis.fetch = (input, options) => {
@@ -29,9 +42,11 @@ process.on("message", async (message) => {
       uploadCalls: fixture.state.uploadCalls,
       documents: fixture.documents.size,
       objects: fixture.objects.size,
+      conversionCalls,
     });
   if (message === "close") {
     await server.app.close();
+    await new Promise((resolve) => converter.close(resolve));
     process.disconnect();
   }
 });

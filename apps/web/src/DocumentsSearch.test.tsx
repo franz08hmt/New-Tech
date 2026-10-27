@@ -127,6 +127,32 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+it.each([
+  ["notes.md", "text/markdown"],
+  ["notes.txt", ""],
+  [
+    "notes.docx",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ],
+  ["notes.doc", "application/msword"],
+])(
+  "selects %s without auto-upload or indexing and explains PDF conversion",
+  async (name, type) => {
+    const upload = vi.spyOn(api, "uploadDocument");
+    render(view());
+    const input = screen.getByLabelText("Choose documents");
+    fireEvent.change(input, {
+      target: { files: [new File(["fixture"], name, { type })] },
+    });
+    expect(
+      await screen.findByRole("button", { name: `Upload ${name}` }),
+    ).toBeEnabled();
+    expect(screen.getByText(/converted to PDF on the server/i)).toBeVisible();
+    expect(upload).not.toHaveBeenCalled();
+    expect(api.processDocument).not.toHaveBeenCalled();
+  },
+);
+
 describe("Documents server search", () => {
   it("keeps the rows and the pager on screen while the same list is refreshed", async () => {
     render(view());
@@ -335,7 +361,7 @@ describe("Documents server search", () => {
     const file = new File(["%PDF-1.7\n"], uploaded.name, {
       type: "application/pdf",
     });
-    fireEvent.change(screen.getByLabelText("Choose PDF files"), {
+    fireEvent.change(screen.getByLabelText("Choose documents"), {
       target: { files: [file] },
     });
     fireEvent.click(

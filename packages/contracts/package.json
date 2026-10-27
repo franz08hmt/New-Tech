@@ -5,11 +5,17 @@
   "type": "module",
   "types": "./index.d.ts",
   "exports": {
+    "./document-formats": {
+      "types": "./document-formats.d.ts",
+      "default": "./document-formats.js"
+    },
     ".": {
       "types": "./index.d.ts"
     }
   },
   "files": [
-    "index.d.ts"
+    "index.d.ts",
+    "document-formats.js",
+    "document-formats.d.ts"
   ]
 }

@@ -77,6 +77,17 @@ GREEN and browser logs remain ignored in
 `artifacts/technology-deck-20261026/93e8d7a6/`. These are document checks, not
 application, live-model or semantic acceptance. No model call was made.
 
+## 2026-10-27 - DOC, DOCX, Markdown and TXT uploads
+
+At the user's request, AI added DOC, DOCX, Markdown and TXT beside PDF in
+Documents. An earlier AI run (Codex) built an isolated LibreOffice converter
+service, the API conversion boundary, a shared format allowlist and the UI; the run
+stopped before its final gates. A second AI run (Claude Code) reviewed that work
+independently, re-ran every gate on the current tree and recorded the result.
+New formats become a PDF before storage, so page citations, indexing, retrieval and
+Study Coach keep their existing contracts. Conversion calls no AI and nothing was
+applied to the cloud project. ADR-018 records the isolation limits and trade-offs.
+
 ## 2026-10-26 - page-jump fix, display language and member management
 
 At the user's request, AI (Claude Code) diagnosed two Firefox recordings and fixed

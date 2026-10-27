@@ -26,6 +26,8 @@ import {
 import { log } from "../common/log.js";
 import { foldSearchText, foldedSearchSql } from "../common/search-text.js";
 import { StorageService } from "./storage.service.js";
+import { DocumentConversionService } from "./document-conversion.service.js";
+import { documentUploadFormat } from "@examate/contracts/document-formats";
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024;
 export interface PdfFile {
@@ -183,6 +185,7 @@ export class DocumentsService {
     private readonly database: DatabaseService,
     private readonly storage: StorageService,
     private readonly access: DocumentAccessService,
+    private readonly conversion: DocumentConversionService = new DocumentConversionService(),
   ) {}
 
   async list(principal?: PilotPrincipal) {
@@ -348,18 +351,31 @@ export class DocumentsService {
     );
     if (!file)
       throw new BadRequestException(
-        "One PDF file in the 'file' field is required",
+        "One document file in the 'file' field is required",
       );
     if (file.size > MAX_FILE_SIZE)
-      throw new PayloadTooLargeException("PDF must not exceed 10 MiB");
+      throw new PayloadTooLargeException("Document must not exceed 10 MiB");
+    const format = documentUploadFormat(file.originalname, file.mimetype);
+    if (!format && !/\.pdf$/i.test(file.originalname))
+      throw new UnsupportedMediaTypeException({
+        code: "DOCUMENT_FORMAT_UNSUPPORTED",
+        message: "Chỉ nhận PDF, DOC, DOCX, Markdown hoặc TXT.",
+      });
     if (
-      !/\.pdf$/i.test(file.originalname) ||
-      file.mimetype !== "application/pdf" ||
-      file.buffer.subarray(0, 5).toString("ascii") !== "%PDF-"
+      !format ||
+      (format === "pdf" &&
+        file.buffer.subarray(0, 5).toString("ascii") !== "%PDF-")
     )
       throw new UnsupportedMediaTypeException(
         "Only PDF files with a PDF signature are accepted",
       );
+    if (format !== "pdf") {
+      await this.database.workspaceTransaction(principal, async (tx) => {
+        await this.access.authorize(principal, "write", tx);
+        await this.checkCourse(courseId, workspaceId, tx);
+      });
+      file = await this.conversion.toPdf(file);
+    }
     const name = decodeUploadName(file.originalname)
       .replace(/\\/g, "/")
       .split("/")

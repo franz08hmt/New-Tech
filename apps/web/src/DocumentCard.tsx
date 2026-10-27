@@ -37,6 +37,9 @@ export function DocumentCard({
   onCreateQuiz,
 }: DocumentCardProps) {
   const tr = useTr();
+  const localFormat = ["selected", "uploading", "failed"].includes(state)
+    ? /\.(docx|doc|md|txt)$/i.exec(name)?.[1].toUpperCase()
+    : undefined;
   const processLabel =
     processingStatus === "failed"
       ? tr("Retry indexing")
@@ -55,7 +58,7 @@ export function DocumentCard({
             : tr("{value} MiB", {
                 value: (size / 1024 / 1024).toFixed(2),
               })}{" "}
-          {tr("· PDF")}
+          {localFormat ? `· ${localFormat}` : tr("· PDF")}
         </p>
         <p
           className={`document-state document-state--${state}`}

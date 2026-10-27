@@ -24,8 +24,13 @@ import {
 } from "./api";
 import { PilotPrincipalContext } from "./PilotPrincipalContext";
 import { useTr, tl } from "./i18n";
+import {
+  documentUploadFormat,
+  DOCUMENT_UPLOAD_ACCEPT,
+  MAX_DOCUMENT_UPLOAD_BYTES,
+} from "@examate/contracts/document-formats";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_FILE_SIZE = MAX_DOCUMENT_UPLOAD_BYTES;
 interface LocalDocument {
   id: string;
   file: File;
@@ -343,15 +348,17 @@ export function DocumentsPanel({
     setNotice("");
     const invalid = files.find(
       (file) =>
-        !/\.pdf$/i.test(file.name) ||
-        file.type !== "application/pdf" ||
+        !documentUploadFormat(file.name, file.type) ||
         file.size > MAX_FILE_SIZE,
     );
     if (invalid) {
       setError(
-        tr("{name}: Only PDF files are accepted, up to 10 MiB each.", {
-          name: invalid.name,
-        }),
+        tr(
+          "{name}: Choose PDF, DOC, DOCX, Markdown or TXT, up to 10 MiB each.",
+          {
+            name: invalid.name,
+          },
+        ),
       );
       return;
     }
@@ -370,8 +377,8 @@ export function DocumentsPanel({
     setSelected((current) => [...current, ...added]);
     setNotice(
       !added.length && duplicates
-        ? tr("That PDF is already in the list.")
-        : tr("{count} PDF selected.", { count: added.length }) +
+        ? tr("That document is already in the list.")
+        : tr("{count} documents selected.", { count: added.length }) +
             (duplicates
               ? tr(" {duplicates} already in the list was skipped.", {
                   duplicates,
@@ -755,7 +762,9 @@ export function DocumentsPanel({
           </span>
           <span>
             <h2 id="document-library-title">{tr("Document library")}</h2>
-            <p>{tr("Store and manage course and project PDFs.")}</p>
+            <p>
+              {tr("Store and manage study documents as source-linked PDFs.")}
+            </p>
           </span>
         </header>
         <section className="upload-panel" aria-labelledby="upload-title">
@@ -763,15 +772,15 @@ export function DocumentsPanel({
           <h3 id="upload-title">{tr("Add study documents")}</h3>
           <p id="upload-help">
             {tr(
-              "Choose PDF files up to 10 MiB each, then upload each selected file.",
+              "Choose PDF, DOC, DOCX, Markdown or TXT up to 10 MiB each. Other formats are converted to PDF on the server; citations refer to that PDF. Markdown and TXT are imported as literal UTF-8 text.",
             )}
           </p>
           <label className="file-picker">
-            {tr("Choose PDF files")}
+            {tr("Choose documents")}
             <input
               type="file"
               disabled={!canWrite}
-              accept=".pdf,application/pdf"
+              accept={DOCUMENT_UPLOAD_ACCEPT}
               multiple
               aria-describedby="upload-help upload-boundary"
               onChange={selectFiles}
@@ -801,7 +810,7 @@ export function DocumentsPanel({
           )}
           <p id="upload-boundary" className="upload-boundary">
             {tr(
-              "Uploaded PDFs are saved in private Storage with database metadata. Shared demo workspace · index documents for grounded answers.",
+              "Only the PDF is stored and downloaded; original Word or text files are not archived. Conversion does not call AI. Index the saved PDF for grounded answers.",
             )}
           </p>
           {error && (
@@ -1122,7 +1131,9 @@ export function DocumentsPanel({
                   ? tr(
                       "Không tìm thấy tài liệu phù hợp. Hãy đổi hoặc đặt lại bộ lọc.",
                     )
-                  : tr("Chưa có tài liệu nào. Tải một tệp PDF lên để bắt đầu.")}
+                  : tr(
+                      "Chưa có tài liệu nào. Tải PDF, Word, Markdown hoặc văn bản lên để bắt đầu.",
+                    )}
             </p>
           )}
           {!listEmptied && !listError && visibleTotalPages > 0 && (
@@ -1159,7 +1170,11 @@ export function DocumentsPanel({
             <ShieldCheckIcon aria-hidden="true" />
             <span>
               <strong>{tr("Validate and store")}</strong>
-              <small>{tr("PDF file and metadata through the backend")}</small>
+              <small>
+                {tr(
+                  "Validate, convert if needed, then store the PDF and metadata",
+                )}
+              </small>
             </span>
           </li>
           <li>
@@ -1181,7 +1196,7 @@ export function DocumentsPanel({
         </ol>
         <p>
           {tr(
-            "The backend checks size, extension, MIME and PDF signature. This is not a full PDF parser or malware scan.",
+            "The backend validates formats and sizes. Word/text conversion is isolated; saved sources are PDFs. This is not a malware scan or a guarantee of identical Word layout.",
           )}
         </p>
       </aside>
