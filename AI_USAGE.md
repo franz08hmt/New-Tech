@@ -1,5 +1,31 @@
 # AI Assistance Log
 
+## 2026-10-27 — Word summary and document-answer format repair
+
+AI diagnosed the user's screenshot against sanitized local API logs: Word had
+already converted/indexed successfully; model output failed JSON and citation
+consistency checks. Five new regressions failed before the first implementation.
+The later atomic-contract run recorded three failures before block rendering
+(two strengthened contract tests and one new block case). The fix asks for
+content/source pairs, validates them, renders citation
+markers server-side and preserves strict evidence/legacy checks. Per-call JSON/SSE
+budgets and finish-reason handling address truncation risk without automatic
+retry. The original log does not prove truncation was the specific first failure.
+
+The old model contract is a concrete AI failure: independent inline citations
+and ID lists disagreed despite usable evidence. It was detected by the existing
+validator, not accepted as an answer. A second observed failure was non-JSON
+output. Both remain fail-closed; the new versioned schema reduces the formatting
+burden rather than disabling validation or fabricating a successful response.
+
+Verification uses synthetic, authored 19-page DOCX content with real LibreOffice,
+PDF.js, Nest session checks, split non-owner business/Auth LOGINs, PG17/RLS,
+admission, wrappers, receipts and telemetry. Only Auth upstream, Storage and SDK
+transport are fixtures. No paid provider call or cloud migration was made.
+Fresh gate counts, browser scope, initial harness failures and rerun commands are
+recorded in the demo checklist. Unrelated WIP remains outside the fix commit;
+this does not approve historical evaluation, semantic or other pending matrices.
+
 ## 2026-10-26 - explicit technology selection rationale for oral defense
 
 Codex checked the existing oral-study guide and technology knowledge companion.

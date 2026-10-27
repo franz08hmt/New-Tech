@@ -3,6 +3,14 @@
 Workspace học tập cuối kỳ New Technologies của Tài–Thắng: React/Vite,
 NestJS ESM, PostgreSQL/pgvector, Supabase Auth và private Storage.
 
+**Tóm tắt/hỏi tài liệu (27/10/2026):** câu trả lời có giới hạn độ dài và được
+kiểm cấu trúc/nguồn trước khi hiển thị; server ghép marker từ từng đoạn gắn nguồn.
+Không tự gọi model lại nếu output sai hoặc bị cắt. Yêu cầu chép toàn bộ tài liệu
+dài không phải chức năng xuất toàn văn: dùng PDF đã lưu để đọc đầy đủ. Luồng JSON
+và SSE được kiểm bằng fixture Word 19 trang trên Nest/PG17/LibreOffice thật:
+`npm run test:documents:summary --workspace @examate/api`, với hai biến test
+disposable/loopback như phần hướng dẫn converter bên dưới (không dùng DB cloud).
+
 **Upload tài liệu nhiều định dạng (27/10/2026):** Documents nhận PDF, DOC, DOCX,
 Markdown (`.md`) và TXT, tối đa 10 MiB mỗi tệp. Các định dạng mới được chuyển
 thành PDF trên backend trước khi lưu; chỉ PDF được lưu/tải về, không lưu bản gốc

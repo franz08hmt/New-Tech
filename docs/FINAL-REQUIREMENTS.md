@@ -1,5 +1,17 @@
 # ExaMate — yêu cầu cuối kỳ và traceability
 
+## Grounded document answer repair — 27/10/2026
+
+Document questions and summaries now use versioned atomic content/source blocks
+internally, with server-rendered markers and unchanged public answer/receipt
+contracts (ADR-019). Citation validation remains mandatory; no source is repaired
+or invented. JSON/SSE honor bounded per-call output and reject explicit truncated
+structured responses without retries. Trace: `grounded-answer-format.ts`,
+`AssistantService`, `GeminiService`, prompt registry/specs and
+`document-summary-http.database.test.mjs`. New synthetic-provider Word19-page
+HTTP/PG/browser evidence is recorded in FINAL-DEMO-CHECKLIST. It neither replaces
+historical live evaluation nor closes semantic/full-browser pending matrices.
+
 ## Document formats extension — 27/10/2026
 
 Documents upload now accepts PDF/DOC/DOCX/UTF-8 MD/TXT within 10 MiB, normalizing

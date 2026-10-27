@@ -1,5 +1,37 @@
 # Quyết định kiến trúc ExaMate
 
+## ADR-019 — Attach content to sources before server-side citation rendering
+
+27/10/2026. Live local logs showed a successfully indexed Word document followed
+by rejected model JSON and mismatched inline/list citations. Requiring the model
+to independently repeat citation identities in prose and in `citationIds`
+creates avoidable inconsistency. The new internal grounded wire format is
+`{answerable,blocks:[{text,sourceIds}]}`; source IDs are enumerated from the actual
+evidence. Strict server validation bounds 1–12 blocks, text to 600 characters
+each, 5 sources per block and the existing final answer/citation limits. Every
+answerable block needs evidence; a refusal is one block with no sources. The
+server derives markers/unique IDs from that same association, then applies the
+existing validator. Unknown sources, inline source-like text, duplicate IDs in
+one block and extra fields are rejected. Legacy output is still checked strictly;
+no mismatching marker or ID is silently removed or reconciled.
+
+Use separate versioned question/conversation/summary prompts, while preserving
+the public answer/receipt/history contract and immutable evaluation history.
+Grounded output is capped at 4096 tokens; compatible 2.5 Flash calls get a bounded
+256-token thinking budget. Other model families receive no incompatible thinking
+configuration. Shared SDK transport honors per-call limits on JSON and SSE,
+records observed usage and rejects explicit truncated/blocked structured finishes.
+It adds no repair call or automatic retry, and changes no admission call cap,
+RLS, ingestion, model selection or global output default.
+
+Trade-off: this reduces redundant formatting work; attached source IDs still do
+not prove that each claim is semantically entailed. Long-document requests remain
+bounded, not lossless full transcription. Deterministic SDK/PG/browser fixtures
+verify mechanics, not real-model quality. Google's
+[thinking guidance](https://ai.google.dev/gemini-api/docs/generate-content/thinking)
+and [finish reasons](https://ai.google.dev/api/generate-content) describe the
+provider controls; supported behavior remains subject to integration verification.
+
 ## ADR-018 — Normalize Word/text uploads to PDF in an isolated local converter
 
 27/10/2026. The requested formats are PDF, DOC, DOCX, UTF-8 Markdown and TXT,

@@ -1,5 +1,78 @@
 # ExaMate — checklist demo và nộp cuối kỳ
 
+## Grounded document answer repair — 27 October 2026
+
+Source: `3fba8c3`, on `feature/tai-assistant-integration-20261018` over
+`f84b2dc`. The user's Word document was already converted/indexed (19 useful
+pages, 27 chunks); JSON and marker/list inconsistency caused the reported
+`AI_UPSTREAM` errors. No private document content was copied into the fixtures.
+ADR-019 documents the versioned atomic-block contract, bounded generation and
+unchanged public answer/receipt interface. Existing citation refusals remain
+fail-closed; no prompt repair/retry call, model switch or quota increase.
+
+Fresh results on the final source, separate from the previous upload checkpoint:
+
+| Command / evidence                                         | Result                                                                                                                               |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Focused Assistant service/controller/provider/prompt specs | exit 0, 124 PASS / 4 files                                                                                                           |
+| `npm run typecheck`                                        | exit 0                                                                                                                               |
+| `npm test`                                                 | exit 0, 2,399 PASS = 480 API Vitest + 1,324 API Node + 595 Web                                                                       |
+| `npm run build`                                            | exit 0; existing >500 kB web-bundle warning retained                                                                                 |
+| `npm run format:check`                                     | exit 0                                                                                                                               |
+| `npm run test:database` on owned PG17                      | exit 0, 538 PASS / 53 serial files                                                                                                   |
+| `npm run test:documents:summary --workspace @examate/api`  | exit 0, 2 PASS: 19-page DOCX summary JSON and buffered document SSE, including persisted usage/receipt                               |
+| Chrome at 1440px and 375px                                 | summary button and typed question both produce cited answers; keyboard controls, no page overflow, no console error/external request |
+
+All final automated suites have 0 fail/skip/cancelled. The two focused database
+cases are additional to the canonical 538; the 124 focused specs are a subset of
+the application suite. Runtime: real LibreOffice/PDF.js, Nest session/principal,
+separate business/Auth LOGINs (non-owner/NOBYPASSRLS), PG17/RLS, retrieval,
+admission, provider wrappers, receipts and telemetry. Only Auth upstream, Storage
+and SDK transport are synthetic. No real Gemini call or paid service was used.
+
+RED→GREEN is retained under ignored `artifacts/document-summary-fix-20261027/`:
+`red.log` has five new budget/JSON failures before implementation;
+`atomic-contract-red.log` has three failures before block rendering (two tests
+strengthened from the earlier contract, one new block case). Final focused output
+is `focused-final.log`; root results are `test-final.log`, `typecheck-final.log`,
+`build-final.log`, `format-final.log`, `database-final.log`; the focused runtime
+command is `summary-command-green.log`. Browser captures and the labelled
+synthetic boundary are in `browser-b867dbc8/`, including `results.json`,
+`summary-{1440,375}.png` and `question-{1440,375}.png`.
+
+Initial failures were kept: old generated-prompt-version and 1024-token transport
+oracles needed updating for the intentionally versioned contract; the historical
+retrieval golden/corpus files were not changed. Evidence/grouping assertions
+still compare against that golden, while new schema/budget checks are independent.
+An early DB run was interrupted by concurrent host build deleting `dist`; the
+complete rerun passed. The new runtime test initially found its fixture tearing
+down before async SSE telemetry finished, then used bounded persisted-row checks;
+its generation call type was corrected to include `generation_stream`. An ignored
+browser selector had an unquoted UUID; it was fixed without changing application
+code. These harness failures are not counted as extra production defects.
+
+Replay requires a fresh guarded loopback PG17 (`*_test`) with
+`prepare-runtime-roles.mjs` capability bootstrap and an owned isolated converter
+reachable through `TEST_DOCUMENT_CONVERTER_URL`; pass its URL alongside
+`TEST_DATABASE_URL`. No `.env` loading, shared/cloud DB or live key is needed.
+The test rejects unapproved external HTTP. The temporary relay only exposes the
+owned converter for this native test; production conversion stays internal.
+
+The local demo API alone was rebuilt/recreated using the existing Compose/CA
+configuration; `/api/health` returns `ok`, the container is healthy and its
+loaded prompt versions/budgets match this repair. Web/converter, `.env`, cloud
+schema/data and SOP containers were not changed by this fix. A post-health shell
+inspection initially had a quoting error; stdin module inspection then verified
+the loaded versions successfully. The existing Ready document needs no re-upload.
+
+Cleanup verified exact `examate.owner` labels before removing this run's three
+test containers/two networks and verified task/path markers before removing its
+three isolated Chrome profiles. Logs/screenshots are retained; the rebuilt demo
+image/container stays for use. Other resources were not targeted. See
+`cleanup.json`. **CONTRACT/RUNTIME_VERIFIED** covers the stated synthetic cases;
+real-model retry and semantic quality remain unverified here. Existing full
+browser/live/cloud/Google/remote-machine pending matrices are not upgraded.
+
 ## Shared typography/control polish - 25 October 2026
 
 Source `a68a400`: shared CSS loaded after legacy styles across Dashboard, Courses,

@@ -1,5 +1,33 @@
 # ExaMate — context hiện tại cho Tài, Thắng và agent
 
+## Word summary / document-answer format repair — 27/10/2026
+
+The reported DOCX did convert and index: runtime logs record 19/19 useful PDF
+pages and 27 chunks. The failing question/summary were rejected for
+`answer_not_json` and `source_marker_mismatch`, respectively. This is evidence
+of generation-format failure, not failed Word extraction. The old logs do not
+prove token truncation because they did not record the finish reason.
+
+Document generation now asks for bounded atomic `{text,sourceIds}` blocks.
+The server validates each block, derives both inline markers and citation IDs,
+then runs the existing evidence/marker validator. It never repairs foreign or
+inconsistent legacy citations. The public answer, receipt/history, scope checks
+and FE API contract are unchanged. Versions: `rag-json-v2`,
+`rag-conversation-v3`, `rag-summary-v2`; retrieval/corpus/gold and historical
+evaluation results are not rewritten or regraded.
+
+Only grounded calls request a 4096-token output ceiling and a 256-token thinking
+budget on compatible Gemini 2.5 Flash models. SSE now honors the per-call output
+limit, and JSON/SSE reject explicit `MAX_TOKENS`/blocked finishes without retry.
+General, Quiz, Flashcards and OCR prompt semantics and configured defaults stay
+unchanged. Whole-document transcription is not promised: long requests get a
+bounded overview/excerpt and the source PDF remains the complete reference.
+
+New evidence and replay commands are in the current demo checklist under
+“Grounded document answer repair”. All SDK transport used for this verification
+is synthetic; this does not establish new Gemini semantic/live acceptance.
+Other agents' explanatory/source WIP is preserved and excluded from this fix.
+
 ## Multi-format document upload — local implementation verified, 27/10/2026
 
 Scope: PDF plus DOC/DOCX/UTF-8 MD/TXT. Normalize new formats to a canonical PDF
